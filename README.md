@@ -381,6 +381,26 @@ Initialization is idempotent and non-destructive: rerunning it preserves a valid
 
 The directory containing Coquena must be writable by the account that initializes and operates it. A future Bash installer, MSI/MSIX package, or other distribution mechanism is responsible for choosing a location and assigning suitable permissions. `coquena init` does not elevate privileges, modify `PATH`, register a service, integrate with the operating system, or download llama.cpp or models.
 
+## System capability inspection
+
+Inspect the host without initializing or modifying it:
+
+```console
+coquena system
+```
+
+The human-readable report describes the operating system, executable and native architectures, CPU, total memory, graphics adapters, and CPU, CUDA, Vulkan, or Metal backend states. Missing optional GPU hardware, drivers, or loaders are reported normally and do not make the command fail.
+
+Installers and other applications can request the same normalized result as JSON:
+
+```console
+coquena system --json
+```
+
+JSON standard output contains only one newline-terminated document with `schemaVersion` equal to `1`. Optional capabilities use `available`, `unavailable`, `unknown`, or `unsupported`; absence and inconclusive optional probes still return exit status `0`. Non-zero status is reserved for invalid command usage or failure to produce the report.
+
+Windows has the first complete native implementation. Other compiled platforms currently return the Go runtime facts they can establish and explicit deferred capability states. This command does not select, download, install, or activate a llama.cpp runtime.
+
 During development:
 
 * Angular will run through its development server;
