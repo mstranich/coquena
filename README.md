@@ -347,6 +347,40 @@ task verify
 
 Backend and frontend loops remain independently available through the `backend:*` and `web:*` Task namespaces. Run `task --list` for the complete command list.
 
+## Portable initialization
+
+Coquena is designed to remain in the directory where it was manually extracted or placed by a separate installer. It does not copy or relocate itself. Initialize that portable application tree explicitly:
+
+```console
+coquena init
+```
+
+The command derives the application root from the resolved executable location, not from the terminal's current working directory, and creates this layout beside the executable:
+
+```text
+Coquena/
+├── coquena[.exe]
+├── config/
+│   └── coquena.json
+├── data/
+├── downloads/
+├── logs/
+├── runtimes/
+└── tmp/
+```
+
+All Coquena application configuration uses JSON. The initial `config/coquena.json` contains a versioned configuration contract:
+
+```json
+{
+  "schemaVersion": 1
+}
+```
+
+Initialization is idempotent and non-destructive: rerunning it preserves a valid existing configuration and content while recreating missing standard directories. Invalid JSON, unsupported schema versions, filesystem conflicts, and insufficient write permissions produce an error instead of overwriting content.
+
+The directory containing Coquena must be writable by the account that initializes and operates it. A future Bash installer, MSI/MSIX package, or other distribution mechanism is responsible for choosing a location and assigning suitable permissions. `coquena init` does not elevate privileges, modify `PATH`, register a service, integrate with the operating system, or download llama.cpp or models.
+
 During development:
 
 * Angular will run through its development server;
@@ -389,7 +423,7 @@ Its initial implementation will focus exclusively on llama.cpp and its llama-ser
 
 The project is intentionally designed with clear boundaries and replaceable components so it can grow beyond its original use case if the experiment proves useful.
 
-There is no executable, package, installation procedure, stable API or published roadmap yet. The current design represents working hypotheses that may change substantially during implementation.
+There is no published package, operating-system installer, stable API or roadmap yet. The current design represents working hypotheses that may change substantially during implementation.
 
 The first objective is to solve a narrow, real-world problem:
 
