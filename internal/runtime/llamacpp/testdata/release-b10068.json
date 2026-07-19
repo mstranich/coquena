@@ -1,0 +1,20 @@
+{
+  "tag_name": "b10068", "draft": false, "prerelease": false, "published_at": "2026-07-18T00:00:00Z",
+  "assets": [
+    {"name":"llama-b10068-bin-win-cpu-x64.zip","browser_download_url":"https://example/wcpu","size":10,"digest":"sha256:01"},
+    {"name":"llama-b10068-bin-win-vulkan-x64.zip","browser_download_url":"https://example/wvk","size":11,"digest":"sha256:02"},
+    {"name":"llama-b10068-bin-win-cuda-12.4-x64.zip","browser_download_url":"https://example/wc12","size":12,"digest":"sha256:03"},
+    {"name":"cudart-llama-bin-win-cuda-12.4-x64.zip","browser_download_url":"https://example/c12","size":13,"digest":"sha256:04"},
+    {"name":"llama-b10068-bin-win-cuda-13.3-x64.zip","browser_download_url":"https://example/wc13","size":14,"digest":"sha256:05"},
+    {"name":"cudart-llama-bin-win-cuda-13.3-x64.zip","browser_download_url":"https://example/c13","size":15,"digest":"sha256:06"},
+    {"name":"llama-b10068-bin-win-hip-x64.zip","browser_download_url":"https://example/hip","size":16,"digest":"sha256:07"},
+    {"name":"llama-b10068-bin-win-sycl-fp16-x64.zip","browser_download_url":"https://example/sycl","size":17,"digest":"sha256:08"},
+    {"name":"llama-b10068-bin-win-openvino-2026.2.1-x64.zip","browser_download_url":"https://example/ov","size":18,"digest":"sha256:09"},
+    {"name":"llama-b10068-bin-win-opencl-adreno-arm64.zip","browser_download_url":"https://example/ocl","size":19,"digest":"sha256:10"},
+    {"name":"llama-b10068-bin-ubuntu-rocm-7.2-x64.tar.gz","browser_download_url":"https://example/rocm","size":20,"digest":"sha256:11"},
+    {"name":"llama-b10068-bin-macos-arm64.zip","browser_download_url":"https://example/mac","size":21,"digest":"sha256:12"},
+    {"name":"llama-b10068-ui.tar.gz","browser_download_url":"https://example/ui","size":22,"digest":"sha256:13"},
+    {"name":"llama-b10068-xcframework.zip","browser_download_url":"https://example/xc","size":23,"digest":"sha256:14"},
+    {"name":"mystery-cuda-win-x64.zip","browser_download_url":"https://example/no","size":24,"digest":"sha256:15"}
+  ]
+}

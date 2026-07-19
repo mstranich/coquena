@@ -2,7 +2,6 @@ version: '3'
 
 vars:
   WEB_DIR: apps/web
-  BINARY_NAME: coquena
 
 tasks:
   default:
@@ -59,7 +58,7 @@ tasks:
   backend:build:
     desc: Build the Coquena executable
     cmds:
-      - go build -o bin/{{.BINARY_NAME}} ./cmd/coquena
+      - go build -o bin/ ./cmd/coquena
 
   backend:verify:
     desc: Format-check, test, and build the backend

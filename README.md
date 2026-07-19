@@ -401,6 +401,56 @@ JSON standard output contains only one newline-terminated document with `schemaV
 
 Windows has the first complete native implementation. Other compiled platforms currently return the Go runtime facts they can establish and explicit deferred capability states. This command does not select, download, install, or activate a llama.cpp runtime.
 
+## llama.cpp runtime artifacts
+
+Coquena manages official `llama.cpp` binary distributions as versioned local runtimes. The workflow follows runtime and SDK managers such as FNM, NVM, and SDKMAN: discover a compatible build with a short selector, download it by that selector or by its exact upstream asset ID, inspect installed versions, and remove a version explicitly.
+
+List the compatible distributions in the latest official release:
+
+```console
+coquena runtime remote
+coquena runtime remote cuda
+coquena runtime remote cuda@13
+coquena runtime remote b10068 vulkan
+coquena runtime remote --history 20 cuda@13
+```
+
+The human-readable matrix includes the release, CPU or GPU target, normalized backend, exact primary `ASSET` filename, and any `DEPENDENCIES`. For example, a Windows CUDA runtime has a `llama-...` primary asset and a matching `cudart-...` dependency; Coquena treats them as one managed runtime rather than two independent choices.
+
+Download by a convenient selector when it identifies exactly one compatible distribution:
+
+```console
+coquena runtime download cpu
+coquena runtime download cuda@13
+coquena runtime download b10068 vulkan
+```
+
+An omitted release means `latest`. Broad selectors are allowed, but Coquena never guesses: if `cuda`, `cuda@13`, or another shorthand matches multiple distributions, the command exits without downloading or changing files and prints the exact asset IDs that can disambiguate the request. For a reproducible selection, pass the complete primary asset ID shown by `runtime remote`:
+
+```console
+coquena runtime download llama-b10068-bin-win-cuda-13.3-x64.zip
+```
+
+The exact name remains the public ID after installation:
+
+```console
+coquena runtime list
+coquena runtime remove llama-b10068-bin-win-cuda-13.3-x64.zip
+```
+
+Remote discovery and download are constrained to the current operating system, native architecture, and backends established as compatible by `coquena system`. Coquena does not offer cross-platform or cross-architecture downloads, does not consider executable emulation compatible, and does not download a backend whose support is unknown. The initial complete Windows selection covers CPU, CUDA, and Vulkan. `runtime list` still shows every valid managed installation if hardware or driver changes later make one incompatible or unknown, and `runtime remove` can remove it by exact ID.
+
+Remote and local listings support `--json` for automation:
+
+```console
+coquena runtime remote cuda@13 --json
+coquena runtime list --json
+```
+
+Successful JSON output writes only one newline-terminated document to standard output. It uses `schemaVersion: 1` and keeps the applied selection, normalized entries, dependencies, compatibility evidence, and diagnostics as separate fields. Download progress and operational diagnostics do not contaminate JSON standard output.
+
+This scope does not activate a runtime, choose a default, execute `llama-server`, upgrade or roll back an active runtime, manage models, import external or forked builds, expose incompatible remote assets through an `--all` mode, or bypass compatibility with a force/unsafe option. Those behaviors require separate changes after artifact management is established.
+
 During development:
 
 * Angular will run through its development server;

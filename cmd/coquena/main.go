@@ -14,7 +14,7 @@ type initializeFunc func() (installation.Result, error)
 type inspectFunc func() (hostsystem.Report, error)
 
 func main() {
-	os.Exit(execute(os.Args[1:], os.Stdout, os.Stderr, installation.Initialize, hostsystem.Inspect))
+	os.Exit(executeWithRuntime(os.Args[1:], os.Stdout, os.Stderr, installation.Initialize, hostsystem.Inspect, newRuntimeManager()))
 }
 
 func execute(args []string, stdout, stderr io.Writer, initialize initializeFunc, inspectors ...inspectFunc) int {
@@ -22,7 +22,7 @@ func execute(args []string, stdout, stderr io.Writer, initialize initializeFunc,
 	if len(inspectors) > 0 {
 		inspect = inspectors[0]
 	}
-	if err := run(args, stdout, initialize, inspect); err != nil {
+	if err := run(args, stdout, initialize, inspect, nil); err != nil {
 		fmt.Fprintln(stderr, err)
 		return 1
 	}
@@ -30,7 +30,15 @@ func execute(args []string, stdout, stderr io.Writer, initialize initializeFunc,
 	return 0
 }
 
-func run(args []string, stdout io.Writer, initialize initializeFunc, inspect inspectFunc) error {
+func executeWithRuntime(args []string, stdout, stderr io.Writer, initialize initializeFunc, inspect inspectFunc, runtimes runtimeService) int {
+	if err := run(args, stdout, initialize, inspect, runtimes); err != nil {
+		fmt.Fprintln(stderr, err)
+		return 1
+	}
+	return 0
+}
+
+func run(args []string, stdout io.Writer, initialize initializeFunc, inspect inspectFunc, runtimes runtimeService) error {
 	if len(args) == 1 && args[0] == "init" {
 		return runInit(stdout, initialize)
 	}
@@ -40,7 +48,10 @@ func run(args []string, stdout io.Writer, initialize initializeFunc, inspect ins
 	if len(args) == 2 && args[0] == "system" && args[1] == "--json" {
 		return runSystem(stdout, inspect, true)
 	}
-	return errors.New("usage: coquena init\n       coquena system [--json]")
+	if len(args) > 0 && args[0] == "runtime" {
+		return runRuntime(args[1:], stdout, runtimes)
+	}
+	return errors.New(commandUsage)
 }
 
 func runInit(stdout io.Writer, initialize initializeFunc) error {
