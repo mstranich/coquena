@@ -274,9 +274,9 @@ coquena/
 │   │   └── llamacpp/        # llama.cpp adapter
 │   ├── service/             # Windows and Linux service integration
 │   └── system/              # Process and OS abstractions
-├── docs/
-│   ├── architecture.md
-│   └── decisions/           # Architecture Decision Records
+├── openspec/
+│   ├── specs/               # Current, stable capability requirements
+│   └── changes/             # Active and archived change artifacts
 ├── schemas/                 # Configuration and API schemas
 ├── Taskfile.yml
 ├── go.mod
@@ -285,6 +285,42 @@ coquena/
 ```
 
 This structure is provisional and will evolve once implementation starts.
+
+## Specification-driven workflow
+
+Coquena uses [OpenSpec](https://github.com/Fission-AI/OpenSpec) as the single repository-local system for planning changes, recording technical design, defining behavioral requirements, tracking implementation tasks, and preserving completed change history.
+
+The `openspec/` directory is organized as follows:
+
+```text
+openspec/
+├── config.yaml              # Project context and artifact rules
+├── specs/                   # Stable requirements describing current behavior
+└── changes/
+    ├── <change-name>/       # Active proposal, design, delta specs, and tasks
+    └── archive/             # Completed changes preserved with their context
+```
+
+Each non-trivial change follows the same lifecycle:
+
+1. Create a change with a narrow proposal and explicit non-goals.
+2. Define testable requirements and scenarios.
+3. Record the technical design and relevant trade-offs.
+4. Break implementation into independently verifiable tasks.
+5. Implement and validate every task.
+6. Synchronize the stable specs and archive the completed change.
+
+Architectural decisions that belong to a capability are recorded in that change's `design.md`. Once archived, the design remains available with the proposal, requirements, and implementation tasks that motivated it. This avoids maintaining a separate documentation hierarchy whose relationship to the implemented behavior is unclear.
+
+Useful inspection commands include:
+
+```console
+openspec list
+openspec list --specs
+openspec validate --all
+```
+
+The root README communicates product intent and the high-level architectural hypothesis. The stable OpenSpec files under `openspec/specs/` are the behavioral source of truth for implemented capabilities.
 
 ## Development workflow
 

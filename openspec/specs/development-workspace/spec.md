@@ -11,7 +11,7 @@ The project SHALL materialize every directory in the initial repository structur
 
 #### Scenario: Developer inspects a clean checkout
 - **WHEN** a developer checks out the completed spike
-- **THEN** the `apps/web`, `cmd/coquena`, documented `internal` packages, `docs/decisions`, and `schemas` paths are present without implying that deferred behavior is implemented
+- **THEN** the `apps/web`, `cmd/coquena`, documented `internal` packages, `openspec`, and `schemas` paths are present without implying that deferred behavior is implemented
 
 ### Requirement: Windows development prerequisites are explicit
 The project SHALL document Go 1.26.5, Node.js 24.18.0, npm 11.16.0, and Task 3.52.0 as the minimum supported versions required to bootstrap the Coquena development workspace on Windows.
