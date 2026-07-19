@@ -1,0 +1,38 @@
+schema: spec-driven
+
+context: |
+  Coquena is a local control plane for operating one llama.cpp llama-server
+  instance reliably and with minimal unnecessary restarts.
+  Initial target: Windows. Linux support is planned after the first workflow is
+  validated. Backend: Go. Administration UI: Angular. Distribution goal: one
+  executable embedding the compiled UI.
+  Preserve explicit llama.cpp configuration rather than hiding it behind a
+  simplified abstraction. The browser UI must remain an API client and must not
+  perform privileged process or operating-system operations.
+  Work in baby steps: prefer the smallest end-to-end behavior that can be
+  specified, tested, demonstrated, and reviewed independently.
+  Development baseline: Go 1.26.5, Node.js 24.18.0, npm 11.16.0, and Task
+  3.52.0. Use Conventional Commits. Normalize repository text files to LF and
+  require a final newline. Treat the repository as Unix-style on every host:
+  use `/` paths in documentation and configuration, avoid host-specific shell
+  syntax, and do not add CRLF or Windows-only script conventions by default.
+  Windows remains the first product runtime target. The project license is
+  intentionally undecided.
+  Angular async boundaries use RxJS and expose signal-based state to templates
+  through Angular's RxJS interoperability APIs.
+
+rules:
+  proposal:
+    - Define one narrow, user-observable outcome.
+    - Include explicit non-goals to prevent premature expansion.
+    - Prefer a reversible step over a broad foundation.
+  specs:
+    - Express requirements as testable behavior with concrete scenarios.
+    - Cover failure behavior when it is part of the proposed outcome.
+  design:
+    - Introduce only the architecture needed by the current change.
+    - Record tradeoffs and defer speculative abstractions.
+  tasks:
+    - Break work into independently verifiable baby steps.
+    - Keep each task focused on one behavior and its tests.
+    - Do not add future-facing infrastructure without a current requirement.

@@ -1,0 +1,99 @@
+version: '3'
+
+vars:
+  WEB_DIR: apps/web
+  BINARY_NAME: coquena
+
+tasks:
+  default:
+    desc: List available tasks
+    cmds:
+      - task --list
+
+  tools:
+    desc: Print and verify the development toolchain
+    cmds:
+      - go version
+      - node --version
+      - npm --version
+      - task --version
+    preconditions:
+      - sh: go version
+        msg: Go 1.26.5 or newer is required
+      - sh: node --version
+        msg: Node.js 24.18.0 or newer is required
+      - sh: npm --version
+        msg: npm 11.16.0 or newer is required
+
+  deps:
+    desc: Restore all workspace dependencies
+    deps: [backend:deps, web:deps]
+
+  verify:
+    desc: Verify the complete workspace
+    deps: [backend:verify, web:verify]
+
+  bootstrap:
+    desc: Verify tools, restore dependencies, and verify the workspace
+    cmds:
+      - task: tools
+      - task: deps
+      - task: verify
+
+  backend:deps:
+    desc: Restore and verify Go module dependencies
+    cmds:
+      - go mod download
+      - go mod verify
+
+  backend:fmt-check:
+    desc: Format Go packages
+    cmds:
+      - go fmt ./...
+
+  backend:test:
+    desc: Run Go tests
+    cmds:
+      - go test ./...
+
+  backend:build:
+    desc: Build the Coquena executable
+    cmds:
+      - go build -o bin/{{.BINARY_NAME}} ./cmd/coquena
+
+  backend:verify:
+    desc: Format-check, test, and build the backend
+    cmds:
+      - task: backend:fmt-check
+      - task: backend:test
+      - task: backend:build
+
+  web:deps:
+    desc: Restore frontend dependencies from the lockfile
+    dir: '{{.WEB_DIR}}'
+    cmds:
+      - npm ci
+
+  web:test:
+    desc: Run frontend tests once
+    dir: '{{.WEB_DIR}}'
+    cmds:
+      - npm test -- --watch=false
+
+  web:build:
+    desc: Build the frontend for production
+    dir: '{{.WEB_DIR}}'
+    cmds:
+      - npm run build
+
+  web:serve:
+    desc: Start the Angular development server
+    dir: '{{.WEB_DIR}}'
+    cmds:
+      - npm start
+
+  web:verify:
+    desc: Test and build the frontend
+    cmds:
+      - task: web:test
+      - task: web:build

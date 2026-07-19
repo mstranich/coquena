@@ -1,0 +1,30 @@
+# Editors and operating systems
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Local environment
+.env
+.env.*
+!.env.example
+
+# Go
+/bin/
+/dist/
+*.exe
+*.test
+*.out
+coverage/
+
+# Angular and Node.js
+node_modules/
+.angular/
+apps/web/dist/
+apps/web/coverage/
+npm-debug.log*
+
+# Local Task files
+.task/
