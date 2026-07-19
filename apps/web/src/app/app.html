@@ -1,0 +1,13 @@
+<main class="shell">
+  <header class="shell__header">
+    <p class="shell__eyebrow">Local inference control plane</p>
+    <h1>{{ title() }}</h1>
+  </header>
+
+  <section class="status" aria-labelledby="workspace-status">
+    <h2 id="workspace-status">Workspace status</h2>
+    <p>{{ workspaceStatus() }}</p>
+  </section>
+
+  <router-outlet />
+</main>
