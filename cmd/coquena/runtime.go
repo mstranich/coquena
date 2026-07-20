@@ -9,7 +9,7 @@ import (
 	"strings"
 )
 
-const commandUsage = "usage: coquena init\n       coquena system [--json]\n       coquena runtime remote [latest|<tag>] [<backend-selector>] [--json]\n       coquena runtime remote --history <count> [<backend-selector>] [--json]\n       coquena runtime download <asset-id|backend-selector> [<backend-selector>] [--json]\n       coquena runtime list [<backend-selector>] [--json]\n       coquena runtime remove <asset-id> [--json]"
+const commandUsage = "usage: coquena init\n       coquena webui [--port <port>]\n       coquena system [--json]\n       coquena runtime remote [latest|<tag>] [<backend-selector>] [--json]\n       coquena runtime remote --history <count> [<backend-selector>] [--json]\n       coquena runtime download <asset-id|backend-selector> [<backend-selector>] [--json]\n       coquena runtime list [<backend-selector>] [--json]\n       coquena runtime remove <asset-id> [--json]"
 
 type runtimeQuery struct {
 	Release  string

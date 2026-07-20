@@ -57,6 +57,7 @@ tasks:
 
   backend:build:
     desc: Build the Coquena executable
+    deps: [web:build]
     cmds:
       - go build -o bin/ ./cmd/coquena
 

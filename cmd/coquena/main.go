@@ -1,13 +1,17 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
 	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/mstranich/coquena/internal/installation"
 	hostsystem "github.com/mstranich/coquena/internal/system"
+	"github.com/mstranich/coquena/internal/webui"
 )
 
 type initializeFunc func() (installation.Result, error)
@@ -42,6 +46,9 @@ func run(args []string, stdout io.Writer, initialize initializeFunc, inspect ins
 	if len(args) == 1 && args[0] == "init" {
 		return runInit(stdout, initialize)
 	}
+	if len(args) > 0 && args[0] == "webui" {
+		return runWebUI(args[1:], stdout, os.Stderr)
+	}
 	if len(args) == 1 && args[0] == "system" {
 		return runSystem(stdout, inspect, false)
 	}
@@ -52,6 +59,16 @@ func run(args []string, stdout io.Writer, initialize initializeFunc, inspect ins
 		return runRuntime(args[1:], stdout, runtimes)
 	}
 	return errors.New(commandUsage)
+}
+
+func runWebUI(args []string, stdout, stderr io.Writer) error {
+	port, err := webui.ParsePort(args)
+	if err != nil {
+		return err
+	}
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	return webui.Serve(ctx, port, stdout)
 }
 
 func runInit(stdout io.Writer, initialize initializeFunc) error {
