@@ -13,7 +13,12 @@
 }
 
 .shell__header {
-  max-width: 48rem;
+  max-width: 72rem;
+  margin: auto;
+  display:flex;
+  align-items:end;
+  justify-content:space-between;
+  gap:1rem;
 }
 
 .shell__eyebrow {
@@ -32,24 +37,12 @@ p {
 }
 
 h1 {
-  margin-bottom: 2.5rem;
-  font-size: clamp(3rem, 12vw, 7rem);
+  margin-bottom: 0;
+  font-size: clamp(2.5rem, 8vw, 5rem);
   letter-spacing: -0.06em;
 }
 
-.status {
-  max-width: 32rem;
-  padding: 1.5rem;
-  border: 1px solid #cad3c8;
-  border-radius: 1rem;
-  background: #fffdf7;
-}
-
-.status h2 {
-  font-size: 1rem;
-}
-
-.status p {
-  margin-bottom: 0;
-  color: #526d58;
-}
+.shell__header nav { display:flex; gap:.75rem; }
+.shell__header a { color:#17231b; text-decoration:none; padding:.4rem .1rem; border-bottom:2px solid transparent; }
+.shell__header a.active { border-color:#526d58; }
+.status { max-width:72rem; margin:1rem auto 0; color:#526d58; font-size:.86rem; }

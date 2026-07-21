@@ -1,0 +1,41 @@
+<section class="workspace fields-workspace">
+  <header>
+    <div><p class="eyebrow">Custom fields catalog</p><h2>Fields</h2></div>
+    <label class="search"><app-icon name="search"/><input aria-label="Filter fields by name" autofocus placeholder="Filter by name" [ngModel]="filter()" (ngModelChange)="filter.set($event)"></label>
+  </header>
+  @if (message()) { <p class="message">{{ message() }}</p> }
+
+  <ng-template #fieldTree let-field>
+    @let form = editor(field);
+    <article class="field-node" [class.draft]="field.draft">
+      <div class="field-row">
+        <div class="field-identity"><strong>{{ field.draft ? 'New ' + field.kind : field.name }}</strong><small>{{ field.kind }}</small></div>
+        <label class="field-name">Field<input [id]="'field-' + field.id" [name]="'name-' + field.id" [(ngModel)]="form.name" placeholder="fit"></label>
+        @if (field.kind !== 'void') { <label>Value<input [name]="'default-' + field.id" [(ngModel)]="form.defaultValue"></label> }
+        @if (field.kind === 'boolean') { <label>False key<input [name]="'false-' + field.id" [(ngModel)]="form.falseArgument" placeholder="no-fit"></label> }
+        <button type="button" (click)="save(field)"><app-icon name="edit"/>{{ field.draft ? 'Save' : 'Update' }}</button>
+        <button type="button" class="danger" [attr.aria-label]="'Remove ' + (field.name || field.kind)" (click)="remove(field)"><app-icon name="delete"/>Remove</button>
+      </div>
+
+      @if (field.kind === 'enum') {
+        <div class="enum-editor"><label>Option<span class="inline"><input [name]="'option-' + field.id" [(ngModel)]="form.enumInput" (keydown.enter)="$event.preventDefault(); addOption(form)"><button type="button" (click)="addOption(form)">Add</button></span></label><ul class="options">@for (option of form.enumOptions; track option) { <li>{{ option }} <button type="button" (click)="removeOption(form, option)">Remove</button></li> }</ul></div>
+      }
+
+      @if (!field.draft) {
+        <label class="children-toggle"><input type="checkbox" [name]="'children-' + field.id" [checked]="field.allowsChildren" (change)="toggleChildren(field, $event)">Allow children</label>
+      }
+
+      @if (field.allowsChildren) {
+        <div class="children-group">
+          @for (child of children(field.id); track child.id) { <ng-container *ngTemplateOutlet="fieldTree; context: { $implicit: child }"/> }
+          <div class="child-add-controls" aria-label="Add child field">
+            <button type="button" (click)="addChild(field, 'void')">+ Flag</button><button type="button" (click)="addChild(field, 'string')">+ String</button><button type="button" (click)="addChild(field, 'integer')">+ Number</button><button type="button" (click)="addChild(field, 'enum')">+ Enum</button><button type="button" (click)="addChild(field, 'boolean')">+ Bool</button>
+          </div>
+        </div>
+      }
+    </article>
+  </ng-template>
+
+  <div class="field-tree">@for (field of roots; track field.id) { <ng-container *ngTemplateOutlet="fieldTree; context: { $implicit: field }"/> } @empty { <p>No fields yet. Use one of the type buttons below.</p> }</div>
+  <div class="commands root-add-controls" aria-label="Add field"><button (click)="add('void')">+ Flag</button><button (click)="add('string')">+ String</button><button (click)="add('integer')">+ Number</button><button (click)="add('enum')">+ Enum</button><button (click)="add('boolean')">+ Bool</button></div>
+</section>

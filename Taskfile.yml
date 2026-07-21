@@ -30,7 +30,9 @@ tasks:
 
   verify:
     desc: Verify the complete workspace
-    deps: [backend:verify, web:verify]
+    cmds:
+      - task: web:verify
+      - task: backend:verify
 
   bootstrap:
     desc: Verify tools, restore dependencies, and verify the workspace

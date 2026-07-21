@@ -3,6 +3,7 @@ package webui
 import (
 	"net/http"
 	"net/http/httptest"
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -24,6 +25,8 @@ func TestHandlerRejectsHealthMethods(t *testing.T) {
 }
 
 func TestHandlerServesRoutesAndAssets(t *testing.T) {
+	index := httptest.NewRecorder()
+	Handler().ServeHTTP(index, httptest.NewRequest(http.MethodGet, "/", nil))
 	for _, path := range []string{"/", "/settings"} {
 		rec := httptest.NewRecorder()
 		Handler().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, path, nil))
@@ -36,8 +39,12 @@ func TestHandlerServesRoutesAndAssets(t *testing.T) {
 	if rec.Code != http.StatusNotFound {
 		t.Fatalf("missing asset status = %d, want 404", rec.Code)
 	}
+	match := regexp.MustCompile(`src="([^"]+\.js)"`).FindStringSubmatch(index.Body.String())
+	if len(match) != 2 {
+		t.Fatalf("index does not reference a JavaScript asset")
+	}
 	asset := httptest.NewRecorder()
-	Handler().ServeHTTP(asset, httptest.NewRequest(http.MethodGet, "/main-JSISU3YJ.js", nil))
+	Handler().ServeHTTP(asset, httptest.NewRequest(http.MethodGet, "/"+match[1], nil))
 	if asset.Code != http.StatusOK || !strings.HasPrefix(asset.Header().Get("Content-Type"), "text/javascript") {
 		t.Fatalf("javascript asset response = (%d, %q)", asset.Code, asset.Header().Get("Content-Type"))
 	}

@@ -1,10 +1,13 @@
 import { TestBed } from '@angular/core/testing';
+import { provideRouter } from '@angular/router';
 import { App } from './app';
+import { routes } from './app.routes';
 
 describe('App', () => {
   beforeEach(async () => {
     await TestBed.configureTestingModule({
       imports: [App],
+      providers: [provideRouter(routes)],
     }).compileComponents();
   });
 
@@ -21,12 +24,20 @@ describe('App', () => {
     expect(compiled.querySelector('h1')?.textContent).toContain('Coquena');
   });
 
-  it('should expose RxJS workspace state through a signal', async () => {
+  it('should expose browser-memory workspace state', async () => {
     const fixture = TestBed.createComponent(App);
     await fixture.whenStable();
     const compiled = fixture.nativeElement as HTMLElement;
-    expect(compiled.querySelector('.status p')?.textContent).toContain(
-      'Development workspace ready',
+    expect(compiled.querySelector('.status')?.textContent).toContain(
+      'Browser-memory workspace',
     );
+  });
+
+  it('renders workspace navigation', async () => {
+    const fixture = TestBed.createComponent(App);
+    await fixture.whenStable();
+    const compiled = fixture.nativeElement as HTMLElement;
+    expect(compiled.querySelector('a[href="/fields"]')?.textContent).toContain('Fields');
+    expect(compiled.querySelector('a[href="/presets"]')?.textContent).toContain('Presets');
   });
 });
