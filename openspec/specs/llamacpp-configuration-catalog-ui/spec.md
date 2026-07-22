@@ -5,15 +5,15 @@ Define Coquena's browser-only UI for a typed llama.cpp configuration field catal
 ## Requirements
 
 ### Requirement: Navigate configuration catalog workspaces
-The Angular Web UI SHALL present persistent navigation to field-catalog and preset workspaces, and each workspace SHALL be addressable by its own client-side route.
+The Angular Web UI SHALL present Settings as the global Coquena configuration destination and SHALL expose the Fields workspace from Settings. The Models workspace SHALL expose the Presets workspace because presets are executable configurations for a global default or particular model. Each workspace SHALL be addressable by its own client-side route.
 
-#### Scenario: Open the fields workspace
-- **WHEN** a user selects the Fields navigation item
+#### Scenario: Open the fields workspace from Settings
+- **WHEN** a user selects the preset-fields entry point in Settings
 - **THEN** the UI displays the field catalog workspace without losing the in-memory application state
 
-#### Scenario: Open the presets workspace directly
-- **WHEN** a user loads the presets client-side route
-- **THEN** the UI displays the preset workspace within the Coquena application shell
+#### Scenario: Open the presets workspace from Models
+- **WHEN** a user selects a global or model-specific preset configuration affordance in Models
+- **THEN** the UI displays the preset workspace within the Models context
 
 ### Requirement: Provide compact keyboard-accessible catalog controls
 The field catalog workspace SHALL use semantic controls and compact custom styling, with Angular CDK used for keyboard-managed interactions where required. The UI SHALL NOT require Angular Material or a remote icon font.
