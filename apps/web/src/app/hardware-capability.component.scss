@@ -1,0 +1,79 @@
+.hardware {
+    margin-top: 1rem
+}
+
+/* Mirrors the control-plane card treatment; component styles are encapsulated. */
+.card {
+    box-sizing: border-box;
+    border: 1px solid #cbd5c9;
+    background: #fffdf8;
+    border-radius: .7rem;
+    padding: 1rem;
+    box-shadow: 0 .25rem .5rem #17231b0a
+}
+
+.hardware-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1rem
+}
+
+.hardware-grid div,
+.devices,
+.backends {
+    display: grid;
+    gap: .2rem
+}
+
+.hardware span,
+.hardware small {
+    color: #58715e;
+    font-size: .78rem
+}
+
+.hardware strong {
+    font-size: .92rem
+}
+
+.devices,
+.backends {
+    border-top: 1px solid #dce3d9;
+    margin-top: .8rem;
+    padding-top: .7rem
+}
+
+.backends {
+    display: flex;
+    align-items: center;
+    gap: .4rem;
+    flex-wrap: wrap
+}
+
+.pill {
+    border-radius: 999px;
+    padding: .2rem .5rem;
+    background: #dcebdc;
+    color: #31563a;
+    font-weight: 700
+}
+
+.unavailable,
+.unsupported {
+    background: #f0e8d6;
+    color: #795b2b
+}
+
+.unknown {
+    background: #eee;
+    color: #555
+}
+
+.error {
+    color: #8d3e35
+}
+
+@media(max-width:52rem) {
+    .hardware-grid {
+        grid-template-columns: 1fr
+    }
+}

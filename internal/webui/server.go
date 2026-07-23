@@ -12,12 +12,16 @@ import (
 	"net/http"
 	"path"
 	"strings"
+
+	hostsystem "github.com/mstranich/coquena/internal/system"
 )
 
 //go:embed dist/*
 var assets embed.FS
 
 const defaultPort = 8080
+
+type inspectFunc func() (hostsystem.Report, error)
 
 func ParsePort(args []string) (int, error) {
 	flags := flag.NewFlagSet("webui", flag.ContinueOnError)
@@ -53,6 +57,10 @@ func Serve(ctx context.Context, port int, stdout io.Writer) error {
 }
 
 func Handler() http.Handler {
+	return HandlerWithInspector(hostsystem.Inspect)
+}
+
+func HandlerWithInspector(inspect inspectFunc) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/api/health" {
 			if r.Method != http.MethodGet {
@@ -61,6 +69,22 @@ func Handler() http.Handler {
 			}
 			w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 			_, _ = io.WriteString(w, "ok\n")
+			return
+		}
+		if r.URL.Path == "/api/system" {
+			if r.Method != http.MethodGet {
+				w.WriteHeader(http.StatusMethodNotAllowed)
+				return
+			}
+			report, err := inspect()
+			if err != nil {
+				http.Error(w, `{"error":"system inspection failed"}`, http.StatusInternalServerError)
+				return
+			}
+			w.Header().Set("Content-Type", "application/json; charset=utf-8")
+			if err := hostsystem.WriteJSON(w, report); err != nil {
+				return
+			}
 			return
 		}
 		serveStatic(w, r)

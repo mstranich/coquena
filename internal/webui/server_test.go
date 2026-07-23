@@ -1,11 +1,14 @@
 package webui
 
 import (
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"regexp"
 	"strings"
 	"testing"
+
+	hostsystem "github.com/mstranich/coquena/internal/system"
 )
 
 func TestHandlerHealth(t *testing.T) {
@@ -21,6 +24,31 @@ func TestHandlerRejectsHealthMethods(t *testing.T) {
 	Handler().ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/api/health", nil))
 	if rec.Code != http.StatusMethodNotAllowed || strings.Contains(rec.Body.String(), "<!doctype html>") {
 		t.Fatalf("health POST response = (%d, %q)", rec.Code, rec.Body.String())
+	}
+}
+
+func TestHandlerSystem(t *testing.T) {
+	inspect := func() (hostsystem.Report, error) {
+		return hostsystem.Report{SchemaVersion: 1, OS: hostsystem.OperatingSystem{Family: "windows"}, ExecutableArchitecture: "amd64", CPU: hostsystem.CPU{LogicalProcessors: 8}, Backends: []hostsystem.BackendCapability{{Type: "cuda", State: hostsystem.Unavailable}}}, nil
+	}
+	rec := httptest.NewRecorder()
+	HandlerWithInspector(inspect).ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/system", nil))
+	if rec.Code != http.StatusOK || !strings.HasPrefix(rec.Header().Get("Content-Type"), "application/json") || !strings.Contains(rec.Body.String(), `"schemaVersion":1`) {
+		t.Fatalf("system response = (%d, %q, %q)", rec.Code, rec.Body.String(), rec.Header().Get("Content-Type"))
+	}
+}
+
+func TestHandlerSystemFailureAndMethods(t *testing.T) {
+	handler := HandlerWithInspector(func() (hostsystem.Report, error) { return hostsystem.Report{}, fmt.Errorf("probe failed") })
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/system", nil))
+	if rec.Code != http.StatusInternalServerError || strings.Contains(rec.Body.String(), "<app-root>") {
+		t.Fatalf("system failure = (%d, %q)", rec.Code, rec.Body.String())
+	}
+	rec = httptest.NewRecorder()
+	handler.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/api/system", nil))
+	if rec.Code != http.StatusMethodNotAllowed {
+		t.Fatalf("system POST = %d", rec.Code)
 	}
 }
 
