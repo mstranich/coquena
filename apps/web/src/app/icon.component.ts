@@ -8,6 +8,8 @@ import { Component, input } from '@angular/core';
     @if (name() === 'edit') { <path d="M12 20h9M16 4l4 4L8 20H4v-4L16 4z"/> }
     @if (name() === 'search') { <circle cx="11" cy="11" r="6"/><path d="m20 20-4-4"/> }
   </svg>`,
-  styles: ':host{display:inline-flex;vertical-align:middle;margin-right:.2rem}'
+  styles: ':host{display:inline-flex;vertical-align:middle;margin-right:.2rem}',
 })
-export class IconComponent { readonly name = input.required<'add' | 'delete' | 'edit' | 'search'>(); }
+export class IconComponent {
+  readonly name = input.required<'add' | 'delete' | 'edit' | 'search'>();
+}

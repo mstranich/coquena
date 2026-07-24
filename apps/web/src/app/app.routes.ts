@@ -1,7 +1,7 @@
 import { Routes } from '@angular/router';
+import { ControlPlaneComponent } from './control-plane.component';
 import { FieldsComponent } from './fields.component';
 import { PresetsComponent } from './presets.component';
-import { ControlPlaneComponent } from './control-plane.component';
 import { SettingsComponent } from './settings.component';
 
 export const routes: Routes = [

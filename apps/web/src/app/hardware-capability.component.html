@@ -1,18 +1,34 @@
 <article class="card hardware" aria-live="polite">
-    <p class="eyebrow">Detected hardware</p>@if (capabilities.loading() && !capabilities.report()) { <p>Detecting host
-        capabilities…</p> } @else if (capabilities.error() && !capabilities.report()) { <p class="error">Hardware
-        information is unavailable.</p><button (click)="capabilities.load(true)">Retry</button> } @else if
-    (capabilities.report(); as report) { <div class="hardware-grid">
-        <div><span>System</span><strong>{{ report.os.name || report.os.family }} {{ report.os.version || ''
-                }}</strong><small>{{ report.os.nativeArchitecture || 'unknown' }} · executable {{
-                report.executableArchitecture }}</small></div>
-        <div><span>CPU</span><strong>{{ report.cpu.model || 'unknown' }}</strong><small>{{ report.cpu.logicalProcessors
-                }} logical processors</small></div>
-        <div><span>Memory</span><strong>{{ memory(report.memory.totalBytes) }}</strong></div>
+  <p class="eyebrow">Detected hardware</p>
+  @if (capabilities.loading() && !capabilities.report()) {
+    <p>
+      Detecting host capabilities…
+    </p>
+  } @else if (capabilities.error() && !capabilities.report()) {
+    <p class="error">
+      Hardware information is unavailable.
+    </p><button (click)="capabilities.load(true)">Retry</button>
+  } @else if (capabilities.report(); as report) {
+    <div class="hardware-grid">
+      <div>
+        <span>System</span><strong>{{ report.os.name || report.os.family }} {{ report.os.version || '' }}</strong><small>{{
+            report.os.nativeArchitecture || 'unknown'
+          }} · executable {{ report.executableArchitecture }}</small>
+      </div>
+      <div><span>CPU</span><strong>{{ report.cpu.model || 'unknown' }}</strong><small>{{ report.cpu.logicalProcessors }} logical processors</small></div>
+      <div><span>Memory</span><strong>{{ memory(report.memory.totalBytes) }}</strong></div>
     </div>
-    <div class="devices"><span>Graphics</span>@if (report.graphics.length) { @for (device of report.graphics; track
-        device.id) { <strong>{{ device.name }} · {{ memory(device.memoryBytes) }}</strong> } } @else { <strong>None
-            detected</strong> }</div>
-    <div class="backends"><span>Backends</span>@for (backend of report.backends; track backend.type) { <span
-            class="pill {{ backend.state }}">{{ backend.type }} · {{ backend.state }}</span> }</div> }
+    <div class="devices">
+      <span>Graphics</span>@if (report.graphics.length) {
+        @for (device of report.graphics; track device.id) { <strong>{{ device.name }} · {{ memory(device.memoryBytes) }}</strong> }
+      } @else {
+        <strong>None detected</strong>
+      }
+    </div>
+    <div class="backends">
+      <span>Backends</span>@for (backend of report.backends; track backend.type) {
+        <span class="pill {{ backend.state }}">{{ backend.type }} · {{ backend.state }}</span>
+      }
+    </div>
+  }
 </article>

@@ -95,7 +95,21 @@ tasks:
       - npm start
 
   web:verify:
-    desc: Test and build the frontend
+    desc: Check formatting and lint, then test and build the frontend
     cmds:
+      - task: web:format-check
+      - task: web:lint
       - task: web:test
       - task: web:build
+
+  web:format-check:
+    desc: Verify frontend source formatting
+    dir: '{{.WEB_DIR}}'
+    cmds:
+      - npm run format:check
+
+  web:lint:
+    desc: Lint frontend sources
+    dir: '{{.WEB_DIR}}'
+    cmds:
+      - npm run lint

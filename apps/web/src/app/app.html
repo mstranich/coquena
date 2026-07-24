@@ -1,7 +1,15 @@
 <main class="shell">
   <header class="shell__header">
-    <div><p class="shell__eyebrow">Local inference control plane</p><h1>{{ title() }}</h1></div>
-    <nav aria-label="Workspace"><a routerLink="/dashboard" routerLinkActive="active">Dashboard</a><a routerLink="/models" routerLinkActive="active">Models</a><a routerLink="/runtimes" routerLinkActive="active">Runtimes</a><a routerLink="/settings" routerLinkActive="active">Settings</a></nav>
+    <div>
+      <p class="shell__eyebrow">Local inference control plane</p>
+      <h1>{{ title() }}</h1>
+    </div>
+    <nav aria-label="Workspace">
+      <a routerLink="/dashboard" routerLinkActive="active">Dashboard</a><a routerLink="/models" routerLinkActive="active">Models</a><a
+        routerLink="/runtimes"
+        routerLinkActive="active"
+      >Runtimes</a><a routerLink="/settings" routerLinkActive="active">Settings</a>
+    </nav>
   </header>
 
   <p class="status" id="workspace-status">{{ workspaceStatus() }} · changes disappear on refresh</p>

@@ -1,0 +1,21 @@
+{
+  "includes": ["src/**/*.ts", "src/**/*.html"],
+  "typescript": {
+    "arrowFunction.useParentheses": "maintain",
+    "indentWidth": 2,
+    "lineWidth": 160,
+    "newLineKind": "lf",
+    "quoteStyle": "preferSingle",
+    "semiColons": "always"
+  },
+  "markup": {
+    "indentWidth": 2,
+    "lineBreak": "lf",
+    "printWidth": 160,
+    "quotes": "double"
+  },
+  "plugins": [
+    "https://plugins.dprint.dev/typescript-0.96.1.wasm@9c52244de2c25a33addc7ddacff4443234a2dc4b5d3f34131262d1e0df35007c",
+    "https://plugins.dprint.dev/g-plane/markup_fmt-v0.27.3.wasm@07cebe7cebf3660d15a92ad94888f2b04903ee0c1aabbb6a5b8a018720d04568"
+  ]
+}

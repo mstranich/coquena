@@ -1,20 +1,20 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, signal } from '@angular/core';
-import { Observable, catchError, finalize, map, of, shareReplay, tap } from 'rxjs';
+import { catchError, finalize, map, Observable, of, shareReplay, tap } from 'rxjs';
 
 export type CapabilityState = 'available' | 'unavailable' | 'unknown' | 'unsupported';
 export interface SystemReport {
   schemaVersion: number;
-  os: { family: string; name?: string; version?: string; nativeArchitecture?: string };
+  os: { family: string; name?: string; version?: string; nativeArchitecture?: string; };
   executableArchitecture: string;
-  cpu: { vendor?: string; model?: string; logicalProcessors: number; features?: string[] };
-  memory: { totalBytes?: number };
-  graphics: Array<{ id: string; name: string; vendor?: string; memoryBytes?: number; type?: string }>;
-  backends: Array<{ type: string; state: CapabilityState; version?: string; diagnostics?: Array<{ message: string }> }>;
-  diagnostics: Array<{ message: string }>;
+  cpu: { vendor?: string; model?: string; logicalProcessors: number; features?: Array<string>; };
+  memory: { totalBytes?: number; };
+  graphics: Array<{ id: string; name: string; vendor?: string; memoryBytes?: number; type?: string; }>;
+  backends: Array<{ type: string; state: CapabilityState; version?: string; diagnostics?: Array<{ message: string; }>; }>;
+  diagnostics: Array<{ message: string; }>;
 }
 
-type CacheEnvelope = { fetchedAt: number; report: SystemReport };
+type CacheEnvelope = { fetchedAt: number; report: SystemReport; };
 const CACHE_KEY = 'coquena.system-capabilities.v1';
 const CACHE_TTL_MS = 15 * 60 * 1000;
 
@@ -40,11 +40,11 @@ export class SystemCapabilityService {
     this.loading.set(true);
     this.error.set(null);
     this.request$ = this.http.get<SystemReport>('/api/system').pipe(
-      map((report) => {
+      map(report => {
         if (!this.isValidReport(report)) throw new Error('Unsupported system report');
         return report;
       }),
-      tap((report) => {
+      tap(report => {
         this.report.set(report);
         this.writeCache(report);
       }),
@@ -52,7 +52,10 @@ export class SystemCapabilityService {
         this.error.set(error instanceof Error ? error.message : 'Hardware information is unavailable');
         return of(null as unknown as SystemReport);
       }),
-      finalize(() => { this.loading.set(false); this.request$ = null; }),
+      finalize(() => {
+        this.loading.set(false);
+        this.request$ = null;
+      }),
       shareReplay({ bufferSize: 1, refCount: false }),
     );
     this.request$.subscribe();
@@ -75,12 +78,14 @@ export class SystemCapabilityService {
   }
 
   private writeCache(report: SystemReport): void {
-    try { sessionStorage.setItem(CACHE_KEY, JSON.stringify({ fetchedAt: Date.now(), report })); } catch { /* storage is optional */ }
+    try {
+      sessionStorage.setItem(CACHE_KEY, JSON.stringify({ fetchedAt: Date.now(), report }));
+    } catch { /* storage is optional */ }
   }
 
   private isValidReport(report: SystemReport | null | undefined): report is SystemReport {
-    return !!report && report.schemaVersion === 1 && typeof report.os?.family === 'string' &&
-      typeof report.executableArchitecture === 'string' && report.cpu?.logicalProcessors >= 1 &&
-      Array.isArray(report.graphics) && Array.isArray(report.backends);
+    return !!report && report.schemaVersion === 1 && typeof report.os?.family === 'string'
+      && typeof report.executableArchitecture === 'string' && report.cpu?.logicalProcessors >= 1
+      && Array.isArray(report.graphics) && Array.isArray(report.backends);
   }
 }
