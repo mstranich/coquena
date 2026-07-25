@@ -7,29 +7,16 @@ import (
 	"io"
 	"strconv"
 	"strings"
+
+	runtimeapp "github.com/mstranich/coquena/internal/runtime"
 )
 
 const commandUsage = "usage: coquena init\n       coquena webui [--port <port>]\n       coquena system [--json]\n       coquena runtime remote [latest|<tag>] [<backend-selector>] [--json]\n       coquena runtime remote --history <count> [<backend-selector>] [--json]\n       coquena runtime download <asset-id|backend-selector> [<backend-selector>] [--json]\n       coquena runtime list [<backend-selector>] [--json]\n       coquena runtime remove <asset-id> [--json]"
 
-type runtimeQuery struct {
-	Release  string
-	Selector string
-	History  int
-}
-type runtimeDownloadRequest struct{ AssetID, Release, Selector string }
-type runtimeRecord struct {
-	Release       string   `json:"release"`
-	Target        string   `json:"target"`
-	Backend       string   `json:"backend"`
-	AssetID       string   `json:"assetId"`
-	Dependencies  []string `json:"dependencies,omitempty"`
-	Compatibility string   `json:"compatibility,omitempty"`
-	Evidence      []string `json:"evidence,omitempty"`
-}
-type runtimeMutation struct {
-	Runtime runtimeRecord `json:"runtime"`
-	Changed bool          `json:"changed"`
-}
+type runtimeQuery = runtimeapp.Query
+type runtimeDownloadRequest = runtimeapp.DownloadRequest
+type runtimeRecord = runtimeapp.Record
+type runtimeMutation = runtimeapp.Mutation
 
 // runtimeService is the adapter boundary between the CLI and runtime management.
 // Implementations own compatibility filtering, exact asset recognition, shorthand

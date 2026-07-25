@@ -20,6 +20,8 @@ import (
 
 const MetadataSchemaVersion = 1
 
+var ErrNotInitialized = errors.New("portable installation is not initialized")
+
 type Layout struct{ Root, Downloads, Temporary, Runtimes string }
 
 // Open validates (and never initializes) a portable Coquena installation.
@@ -30,7 +32,7 @@ func Open(root string) (Layout, error) {
 	}
 	b, err := os.ReadFile(filepath.Join(root, "config", "coquena.json"))
 	if err != nil {
-		return Layout{}, fmt.Errorf("portable installation is not initialized: %w", err)
+		return Layout{}, fmt.Errorf("%w: %v", ErrNotInitialized, err)
 	}
 	var c struct {
 		SchemaVersion int `json:"schemaVersion"`
@@ -101,6 +103,12 @@ func (l Limits) normalized() Limits {
 
 // Download streams an asset into the owned downloads directory and verifies its official digest.
 func Download(ctx context.Context, client *http.Client, layout Layout, a Asset, limits Limits) (string, error) {
+	return DownloadWithProgress(ctx, client, layout, a, limits, nil)
+}
+
+// DownloadWithProgress preserves Download's validation while reporting the
+// number of verified bytes written so interface adapters can render progress.
+func DownloadWithProgress(ctx context.Context, client *http.Client, layout Layout, a Asset, limits Limits, progress func(int64)) (string, error) {
 	limits = limits.normalized()
 	if a.Size < 0 || a.Size > limits.MaxDownloadBytes {
 		return "", errors.New("asset exceeds download limit")
@@ -133,7 +141,8 @@ func Download(ctx context.Context, client *http.Client, layout Layout, a Asset, 
 		}
 	}()
 	h := sha256.New()
-	n, e := io.Copy(io.MultiWriter(f, h), io.LimitReader(resp.Body, limits.MaxDownloadBytes+1))
+	reader := &progressReader{reader: io.LimitReader(resp.Body, limits.MaxDownloadBytes+1), report: progress}
+	n, e := io.Copy(io.MultiWriter(f, h), reader)
 	if e != nil {
 		return "", e
 	}
@@ -156,9 +165,28 @@ func Download(ctx context.Context, client *http.Client, layout Layout, a Asset, 
 	return name, nil
 }
 
+type progressReader struct {
+	reader io.Reader
+	read   int64
+	report func(int64)
+}
+
+func (r *progressReader) Read(p []byte) (int, error) {
+	n, err := r.reader.Read(p)
+	if n > 0 {
+		r.read += int64(n)
+		if r.report != nil {
+			r.report(r.read)
+		}
+	}
+	return n, err
+}
+
 func NewStage(layout Layout) (string, error) { return os.MkdirTemp(layout.Temporary, "runtime-stage-") }
 
-// FindAndProbeServer finds exactly one llama-server and runs a bounded non-server --version probe.
+// FindAndProbeServer finds exactly one llama-server and runs a bounded,
+// retryable non-server --version probe. A freshly extracted Windows binary can
+// be transiently unavailable while security software inspects its DLL set.
 func FindAndProbeServer(ctx context.Context, root string, timeout time.Duration) (string, error) {
 	var found []string
 	err := filepath.WalkDir(root, func(p string, d os.DirEntry, e error) error {
@@ -182,14 +210,52 @@ func FindAndProbeServer(ctx context.Context, root string, timeout time.Duration)
 	}
 	cctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
-	cmd := exec.CommandContext(cctx, found[0], "--version")
+	if err := probeServer(cctx, found[0], 3, runVersionProbe); err != nil {
+		return "", err
+	}
+	return found[0], nil
+}
+
+type versionProbe func(context.Context, string) (string, error)
+
+func runVersionProbe(ctx context.Context, executable string) (string, error) {
+	cmd := exec.CommandContext(ctx, executable, "--version")
 	var out bytes.Buffer
 	cmd.Stdout = &out
 	cmd.Stderr = &out
-	if err := cmd.Run(); err != nil {
-		return "", fmt.Errorf("probe llama-server: %w", err)
+	err := cmd.Run()
+	return strings.TrimSpace(out.String()), err
+}
+
+func probeServer(ctx context.Context, executable string, attempts int, probe versionProbe) error {
+	if attempts < 1 {
+		attempts = 1
 	}
-	return found[0], nil
+	var last error
+	for attempt := 1; attempt <= attempts; attempt++ {
+		output, err := probe(ctx, executable)
+		if err == nil {
+			return nil
+		}
+		if len(output) > 4096 {
+			output = output[:4096] + "..."
+		}
+		last = fmt.Errorf("attempt %d/%d: %w", attempt, attempts, err)
+		if output != "" {
+			last = fmt.Errorf("%w; output: %s", last, output)
+		}
+		if attempt == attempts {
+			break
+		}
+		timer := time.NewTimer(500 * time.Millisecond)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return fmt.Errorf("probe llama-server: %w", ctx.Err())
+		case <-timer.C:
+		}
+	}
+	return fmt.Errorf("probe llama-server failed: %w", last)
 }
 
 func writeMetadata(root string, m Metadata) error {

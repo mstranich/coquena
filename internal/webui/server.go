@@ -33,7 +33,7 @@ func ParsePort(args []string) (int, error) {
 	return *port, nil
 }
 
-func Serve(ctx context.Context, port int, stdout io.Writer) error {
+func Serve(ctx context.Context, port int, stdout, stderr io.Writer, runtimes ...RuntimeService) error {
 	if _, err := assets.ReadFile("dist/browser/index.html"); err != nil {
 		return fmt.Errorf("read embedded Web UI: %w", err)
 	}
@@ -45,7 +45,7 @@ func Serve(ctx context.Context, port int, stdout io.Writer) error {
 	if _, err := fmt.Fprintf(stdout, "Coquena Web UI listening on http://%s\n", listener.Addr()); err != nil {
 		return err
 	}
-	server := &http.Server{Handler: Handler()}
+	server := &http.Server{Handler: HandlerWithServicesAndLogger(hostsystem.Inspect, firstRuntime(runtimes), stderr)}
 	go func() {
 		<-ctx.Done()
 		_ = server.Shutdown(context.Background())
@@ -61,6 +61,22 @@ func Handler() http.Handler {
 }
 
 func HandlerWithInspector(inspect inspectFunc) http.Handler {
+	return HandlerWithServices(inspect, nil)
+}
+
+func firstRuntime(services []RuntimeService) RuntimeService {
+	if len(services) == 0 {
+		return nil
+	}
+	return services[0]
+}
+
+func HandlerWithServices(inspect inspectFunc, runtimes RuntimeService) http.Handler {
+	return HandlerWithServicesAndLogger(inspect, runtimes, io.Discard)
+}
+
+func HandlerWithServicesAndLogger(inspect inspectFunc, runtimes RuntimeService, logs io.Writer) http.Handler {
+	runtimeAPI := newRuntimeAPI(runtimes, logs)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/api/health" {
 			if r.Method != http.MethodGet {
@@ -85,6 +101,9 @@ func HandlerWithInspector(inspect inspectFunc) http.Handler {
 			if err := hostsystem.WriteJSON(w, report); err != nil {
 				return
 			}
+			return
+		}
+		if runtimeAPI.serve(w, r) {
 			return
 		}
 		serveStatic(w, r)

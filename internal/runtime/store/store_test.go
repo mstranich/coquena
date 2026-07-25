@@ -7,6 +7,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -52,6 +53,26 @@ func TestDownloadVerifiesDigestAndBound(t *testing.T) {
 	a.Digest = fmt.Sprintf("sha256:%x", sum)
 	if _, e = Download(context.Background(), srv.Client(), l, a, Limits{MaxDownloadBytes: 2}); e == nil {
 		t.Fatal("wanted bound failure")
+	}
+}
+
+func TestDownloadReportsWrittenBytes(t *testing.T) {
+	l := layout(t)
+	body := []byte("runtime-progress")
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write(body) }))
+	defer server.Close()
+	sum := sha256.Sum256(body)
+	asset := Asset{Name: "x.zip", URL: server.URL, Digest: fmt.Sprintf("sha256:%x", sum), Size: int64(len(body))}
+	var reports []int64
+	path, err := DownloadWithProgress(context.Background(), server.Client(), l, asset, Limits{}, func(written int64) {
+		reports = append(reports, written)
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(path)
+	if len(reports) == 0 || reports[len(reports)-1] != int64(len(body)) {
+		t.Fatalf("reports=%v", reports)
 	}
 }
 
@@ -195,5 +216,28 @@ func TestExtractSuccess(t *testing.T) {
 	}
 	if _, e := os.Stat(filepath.Join(d, "bin", "llama-server"+map[bool]string{true: ".exe"}[runtime.GOOS == "windows"])); e != nil {
 		t.Fatal(e)
+	}
+}
+
+func TestProbeServerRetriesTransientFailure(t *testing.T) {
+	attempts := 0
+	err := probeServer(context.Background(), "llama-server", 3, func(context.Context, string) (string, error) {
+		attempts++
+		if attempts < 3 {
+			return "temporary loader failure", errors.New("exit status 1")
+		}
+		return "version 1", nil
+	})
+	if err != nil || attempts != 3 {
+		t.Fatalf("probe = (%v, %d attempts)", err, attempts)
+	}
+}
+
+func TestProbeServerIncludesBoundedCommandOutput(t *testing.T) {
+	err := probeServer(context.Background(), "llama-server", 1, func(context.Context, string) (string, error) {
+		return strings.Repeat("x", 5000), errors.New("exit status 1")
+	})
+	if err == nil || !strings.Contains(err.Error(), "output:") || len(err.Error()) > 4300 {
+		t.Fatalf("probe error = %v", err)
 	}
 }

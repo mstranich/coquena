@@ -1,4 +1,4 @@
-package main
+package runtime
 
 import (
 	"context"
@@ -10,11 +10,13 @@ import (
 
 type fakeReleaseSource struct{ release llamacpp.Release }
 
+var _ Service = (*Manager)(nil)
+
 func (f fakeReleaseSource) Latest(context.Context) (llamacpp.Release, error) { return f.release, nil }
-func (f fakeReleaseSource) ByTag(_ context.Context, _ string) (llamacpp.Release, error) {
+func (f fakeReleaseSource) ByTag(context.Context, string) (llamacpp.Release, error) {
 	return f.release, nil
 }
-func (f fakeReleaseSource) History(_ context.Context, _ int) ([]llamacpp.Release, error) {
+func (f fakeReleaseSource) History(context.Context, int) ([]llamacpp.Release, error) {
 	return []llamacpp.Release{f.release}, nil
 }
 
@@ -30,14 +32,13 @@ func serviceRelease() llamacpp.Release {
 		asset("llama-b10068-bin-win-cpu-x64.zip"),
 		asset("llama-b10068-bin-win-cuda-12.4-x64.zip"), asset("cudart-llama-bin-win-cuda-12.4-x64.zip"),
 		asset("llama-b10068-bin-win-cuda-13.3-x64.zip"), asset("cudart-llama-bin-win-cuda-13.3-x64.zip"),
-		asset("llama-b10068-bin-win-vulkan-x64.zip"),
-		asset("llama-b10068-bin-ubuntu-vulkan-x64.tar.gz"),
+		asset("llama-b10068-bin-win-vulkan-x64.zip"), asset("llama-b10068-bin-ubuntu-vulkan-x64.tar.gz"),
 	}}
 }
 
-func TestRuntimeManagerRemoteFiltersToCompatibleNativeHost(t *testing.T) {
-	m := &runtimeManager{releases: fakeReleaseSource{serviceRelease()}, inspect: compatibleWindowsReport}
-	records, err := m.Remote(runtimeQuery{Release: "latest"})
+func TestManagerRemoteFiltersToCompatibleNativeHost(t *testing.T) {
+	manager := &Manager{releases: fakeReleaseSource{serviceRelease()}, inspect: compatibleWindowsReport}
+	records, err := manager.Remote(context.Background(), Query{Release: "latest"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -51,17 +52,30 @@ func TestRuntimeManagerRemoteFiltersToCompatibleNativeHost(t *testing.T) {
 	}
 }
 
-func TestRuntimeManagerShorthandAmbiguityAndExactResolution(t *testing.T) {
-	m := &runtimeManager{releases: fakeReleaseSource{serviceRelease()}, inspect: compatibleWindowsReport}
-	if _, err := m.resolveDownload(context.Background(), runtimeDownloadRequest{Release: "latest", Selector: "cuda"}); err == nil {
+func TestManagerShorthandAmbiguityAndExactResolution(t *testing.T) {
+	manager := &Manager{releases: fakeReleaseSource{serviceRelease()}, inspect: compatibleWindowsReport}
+	if _, err := manager.resolveDownload(context.Background(), DownloadRequest{Release: "latest", Selector: "cuda"}); err == nil {
 		t.Fatal("expected ambiguity")
 	}
 	id := "llama-b10068-bin-win-cuda-13.3-x64.zip"
-	d, err := m.resolveDownload(context.Background(), runtimeDownloadRequest{AssetID: id})
+	distribution, err := manager.resolveDownload(context.Background(), DownloadRequest{AssetID: id})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if d.Primary.Name != id || len(d.Dependencies) != 1 {
-		t.Fatalf("distribution=%+v", d)
+	if distribution.Primary.Name != id || len(distribution.Dependencies) != 1 {
+		t.Fatalf("distribution=%+v", distribution)
+	}
+}
+
+func TestValidateExactAssetID(t *testing.T) {
+	for _, id := range []string{"", "cuda", "https://example.invalid/runtime.zip", "cudart-llama-bin-win-cuda-x64.zip", "llama-runtime.exe"} {
+		if ValidateExactAssetID(id) == nil {
+			t.Fatalf("expected %q to be rejected", id)
+		}
+	}
+	for _, id := range []string{"llama-b1-bin-win-cpu-x64.zip", "llama-b1-bin-ubuntu-x64.tar.gz"} {
+		if err := ValidateExactAssetID(id); err != nil {
+			t.Fatalf("expected %q to be accepted: %v", id, err)
+		}
 	}
 }

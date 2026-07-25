@@ -47,7 +47,7 @@ func run(args []string, stdout io.Writer, initialize initializeFunc, inspect ins
 		return runInit(stdout, initialize)
 	}
 	if len(args) > 0 && args[0] == "webui" {
-		return runWebUI(args[1:], stdout, os.Stderr)
+		return runWebUI(args[1:], stdout, os.Stderr, runtimes)
 	}
 	if len(args) == 1 && args[0] == "system" {
 		return runSystem(stdout, inspect, false)
@@ -61,14 +61,20 @@ func run(args []string, stdout io.Writer, initialize initializeFunc, inspect ins
 	return errors.New(commandUsage)
 }
 
-func runWebUI(args []string, stdout, stderr io.Writer) error {
+func runWebUI(args []string, stdout, stderr io.Writer, runtimes runtimeService) error {
 	port, err := webui.ParsePort(args)
 	if err != nil {
 		return err
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	return webui.Serve(ctx, port, stdout)
+	if runtimes == nil {
+		return webui.Serve(ctx, port, stdout, stderr)
+	}
+	if provider, ok := runtimes.(interface{ sharedRuntimeService() webui.RuntimeService }); ok {
+		return webui.Serve(ctx, port, stdout, stderr, provider.sharedRuntimeService())
+	}
+	return webui.Serve(ctx, port, stdout, stderr)
 }
 
 func runInit(stdout io.Writer, initialize initializeFunc) error {

@@ -72,44 +72,72 @@
           <h2>Runtimes</h2>
           <p>Choose the engine that will serve your local models.</p>
         </div>
-        <button class="primary">Check for updates</button>
-      </header><app-hardware-capability></app-hardware-capability><article class="card runtime-detail">
+        <button class="primary" [disabled]="runtimes.loading() || runtimes.mutating()" (click)="runtimes.load()">Refresh</button>
+      </header><app-hardware-capability></app-hardware-capability>
+      @if (runtimes.error()) {
+        <p class="runtime-message error">{{ runtimes.error() }}</p>
+      }
+      @if (runtimes.progress(); as progress) {
+        <article class="card runtime-progress">
+          <p class="eyebrow">Runtime operation</p>
+          <h3>{{ progress.phase }}</h3>
+          <p class="subtle">{{ progress.assetId || 'Preparing download' }}</p>
+          @if (progress.totalBytes) {
+            <progress [value]="progress.totalTransferredBytes || 0" [max]="progress.totalBytes"></progress>
+          }
+        </article>
+      }
+      <article class="card runtime-detail">
         <div>
           <p class="eyebrow">Default runtime</p>
           <h3>llama.cpp</h3>
           <p class="subtle">Detected runtime compatibility is shown above.</p>
-        </div><label>Runtime<select><option>llama.cpp — b1234 (active)</option></select></label>
+        </div><span class="subtle">Managed installations are listed below.</span>
       </article>
-      <div class="two-column">
-        <article class="card">
+      <section class="section-heading">
+        <div>
           <p class="eyebrow">Installed</p>
-          <h3>llama.cpp <span class="pill">Active</span></h3>
-          <dl>
+          <h3>Local runtimes</h3>
+        </div>
+      </section>
+      <div class="runtime-list">
+        @if (runtimes.loading()) {
+          <p class="subtle">Loading runtimes…</p>
+        }
+        @for (runtime of runtimes.local(); track runtime.assetId) {
+          <article class="card runtime-row">
             <div>
-              <dt>Installed</dt>
-              <dd>b1234</dd>
+              <h3>
+                {{ runtime.release }} · {{ runtime.backend }}
+              </h3>
+              <p class="subtle">{{ runtime.assetId }}</p>
             </div>
+            <button class="danger" [disabled]="runtimes.mutating()" (click)="runtimes.remove(runtime.assetId)">Remove</button>
+          </article>
+        } @empty {
+          @if (!runtimes.loading()) { <p class="subtle">No managed runtimes installed.</p> }
+        }
+      </div>
+      <section class="section-heading">
+        <div>
+          <p class="eyebrow">Available</p>
+          <h3>Compatible llama.cpp distributions</h3>
+        </div>
+      </section>
+      <div class="runtime-list">
+        @for (runtime of runtimes.remote(); track runtime.assetId) {
+          <article class="card runtime-row">
             <div>
-              <dt>Latest</dt>
-              <dd>b1250</dd>
+              <h3>
+                {{ runtime.release }} · {{ runtime.backend }}
+              </h3>
+              <p class="subtle">{{ runtime.assetId }}</p><small>Dependencies: {{ runtime.dependencies?.join(', ') || 'None' }}</small>
             </div>
-            <div>
-              <dt>Platform</dt>
-              <dd>Windows CUDA 12</dd>
-            </div>
-          </dl>
-          <button class="primary">Update to b1250</button>
-        </article>
-        <article class="card">
-          <p class="eyebrow">Capabilities</p>
-          <ul class="checks">
-            <li>Router mode</li>
-            <li>Metrics</li>
-            <li>Multimodal</li>
-            <li>Model presets</li>
-            <li>CUDA</li>
-          </ul>
-        </article>
+            <button class="primary" [disabled]="runtimes.mutating()" (click)="runtimes.download(runtime.assetId)">Download</button>
+          </article>
+        } @empty {
+          @if (!runtimes.loading()) { <p class="subtle">No compatible distributions are available.</p> }
+        }
       </div>
     </section>
   }
