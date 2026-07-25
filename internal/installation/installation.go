@@ -37,6 +37,7 @@ type configuration struct {
 
 type operations struct {
 	executable func() (string, error)
+	lookupEnv  func(string) (string, bool)
 	evalLinks  func(string) (string, error)
 	abs        func(string) (string, error)
 	stat       func(string) (os.FileInfo, error)
@@ -50,6 +51,7 @@ type operations struct {
 func defaultOperations() operations {
 	return operations{
 		executable: os.Executable,
+		lookupEnv:  os.LookupEnv,
 		evalLinks:  filepath.EvalSymlinks,
 		abs:        filepath.Abs,
 		stat:       os.Stat,
@@ -61,13 +63,17 @@ func defaultOperations() operations {
 	}
 }
 
-// Initialize creates or validates the portable installation beside this executable.
+// Initialize creates or validates the selected portable installation.
 func Initialize() (Result, error) {
 	return initialize(defaultOperations())
 }
 
+// Home returns the selected application home. COQUENA_HOME takes precedence
+// when explicitly set; otherwise the resolved executable directory is used.
+func Home() (string, error) { return resolveHome(defaultOperations()) }
+
 func initialize(op operations) (Result, error) {
-	root, err := resolveRoot(op)
+	root, err := resolveHome(op)
 	if err != nil {
 		return Result{}, err
 	}
@@ -108,6 +114,20 @@ func resolveRoot(op operations) (string, error) {
 	}
 
 	return filepath.Dir(filepath.Clean(absolutePath)), nil
+}
+
+func resolveHome(op operations) (string, error) {
+	if value, present := op.lookupEnv("COQUENA_HOME"); present {
+		if value == "" || !filepath.IsAbs(value) {
+			return "", errors.New("COQUENA_HOME must be an absolute non-empty path")
+		}
+		absolute, err := op.abs(value)
+		if err != nil {
+			return "", fmt.Errorf("resolve COQUENA_HOME %q: %w", value, err)
+		}
+		return filepath.Clean(absolute), nil
+	}
+	return resolveRoot(op)
 }
 
 func createDirectories(op operations, root string) error {

@@ -1,0 +1,17 @@
+root = "."
+tmp_dir = ".tmp/dev/air"
+
+[build]
+  cmd = "go build -o ./.tmp/dev/coquena-dev ./cmd/coquena"
+  entrypoint = ["./.tmp/dev/coquena-dev", "webui"]
+  include_ext = ["go", "tmpl", "html"]
+  exclude_dir = ["home", ".tmp", "apps", "node_modules", ".git", "openspec"]
+  kill_delay = "500ms"
+  stop_on_error = true
+
+[build.windows]
+  cmd = "go build -o ./.tmp/dev/coquena-dev.exe ./cmd/coquena"
+  entrypoint = ["./.tmp/dev/coquena-dev.exe", "webui"]
+
+[log]
+  time = true

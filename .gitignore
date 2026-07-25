@@ -11,6 +11,11 @@ Thumbs.db
 .env.*
 !.env.example
 
+# Persistent local development application state
+/home/*
+!/home/.gitkeep
+/.tmp/
+
 # Go
 /bin/
 /dist/

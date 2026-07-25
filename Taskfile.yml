@@ -2,6 +2,10 @@ version: '3'
 
 vars:
   WEB_DIR: apps/web
+  DEV_HOME: '{{.ROOT_DIR}}/home'
+  GOEXE:
+    sh: go env GOEXE
+  DEV_RUNNER: '{{.ROOT_DIR}}/.tmp/dev/devrun{{.GOEXE}}'
 
 tasks:
   default:
@@ -16,6 +20,7 @@ tasks:
       - node --version
       - npm --version
       - task --version
+      - air -v
     preconditions:
       - sh: go version
         msg: Go 1.26.5 or newer is required
@@ -23,6 +28,8 @@ tasks:
         msg: Node.js 24.18.0 or newer is required
       - sh: npm --version
         msg: npm 11.16.0 or newer is required
+      - sh: air -v
+        msg: Air is required for hot reload; install it with go install github.com/air-verse/air@v1.67.2
 
   deps:
     desc: Restore all workspace dependencies
@@ -69,6 +76,27 @@ tasks:
       - task: backend:fmt-check
       - task: backend:test
       - task: backend:build
+
+  dev:
+    desc: Start the frontend and hot-reloading backend
+    interactive: true
+    cmds:
+      - node scripts/prepare-dev.mjs
+      - go build -o '{{.DEV_RUNNER}}' ./tools/devrun
+      - '{{.DEV_RUNNER}}'
+
+  dev:backend:
+    desc: Watch and restart the backend with the development home
+    env:
+      COQUENA_HOME: '{{.DEV_HOME}}'
+    cmds:
+      - node scripts/prepare-dev.mjs
+      - air -c .air.toml
+
+  clean:
+    desc: Remove mutable development state and disposable build artifacts
+    cmds:
+      - node scripts/clean-home.mjs
 
   web:deps:
     desc: Restore frontend dependencies from the lockfile

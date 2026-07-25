@@ -6,11 +6,11 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"path/filepath"
 	"regexp"
 	"strings"
 	"time"
 
+	"github.com/mstranich/coquena/internal/installation"
 	"github.com/mstranich/coquena/internal/runtime/llamacpp"
 	runtimestore "github.com/mstranich/coquena/internal/runtime/store"
 	hostsystem "github.com/mstranich/coquena/internal/system"
@@ -38,21 +38,7 @@ func NewManager() *Manager {
 	return &Manager{releases: client, httpClient: client.HTTP, inspect: hostsystem.Inspect, root: runtimeRoot}
 }
 
-func runtimeRoot() (string, error) {
-	executable, err := os.Executable()
-	if err != nil {
-		return "", fmt.Errorf("resolve executable: %w", err)
-	}
-	resolved, err := filepath.EvalSymlinks(executable)
-	if err != nil {
-		return "", fmt.Errorf("resolve executable link: %w", err)
-	}
-	absolute, err := filepath.Abs(resolved)
-	if err != nil {
-		return "", err
-	}
-	return filepath.Dir(absolute), nil
-}
+func runtimeRoot() (string, error) { return installation.Home() }
 
 func (m *Manager) host() (llamacpp.Host, error) {
 	report, err := m.inspect()

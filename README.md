@@ -344,6 +344,7 @@ The initial supported development baseline matches the primary Windows workstati
 * Node.js 24.18.0 or newer;
 * npm 11.16.0 or newer;
 * Task 3.52.0 or newer.
+* [Air](https://github.com/air-verse/air) 1.67.2 for backend hot reload (`go install github.com/air-verse/air@v1.67.2`).
 
 The repository uses Unix-style development conventions on every host: UTF-8 text, LF line endings, final newlines, `/` in repository-relative paths, and shell-neutral Task commands. Commits follow [Conventional Commits](https://www.conventionalcommits.org/).
 
@@ -356,6 +357,24 @@ task verify
 ```
 
 Backend and frontend loops remain independently available through the `backend:*` and `web:*` Task namespaces. Run `task --list` for the complete command list.
+
+### Unified development loop
+
+Start Angular and the Go backend together with automatic reload:
+
+```console
+task dev
+```
+
+The task compiles a small development supervisor beneath `.tmp/dev/`, initializes the repository `home/` directory, and exports its absolute path as `COQUENA_HOME` to both watched processes. The persistent `home/` contents are ignored by Git; disposable executables and watcher artifacts remain in `.tmp/dev/`. Angular serves the frontend with hot reload and proxies relative `/api` requests to the backend at `127.0.0.1:8080`; Air rebuilds and restarts the backend when Go sources change. Press Ctrl+C once to stop the supervised tree.
+
+On Windows, the supervisor uses a kill-on-close Job Object; on Unix it uses process groups. For that reason a restrictive parent terminal, CI runner, or harness can prevent startup rather than permit an unsupervised tree. Killing only the parent `task.exe` is not a supported shutdown path and may leave `devrun` active; use Ctrl+C or terminate the reported `devrun` PID.
+
+After stopping development, remove all mutable state (including downloaded runtimes) and `.tmp/dev/` while retaining the committed `home/.gitkeep` marker:
+
+```console
+task clean
+```
 
 ## Portable initialization
 

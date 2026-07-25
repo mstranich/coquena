@@ -2,6 +2,7 @@ package runtime
 
 import (
 	"context"
+	"path/filepath"
 	"testing"
 
 	"github.com/mstranich/coquena/internal/runtime/llamacpp"
@@ -77,5 +78,18 @@ func TestValidateExactAssetID(t *testing.T) {
 		if err := ValidateExactAssetID(id); err != nil {
 			t.Fatalf("expected %q to be accepted: %v", id, err)
 		}
+	}
+}
+
+func TestRuntimeRootUsesApplicationHomeOverride(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("COQUENA_HOME", home)
+
+	got, err := runtimeRoot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != filepath.Clean(home) {
+		t.Fatalf("runtimeRoot() = %q, want %q", got, home)
 	}
 }

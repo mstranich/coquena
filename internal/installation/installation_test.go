@@ -77,6 +77,52 @@ func TestResolveRootFollowsExecutableLink(t *testing.T) {
 	}
 }
 
+func TestResolveHomeUsesAbsoluteEnvironmentOverride(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	op := operationsForExecutable(filepath.Join(t.TempDir(), executableName()))
+	op.lookupEnv = func(string) (string, bool) { return root, true }
+
+	got, err := resolveHome(op)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != root {
+		t.Fatalf("resolveHome() = %q, want %q", got, root)
+	}
+}
+
+func TestResolveHomeRejectsInvalidEnvironmentOverride(t *testing.T) {
+	t.Parallel()
+
+	for _, value := range []string{"", "relative/home"} {
+		t.Run(value, func(t *testing.T) {
+			op := operationsForExecutable(filepath.Join(t.TempDir(), executableName()))
+			op.lookupEnv = func(string) (string, bool) { return value, true }
+			if _, err := resolveHome(op); err == nil || !strings.Contains(err.Error(), "COQUENA_HOME") {
+				t.Fatalf("resolveHome() error = %v, want COQUENA_HOME diagnostic", err)
+			}
+		})
+	}
+}
+
+func TestInitializeUsesEnvironmentOverride(t *testing.T) {
+	t.Parallel()
+
+	home := t.TempDir()
+	executableRoot := t.TempDir()
+	op := operationsForExecutable(filepath.Join(executableRoot, executableName()))
+	op.lookupEnv = func(string) (string, bool) { return home, true }
+	if _, err := initialize(op); err != nil {
+		t.Fatal(err)
+	}
+	assertDirectory(t, filepath.Join(home, "config"))
+	if _, err := os.Stat(filepath.Join(executableRoot, "config")); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("executable root was initialized or stat failed unexpectedly: %v", err)
+	}
+}
+
 func TestInitializeIsIdempotentAndCompletesMissingDirectories(t *testing.T) {
 	t.Parallel()
 
