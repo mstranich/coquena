@@ -26,7 +26,7 @@ func TestInitializeCreatesPortableLayoutAndJSON(t *testing.T) {
 	for _, directory := range requiredDirectories {
 		assertDirectory(t, filepath.Join(root, directory))
 	}
-	assertFileContent(t, filepath.Join(root, configDirectory, configFilename), "{\n  \"schemaVersion\": 1\n}\n")
+	assertFileContent(t, filepath.Join(root, configDirectory, configFilename), "{\n  \"schemaVersion\": 2\n}\n")
 	assertFileContent(t, executable, "binary")
 }
 
@@ -196,7 +196,7 @@ func TestInitializeRejectsInvalidOrUnsupportedConfiguration(t *testing.T) {
 		want    string
 	}{
 		{name: "invalid JSON", content: "{", want: "invalid JSON"},
-		{name: "unsupported schema", content: "{\"schemaVersion\":2}\n", want: "unsupported schemaVersion 2"},
+		{name: "unsupported schema", content: "{\"schemaVersion\":3}\n", want: "unsupported schemaVersion 3"},
 		{name: "unknown field", content: "{\"schemaVersion\":1,\"other\":true}\n", want: "invalid JSON"},
 	}
 
@@ -240,6 +240,53 @@ func TestConfigurationPublicationFailureLeavesNoPartialDestination(t *testing.T)
 	temporary, err := filepath.Glob(filepath.Join(root, configDirectory, ".coquena.json-*"))
 	if err != nil || len(temporary) != 0 {
 		t.Fatalf("temporary files = %v, error = %v; want none", temporary, err)
+	}
+}
+
+func TestModelsDirectoryDefaultsAndPersistsOverride(t *testing.T) {
+	root := t.TempDir()
+	executable := filepath.Join(root, executableName())
+	mustWriteFile(t, executable, []byte("binary"))
+	op := operationsForExecutable(executable)
+	if _, err := initialize(op); err != nil {
+		t.Fatal(err)
+	}
+	got, err := modelsDirectory(op)
+	if err != nil || got != filepath.Join(root, "models") {
+		t.Fatalf("default = %q, %v", got, err)
+	}
+	override := t.TempDir()
+	got, err = setModelsDirectory(op, override)
+	if err != nil || got != override {
+		t.Fatalf("set = %q, %v", got, err)
+	}
+	data, err := os.ReadFile(filepath.Join(root, configDirectory, configFilename))
+	if err != nil || !strings.Contains(string(data), `"schemaVersion": 2`) {
+		t.Fatalf("config = %q, %v", data, err)
+	}
+	got, err = modelsDirectory(op)
+	if err != nil || got != override {
+		t.Fatalf("persisted = %q, %v", got, err)
+	}
+}
+
+func TestSetModelsDirectoryRejectsInvalidPaths(t *testing.T) {
+	root := t.TempDir()
+	executable := filepath.Join(root, executableName())
+	mustWriteFile(t, executable, []byte("binary"))
+	op := operationsForExecutable(executable)
+	if _, err := initialize(op); err != nil {
+		t.Fatal(err)
+	}
+	for _, path := range []string{"", "relative", filepath.Join(root, "missing")} {
+		if _, err := setModelsDirectory(op, path); err == nil {
+			t.Fatalf("setModelsDirectory(%q) unexpectedly succeeded", path)
+		}
+	}
+	file := filepath.Join(root, "file")
+	mustWriteFile(t, file, []byte("x"))
+	if _, err := setModelsDirectory(op, file); err == nil {
+		t.Fatal("file unexpectedly accepted")
 	}
 }
 

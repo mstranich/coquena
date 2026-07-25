@@ -13,6 +13,7 @@ import (
 	"path"
 	"strings"
 
+	"github.com/mstranich/coquena/internal/installation"
 	hostsystem "github.com/mstranich/coquena/internal/system"
 )
 
@@ -22,6 +23,18 @@ var assets embed.FS
 const defaultPort = 8080
 
 type inspectFunc func() (hostsystem.Report, error)
+type ConfigService interface {
+	ModelsDirectory() (string, error)
+	SetModelsDirectory(string) (string, error)
+}
+type installationConfigService struct{}
+
+func (installationConfigService) ModelsDirectory() (string, error) {
+	return installation.ModelsDirectory()
+}
+func (installationConfigService) SetModelsDirectory(v string) (string, error) {
+	return installation.SetModelsDirectory(v)
+}
 
 func ParsePort(args []string) (int, error) {
 	flags := flag.NewFlagSet("webui", flag.ContinueOnError)
@@ -77,6 +90,7 @@ func HandlerWithServices(inspect inspectFunc, runtimes RuntimeService) http.Hand
 
 func HandlerWithServicesAndLogger(inspect inspectFunc, runtimes RuntimeService, logs io.Writer) http.Handler {
 	runtimeAPI := newRuntimeAPI(runtimes, logs)
+	configAPI := newConfigAPI(installationConfigService{})
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/api/health" {
 			if r.Method != http.MethodGet {
@@ -104,6 +118,9 @@ func HandlerWithServicesAndLogger(inspect inspectFunc, runtimes RuntimeService, 
 			return
 		}
 		if runtimeAPI.serve(w, r) {
+			return
+		}
+		if configAPI.serve(w, r) {
 			return
 		}
 		serveStatic(w, r)

@@ -10,9 +10,24 @@
     <article class="card">
       <p class="eyebrow">General</p>
       <h3>Models directory</h3>
-      <p class="subtle">Where downloaded model artifacts are stored.</p><label>Local path<input value="D:\Models\Coquena" aria-label="Models directory"><button>
-          Choose folder
-        </button></label>
+      <p class="subtle">Where downloaded model artifacts are stored.</p>
+      <label>Local path<input
+          [ngModel]="input() || directory.path()"
+          (ngModelChange)="input.set($event)"
+          (keydown.enter)="$event.preventDefault();
+save()"
+          aria-label="Models directory"
+        ></label>
+      @if (directory.loading()) {
+        <p class="subtle">Loading…</p>
+      }
+      @if (directory.error()) {
+        <p class="error">{{ directory.error() }}</p>
+      }
+      @if (directory.saved()) {
+        <p class="subtle">Saved.</p>
+      }
+      <button class="primary" (click)="save()" [disabled]="directory.saving()">Save</button>
     </article>
     <article class="card">
       <p class="eyebrow">Preset fields</p>

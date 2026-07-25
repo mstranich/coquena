@@ -26,7 +26,7 @@ func execute(args []string, stdout, stderr io.Writer, initialize initializeFunc,
 	if len(inspectors) > 0 {
 		inspect = inspectors[0]
 	}
-	if err := run(args, stdout, initialize, inspect, nil); err != nil {
+	if err := run(args, stdout, initialize, inspect, nil, installation.ModelsDirectory, installation.SetModelsDirectory); err != nil {
 		fmt.Fprintln(stderr, err)
 		return 1
 	}
@@ -35,14 +35,17 @@ func execute(args []string, stdout, stderr io.Writer, initialize initializeFunc,
 }
 
 func executeWithRuntime(args []string, stdout, stderr io.Writer, initialize initializeFunc, inspect inspectFunc, runtimes runtimeService) int {
-	if err := run(args, stdout, initialize, inspect, runtimes); err != nil {
+	if err := run(args, stdout, initialize, inspect, runtimes, installation.ModelsDirectory, installation.SetModelsDirectory); err != nil {
 		fmt.Fprintln(stderr, err)
 		return 1
 	}
 	return 0
 }
 
-func run(args []string, stdout io.Writer, initialize initializeFunc, inspect inspectFunc, runtimes runtimeService) error {
+type modelsDirectoryFunc func() (string, error)
+type setModelsDirectoryFunc func(string) (string, error)
+
+func run(args []string, stdout io.Writer, initialize initializeFunc, inspect inspectFunc, runtimes runtimeService, models modelsDirectoryFunc, setModels setModelsDirectoryFunc) error {
 	if len(args) == 1 && args[0] == "init" {
 		return runInit(stdout, initialize)
 	}
@@ -57,6 +60,9 @@ func run(args []string, stdout io.Writer, initialize initializeFunc, inspect ins
 	}
 	if len(args) > 0 && args[0] == "runtime" {
 		return runRuntime(args[1:], stdout, runtimes)
+	}
+	if len(args) > 0 && args[0] == "config" {
+		return runConfig(args[1:], stdout, models, setModels)
 	}
 	return errors.New(commandUsage)
 }
