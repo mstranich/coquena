@@ -43,6 +43,7 @@ describe('LlamacppRuntimeService', () => {
     service.load();
     http.expectOne('/api/runtimes/llama.cpp/remote').flush({ schemaVersion: 1, result: [runtime] });
     http.expectOne('/api/runtimes/llama.cpp').flush({ schemaVersion: 1, result: [runtime] });
+    http.expectOne('/api/runtimes/llama.cpp/downloads').flush({ schemaVersion: 1, result: [] });
     expect(service.remote()).toEqual([runtime]);
     expect(service.local()).toEqual([runtime]);
   });
@@ -51,7 +52,9 @@ describe('LlamacppRuntimeService', () => {
     const service = TestBed.inject(LlamacppRuntimeService);
     const http = TestBed.inject(HttpTestingController);
     service.download(runtime.assetId);
+    expect(service.managedDownloads().map(job => job.id)).toContain(runtime.assetId);
     http.expectOne('/api/runtimes/llama.cpp/downloads').flush({ schemaVersion: 1, result: { operationId: 'operation-1' } });
+    http.expectOne('/api/runtimes/llama.cpp/downloads').flush({ schemaVersion: 1, result: [] });
     const events = FakeEventSource.instances[0];
     expect(events.url).toContain('operation-1/events');
     events.emit('progress', { operationId: 'operation-1', phase: 'downloading', totalTransferredBytes: 5, totalBytes: 10 });
@@ -60,6 +63,7 @@ describe('LlamacppRuntimeService', () => {
     expect(events.closed).toBe(true);
     http.expectOne('/api/runtimes/llama.cpp/remote').flush({ schemaVersion: 1, result: [runtime] });
     http.expectOne('/api/runtimes/llama.cpp').flush({ schemaVersion: 1, result: [runtime] });
+    http.expectOne('/api/runtimes/llama.cpp/downloads').flush({ schemaVersion: 1, result: [] });
     expect(service.mutating()).toBe(false);
   });
 
@@ -112,5 +116,18 @@ describe('LlamacppRuntimeService', () => {
     );
     expect(service.error()).toBe('Coquena is not initialized; run coquena init');
     expect(service.mutating()).toBe(false);
+  });
+
+  it('resumes a durable runtime job and attaches progress to that runtime', () => {
+    const service = TestBed.inject(LlamacppRuntimeService);
+    const http = TestBed.inject(HttpTestingController);
+    const job = { id: runtime.assetId, type: 'runtime' as const, name: runtime.assetId, status: 'paused', downloadedBytes: 5, expectedBytes: 10, path: 'runtime.download.json' };
+    service.action(job, 'resume');
+    const action = http.expectOne(`/api/runtimes/llama.cpp/downloads/${encodeURIComponent(runtime.assetId)}/actions`);
+    expect(action.request.body).toEqual({ action: 'resume' });
+    action.flush({ schemaVersion: 1, result: { operationId: 'operation-resume' } });
+    FakeEventSource.instances[0].emit('progress', { operationId: 'operation-resume', phase: 'extracting', assetId: runtime.assetId, totalTransferredBytes: 10, totalBytes: 10 });
+    expect(service.activeFor(runtime.assetId)?.phase).toBe('extracting');
+    expect(service.phaseLabel('extracting')).toBe('Decompressing runtime');
   });
 });

@@ -132,6 +132,16 @@ func TestRuntimeDownloadSurfacesAmbiguityWithoutStdout(t *testing.T) {
 	}
 }
 
+func TestRuntimeDownloadInterruptIsReportedAsPaused(t *testing.T) {
+	svc := fakeRuntimeService{download: func(runtimeDownloadRequest) (runtimeMutation, error) {
+		return runtimeMutation{}, runtimeDownloadPaused{assetID: "llama-b1-bin-win-cpu-x64.zip"}
+	}}
+	code, out, stderr := runtimeExecute([]string{"runtime", "download", "llama-b1-bin-win-cpu-x64.zip"}, svc)
+	if code != 0 || stderr != "" || !strings.Contains(out, "paused after interrupt") || !strings.Contains(out, "runtime download status") {
+		t.Fatalf("got (%d,%q,%q)", code, out, stderr)
+	}
+}
+
 func TestRuntimeJSONIsMachineReadableAndOnlyOnStdout(t *testing.T) {
 	svc := fakeRuntimeService{list: func(string) ([]runtimeRecord, error) {
 		return []runtimeRecord{{Release: "b1", Backend: "cpu", AssetID: "llama-b1-bin-win-cpu-x64.zip"}}, nil

@@ -7,12 +7,19 @@ import (
 	"io"
 )
 
-const configUsage = "usage: coquena config models-directory [<absolute-path>] [--json]"
+const configUsage = "usage: coquena config models-directory|runtimes-directory [<absolute-path>] [--json]"
 
-func runConfig(args []string, out io.Writer, get modelsDirectoryFunc, set setModelsDirectoryFunc) error {
+func runConfig(args []string, out io.Writer, get modelsDirectoryFunc, set setModelsDirectoryFunc, runtime ...any) error {
 	jsonOutput, args, err := extractJSON(args)
-	if err != nil || len(args) < 1 || len(args) > 2 || args[0] != "models-directory" {
+	if err != nil || len(args) < 1 || len(args) > 2 || (args[0] != "models-directory" && args[0] != "runtimes-directory") {
 		return errors.New(configUsage)
+	}
+	if args[0] == "runtimes-directory" {
+		if len(runtime) != 2 {
+			return errors.New(configUsage)
+		}
+		get, _ = runtime[0].(modelsDirectoryFunc)
+		set, _ = runtime[1].(setModelsDirectoryFunc)
 	}
 	var path string
 	if len(args) == 1 {

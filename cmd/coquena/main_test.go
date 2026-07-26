@@ -101,7 +101,7 @@ func TestCoquenaInitInitializesBesideBinaryFromAnotherWorkingDirectory(t *testin
 		t.Fatalf("coquena init output = %q, want installation root %q", output, installationRoot)
 	}
 
-	for _, directory := range []string{"config", "data", "downloads", "logs", "runtimes", "tmp"} {
+	for _, directory := range []string{"config", "data", "logs", "models", "runtimes", "tmp"} {
 		info, err := os.Stat(filepath.Join(installationRoot, directory))
 		if err != nil || !info.IsDir() {
 			t.Fatalf("portable directory %q: info = %v, error = %v", directory, info, err)

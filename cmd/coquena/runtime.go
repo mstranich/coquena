@@ -17,6 +17,7 @@ const commandUsage = `usage: coquena init
        coquena runtime remote [latest|<tag>] [<backend-selector>] [--json]
        coquena runtime remote --history <count> [<backend-selector>] [--json]
        coquena runtime download <asset-id|backend-selector> [<backend-selector>] [--json]
+       coquena runtime download list|status [<job-id>] [--json]
        coquena runtime list [<backend-selector>] [--json]
        coquena runtime remove <asset-id> [--json]
 	   coquena model resolve|inspect|download|revision <reference> [--json]
@@ -55,6 +56,13 @@ func runRuntime(args []string, stdout io.Writer, service runtimeService) error {
 		}
 		result, err = service.Remote(query)
 	case "download":
+		if len(args) >= 2 && isDownloadAction(args[1]) {
+			nested := append([]string(nil), args[1:]...)
+			if jsonOutput {
+				nested = append(nested, "--json")
+			}
+			return runDownloadWithKind(nested, stdout, "runtime")
+		}
 		request, parseErr := parseRuntimeDownload(args[1:])
 		if parseErr != nil {
 			return parseErr
@@ -78,6 +86,17 @@ func runRuntime(args []string, stdout io.Writer, service runtimeService) error {
 		return errors.New(commandUsage)
 	}
 	if err != nil {
+		var paused runtimeDownloadPaused
+		if errors.As(err, &paused) {
+			if !jsonOutput {
+				if paused.assetID != "" {
+					_, _ = fmt.Fprintf(stdout, "Download %s paused after interrupt. Run `coquena runtime download status %s` to inspect or `coquena runtime download resume %s` to continue.\n", paused.assetID, paused.assetID, paused.assetID)
+				} else {
+					_, _ = fmt.Fprintln(stdout, "Download paused after interrupt.")
+				}
+			}
+			return nil
+		}
 		return err
 	}
 	if jsonOutput {

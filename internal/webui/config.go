@@ -2,6 +2,7 @@ package webui
 
 import (
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"strings"
@@ -11,7 +12,9 @@ type configAPI struct{ service ConfigService }
 
 func newConfigAPI(service ConfigService) *configAPI { return &configAPI{service: service} }
 func (a *configAPI) serve(w http.ResponseWriter, r *http.Request) bool {
-	if r.URL.Path != "/api/config/models-directory" {
+	isModels := r.URL.Path == "/api/config/models-directory"
+	isRuntimes := r.URL.Path == "/api/config/runtimes-directory"
+	if !isModels && !isRuntimes {
 		return false
 	}
 	if r.Method != http.MethodGet && r.Method != http.MethodPut {
@@ -21,7 +24,15 @@ func (a *configAPI) serve(w http.ResponseWriter, r *http.Request) bool {
 	var path string
 	var err error
 	if r.Method == http.MethodGet {
-		path, err = a.service.ModelsDirectory()
+		if isRuntimes {
+			if runtimeService, ok := a.service.(interface{ RuntimesDirectory() (string, error) }); ok {
+				path, err = runtimeService.RuntimesDirectory()
+			} else {
+				err = errors.New("runtime directory configuration is unavailable")
+			}
+		} else {
+			path, err = a.service.ModelsDirectory()
+		}
 	} else {
 		var body struct {
 			Path string `json:"path"`
@@ -32,7 +43,15 @@ func (a *configAPI) serve(w http.ResponseWriter, r *http.Request) bool {
 			writeConfigError(w, http.StatusBadRequest, "path is required")
 			return true
 		}
-		path, err = a.service.SetModelsDirectory(body.Path)
+		if isRuntimes {
+			if runtimeService, ok := a.service.(interface{ SetRuntimesDirectory(string) (string, error) }); ok {
+				path, err = runtimeService.SetRuntimesDirectory(body.Path)
+			} else {
+				err = errors.New("runtime directory configuration is unavailable")
+			}
+		} else {
+			path, err = a.service.SetModelsDirectory(body.Path)
+		}
 	}
 	if err != nil {
 		status := http.StatusBadRequest

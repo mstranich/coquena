@@ -392,7 +392,6 @@ Coquena/
 ├── config/
 │   └── coquena.json
 ├── data/
-├── downloads/
 ├── logs/
 ├── runtimes/
 └── tmp/
@@ -554,6 +553,29 @@ coquena model download resume <job-id>
 coquena model download cancel <job-id>
 coquena model revision <model-path>
 ```
+
+Runtime storage can be configured independently from model storage:
+
+```console
+coquena config runtimes-directory
+coquena config runtimes-directory D:/coquena-runtimes
+```
+
+Download management is shared across resources. The global form includes all
+jobs, while the model and runtime forms filter by resource type:
+
+```console
+coquena download list
+coquena download status
+coquena model download list
+coquena model download status
+coquena runtime download list
+coquena runtime download status
+```
+
+Human tables use `ID`, `TYPE`, `NAME`, `STATUS`, `PROGRESS`, and `PATH`.
+Runtime partial transfers and their JSON state are discovered beneath the
+configured runtime directory.
 
 The shorter `coquena download ...` forms remain accepted aliases for download management.
 `coquena download` is the global download-management namespace, while `runtime download` and `model download` are resource-specific. Human `download list` output is tabular and includes percentage plus human-readable transferred/total sizes; `--json` retains the exact schema-version-1 automation contract. Pressing Ctrl+C during a CLI model resume leaves the durable job paused and resumable.

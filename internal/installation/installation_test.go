@@ -26,7 +26,7 @@ func TestInitializeCreatesPortableLayoutAndJSON(t *testing.T) {
 	for _, directory := range requiredDirectories {
 		assertDirectory(t, filepath.Join(root, directory))
 	}
-	assertFileContent(t, filepath.Join(root, configDirectory, configFilename), "{\n  \"schemaVersion\": 2\n}\n")
+	assertFileContent(t, filepath.Join(root, configDirectory, configFilename), "{\n  \"schemaVersion\": 3\n}\n")
 	assertFileContent(t, executable, "binary")
 }
 
@@ -135,7 +135,7 @@ func TestInitializeIsIdempotentAndCompletesMissingDirectories(t *testing.T) {
 	}
 
 	configPath := filepath.Join(root, configDirectory, configFilename)
-	custom := []byte("{\n  \"schemaVersion\": 1\n}\n")
+	custom := []byte("{\n  \"schemaVersion\": 3\n}\n")
 	mustWriteFile(t, configPath, custom)
 	if err := os.RemoveAll(filepath.Join(root, "logs")); err != nil {
 		t.Fatal(err)
@@ -160,11 +160,11 @@ func TestInitializeRejectsRequiredDirectoryConflict(t *testing.T) {
 	root := t.TempDir()
 	executable := filepath.Join(root, executableName())
 	mustWriteFile(t, executable, []byte("binary"))
-	conflict := filepath.Join(root, "downloads")
+	conflict := filepath.Join(root, "logs")
 	mustWriteFile(t, conflict, []byte("preserve"))
 
 	_, err := initialize(operationsForExecutable(executable))
-	if err == nil || !strings.Contains(err.Error(), "downloads") {
+	if err == nil || !strings.Contains(err.Error(), "logs") {
 		t.Fatalf("initialize() error = %v, want conflict path", err)
 	}
 	assertFileContent(t, conflict, "preserve")
@@ -196,8 +196,8 @@ func TestInitializeRejectsInvalidOrUnsupportedConfiguration(t *testing.T) {
 		want    string
 	}{
 		{name: "invalid JSON", content: "{", want: "invalid JSON"},
-		{name: "unsupported schema", content: "{\"schemaVersion\":3}\n", want: "unsupported schemaVersion 3"},
-		{name: "unknown field", content: "{\"schemaVersion\":1,\"other\":true}\n", want: "invalid JSON"},
+		{name: "unsupported schema", content: "{\"schemaVersion\":2}\n", want: "unsupported schemaVersion 2"},
+		{name: "unknown field", content: "{\"schemaVersion\":3,\"other\":true}\n", want: "invalid JSON"},
 	}
 
 	for _, test := range tests {
@@ -261,7 +261,7 @@ func TestModelsDirectoryDefaultsAndPersistsOverride(t *testing.T) {
 		t.Fatalf("set = %q, %v", got, err)
 	}
 	data, err := os.ReadFile(filepath.Join(root, configDirectory, configFilename))
-	if err != nil || !strings.Contains(string(data), `"schemaVersion": 2`) {
+	if err != nil || !strings.Contains(string(data), `"schemaVersion": 3`) {
 		t.Fatalf("config = %q, %v", data, err)
 	}
 	got, err = modelsDirectory(op)

@@ -3,6 +3,7 @@ package store
 import (
 	"archive/tar"
 	"archive/zip"
+	"bytes"
 	"compress/gzip"
 	"context"
 	"crypto/sha256"
@@ -21,12 +22,11 @@ import (
 func layout(t *testing.T) Layout {
 	t.Helper()
 	r := t.TempDir()
-	for _, p := range []string{"config", "downloads", "tmp", "runtimes"} {
+	for _, p := range []string{"tmp"} {
 		if e := os.MkdirAll(filepath.Join(r, p), 0755); e != nil {
 			t.Fatal(e)
 		}
 	}
-	os.WriteFile(filepath.Join(r, "config", "coquena.json"), []byte("{\"schemaVersion\":1}\n"), 0644)
 	l, e := Open(r)
 	if e != nil {
 		t.Fatal(e)
@@ -73,6 +73,32 @@ func TestDownloadReportsWrittenBytes(t *testing.T) {
 	defer os.Remove(path)
 	if len(reports) == 0 || reports[len(reports)-1] != int64(len(body)) {
 		t.Fatalf("reports=%v", reports)
+	}
+}
+
+func TestDownloadCancellationPersistsPausedState(t *testing.T) {
+	l := layout(t)
+	firstChunk := bytes.Repeat([]byte("x"), 32*1024)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write(firstChunk)
+		w.(http.Flusher).Flush()
+		<-r.Context().Done()
+	}))
+	defer server.Close()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	asset := Asset{Name: "paused.zip", URL: server.URL, Digest: "sha256:" + strings.Repeat("0", 64), Size: int64(len(firstChunk) * 2)}
+	_, err := DownloadWithProgress(ctx, server.Client(), l, asset, Limits{}, func(int64) { cancel() })
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("download error = %v, want context cancellation", err)
+	}
+	var state DownloadState
+	b, err := os.ReadFile(filepath.Join(l.Downloads, "paused.zip.download.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal(b, &state); err != nil || state.Status != "paused" || state.DownloadedBytes == 0 {
+		t.Fatalf("state = %+v, err = %v", state, err)
 	}
 }
 

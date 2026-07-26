@@ -35,10 +35,15 @@ type Manager struct {
 
 func NewManager() *Manager {
 	client := llamacpp.NewGitHubClient(os.Getenv("GITHUB_TOKEN"))
-	return &Manager{releases: client, httpClient: client.HTTP, inspect: hostsystem.Inspect, root: runtimeRoot}
+	// GitHub API calls are small and retain the metadata client's bounded
+	// timeout. Runtime archives can be hundreds of MiB, so their client must not
+	// inherit that 15-second whole-request deadline; cancellation is controlled
+	// by the caller context instead.
+	downloadClient := &http.Client{Transport: client.HTTP.Transport}
+	return &Manager{releases: client, httpClient: downloadClient, inspect: hostsystem.Inspect, root: runtimeRoot}
 }
 
-func runtimeRoot() (string, error) { return installation.Home() }
+func runtimeRoot() (string, error) { return installation.RuntimesDirectory() }
 
 func (m *Manager) host() (llamacpp.Host, error) {
 	report, err := m.inspect()
@@ -194,6 +199,7 @@ func (m *Manager) Download(ctx context.Context, request DownloadRequest, progres
 		emit(progress, Progress{Phase: "extracting", AssetID: asset.Name, TotalTransferred: completedBytes, TotalBytes: totalBytes})
 		extractErr := extractArchive(asset.Name, archive, stage)
 		_ = os.Remove(archive)
+		_ = os.Remove(runtimestore.DownloadStatePath(archive))
 		if extractErr != nil {
 			return Mutation{}, fmt.Errorf("extract %s: %w", asset.Name, extractErr)
 		}

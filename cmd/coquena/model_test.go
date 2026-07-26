@@ -104,7 +104,7 @@ func TestRunDownloadListHumanTable(t *testing.T) {
 	if err = runDownload([]string{"list"}, &out); err != nil {
 		t.Fatal(err)
 	}
-	for _, expected := range []string{"ID", "MODEL", "STATUS", "PROGRESS", "0.0% (0 B / 4.0 GiB)", "PATH", job.ID, "org/repo:m.gguf", job.TargetPath} {
+	for _, expected := range []string{"ID", "TYPE", "NAME", "STATUS", "PROGRESS", "0.0% (0 B / 4.0 GiB)", "PATH", job.ID, "org/repo:m.gguf", job.TargetPath} {
 		if !strings.Contains(out.String(), expected) {
 			t.Fatalf("missing %q in %s", expected, out.String())
 		}
@@ -174,8 +174,12 @@ func TestRunModelSupportsNestedDownloadStatus(t *testing.T) {
 	}
 }
 
-func TestRunModelNestedDownloadStatusRequiresID(t *testing.T) {
-	if err := runModel([]string{"download", "status"}, &bytes.Buffer{}); err == nil || !strings.Contains(err.Error(), "usage:") {
+func TestRunModelNestedDownloadStatusLists(t *testing.T) {
+	m := modelapp.NewManager(filepath.Join(t.TempDir(), "models"))
+	old := modelManagerFactory
+	modelManagerFactory = func() (*modelapp.Manager, error) { return m, nil }
+	t.Cleanup(func() { modelManagerFactory = old })
+	if err := runModel([]string{"download", "status"}, &bytes.Buffer{}); err != nil {
 		t.Fatalf("err=%v", err)
 	}
 }

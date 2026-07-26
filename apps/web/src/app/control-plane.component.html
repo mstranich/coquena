@@ -77,16 +77,6 @@
       @if (runtimes.error()) {
         <p class="runtime-message error">{{ runtimes.error() }}</p>
       }
-      @if (runtimes.progress(); as progress) {
-        <article class="card runtime-progress">
-          <p class="eyebrow">Runtime operation</p>
-          <h3>{{ progress.phase }}</h3>
-          <p class="subtle">{{ progress.assetId || 'Preparing download' }}</p>
-          @if (progress.totalBytes) {
-            <progress [value]="progress.totalTransferredBytes || 0" [max]="progress.totalBytes"></progress>
-          }
-        </article>
-      }
       <article class="card runtime-detail">
         <div>
           <p class="eyebrow">Default runtime</p>
@@ -96,8 +86,8 @@
       </article>
       <section class="section-heading">
         <div>
-          <p class="eyebrow">Installed</p>
-          <h3>Local runtimes</h3>
+          <p class="eyebrow">Managed library</p>
+          <h3>Installed and incomplete runtimes</h3>
         </div>
       </section>
       <div class="runtime-list">
@@ -115,7 +105,33 @@
             <button class="danger" [disabled]="runtimes.mutating()" (click)="runtimes.remove(runtime.assetId)">Remove</button>
           </article>
         } @empty {
-          @if (!runtimes.loading()) { <p class="subtle">No managed runtimes installed.</p> }
+          @if (!runtimes.loading() && runtimes.downloads().length === 0 && !runtimes.activeDownloadId()) { <p class="subtle">No managed runtimes or incomplete downloads found.</p> }
+        }
+        @for (job of runtimes.managedDownloads(); track job.id) {
+          <article class="card runtime-row">
+            <div>
+              <h3>{{ job.name }}</h3>
+              @if (runtimes.activeFor(job.id); as active) {
+                <p><span class="pill">{{ runtimes.phaseLabel(active.phase) }}</span></p>
+                <p class="subtle">Current asset: {{ active.assetId || job.name }} · {{ formatBytes(active.assetTransferredBytes || job.downloadedBytes) }} / {{ formatBytes(active.assetTotalBytes || job.expectedBytes) }}</p>
+                @if (active.totalBytes) { <p class="subtle">Overall runtime: {{ formatBytes(active.totalTransferredBytes || 0) }} / {{ formatBytes(active.totalBytes) }}</p> }
+                @if (active.phase === 'downloading' && (active.assetTotalBytes || job.expectedBytes) > 0) {
+                  <progress [value]="active.assetTransferredBytes || job.downloadedBytes" [max]="active.assetTotalBytes || job.expectedBytes"></progress>
+                }
+              } @else {
+                <p><span class="pill">{{ runtimes.phaseLabel(job.status) }}</span></p>
+                <p class="subtle">Current asset: {{ job.name }} · {{ formatBytes(job.downloadedBytes) }} / {{ formatBytes(job.expectedBytes) }}</p>
+                @if (job.expectedBytes > 0) { <progress [value]="job.downloadedBytes" [max]="job.expectedBytes"></progress> }
+              }
+              @if (job.error) { <p class="error">{{ job.error }}</p> }
+              <div class="download-actions">
+                @if (runtimes.activeFor(job.id); as active) {
+                  @if (active.phase === 'downloading' || active.phase === 'queued') { <button (click)="runtimes.action(active, 'pause')">Pause</button> }
+                } @else if (job.status !== 'completed' && job.status !== 'cancelled') { <button (click)="runtimes.action(job, 'resume')">Resume</button> }
+                @if (runtimes.activeFor(job.id); as active) { <button class="danger" (click)="runtimes.action(active, 'cancel')">Cancel</button> } @else if (job.status !== 'cancelled') { <button class="danger" (click)="runtimes.action(job, 'cancel')">Cancel</button> }
+              </div>
+            </div>
+          </article>
         }
       </div>
       <section class="section-heading">

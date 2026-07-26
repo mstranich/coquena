@@ -68,7 +68,7 @@ func run(args []string, stdout io.Writer, initialize initializeFunc, inspect ins
 		return runDownload(args[1:], stdout)
 	}
 	if len(args) > 0 && args[0] == "config" {
-		return runConfig(args[1:], stdout, models, setModels)
+		return runConfig(args[1:], stdout, models, setModels, modelsDirectoryFunc(installation.RuntimesDirectory), setModelsDirectoryFunc(installation.SetRuntimesDirectory))
 	}
 	return errors.New(commandUsage)
 }

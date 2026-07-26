@@ -15,6 +15,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/mstranich/coquena/internal/download"
+	"github.com/mstranich/coquena/internal/installation"
 	runtimeapp "github.com/mstranich/coquena/internal/runtime"
 	runtimestore "github.com/mstranich/coquena/internal/runtime/store"
 )
@@ -25,13 +27,15 @@ type RuntimeMutation = runtimeapp.Mutation
 type RuntimeProgress = runtimeapp.Progress
 
 type runtimeOperation struct {
-	ID       string
-	Progress RuntimeProgress
-	Mutation *RuntimeMutation
-	Err      string
-	Done     bool
-	Updated  time.Time
-	watchers map[chan struct{}]struct{}
+	ID        string
+	Progress  RuntimeProgress
+	Mutation  *RuntimeMutation
+	Err       string
+	Done      bool
+	Updated   time.Time
+	watchers  map[chan struct{}]struct{}
+	cancel    context.CancelFunc
+	cancelled bool
 }
 
 type runtimeOperations struct {
@@ -78,7 +82,7 @@ func (o *runtimeOperations) update(id string, progress RuntimeProgress, mutation
 	if op == nil {
 		return
 	}
-	terminal := progress.Phase == "completed" || progress.Phase == "failed"
+	terminal := progress.Phase == "completed" || progress.Phase == "failed" || progress.Phase == "paused" || progress.Phase == "cancelled"
 	// Asset reads can be very small; retain the latest value but wake SSE
 	// subscribers at most four times per second until a terminal state.
 	if !terminal && progress.Phase == "downloading" && op.Progress.Phase == "downloading" && time.Since(op.Updated) < 250*time.Millisecond {
@@ -99,6 +103,32 @@ func (o *runtimeOperations) update(id string, progress RuntimeProgress, mutation
 		close(ch)
 		delete(op.watchers, ch)
 	}
+}
+
+func (o *runtimeOperations) setCancel(id string, cancel context.CancelFunc) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if op := o.items[id]; op != nil {
+		op.cancel = cancel
+	}
+}
+
+func (o *runtimeOperations) interrupt(id string, cancelled bool) bool {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	op := o.items[id]
+	if op == nil || op.Done || op.cancel == nil {
+		return false
+	}
+	op.cancelled = cancelled
+	op.cancel()
+	return true
+}
+
+func (o *runtimeOperations) wasCancelled(id string) bool {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return o.items[id] != nil && o.items[id].cancelled
 }
 
 func (o *runtimeOperations) snapshot(id string) (*runtimeOperation, chan struct{}, bool) {
@@ -180,6 +210,21 @@ func (a *runtimeAPI) serve(w http.ResponseWriter, r *http.Request) bool {
 		}
 		writeRuntimeJSON(w, result)
 	case suffix == "/downloads":
+		if r.Method == http.MethodGet {
+			root, err := installation.RuntimesDirectory()
+			if err != nil {
+				writeRuntimeError(w, http.StatusConflict, "Coquena is not initialized; run coquena init")
+				return true
+			}
+			entries, err := download.List("", root)
+			if err != nil {
+				a.logger.Printf("runtime download listing failed: %v", err)
+				writeRuntimeError(w, http.StatusInternalServerError, "runtime download listing failed; see server logs")
+				return true
+			}
+			writeRuntimeJSON(w, entries)
+			return true
+		}
 		if r.Method != http.MethodPost {
 			w.WriteHeader(http.StatusMethodNotAllowed)
 			return true
@@ -203,6 +248,13 @@ func (a *runtimeAPI) serve(w http.ResponseWriter, r *http.Request) bool {
 		writeRuntimeJSONStatus(w, http.StatusAccepted, struct {
 			OperationID string `json:"operationId"`
 		}{op.ID})
+	case strings.HasPrefix(suffix, "/downloads/") && strings.HasSuffix(suffix, "/actions"):
+		if r.Method != http.MethodPost {
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			return true
+		}
+		id := strings.TrimSuffix(strings.TrimPrefix(suffix, "/downloads/"), "/actions")
+		a.downloadAction(w, r, id)
 	case strings.HasPrefix(suffix, "/downloads/") && strings.HasSuffix(suffix, "/events"):
 		if r.Method != http.MethodGet {
 			w.WriteHeader(http.StatusMethodNotAllowed)
@@ -241,16 +293,100 @@ func (a *runtimeAPI) serve(w http.ResponseWriter, r *http.Request) bool {
 }
 
 func (a *runtimeAPI) download(id, assetID string) {
+	a.logger.Printf("download operation %s for %q started", id, assetID)
 	a.operations.update(id, RuntimeProgress{Phase: "downloading", AssetID: assetID}, nil, nil)
-	mutation, err := a.service.Download(context.Background(), runtimeapp.DownloadRequest{AssetID: assetID}, func(p RuntimeProgress) {
+	ctx, cancel := context.WithCancel(context.Background())
+	a.operations.setCancel(id, cancel)
+	defer cancel()
+	lastPhase := "downloading"
+	mutation, err := a.service.Download(ctx, runtimeapp.DownloadRequest{AssetID: assetID}, func(p RuntimeProgress) {
+		if p.Phase != lastPhase {
+			a.logger.Printf("download operation %s for %q entered phase %s", id, assetID, p.Phase)
+			lastPhase = p.Phase
+		}
 		a.operations.update(id, p, nil, nil)
 	})
 	if err != nil {
+		if errors.Is(err, context.Canceled) {
+			if a.operations.wasCancelled(id) {
+				_ = a.removeRuntimeDownload(assetID)
+				a.logger.Printf("download operation %s for %q cancelled", id, assetID)
+				a.operations.update(id, RuntimeProgress{Phase: "cancelled", AssetID: assetID}, nil, nil)
+			} else {
+				a.logger.Printf("download operation %s for %q paused", id, assetID)
+				a.operations.update(id, RuntimeProgress{Phase: "paused", AssetID: assetID}, nil, nil)
+			}
+			return
+		}
 		a.logger.Printf("download operation %s for %q failed: %v", id, assetID, err)
 		a.operations.update(id, RuntimeProgress{Phase: "failed", AssetID: assetID}, nil, err)
 		return
 	}
+	a.logger.Printf("download operation %s for %q completed", id, assetID)
 	a.operations.update(id, RuntimeProgress{Phase: "completed", AssetID: assetID}, &mutation, nil)
+}
+
+func (a *runtimeAPI) downloadAction(w http.ResponseWriter, r *http.Request, id string) {
+	var body struct {
+		Action string `json:"action"`
+	}
+	if json.NewDecoder(r.Body).Decode(&body) != nil {
+		writeRuntimeError(w, http.StatusBadRequest, "action is required")
+		return
+	}
+	switch body.Action {
+	case "pause":
+		if !a.operations.interrupt(id, false) {
+			writeRuntimeError(w, http.StatusConflict, "runtime download is not active")
+			return
+		}
+		writeRuntimeJSON(w, map[string]string{"status": "pausing"})
+	case "cancel":
+		if a.operations.interrupt(id, true) {
+			writeRuntimeJSON(w, map[string]string{"status": "cancelling"})
+			return
+		}
+		if err := a.removeRuntimeDownload(id); err != nil {
+			writeRuntimeError(w, http.StatusNotFound, "runtime download not found")
+			return
+		}
+		writeRuntimeJSON(w, map[string]string{"status": "cancelled"})
+	case "resume":
+		op, err := a.operations.create()
+		if err != nil {
+			writeRuntimeError(w, http.StatusConflict, err.Error())
+			return
+		}
+		go a.download(op.ID, id)
+		writeRuntimeJSONStatus(w, http.StatusAccepted, struct {
+			OperationID string `json:"operationId"`
+		}{op.ID})
+	default:
+		writeRuntimeError(w, http.StatusBadRequest, "unsupported runtime download action")
+	}
+}
+
+func (a *runtimeAPI) removeRuntimeDownload(id string) error {
+	root, err := installation.RuntimesDirectory()
+	if err != nil {
+		return err
+	}
+	entries, err := download.List("", root)
+	if err != nil {
+		return err
+	}
+	for _, entry := range entries {
+		if entry.ID == id {
+			if err := os.Remove(entry.Path); err != nil && !errors.Is(err, os.ErrNotExist) {
+				return err
+			}
+			if err := os.Remove(strings.TrimSuffix(entry.Path, ".download.json") + ".partial"); err != nil && !errors.Is(err, os.ErrNotExist) {
+				return err
+			}
+			return nil
+		}
+	}
+	return os.ErrNotExist
 }
 
 func (a *runtimeAPI) events(w http.ResponseWriter, r *http.Request, id string) {

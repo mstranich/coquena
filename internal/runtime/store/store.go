@@ -24,27 +24,19 @@ var ErrNotInitialized = errors.New("portable installation is not initialized")
 
 type Layout struct{ Root, Downloads, Temporary, Runtimes string }
 
-// Open validates (and never initializes) a portable Coquena installation.
+// Open validates the configured runtime directory and creates only its owned
+// working subdirectories.
 func Open(root string) (Layout, error) {
 	root, err := filepath.Abs(root)
 	if err != nil {
 		return Layout{}, err
 	}
-	b, err := os.ReadFile(filepath.Join(root, "config", "coquena.json"))
-	if err != nil {
-		return Layout{}, fmt.Errorf("%w: %v", ErrNotInitialized, err)
+	l := Layout{root, root, filepath.Join(root, "tmp"), filepath.Join(root, "llama.cpp")}
+	if s, e := os.Stat(root); e != nil || !s.IsDir() {
+		return Layout{}, fmt.Errorf("runtime directory unavailable: %s", root)
 	}
-	var c struct {
-		SchemaVersion int `json:"schemaVersion"`
-	}
-	if json.Unmarshal(b, &c) != nil || c.SchemaVersion != 1 {
-		return Layout{}, errors.New("portable installation has an invalid configuration")
-	}
-	l := Layout{root, filepath.Join(root, "downloads"), filepath.Join(root, "tmp"), filepath.Join(root, "runtimes", "llama.cpp")}
-	for _, p := range []string{l.Downloads, l.Temporary, filepath.Join(root, "runtimes")} {
-		if s, e := os.Stat(p); e != nil || !s.IsDir() {
-			return Layout{}, fmt.Errorf("portable installation directory unavailable: %s", p)
-		}
+	if err := os.MkdirAll(l.Temporary, 0755); err != nil {
+		return Layout{}, err
 	}
 	if err := os.MkdirAll(l.Runtimes, 0755); err != nil {
 		return Layout{}, err
@@ -58,6 +50,24 @@ type Asset struct {
 	Digest string `json:"digest"`
 	Size   int64  `json:"size"`
 }
+
+type DownloadState struct {
+	ID              string `json:"id"`
+	Name            string `json:"name"`
+	PartialPath     string `json:"partialPath"`
+	Status          string `json:"status"`
+	DownloadedBytes int64  `json:"downloadedBytes"`
+	ExpectedBytes   int64  `json:"expectedBytes"`
+	Digest          string `json:"digest"`
+}
+
+// DownloadStatePath returns the durable job sidecar adjacent to a runtime
+// archive partial. The archive itself remains `<asset>.partial`; the state is
+// deliberately named `<asset>.download.json`, matching model download jobs.
+func DownloadStatePath(partialPath string) string {
+	return strings.TrimSuffix(partialPath, ".partial") + ".download.json"
+}
+
 type Identity struct {
 	Release        string `json:"release"`
 	OS             string `json:"os"`
@@ -120,6 +130,17 @@ func DownloadWithProgress(ctx context.Context, client *http.Client, layout Layou
 	if e != nil {
 		return "", e
 	}
+	partial := filepath.Join(layout.Downloads, a.Name+".partial")
+	if err := ValidateID(filepath.Base(a.Name)); err != nil {
+		return "", err
+	}
+	var offset int64
+	if info, statErr := os.Stat(partial); statErr == nil {
+		offset = info.Size()
+		if offset > 0 {
+			req.Header.Set("Range", fmt.Sprintf("bytes=%d-", offset))
+		}
+	}
 	resp, e := client.Do(req)
 	if e != nil {
 		return "", e
@@ -128,22 +149,52 @@ func DownloadWithProgress(ctx context.Context, client *http.Client, layout Layou
 	if resp.StatusCode/100 != 2 {
 		return "", fmt.Errorf("download %s: HTTP %s", a.Name, resp.Status)
 	}
-	f, e := os.CreateTemp(layout.Downloads, ".runtime-download-*")
+	if offset > 0 && resp.StatusCode != http.StatusPartialContent {
+		offset = 0
+	}
+	flags := os.O_CREATE | os.O_WRONLY
+	if offset == 0 {
+		flags |= os.O_TRUNC
+	} else {
+		flags |= os.O_APPEND
+	}
+	f, e := os.OpenFile(partial, flags, 0o644)
 	if e != nil {
 		return "", e
 	}
-	name := f.Name()
-	ok := false
+	name := partial
 	defer func() {
 		f.Close()
-		if !ok {
-			os.Remove(name)
-		}
 	}()
+	metaPath := DownloadStatePath(name)
+	writeState := func(status string, downloaded int64) {
+		b, _ := json.Marshal(DownloadState{ID: a.Name, Name: a.Name, PartialPath: name, Status: status, DownloadedBytes: downloaded, ExpectedBytes: a.Size, Digest: a.Digest})
+		_ = os.WriteFile(metaPath, append(b, '\n'), 0o644)
+	}
+	writeState("downloading", offset)
 	h := sha256.New()
+	if offset > 0 {
+		existing, readErr := os.Open(partial)
+		if readErr == nil {
+			_, _ = io.CopyN(h, existing, offset)
+			_ = existing.Close()
+		}
+	}
 	reader := &progressReader{reader: io.LimitReader(resp.Body, limits.MaxDownloadBytes+1), report: progress}
+	reader.report = func(v int64) {
+		writeState("downloading", offset+v)
+		if progress != nil {
+			progress(offset + v)
+		}
+	}
 	n, e := io.Copy(io.MultiWriter(f, h), reader)
+	n += offset
 	if e != nil {
+		if errors.Is(ctx.Err(), context.Canceled) {
+			writeState("paused", n)
+		} else {
+			writeState("failed", n)
+		}
 		return "", e
 	}
 	if n > limits.MaxDownloadBytes {
@@ -161,7 +212,7 @@ func DownloadWithProgress(ctx context.Context, client *http.Client, layout Layou
 	if e = f.Close(); e != nil {
 		return "", e
 	}
-	ok = true
+	writeState("verified", n)
 	return name, nil
 }
 

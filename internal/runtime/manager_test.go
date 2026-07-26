@@ -2,6 +2,7 @@ package runtime
 
 import (
 	"context"
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -16,6 +17,16 @@ var _ Service = (*Manager)(nil)
 func (f fakeReleaseSource) Latest(context.Context) (llamacpp.Release, error) { return f.release, nil }
 func (f fakeReleaseSource) ByTag(context.Context, string) (llamacpp.Release, error) {
 	return f.release, nil
+}
+
+func TestNewManagerDoesNotApplyMetadataTimeoutToArchiveTransfers(t *testing.T) {
+	manager := NewManager()
+	if manager.httpClient == nil {
+		t.Fatal("download HTTP client is nil")
+	}
+	if manager.httpClient.Timeout != 0 {
+		t.Fatalf("archive timeout = %v, want caller-controlled context", manager.httpClient.Timeout)
+	}
 }
 func (f fakeReleaseSource) History(context.Context, int) ([]llamacpp.Release, error) {
 	return []llamacpp.Release{f.release}, nil
@@ -84,12 +95,20 @@ func TestValidateExactAssetID(t *testing.T) {
 func TestRuntimeRootUsesApplicationHomeOverride(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("COQUENA_HOME", home)
+	for _, dir := range []string{"config", "runtimes"} {
+		if err := os.MkdirAll(filepath.Join(home, dir), 0755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(home, "config", "coquena.json"), []byte(`{"schemaVersion":3}`), 0644); err != nil {
+		t.Fatal(err)
+	}
 
 	got, err := runtimeRoot()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got != filepath.Clean(home) {
-		t.Fatalf("runtimeRoot() = %q, want %q", got, home)
+	if got != filepath.Join(filepath.Clean(home), "runtimes") {
+		t.Fatalf("runtimeRoot() = %q, want %q", got, filepath.Join(filepath.Clean(home), "runtimes"))
 	}
 }

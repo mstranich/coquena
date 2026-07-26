@@ -13,13 +13,12 @@ import (
 const (
 	configDirectory = "config"
 	configFilename  = "coquena.json"
-	schemaVersion   = 2
+	schemaVersion   = 3
 )
 
 var requiredDirectories = []string{
 	configDirectory,
 	"data",
-	"downloads",
 	"logs",
 	"models",
 	"runtimes",
@@ -33,11 +32,15 @@ type Result struct {
 }
 
 type configuration struct {
-	SchemaVersion int                  `json:"schemaVersion"`
-	Models        *modelsConfiguration `json:"models,omitempty"`
+	SchemaVersion int                    `json:"schemaVersion"`
+	Models        *modelsConfiguration   `json:"models,omitempty"`
+	Runtimes      *runtimesConfiguration `json:"runtimes,omitempty"`
 }
 
 type modelsConfiguration struct {
+	Directory string `json:"directory"`
+}
+type runtimesConfiguration struct {
 	Directory string `json:"directory"`
 }
 
@@ -84,6 +87,10 @@ func ModelsDirectory() (string, error) { return modelsDirectory(defaultOperation
 // SetModelsDirectory validates and atomically records an explicit directory.
 func SetModelsDirectory(path string) (string, error) {
 	return setModelsDirectory(defaultOperations(), path)
+}
+func RuntimesDirectory() (string, error) { return runtimesDirectory(defaultOperations()) }
+func SetRuntimesDirectory(path string) (string, error) {
+	return setRuntimesDirectory(defaultOperations(), path)
 }
 
 func initialize(op operations) (Result, error) {
@@ -209,11 +216,8 @@ func parseConfiguration(data []byte) (configuration, error) {
 	if err := decoder.Decode(&extra); !errors.Is(err, io.EOF) {
 		return configuration{}, errors.New("invalid JSON: multiple values")
 	}
-	if config.SchemaVersion != 1 && config.SchemaVersion != schemaVersion {
+	if config.SchemaVersion != schemaVersion {
 		return configuration{}, fmt.Errorf("unsupported schemaVersion %d", config.SchemaVersion)
-	}
-	if config.SchemaVersion == 1 && config.Models != nil {
-		return configuration{}, errors.New("invalid JSON: schemaVersion 1 cannot contain models")
 	}
 	return config, nil
 }
@@ -273,7 +277,12 @@ func setModelsDirectory(op operations, value string) (string, error) {
 	if !ok {
 		return "", errors.New("portable installation is not initialized; run coquena init")
 	}
-	c := configuration{SchemaVersion: schemaVersion, Models: &modelsConfiguration{Directory: path}}
+	c, _, err := readConfiguration(op, configPath)
+	if err != nil {
+		return "", err
+	}
+	c.SchemaVersion = schemaVersion
+	c.Models = &modelsConfiguration{Directory: path}
 	b, err := json.MarshalIndent(c, "", "  ")
 	if err != nil {
 		return "", err
@@ -282,6 +291,80 @@ func setModelsDirectory(op operations, value string) (string, error) {
 	if err := publishConfigurationBytes(op, configPath, b); err != nil {
 		return "", err
 	}
+	return path, nil
+}
+
+func runtimesDirectory(op operations) (string, error) {
+	root, err := resolveHome(op)
+	if err != nil {
+		return "", err
+	}
+	c, ok, err := readConfiguration(op, filepath.Join(root, configDirectory, configFilename))
+	if err != nil {
+		return "", err
+	}
+	if !ok {
+		return "", errors.New("portable installation is not initialized; run coquena init")
+	}
+	if c.Runtimes != nil && c.Runtimes.Directory != "" {
+		return c.Runtimes.Directory, nil
+	}
+	return filepath.Join(root, "runtimes"), nil
+}
+
+func setRuntimesDirectory(op operations, value string) (string, error) {
+	path, err := validateDirectory(op, value, "runtimes")
+	if err != nil {
+		return "", err
+	}
+	root, err := resolveHome(op)
+	if err != nil {
+		return "", err
+	}
+	configPath := filepath.Join(root, configDirectory, configFilename)
+	c, ok, err := readConfiguration(op, configPath)
+	if err != nil {
+		return "", err
+	}
+	if !ok {
+		return "", errors.New("portable installation is not initialized; run coquena init")
+	}
+	c.SchemaVersion = schemaVersion
+	c.Runtimes = &runtimesConfiguration{Directory: path}
+	b, err := json.MarshalIndent(c, "", "  ")
+	if err != nil {
+		return "", err
+	}
+	b = append(b, '\n')
+	if err := publishConfigurationBytes(op, configPath, b); err != nil {
+		return "", err
+	}
+	return path, nil
+}
+
+func validateDirectory(op operations, value, label string) (string, error) {
+	if value == "" || !filepath.IsAbs(value) {
+		return "", fmt.Errorf("%s directory must be an absolute non-empty path", label)
+	}
+	path, err := op.abs(value)
+	if err != nil {
+		return "", err
+	}
+	path = filepath.Clean(path)
+	info, err := op.stat(path)
+	if err != nil {
+		return "", fmt.Errorf("inspect %s directory %q: %w", label, path, err)
+	}
+	if !info.IsDir() {
+		return "", fmt.Errorf("%s directory %q is not a directory", label, path)
+	}
+	tmp, err := op.createTemp(path, ".coquena-write-probe-*")
+	if err != nil {
+		return "", fmt.Errorf("%s directory %q is not writable: %w", label, path, err)
+	}
+	tmpName := tmp.Name()
+	_ = tmp.Close()
+	_ = op.remove(tmpName)
 	return path, nil
 }
 

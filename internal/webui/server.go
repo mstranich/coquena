@@ -35,6 +35,12 @@ func (installationConfigService) ModelsDirectory() (string, error) {
 func (installationConfigService) SetModelsDirectory(v string) (string, error) {
 	return installation.SetModelsDirectory(v)
 }
+func (installationConfigService) RuntimesDirectory() (string, error) {
+	return installation.RuntimesDirectory()
+}
+func (installationConfigService) SetRuntimesDirectory(v string) (string, error) {
+	return installation.SetRuntimesDirectory(v)
+}
 
 func ParsePort(args []string) (int, error) {
 	flags := flag.NewFlagSet("webui", flag.ContinueOnError)
