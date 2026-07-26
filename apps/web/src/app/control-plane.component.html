@@ -161,6 +161,62 @@
           <p class="subtle">Inherited by every model preset unless overridden.</p>
         </div><a class="primary action" routerLink="/models/presets">Configure</a>
       </article>
+      <section class="section-heading">
+        <div>
+          <p class="eyebrow">Managed library</p>
+          <h3>Installed and incomplete models</h3>
+        </div>
+        <button (click)="modelService.loadLibrary()">Refresh</button>
+      </section>
+      <div class="model-list">
+        @for (entry of modelService.library(); track entry.targetPath) {
+          <article class="model-row managed-model">
+            <img
+              class="publisher-avatar"
+              [src]="modelService.localAvatar(entry.source.repository)"
+              [alt]="modelService.publisher(entry.source.repository) + ' avatar'"
+              (error)="$any($event.target).hidden = true"
+            >
+            <div>
+              <h3>{{ entry.source.filename }}</h3>
+              <p>
+                {{ entry.source.repository }} · {{ entry.state }}
+              </p>
+            </div>
+            @if (entry.job; as job) {
+              <div class="model-download">
+                <p>
+                  {{ formatBytes(job.downloadedBytes) }} / {{ formatBytes(job.expectedSizeBytes) }}
+                </p>
+                @if (job.error) {
+                  <p class="error">{{ job.error }}</p>
+                }
+                @if (job.expectedSizeBytes > 0) {
+                  <progress [value]="job.downloadedBytes" [max]="job.expectedSizeBytes"></progress>
+                }
+                <div class="download-actions">
+                  @if (job.status === 'downloading' || job.status === 'pending') {
+                    <button (click)="modelService.action(job, 'pause')">Pause</button>
+                  }
+                  @if (job.status === 'paused' || job.status === 'failed') {
+                    <button (click)="modelService.action(job, 'resume')">Resume</button>
+                  }
+                  @if (job.status !== 'completed' && job.status !== 'cancelled') {
+                    <button class="danger" (click)="modelService.action(job, 'cancel')">Cancel</button>
+                  }
+                </div>
+              </div>
+            } @else {
+              <app-model-metadata
+                [repository]="entry.source.repository"
+                [filename]="entry.source.filename"
+              ></app-model-metadata>
+            }
+          </article>
+        } @empty {
+          <p class="subtle">No managed models or incomplete downloads found.</p>
+        }
+      </div>
       <div class="model-cards">
         @for (model of models; track model.name) {<article class="card">
             <header>
@@ -183,10 +239,41 @@
       </div>
       <section class="discover card">
         <p class="eyebrow">Discover on Hugging Face</p>
-        <div class="search"><input placeholder="Search models…" aria-label="Search models"><button class="primary">Search</button></div>
-        <h3>Qwen3 8B GGUF</h3>
-        <p class="subtle">Q4_K_M · 5.1 GB · Recommended · Fits your hardware: Yes</p>
-        <button class="primary">Download</button>
+        <div class="search">
+          <input #reference placeholder="org/repository or GGUF URL" aria-label="Hugging Face repository"><button
+            class="primary"
+            (click)="modelService.resolve(reference.value)"
+          >
+            Resolve
+          </button>
+        </div>
+        @if (modelService.error()) {
+          <p class="runtime-message error">{{ modelService.error() }}</p>
+        }
+        @for (candidate of modelService.candidates(); track candidate.source.filename) {
+          <article class="model-row discovered-model">
+            <img
+              class="publisher-avatar"
+              [src]="modelService.remoteAvatar(candidate.source.repository)"
+              [alt]="modelService.publisher(candidate.source.repository) + ' avatar'"
+              (error)="$any($event.target).hidden = true"
+            >
+            <div>
+              <h3>{{ candidate.source.filename }}</h3>
+              <p>
+                {{ candidate.source.repository }} · {{ formatBytes(candidate.artifact.sizeBytes) }}
+              </p>
+            </div>
+            <span>
+              <button class="primary" (click)="modelService.download(reference.value, candidate.source.filename)">Download</button>
+            </span>
+            <app-model-metadata
+              [repository]="candidate.source.repository"
+              [filename]="candidate.source.filename"
+              [reference]="candidate.source.repository"
+            ></app-model-metadata>
+          </article>
+        }
       </section>
     </section>
   }

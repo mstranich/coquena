@@ -61,6 +61,12 @@ func run(args []string, stdout io.Writer, initialize initializeFunc, inspect ins
 	if len(args) > 0 && args[0] == "runtime" {
 		return runRuntime(args[1:], stdout, runtimes)
 	}
+	if len(args) > 0 && args[0] == "model" {
+		return runModel(args[1:], stdout)
+	}
+	if len(args) > 0 && args[0] == "download" {
+		return runDownload(args[1:], stdout)
+	}
 	if len(args) > 0 && args[0] == "config" {
 		return runConfig(args[1:], stdout, models, setModels)
 	}

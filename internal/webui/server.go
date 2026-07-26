@@ -91,6 +91,7 @@ func HandlerWithServices(inspect inspectFunc, runtimes RuntimeService) http.Hand
 func HandlerWithServicesAndLogger(inspect inspectFunc, runtimes RuntimeService, logs io.Writer) http.Handler {
 	runtimeAPI := newRuntimeAPI(runtimes, logs)
 	configAPI := newConfigAPI(installationConfigService{})
+	modelAPI := newModelAPI(logs)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/api/health" {
 			if r.Method != http.MethodGet {
@@ -118,6 +119,9 @@ func HandlerWithServicesAndLogger(inspect inspectFunc, runtimes RuntimeService, 
 			return
 		}
 		if runtimeAPI.serve(w, r) {
+			return
+		}
+		if modelAPI.serve(w, r) {
 			return
 		}
 		if configAPI.serve(w, r) {

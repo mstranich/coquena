@@ -11,7 +11,16 @@ import (
 	runtimeapp "github.com/mstranich/coquena/internal/runtime"
 )
 
-const commandUsage = "usage: coquena init\n       coquena webui [--port <port>]\n       coquena system [--json]\n       coquena runtime remote [latest|<tag>] [<backend-selector>] [--json]\n       coquena runtime remote --history <count> [<backend-selector>] [--json]\n       coquena runtime download <asset-id|backend-selector> [<backend-selector>] [--json]\n       coquena runtime list [<backend-selector>] [--json]\n       coquena runtime remove <asset-id> [--json]"
+const commandUsage = `usage: coquena init
+       coquena webui [--port <port>]
+       coquena system [--json]
+       coquena runtime remote [latest|<tag>] [<backend-selector>] [--json]
+       coquena runtime remote --history <count> [<backend-selector>] [--json]
+       coquena runtime download <asset-id|backend-selector> [<backend-selector>] [--json]
+       coquena runtime list [<backend-selector>] [--json]
+       coquena runtime remove <asset-id> [--json]
+	   coquena model resolve|inspect|download|revision <reference> [--json]
+       coquena download list|status|pause|resume|cancel <job-id> [--json]`
 
 type runtimeQuery = runtimeapp.Query
 type runtimeDownloadRequest = runtimeapp.DownloadRequest

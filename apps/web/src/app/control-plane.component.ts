@@ -2,16 +2,19 @@ import { Component, inject } from '@angular/core';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { HardwareCapabilityComponent } from './hardware-capability.component';
 import { LlamacppRuntimeService } from './llamacpp-runtime.service';
+import { ModelMetadataComponent } from './model-metadata.component';
+import { ModelService } from './model.service';
 
 @Component({
   selector: 'app-control-plane',
-  imports: [RouterLink, HardwareCapabilityComponent],
+  imports: [RouterLink, HardwareCapabilityComponent, ModelMetadataComponent],
   templateUrl: './control-plane.component.html',
   styleUrl: './control-plane.component.scss',
 })
 export class ControlPlaneComponent {
   private readonly route = inject(ActivatedRoute);
   readonly runtimes = inject(LlamacppRuntimeService);
+  readonly modelService = inject(ModelService);
   readonly page = this.route.snapshot.data['page'] as 'dashboard' | 'runtimes' | 'models';
   readonly models = [
     { name: 'Qwen3 8B', details: 'Q4_K_M · 5.1 GB', meta: 'Q4_K_M · 5.1 GB · Ready', preset: 'Balanced', state: 'Ready', presets: ['Balanced', 'Fast'] },
@@ -21,5 +24,13 @@ export class ControlPlaneComponent {
 
   constructor() {
     if (this.page === 'runtimes') this.runtimes.load();
+    if (this.page === 'models') void this.modelService.loadLibrary();
+  }
+
+  formatBytes(bytes: number): string {
+    if (!bytes) return 'Size unavailable';
+    const units = ['B', 'KiB', 'MiB', 'GiB', 'TiB'];
+    const power = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
+    return `${(bytes / 1024 ** power).toFixed(power > 2 ? 2 : 1)} ${units[power]}`;
   }
 }

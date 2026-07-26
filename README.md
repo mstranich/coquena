@@ -538,3 +538,28 @@ Broader capabilities will only be considered after this initial workflow has bee
 ## License
 
 A license has not been selected yet. No provisional license is implied by the current repository contents.
+
+## GGUF model library
+
+Coquena manages GGUF artifacts independently of any installed runtime. Resolve and inspect public Hugging Face repositories, then download a selected GGUF through the shared backend:
+
+```console
+coquena model resolve org/repository
+coquena model inspect org/repository:Q4_K_M
+coquena model download org/repository:Q4_K_M
+coquena model download list
+coquena model download status <job-id>
+coquena model download pause <job-id>
+coquena model download resume <job-id>
+coquena model download cancel <job-id>
+coquena model revision <model-path>
+```
+
+The shorter `coquena download ...` forms remain accepted aliases for download management.
+`coquena download` is the global download-management namespace, while `runtime download` and `model download` are resource-specific. Human `download list` output is tabular and includes percentage plus human-readable transferred/total sizes; `--json` retains the exact schema-version-1 automation contract. Pressing Ctrl+C during a CLI model resume leaves the durable job paused and resumable.
+
+Incomplete models persist beside their configured targets as `<model>.gguf.partial` and `<model>.gguf.download.json`, are rediscovered after a cold restart exclusively from the configured models tree, and resume only against the commit SHA resolved at creation. Model management does not use `<home>/downloads`. Completed library entries consist of a `.gguf`, raw-metadata `.json`, and `.revision` file containing the resolved remote commit SHA. The JSON and `.revision` values must agree; `.revision` is remote provenance, not a local checksum (a future checksum uses `.sha256`). GGUF metadata is informational only: Coquena never derives llama.cpp arguments or presets from it.
+
+Coquena best-effort caches the Hugging Face publisher avatar once at `<models>/<publisher>/publisher-avatar.<format>`. Models being downloaded or already installed use this local image; discovery may show the remote avatar. Avatar availability never determines whether a model download or publication succeeds. Installed GGUF metadata is loaded lazily from its validated JSON sidecar when its collapsible Metadata/Value table is opened.
+
+WebUI inspection summarizes very large tokenizer arrays so the browser remains responsive. CLI inspection retains the complete raw GGUF metadata; HTTP clients can request it explicitly with `{"includeRaw":true}` when they are prepared to process a multi-megabyte response.
