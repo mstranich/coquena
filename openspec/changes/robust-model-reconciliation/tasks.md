@@ -49,6 +49,6 @@
 
 ## 9. Verification
 
-- [ ] 9.1 Run the Go build, vet, formatting check, and full test suite.
-- [ ] 9.2 Validate the change with `openspec validate robust-model-reconciliation --strict`.
-- [ ] 9.3 Demonstrate the end-to-end path manually: drop a sidecar-less `.gguf` under a `publisher/repo` directory, see it as `unreconciled` in `model list`, reconcile it `--accept`, bind it to a preset, then reconcile a second file `--online` against its real Hugging Face repository and confirm `verify` and `check-updates` both succeed against it.
+- [x] 9.1 Run the Go build, vet, formatting check, and full test suite.
+- [x] 9.2 Validate the change with `openspec validate robust-model-reconciliation --strict`.
+- [x] 9.3 Demonstrate the end-to-end path manually: drop a sidecar-less `.gguf` under a `publisher/repo` directory, see it as `unreconciled` in `model list`, reconcile it `--accept`, bind it to a preset, then reconcile a second file `--online` against its real Hugging Face repository and confirm `verify` and `check-updates` both succeed against it.
