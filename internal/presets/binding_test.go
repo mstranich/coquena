@@ -51,7 +51,7 @@ func TestBindModelAllowsMissing(t *testing.T) {
 }
 
 func TestBindModelRefusesAmbiguousEvenWithAllowMissing(t *testing.T) {
-	resolver := fakeResolver{err: &model.ErrAmbiguousInstalledMatch{Reference: "qwen/Qwen3-4B-GGUF:Q4_K_M", Count: 2}}
+	resolver := fakeResolver{err: &model.ErrAmbiguousInstalledMatch{Reference: "qwen/Qwen3-4B-GGUF:Q4_K_M", Matches: []string{"a-Q4_K_M.gguf", "b-Q4_K_M.gguf"}}}
 	if _, err := BindModel(resolver, "qwen/Qwen3-4B-GGUF:Q4_K_M", true); err == nil {
 		t.Fatal("expected error")
 	}

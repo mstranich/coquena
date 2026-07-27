@@ -1,8 +1,10 @@
 package model
 
 import (
+	"errors"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -45,6 +47,19 @@ func TestResolverRejectsAmbiguousSelector(t *testing.T) {
 	_, err := (Resolver{Client: server.Client(), BaseURL: server.URL}).Resolve("org/repo", "gguf")
 	if err == nil || !strings.Contains(err.Error(), "resolves to 2") {
 		t.Fatalf("err=%v", err)
+	}
+	// The diagnostic must name the artifacts so a caller can list them.
+	var candidates *ErrSelectorCandidates
+	if !errors.As(err, &candidates) {
+		t.Fatalf("err=%T", err)
+	}
+	if !slices.Equal(candidates.Matched, []string{"a.gguf", "b.gguf"}) {
+		t.Fatalf("matched=%v", candidates.Matched)
+	}
+	for _, want := range []string{"a.gguf", "b.gguf"} {
+		if !strings.Contains(candidates.Error(), want) {
+			t.Fatalf("error=%q missing %q", candidates.Error(), want)
+		}
 	}
 }
 func TestParseCanonicalFileURL(t *testing.T) {
@@ -93,5 +108,16 @@ func TestResolverExactFilenameSelectorMatchesNone(t *testing.T) {
 	_, err := (Resolver{Client: server.Client(), BaseURL: server.URL}).Resolve("org/repo", "model.Q8_0.gguf")
 	if err == nil || !strings.Contains(err.Error(), "resolves to 0") {
 		t.Fatalf("err=%v", err)
+	}
+	// A zero-match selector still names what the repository does offer.
+	var candidates *ErrSelectorCandidates
+	if !errors.As(err, &candidates) {
+		t.Fatalf("err=%T", err)
+	}
+	if len(candidates.Matched) != 0 || !slices.Equal(candidates.Available, []string{"model.Q4.gguf"}) {
+		t.Fatalf("matched=%v available=%v", candidates.Matched, candidates.Available)
+	}
+	if !strings.Contains(candidates.Error(), "model.Q4.gguf") {
+		t.Fatalf("error=%q", candidates.Error())
 	}
 }

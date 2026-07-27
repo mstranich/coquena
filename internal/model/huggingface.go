@@ -76,10 +76,12 @@ func (r Resolver) resolveRepository(repo, requested, filename string) ([]Candida
 		return nil, fmt.Errorf("Hugging Face did not return a commit SHA")
 	}
 	var out []Candidate
+	var available []string
 	for _, s := range info.Siblings {
 		if !isGGUF(s.RFilename) {
 			continue
 		}
+		available = append(available, s.RFilename)
 		if filename != "" {
 			if strings.HasSuffix(strings.ToLower(filename), ".gguf") {
 				if !strings.EqualFold(s.RFilename, filename) {
@@ -110,9 +112,41 @@ func (r Resolver) resolveRepository(repo, requested, filename string) ([]Candida
 		out = append(out, Candidate{src, artifact, lfsOID})
 	}
 	if filename != "" && len(out) != 1 {
-		return nil, fmt.Errorf("selector %q resolves to %d GGUF artifacts", filename, len(out))
+		matched := make([]string, 0, len(out))
+		for _, c := range out {
+			matched = append(matched, c.Source.Filename)
+		}
+		return nil, &ErrSelectorCandidates{Repository: repo, Selector: filename, Matched: matched, Available: available}
 	}
 	return out, nil
+}
+
+// ErrSelectorCandidates reports a selector that resolved to zero or several
+// GGUF artifacts in a repository. It carries the candidate filenames rather
+// than only their count, because a caller cannot offer the operator a choice
+// between filenames it was never given.
+type ErrSelectorCandidates struct {
+	Repository string
+	Selector   string
+	// Matched holds the filenames the selector matched; it is empty when the
+	// selector matched nothing.
+	Matched []string
+	// Available holds every GGUF filename in the repository, so a zero-match
+	// diagnostic can still name what the operator may choose from.
+	Available []string
+}
+
+// Count reports how many artifacts the selector matched.
+func (e *ErrSelectorCandidates) Count() int { return len(e.Matched) }
+
+func (e *ErrSelectorCandidates) Error() string {
+	// A zero-match selector has no matches worth naming, so the whole
+	// repository is offered instead.
+	candidates := e.Matched
+	if len(candidates) == 0 {
+		candidates = e.Available
+	}
+	return fmt.Sprintf("selector %q resolves to %d GGUF artifacts in %s; candidates: %s", e.Selector, len(e.Matched), e.Repository, formatCandidates(candidates))
 }
 func parseRef(input, sel string) (string, string, string, error) {
 	requested := "main"

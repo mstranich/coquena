@@ -1,8 +1,11 @@
 package model
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
+	"strings"
 	"testing"
 )
 
@@ -47,8 +50,55 @@ func TestResolveInstalledAmbiguousMatch(t *testing.T) {
 	m := NewManager(dir)
 	_, err := m.ResolveInstalled("org/repo:Q4_K_M")
 	amb, ok := err.(*ErrAmbiguousInstalledMatch)
-	if !ok || amb.Count != 2 {
+	if !ok || amb.Count() != 2 {
 		t.Fatalf("err=%v", err)
+	}
+	// The diagnostic must name which artifacts matched, not only how many.
+	for _, want := range []string{"model-Q4_K_M.gguf", "model-Q4_K_M-imatrix.gguf"} {
+		if !slices.Contains(amb.Matches, want) {
+			t.Fatalf("matches=%v missing %q", amb.Matches, want)
+		}
+		if !strings.Contains(amb.Error(), want) {
+			t.Fatalf("error=%q missing %q", amb.Error(), want)
+		}
+	}
+}
+
+func TestResolveInstalledNoMatchNamesAvailableFilenames(t *testing.T) {
+	dir := t.TempDir()
+	installFixture(t, dir, "org/repo", "model-Q4_K_M.gguf", "abc")
+	installFixture(t, dir, "org/repo", "model-Q8_0.gguf", "def")
+	m := NewManager(dir)
+	_, err := m.ResolveInstalled("org/repo:Q2_K")
+	missing, ok := err.(*ErrNoInstalledMatch)
+	if !ok {
+		t.Fatalf("err=%T %v", err, err)
+	}
+	for _, want := range []string{"model-Q4_K_M.gguf", "model-Q8_0.gguf"} {
+		if !slices.Contains(missing.Available, want) {
+			t.Fatalf("available=%v missing %q", missing.Available, want)
+		}
+		if !strings.Contains(missing.Error(), want) {
+			t.Fatalf("error=%q missing %q", missing.Error(), want)
+		}
+	}
+}
+
+func TestErrorStringTruncatesLongCandidateLists(t *testing.T) {
+	names := make([]string, 0, 40)
+	for i := 0; i < 40; i++ {
+		names = append(names, fmt.Sprintf("model-%02d.gguf", i))
+	}
+	err := &ErrAmbiguousInstalledMatch{Reference: "org/repo:gguf", Matches: names}
+	message := err.Error()
+	if !strings.Contains(message, "and 32 more") {
+		t.Fatalf("message=%q", message)
+	}
+	if strings.Contains(message, "model-39.gguf") {
+		t.Fatalf("message renders the whole list: %q", message)
+	}
+	if len(err.Matches) != 40 {
+		t.Fatalf("structured field truncated: %d", len(err.Matches))
 	}
 }
 

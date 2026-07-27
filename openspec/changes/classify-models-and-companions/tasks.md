@@ -36,9 +36,9 @@
 
 ## 6. Resolver diagnostics carrying candidates
 
-- [ ] 6.1 Extend the repository resolution ambiguity/no-match error to carry the candidate filenames alongside the count.
-- [ ] 6.2 Extend `ErrAmbiguousInstalledMatch` and `ErrNoInstalledMatch` to carry the matching or available filenames.
-- [ ] 6.3 Add tests asserting each diagnostic names the filenames rather than only how many matched.
+- [x] 6.1 Extend the repository resolution ambiguity/no-match error to carry the candidate filenames alongside the count.
+- [x] 6.2 Extend `ErrAmbiguousInstalledMatch` and `ErrNoInstalledMatch` to carry the matching or available filenames.
+- [x] 6.3 Add tests asserting each diagnostic names the filenames rather than only how many matched.
 
 ## 7. Bulk reconciliation with classification
 
