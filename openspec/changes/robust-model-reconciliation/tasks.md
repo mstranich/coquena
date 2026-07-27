@@ -36,10 +36,10 @@
 
 ## 7. `coquena model check-updates <ref>`
 
-- [ ] 7.1 Resolve the reference against the installed library, then query Hugging Face's current revision info using only the sidecar's repository/requested-revision/filename — no local file access.
-- [ ] 7.2 Compare the current commit SHA and, when available, the sibling's LFS `oid` against the sidecar's recorded values, reporting up-to-date, update-available (naming the new revision), or partial (no `oid` available, commit-SHA-only comparison).
-- [ ] 7.3 Refuse with a clear diagnostic on a `local`-provider entry, since there is no Hugging Face identity recorded to compare against.
-- [ ] 7.4 Add tests for up-to-date, update-available, partial comparison, and the `local`-provider refusal.
+- [x] 7.1 Resolve the reference against the installed library, then query Hugging Face's current revision info using only the sidecar's repository/requested-revision/filename — no local file access.
+- [x] 7.2 Compare the current commit SHA and, when available, the sibling's LFS `oid` against the sidecar's recorded values, reporting up-to-date, update-available (naming the new revision), or partial (no `oid` available, commit-SHA-only comparison).
+- [x] 7.3 Refuse with a clear diagnostic on a `local`-provider entry, since there is no Hugging Face identity recorded to compare against.
+- [x] 7.4 Add tests for up-to-date, update-available, partial comparison, and the `local`-provider refusal.
 
 ## 8. CLI wiring and listing
 
