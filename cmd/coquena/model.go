@@ -360,13 +360,12 @@ func runModelList(out io.Writer, jsonOut bool) error {
 			Reference:  entry.Source.Repository + ":" + entry.Source.Filename,
 			Filename:   entry.Source.Filename,
 		}}
-		// The classification comes from the sidecar, which already holds it:
-		// listing must never re-read the .gguf, and it never reconciles.
-		if entry.State == "installed" {
-			if record, readErr := modelapp.ReadRecord(entry.TargetPath); readErr == nil {
-				item.classification = record.Classification
-				item.entry.Type = string(record.Classification.Type)
-			}
+		// The classification comes from the sidecar, which already holds it and
+		// which Library has already read: listing must never re-read the .gguf,
+		// and it never reconciles.
+		if entry.Classification != nil {
+			item.classification = *entry.Classification
+			item.entry.Type = string(entry.Classification.Type)
 		}
 		items = append(items, item)
 	}

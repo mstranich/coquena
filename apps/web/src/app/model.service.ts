@@ -14,15 +14,30 @@ export interface ModelJob {
   expectedSizeBytes: number;
   error?: string;
 }
-export interface ModelRecord {
+/** The compact digest the backend derives from a GGUF header. It replaces the
+ * raw metadata document the API no longer returns: the vocabulary arrays never
+ * leave the backend, so nothing here can grow unbounded. */
+export interface ModelClassification {
+  type: string;
+  architecture?: string;
+  sizeLabel?: string;
+  contextLength?: number;
+  embeddingLength?: number;
+  projectionDim?: number;
+  projectorType?: string;
+}
+/** An inspection: the artifact's identity, its classification and the scalar
+ * metadata keys only. */
+export interface ModelInspection {
   source: { repository: string; filename: string; resolvedRevision: string; };
-  gguf: Record<string, unknown>;
-  omittedMetadata?: Array<string>;
+  classification: ModelClassification;
+  metadata: Record<string, unknown>;
 }
 export interface ModelLibraryEntry {
   source: { repository: string; filename: string; resolvedRevision: string; };
   targetPath: string;
   state: string;
+  classification?: ModelClassification;
   job?: ModelJob;
 }
 
@@ -54,15 +69,15 @@ export class ModelService {
       this.loading.set(false);
     }
   }
-  async inspectRemote(reference: string, selector: string): Promise<ModelRecord> {
+  async inspectRemote(reference: string, selector: string): Promise<ModelInspection> {
     const value = await firstValueFrom(
-      this.http.post<{ result: ModelRecord; }>('/api/models/inspect', { reference, selector }),
+      this.http.post<{ result: ModelInspection; }>('/api/models/inspect', { reference, selector }),
     );
     return value.result;
   }
-  async installedMetadata(repository: string, filename: string): Promise<ModelRecord> {
+  async installedMetadata(repository: string, filename: string): Promise<ModelInspection> {
     const value = await firstValueFrom(
-      this.http.post<{ result: ModelRecord; }>('/api/models/metadata', { repository, filename }),
+      this.http.post<{ result: ModelInspection; }>('/api/models/metadata', { repository, filename }),
     );
     return value.result;
   }

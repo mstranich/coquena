@@ -121,15 +121,44 @@ func (a *modelAPI) serve(w http.ResponseWriter, r *http.Request) bool {
 		writeRuntimeJSON(w, inspection)
 		return true
 	}
+	if s == "/discover" {
+		// Discovery is the manager's own operation: it reads every candidate's
+		// header through bounded range access and reports each classification,
+		// so the API exposes it directly rather than resolving and inspecting
+		// candidate by candidate.
+		if r.Method != http.MethodPost {
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			return true
+		}
+		var b struct {
+			Reference string `json:"reference"`
+		}
+		decoder := json.NewDecoder(r.Body)
+		decoder.DisallowUnknownFields()
+		if decoder.Decode(&b) != nil || b.Reference == "" || decoder.Decode(&struct{}{}) != io.EOF {
+			writeRuntimeError(w, http.StatusBadRequest, "reference is required")
+			return true
+		}
+		discovery, discoverErr := m.Discover(b.Reference)
+		if discoverErr != nil {
+			writeRuntimeError(w, http.StatusBadRequest, discoverErr.Error())
+			return true
+		}
+		writeRuntimeJSON(w, discovery)
+		return true
+	}
 	if s == "/resolve" || s == "/inspect" {
 		if r.Method != http.MethodPost {
 			w.WriteHeader(405)
 			return true
 		}
+		// The request carries a reference and an optional selector only.
+		// DisallowUnknownFields is what rejects a raw-metadata option: the
+		// inspection projection never returns the GGUF map, so an option asking
+		// for it is an unknown property rather than an ignored one.
 		var b struct {
-			Reference  string `json:"reference"`
-			Selector   string `json:"selector,omitempty"`
-			IncludeRaw bool   `json:"includeRaw,omitempty"`
+			Reference string `json:"reference"`
+			Selector  string `json:"selector,omitempty"`
 		}
 		decoder := json.NewDecoder(r.Body)
 		decoder.DisallowUnknownFields()
@@ -145,9 +174,6 @@ func (a *modelAPI) serve(w http.ResponseWriter, r *http.Request) bool {
 				var x modelapp.Inspection
 				x, e = m.InspectRemote(c[0])
 				if e == nil {
-					// includeRaw is accepted but no longer changes the payload:
-					// inspection never returns the raw map. Task 9.1 removes the
-					// property outright.
 					writeRuntimeJSON(w, x)
 					return true
 				}

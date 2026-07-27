@@ -1,4 +1,4 @@
-@if (!record()) {
+@if (!inspection()) {
   <button [disabled]="loading()" (click)="toggle()">{{ loading() ? 'Loading…' : (reference ? 'Inspect' : 'Show metadata') }}</button>
 } @else {
   <button (click)="toggle()">{{ expanded() ? 'Hide metadata' : 'Show metadata' }}</button>
@@ -6,7 +6,7 @@
 @if (error()) {
   <p class="error">{{ error() }}</p>
 }
-@if (expanded() && record(); as metadata) {
+@if (expanded() && inspection()) {
   <div class="metadata-table-wrap">
     <table class="metadata-table">
       <thead>
@@ -16,10 +16,10 @@
         </tr>
       </thead>
       <tbody>
-        @for (item of metadata.gguf | keyvalue; track item.key) {
+        @for (row of rows(); track row.key) {
           <tr>
-            <td><code>{{ item.key }}</code></td>
-            <td>{{ format(item.value) }}</td>
+            <td><code>{{ row.key }}</code></td>
+            <td>{{ row.value }}</td>
           </tr>
         }
       </tbody>

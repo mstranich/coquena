@@ -67,28 +67,58 @@ describe('ModelService', () => {
     expect(service.error()).toBe('Unable to resolve GGUF artifacts.');
   });
 
-  it('keeps inspected GGUF metadata as a read-only response', async () => {
+  it('keeps an inspected classification as a read-only response', async () => {
     const service = TestBed.inject(ModelService);
     const inspection = service.inspectRemote('org/repo', 'm.gguf');
     const request = TestBed.inject(HttpTestingController).expectOne('/api/models/inspect');
+    // No raw-metadata option is ever sent: the API rejects one as unknown.
     expect(request.request.body).toEqual({ reference: 'org/repo', selector: 'm.gguf' });
     request.flush({
       schemaVersion: 1,
-      result: { source: { repository: 'org/repo', filename: 'm.gguf', resolvedRevision: 'abc' }, gguf: { 'general.name': 'Example' } },
+      result: {
+        source: { repository: 'org/repo', filename: 'm.gguf', resolvedRevision: 'abc' },
+        classification: { type: 'model', architecture: 'gemma4' },
+        metadata: { 'general.name': 'Example' },
+      },
     });
-    await expect(inspection).resolves.toMatchObject({ gguf: { 'general.name': 'Example' } });
+    await expect(inspection).resolves.toMatchObject({
+      classification: { type: 'model', architecture: 'gemma4' },
+      metadata: { 'general.name': 'Example' },
+    });
   });
 
-  it('loads installed metadata lazily from its dedicated endpoint', async () => {
+  it('loads an installed classification lazily from its dedicated endpoint', async () => {
     const service = TestBed.inject(ModelService);
     const metadata = service.installedMetadata('org/repo', 'm.gguf');
     const request = TestBed.inject(HttpTestingController).expectOne('/api/models/metadata');
     expect(request.request.body).toEqual({ repository: 'org/repo', filename: 'm.gguf' });
     request.flush({
       schemaVersion: 1,
-      result: { source: { repository: 'org/repo', filename: 'm.gguf', resolvedRevision: 'abc' }, gguf: { 'general.name': 'Installed' } },
+      result: {
+        source: { repository: 'org/repo', filename: 'm.gguf', resolvedRevision: 'abc' },
+        classification: { type: 'mmproj', projectionDim: 5120 },
+        metadata: { 'general.name': 'Installed' },
+      },
     });
-    await expect(metadata).resolves.toMatchObject({ gguf: { 'general.name': 'Installed' } });
+    await expect(metadata).resolves.toMatchObject({ classification: { type: 'mmproj' } });
+  });
+
+  it('reports the classification the library carries for an installed entry', async () => {
+    const service = TestBed.inject(ModelService);
+    const loading = service.loadLibrary();
+    TestBed.inject(HttpTestingController).expectOne('/api/models/library').flush({
+      schemaVersion: 1,
+      result: [
+        {
+          source: { repository: 'org/repo', filename: 'm.gguf', resolvedRevision: 'abc' },
+          targetPath: '/models/org/repo/m.gguf',
+          state: 'installed',
+          classification: { type: 'model', architecture: 'gemma4' },
+        },
+      ],
+    });
+    await loading;
+    expect(service.library()[0].classification?.type).toBe('model');
   });
 
   it('closes a paused stream and reconnects when resumed', async () => {

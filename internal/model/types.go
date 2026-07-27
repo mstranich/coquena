@@ -87,11 +87,19 @@ type Job struct {
 	Error             string `json:"error,omitempty"`
 }
 
+// LibraryEntry is one artifact the configured models directory holds.
+//
+// Classification is carried for an installed entry only, read from the sidecar
+// that already holds it: listing reports what an artifact declares itself to be
+// without re-reading the .gguf and without reconciling anything. It stays a
+// pointer so an incomplete or unreconciled entry — which has no classification
+// at all — reports its absence rather than an all-zero digest.
 type LibraryEntry struct {
-	Source     Source `json:"source"`
-	TargetPath string `json:"targetPath"`
-	State      string `json:"state"`
-	Job        *Job   `json:"job,omitempty"`
+	Source         Source          `json:"source"`
+	TargetPath     string          `json:"targetPath"`
+	State          string          `json:"state"`
+	Classification *Classification `json:"classification,omitempty"`
+	Job            *Job            `json:"job,omitempty"`
 }
 
 func (j Job) Validate() error {

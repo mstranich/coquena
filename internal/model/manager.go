@@ -186,7 +186,8 @@ func (m *Manager) Library() ([]LibraryEntry, error) {
 			entries = append(entries, LibraryEntry{Source: unreconciledSource(m.ModelsDir, path), TargetPath: path, State: "unreconciled"})
 			return nil
 		}
-		entries = append(entries, LibraryEntry{Source: record.Source, TargetPath: path, State: "installed"})
+		classification := record.Classification
+		entries = append(entries, LibraryEntry{Source: record.Source, TargetPath: path, State: "installed", Classification: &classification})
 		return nil
 	})
 	if errors.Is(err, os.ErrNotExist) {

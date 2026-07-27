@@ -62,10 +62,10 @@
 
 ## 9. HTTP API and Angular workspace
 
-- [ ] 9.1 Remove the `includeRaw` inspection option from the HTTP API so the property is rejected as unknown.
-- [ ] 9.2 Return the classification in inspection and remote-discovery responses, and expose an installed artifact's classification for lazy loading.
-- [ ] 9.3 Update the Angular Models workspace to load a classification instead of a raw sidecar document, showing the declared type in each candidate's collapsible table.
-- [ ] 9.4 Add tests for the rejected `includeRaw` property and for classification appearing in the library and inspection responses.
+- [x] 9.1 Remove the `includeRaw` inspection option from the HTTP API so the property is rejected as unknown.
+- [x] 9.2 Return the classification in inspection and remote-discovery responses, and expose an installed artifact's classification for lazy loading.
+- [x] 9.3 Update the Angular Models workspace to load a classification instead of a raw sidecar document, showing the declared type in each candidate's collapsible table.
+- [x] 9.4 Add tests for the rejected `includeRaw` property and for classification appearing in the library and inspection responses.
 
 ## 10. Preset companion roles
 
