@@ -371,3 +371,93 @@ func TestManagerResumeReconcilesPartialAheadOfCheckpoint(t *testing.T) {
 		t.Fatalf("job=%+v err=%v", completed, err)
 	}
 }
+
+func TestLibraryReportsSidecarLessModelAsUnreconciled(t *testing.T) {
+	dir := t.TempDir()
+	ggufPath := filepath.Join(dir, "publisher", "repo", "model.gguf")
+	if err := os.MkdirAll(filepath.Dir(ggufPath), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(ggufPath, []byte("bytes"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	m := NewManager(dir)
+	entries, err := m.Library()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 1 {
+		t.Fatalf("entries=%+v", entries)
+	}
+	e := entries[0]
+	if e.State != "unreconciled" {
+		t.Fatalf("state=%q", e.State)
+	}
+	if e.Source.Repository != "publisher/repo" {
+		t.Fatalf("repository=%q", e.Source.Repository)
+	}
+	if e.Source.Filename != "model.gguf" {
+		t.Fatalf("filename=%q", e.Source.Filename)
+	}
+	if e.Source.Provider != "" || e.Source.ResolvedRevision != "" || e.Source.URL != "" {
+		t.Fatalf("expected zero-value provider/revision/url, got %+v", e.Source)
+	}
+	if e.TargetPath != ggufPath {
+		t.Fatalf("targetPath=%q", e.TargetPath)
+	}
+}
+
+func TestLibraryReportsPartialIdentityForOddlyPlacedGGUF(t *testing.T) {
+	dir := t.TempDir()
+	ggufPath := filepath.Join(dir, "model.gguf")
+	if err := os.WriteFile(ggufPath, []byte("bytes"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	m := NewManager(dir)
+	entries, err := m.Library()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 1 {
+		t.Fatalf("entries=%+v", entries)
+	}
+	e := entries[0]
+	if e.State != "unreconciled" {
+		t.Fatalf("state=%q", e.State)
+	}
+	if e.Source.Filename != "model.gguf" {
+		t.Fatalf("filename=%q", e.Source.Filename)
+	}
+	if e.Source.Repository != "" {
+		t.Fatalf("expected empty repository for root-level file, got %q", e.Source.Repository)
+	}
+}
+
+func TestLibraryMixesUnreconciledAndInstalledEntriesWithoutFailing(t *testing.T) {
+	dir := t.TempDir()
+	installFixture(t, dir, "org/repo", "installed-Q4_K_M.gguf", "abc")
+	oddPath := filepath.Join(dir, "stray.gguf")
+	if err := os.WriteFile(oddPath, []byte("bytes"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	m := NewManager(dir)
+	entries, err := m.Library()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var installedCount, unreconciledCount int
+	for _, e := range entries {
+		switch e.State {
+		case "installed":
+			installedCount++
+			if e.Source.Filename != "installed-Q4_K_M.gguf" {
+				t.Fatalf("unexpected installed filename=%q", e.Source.Filename)
+			}
+		case "unreconciled":
+			unreconciledCount++
+		}
+	}
+	if installedCount != 1 || unreconciledCount != 1 {
+		t.Fatalf("installed=%d unreconciled=%d entries=%+v", installedCount, unreconciledCount, entries)
+	}
+}

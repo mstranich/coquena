@@ -178,6 +178,7 @@ func (m *Manager) Library() ([]LibraryEntry, error) {
 		}
 		record, readErr := ReadRecord(path)
 		if readErr != nil {
+			entries = append(entries, LibraryEntry{Source: unreconciledSource(m.ModelsDir, path), TargetPath: path, State: "unreconciled"})
 			return nil
 		}
 		entries = append(entries, LibraryEntry{Source: record.Source, TargetPath: path, State: "installed"})
@@ -187,6 +188,35 @@ func (m *Manager) Library() ([]LibraryEntry, error) {
 		return entries, nil
 	}
 	return entries, err
+}
+
+// unreconciledSource derives a best-effort Source for a .gguf file that has
+// no valid Coquena sidecar, using only its path relative to modelsDir. It
+// mirrors the <publisher>/<repo>/<file>.gguf shape both Coquena and LM Studio
+// use: the two path segments immediately above the file become Repository,
+// and the base name becomes Filename. When the path does not have at least
+// two parent segments beneath modelsDir, whatever partial information is
+// available is still returned rather than failing.
+func unreconciledSource(modelsDir, path string) Source {
+	filename := filepath.Base(path)
+	rel, err := filepath.Rel(modelsDir, path)
+	if err != nil {
+		return Source{Filename: filename}
+	}
+	rel = filepath.ToSlash(rel)
+	slashIdx := strings.LastIndex(rel, "/")
+	if slashIdx < 0 {
+		return Source{Filename: filename}
+	}
+	dir := rel[:slashIdx]
+	parts := strings.Split(dir, "/")
+	var repository string
+	if len(parts) >= 2 {
+		repository = strings.Join(parts[len(parts)-2:], "/")
+	} else {
+		repository = parts[len(parts)-1]
+	}
+	return Source{Repository: repository, Filename: filename}
 }
 
 func (m *Manager) InstalledMetadata(repository, filename string) (Record, error) {

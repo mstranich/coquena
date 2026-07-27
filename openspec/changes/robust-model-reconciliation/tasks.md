@@ -6,9 +6,9 @@
 
 ## 2. Library scan: unreconciled entries
 
-- [ ] 2.1 Stop discarding a `.gguf` whose `ReadRecord` fails; derive a best-effort `Source` (`Repository` from the two path segments above the file, `Filename` from the base name, no provider/revision/URL) and report it with `State: "unreconciled"`.
-- [ ] 2.2 Verify `ResolveInstalled` continues to exclude any non-`installed` state, so an unreconciled entry is not bindable without `--allow-missing` and needs no new refusal path.
-- [ ] 2.3 Add tests for a sidecar-less `.gguf` appearing as `unreconciled` with its derived identity, a path that does not fit the two-segment shape reporting a partial identity rather than failing the whole scan, and an existing valid Coquena model still reporting `installed` unchanged.
+- [x] 2.1 Stop discarding a `.gguf` whose `ReadRecord` fails; derive a best-effort `Source` (`Repository` from the two path segments above the file, `Filename` from the base name, no provider/revision/URL) and report it with `State: "unreconciled"`.
+- [x] 2.2 Verify `ResolveInstalled` continues to exclude any non-`installed` state, so an unreconciled entry is not bindable without `--allow-missing` and needs no new refusal path.
+- [x] 2.3 Add tests for a sidecar-less `.gguf` appearing as `unreconciled` with its derived identity, a path that does not fit the two-segment shape reporting a partial identity rather than failing the whole scan, and an existing valid Coquena model still reporting `installed` unchanged.
 
 ## 3. `local` provider and relaxed validation
 
