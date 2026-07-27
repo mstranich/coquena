@@ -99,10 +99,20 @@ func (j Job) Validate() error {
 	return nil
 }
 func (s Source) Validate() error {
-	if s.Provider != "huggingface" || s.Repository == "" || s.Filename == "" || s.ResolvedRevision == "" || s.URL == "" {
+	switch s.Provider {
+	case "huggingface":
+		if s.Repository == "" || s.Filename == "" || s.ResolvedRevision == "" || s.URL == "" {
+			return fmt.Errorf("invalid Hugging Face source")
+		}
+		return nil
+	case "local":
+		if s.Repository == "" || s.Filename == "" {
+			return fmt.Errorf("invalid local source")
+		}
+		return nil
+	default:
 		return fmt.Errorf("invalid Hugging Face source")
 	}
-	return nil
 }
 
 var ErrInconsistentRevision = errors.New("model revision sidecars are inconsistent")

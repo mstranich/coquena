@@ -12,8 +12,8 @@
 
 ## 3. `local` provider and relaxed validation
 
-- [ ] 3.1 Add `provider: "local"` as a second accepted value in `Source.Validate()`, requiring only `Repository` and `Filename` for it and leaving the `huggingface` provider's existing requirements unchanged.
-- [ ] 3.2 Add tests for a valid `local` source, a `local` source missing repository or filename, and the unchanged `huggingface` validation.
+- [x] 3.1 Add `provider: "local"` as a second accepted value in `Source.Validate()`, requiring only `Repository` and `Filename` for it and leaving the `huggingface` provider's existing requirements unchanged.
+- [x] 3.2 Add tests for a valid `local` source, a `local` source missing repository or filename, and the unchanged `huggingface` validation.
 
 ## 4. Content hash: computed and persisted
 
