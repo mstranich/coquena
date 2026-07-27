@@ -3,6 +3,7 @@ package model
 import (
 	"context"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -434,6 +435,11 @@ func (m *Manager) Resume(parent context.Context, id string, progress func(Job)) 
 	if e != nil {
 		return m.fail(j, e)
 	}
+	digest, e := hashFile(j.PartialPath)
+	if e != nil {
+		return m.fail(j, e)
+	}
+	rec.Artifact.SHA256 = digest
 	_, e = Publish(m.ModelsDir, j.PartialPath, rec)
 	if e != nil {
 		return m.fail(j, e)
@@ -603,3 +609,21 @@ func DownloadPercent(downloaded, expected int64) float64 {
 	return percent
 }
 func newID() string { b := make([]byte, 16); _, _ = rand.Read(b); return hex.EncodeToString(b) }
+
+// hashFile computes the SHA-256 digest of the complete file at path in a
+// single sequential read pass. It is called exactly once per completed
+// download, right after the write loop finishes and before Publish, so that
+// a paused-then-resumed download still yields the digest of the whole file's
+// final content rather than only the bytes written in the last session.
+func hashFile(path string) (string, error) {
+	f, e := os.Open(path)
+	if e != nil {
+		return "", e
+	}
+	defer f.Close()
+	h := sha256.New()
+	if _, e = io.Copy(h, f); e != nil {
+		return "", e
+	}
+	return hex.EncodeToString(h.Sum(nil)), nil
+}

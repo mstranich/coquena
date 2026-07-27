@@ -17,8 +17,8 @@
 
 ## 4. Content hash: computed and persisted
 
-- [ ] 4.1 Compute a SHA-256 digest while streaming a normal Coquena-managed download to disk and persist it in `Artifact.SHA256` at publish time, with no extra read pass over the file.
-- [ ] 4.2 Add tests confirming a completed download's sidecar carries the correct digest and that resuming a paused download still produces a correct whole-file digest.
+- [x] 4.1 Compute a SHA-256 digest while streaming a normal Coquena-managed download to disk and persist it in `Artifact.SHA256` at publish time, with no extra read pass over the file.
+- [x] 4.2 Add tests confirming a completed download's sidecar carries the correct digest and that resuming a paused download still produces a correct whole-file digest.
 
 ## 5. `coquena model reconcile <path>`
 

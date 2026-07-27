@@ -3,7 +3,9 @@ package model
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"encoding/binary"
+	"encoding/hex"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -369,6 +371,81 @@ func TestManagerResumeReconcilesPartialAheadOfCheckpoint(t *testing.T) {
 	completed, err := m.Resume(context.Background(), job.ID, nil)
 	if err != nil || completed.Status != Completed {
 		t.Fatalf("job=%+v err=%v", completed, err)
+	}
+}
+
+func TestManagerPersistsContentDigestOnDownload(t *testing.T) {
+	body := emptyGGUF()
+	want := sha256.Sum256(body)
+	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodHead {
+			w.Header().Set("Content-Length", "24")
+			return
+		}
+		w.Write(body)
+	}))
+	defer s.Close()
+	root := t.TempDir()
+	m := NewManager(filepath.Join(root, "models"))
+	c := Candidate{Source: Source{Provider: "huggingface", Repository: "org/repo", RequestedRevision: "main", ResolvedRevision: "abc", Filename: "m.gguf", URL: s.URL}, Artifact: Artifact{SizeBytes: 24}}
+	j, e := m.Create(c)
+	if e != nil {
+		t.Fatal(e)
+	}
+	got, e := m.Resume(context.Background(), j.ID, nil)
+	if e != nil {
+		t.Fatal(e)
+	}
+	if got.Status != Completed {
+		t.Fatalf("status=%s", got.Status)
+	}
+	target := filepath.Join(root, "models", "org", "repo", "m.gguf")
+	rec, e := ReadRecord(target)
+	if e != nil {
+		t.Fatal(e)
+	}
+	if rec.Artifact.SHA256 != hex.EncodeToString(want[:]) {
+		t.Fatalf("sha256=%q want=%q", rec.Artifact.SHA256, hex.EncodeToString(want[:]))
+	}
+}
+
+func TestManagerResumedDownloadPersistsWholeFileDigest(t *testing.T) {
+	body := emptyGGUF()
+	want := sha256.Sum256(body)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Range") != "bytes=8-" {
+			t.Fatalf("range=%q", r.Header.Get("Range"))
+		}
+		w.Header().Set("Content-Range", "bytes 8-23/24")
+		w.WriteHeader(http.StatusPartialContent)
+		_, _ = w.Write(body[8:])
+	}))
+	defer server.Close()
+	root := t.TempDir()
+	m := NewManager(filepath.Join(root, "models"))
+	job, err := m.Create(Candidate{Source: Source{Provider: "huggingface", Repository: "org/repo", RequestedRevision: "main", ResolvedRevision: "abc", Filename: "m.gguf", URL: server.URL}, Artifact: Artifact{SizeBytes: 24}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = os.WriteFile(job.PartialPath, body[:8], 0600); err != nil {
+		t.Fatal(err)
+	}
+	job.DownloadedBytes = 8
+	job.Status = Paused
+	if err = m.save(job); err != nil {
+		t.Fatal(err)
+	}
+	completed, err := m.Resume(context.Background(), job.ID, nil)
+	if err != nil || completed.Status != Completed {
+		t.Fatalf("job=%+v err=%v", completed, err)
+	}
+	target := filepath.Join(root, "models", "org", "repo", "m.gguf")
+	rec, err := ReadRecord(target)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rec.Artifact.SHA256 != hex.EncodeToString(want[:]) {
+		t.Fatalf("sha256=%q want=%q", rec.Artifact.SHA256, hex.EncodeToString(want[:]))
 	}
 }
 
