@@ -17,11 +17,12 @@ import (
 	runtimeapp "github.com/mstranich/coquena/internal/runtime"
 )
 
-const modelUsage = "usage: coquena model resolve <repository-or-url> [--json]\n       coquena model inspect <repository-or-url> [--json]\n       coquena model download <repository-or-url> [--json]\n       coquena model download list|status <job-id>|pause <job-id>|resume <job-id>|cancel <job-id> [--json]\n       coquena model revision <model-path> [--json]\n       coquena model list [--json]\n       coquena download list|status <job-id>|pause <job-id>|resume <job-id>|cancel <job-id> [--json]"
+const modelUsage = "usage: coquena model resolve <repository-or-url> [--json]\n       coquena model inspect <repository-or-url> [--json]\n       coquena model download <repository-or-url> [--json]\n       coquena model download list|status <job-id>|pause <job-id>|resume <job-id>|cancel <job-id> [--json]\n       coquena model revision <model-path> [--json]\n       coquena model list [--json]\n       coquena model reconcile <model-path> (--online|--accept) [--json]\n       coquena model verify <reference> [--json]\n       coquena model check-updates <reference> [--json]\n       coquena download list|status <job-id>|pause <job-id>|resume <job-id>|cancel <job-id> [--json]"
 
-// modelListEntry is the JSON-friendly, deterministic projection of an
-// installed library entry reported by `coquena model list`.
+// modelListEntry is the JSON-friendly, deterministic projection of a
+// library entry reported by `coquena model list`.
 type modelListEntry struct {
+	State      string `json:"state"`
 	Repository string `json:"repository"`
 	Reference  string `json:"reference"`
 	Filename   string `json:"filename"`
@@ -61,10 +62,11 @@ func runModel(args []string, out io.Writer) error {
 		}
 		list := make([]modelListEntry, 0, len(entries))
 		for _, entry := range entries {
-			if entry.State != "installed" {
+			if entry.State != "installed" && entry.State != "unreconciled" {
 				continue
 			}
 			list = append(list, modelListEntry{
+				State:      entry.State,
 				Repository: entry.Source.Repository,
 				Reference:  entry.Source.Repository + ":" + entry.Source.Filename,
 				Filename:   entry.Source.Filename,
@@ -77,11 +79,26 @@ func runModel(args []string, out io.Writer) error {
 			}{1, list})
 		}
 		writer := tabwriter.NewWriter(out, 0, 4, 2, ' ', 0)
-		_, _ = fmt.Fprintln(writer, "REPOSITORY\tFILENAME")
+		_, _ = fmt.Fprintln(writer, "STATE\tREPOSITORY\tFILENAME")
 		for _, entry := range list {
-			_, _ = fmt.Fprintf(writer, "%s\t%s\n", entry.Repository, entry.Filename)
+			_, _ = fmt.Fprintf(writer, "%s\t%s\t%s\n", entry.State, entry.Repository, entry.Filename)
 		}
 		return writer.Flush()
+	}
+	if args[0] == "reconcile" {
+		return runModelReconcile(args[1:], out, jsonOut)
+	}
+	if args[0] == "verify" {
+		if len(args) != 2 {
+			return errors.New(modelUsage)
+		}
+		return runModelVerify(args[1], out, jsonOut)
+	}
+	if args[0] == "check-updates" {
+		if len(args) != 2 {
+			return errors.New(modelUsage)
+		}
+		return runModelCheckUpdates(args[1], out, jsonOut)
 	}
 	if len(args) < 2 {
 		return errors.New(modelUsage)
@@ -155,6 +172,116 @@ func runModel(args []string, out io.Writer) error {
 	default:
 		_, e = fmt.Fprintln(out, value)
 	}
+	return e
+}
+
+func runModelReconcile(args []string, out io.Writer, jsonOut bool) error {
+	var path string
+	var online, accept bool
+	for _, a := range args {
+		switch a {
+		case "--online":
+			online = true
+		case "--accept":
+			accept = true
+		default:
+			if path != "" || strings.HasPrefix(a, "--") {
+				return errors.New(modelUsage)
+			}
+			path = a
+		}
+	}
+	if path == "" || online == accept {
+		return errors.New(modelUsage)
+	}
+	m, e := modelManagerFactory()
+	if e != nil {
+		return e
+	}
+	var result modelapp.ReconcileResult
+	if online {
+		result, e = m.ReconcileOnline(path)
+	} else {
+		result, e = m.ReconcileAccept(path)
+	}
+	if e != nil {
+		return e
+	}
+	if jsonOut {
+		return json.NewEncoder(out).Encode(struct {
+			SchemaVersion int                      `json:"schemaVersion"`
+			Result        modelapp.ReconcileResult `json:"result"`
+		}{1, result})
+	}
+	msg := fmt.Sprintf("Reconciled %s:%s.", result.Record.Source.Repository, result.Record.Source.Filename)
+	if result.Partial {
+		msg += " (partial: Hugging Face reported no content hash to compare against)"
+	}
+	_, e = fmt.Fprintln(out, msg)
+	return e
+}
+
+func runModelVerify(reference string, out io.Writer, jsonOut bool) error {
+	m, e := modelManagerFactory()
+	if e != nil {
+		return e
+	}
+	result, e := m.Verify(reference)
+	if e != nil {
+		return e
+	}
+	if jsonOut {
+		if e = json.NewEncoder(out).Encode(struct {
+			SchemaVersion int                   `json:"schemaVersion"`
+			Result        modelapp.VerifyResult `json:"result"`
+		}{1, result}); e != nil {
+			return e
+		}
+	} else {
+		var msg string
+		switch result.Outcome {
+		case modelapp.VerifyMatched:
+			msg = fmt.Sprintf("%s:%s verified: content hash matches the recorded baseline.", result.Repository, result.Filename)
+		case modelapp.VerifyMismatched:
+			msg = fmt.Sprintf("%s:%s FAILED verification: content hash mismatch. The model is unusable until it is re-downloaded or reconciled again.", result.Repository, result.Filename)
+		case modelapp.VerifyNoBaseline:
+			msg = fmt.Sprintf("%s:%s: no baseline content hash recorded to verify against.", result.Repository, result.Filename)
+		}
+		if _, e = fmt.Fprintln(out, msg); e != nil {
+			return e
+		}
+	}
+	if result.Outcome == modelapp.VerifyMismatched {
+		return fmt.Errorf("model %s:%s failed verification: recorded sha256 %s, computed sha256 %s", result.Repository, result.Filename, result.RecordedSHA256, result.ComputedSHA256)
+	}
+	return nil
+}
+
+func runModelCheckUpdates(reference string, out io.Writer, jsonOut bool) error {
+	m, e := modelManagerFactory()
+	if e != nil {
+		return e
+	}
+	result, e := m.CheckUpdates(reference)
+	if e != nil {
+		return e
+	}
+	if jsonOut {
+		return json.NewEncoder(out).Encode(struct {
+			SchemaVersion int                         `json:"schemaVersion"`
+			Result        modelapp.CheckUpdatesResult `json:"result"`
+		}{1, result})
+	}
+	var msg string
+	switch result.Outcome {
+	case modelapp.UpdateCurrent:
+		msg = fmt.Sprintf("%s:%s is up to date.", result.Repository, result.Filename)
+	case modelapp.UpdateAvailable:
+		msg = fmt.Sprintf("%s:%s: update available (new revision %s).", result.Repository, result.Filename, result.CurrentRevision)
+	case modelapp.UpdatePartial:
+		msg = fmt.Sprintf("%s:%s: partial comparison only (Hugging Face reported no content hash); current commit revision is %s.", result.Repository, result.Filename, result.CurrentRevision)
+	}
+	_, e = fmt.Fprintln(out, msg)
 	return e
 }
 

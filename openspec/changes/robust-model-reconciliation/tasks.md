@@ -43,9 +43,9 @@
 
 ## 8. CLI wiring and listing
 
-- [ ] 8.1 Add `reconcile`, `verify`, and `check-updates` to `coquena model` usage text and command dispatch, each supporting `--json`.
-- [ ] 8.2 Report `unreconciled` entries from `coquena model list` (human and `--json`), distinguished from `installed` and from an in-progress download job.
-- [ ] 8.3 Add tests for `model list` reporting a mix of `installed`, `unreconciled`, and in-progress entries in both output modes.
+- [x] 8.1 Add `reconcile`, `verify`, and `check-updates` to `coquena model` usage text and command dispatch, each supporting `--json`.
+- [x] 8.2 Report `unreconciled` entries from `coquena model list` (human and `--json`), distinguished from `installed` and from an in-progress download job.
+- [x] 8.3 Add tests for `model list` reporting a mix of `installed`, `unreconciled`, and in-progress entries in both output modes.
 
 ## 9. Verification
 
