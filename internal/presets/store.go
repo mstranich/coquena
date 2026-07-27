@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 
 	"github.com/mstranich/coquena/internal/fields"
+	"github.com/mstranich/coquena/internal/model"
 )
 
 const documentFilename = "model-presets.json"
@@ -190,6 +191,57 @@ func (s *Store) SetModel(name string, binding ModelBinding) (Document, error) {
 	}
 	return s.mutate(name, func(p Preset) (Preset, error) {
 		p.Model = &binding
+		return p, nil
+	})
+}
+
+// SetCompanion stores a preset's companion assignment, replacing any existing
+// assignment for the same role. It is refused on the global preset, which
+// binds no principal to state a criterion against.
+func (s *Store) SetCompanion(name string, assignment CompanionAssignment) (Document, error) {
+	if name == GlobalName {
+		return Document{}, fmt.Errorf("the global preset cannot assign a companion")
+	}
+	if !ValidCompanionRole(assignment.Role) {
+		return Document{}, fmt.Errorf("companion role %q is not one of %q or %q", assignment.Role, model.RoleDraft, model.RoleProjector)
+	}
+	return s.mutate(name, func(p Preset) (Preset, error) {
+		updated := make([]CompanionAssignment, 0, len(p.Companions)+1)
+		replaced := false
+		for _, a := range p.Companions {
+			if a.Role == assignment.Role {
+				updated = append(updated, assignment)
+				replaced = true
+				continue
+			}
+			updated = append(updated, a)
+		}
+		if !replaced {
+			updated = append(updated, assignment)
+		}
+		p.Companions = updated
+		return p, nil
+	})
+}
+
+// UnsetCompanion removes a preset's assignment for role. Removing an
+// assignment the preset does not carry is not an error, matching how unsetting
+// an absent value is accepted.
+func (s *Store) UnsetCompanion(name string, role model.CompanionRole) (Document, error) {
+	return s.mutate(name, func(p Preset) (Preset, error) {
+		if len(p.Companions) == 0 {
+			return p, nil
+		}
+		remaining := make([]CompanionAssignment, 0, len(p.Companions))
+		for _, a := range p.Companions {
+			if a.Role != role {
+				remaining = append(remaining, a)
+			}
+		}
+		if len(remaining) == 0 {
+			remaining = nil
+		}
+		p.Companions = remaining
 		return p, nil
 	})
 }

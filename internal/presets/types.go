@@ -65,7 +65,10 @@ type Preset struct {
 	Title   string             `json:"title,omitempty"`
 	Model   *ModelBinding      `json:"model,omitempty"`
 	Runtime *RuntimeConstraint `json:"runtime,omitempty"`
-	Values  map[string]any     `json:"values,omitempty"`
+	// Companions are the preset's advisory companion role assignments,
+	// alongside its principal binding. At most one assignment per role.
+	Companions []CompanionAssignment `json:"companions,omitempty"`
+	Values     map[string]any        `json:"values,omitempty"`
 }
 
 // IsGlobal reports whether this is the reserved global preset.

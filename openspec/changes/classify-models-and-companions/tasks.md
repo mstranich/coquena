@@ -69,10 +69,10 @@
 
 ## 10. Preset companion roles
 
-- [ ] 10.1 Store a companion role assignment (`draft` or `projector`) on a preset as a criterion rather than a file pin.
-- [ ] 10.2 Refuse an assignment failing its role's compatibility criterion, with a diagnostic naming the criterion, and accept an explicit override that records the unmet criterion as a diagnostic.
-- [ ] 10.3 Report every installed artifact satisfying a preset's companion criterion, selecting none automatically.
-- [ ] 10.4 Add tests for a compatible assignment, a refused incompatible one, an overridden one, and several admissible options reported together.
+- [x] 10.1 Store a companion role assignment (`draft` or `projector`) on a preset as a criterion rather than a file pin.
+- [x] 10.2 Refuse an assignment failing its role's compatibility criterion, with a diagnostic naming the criterion, and accept an explicit override that records the unmet criterion as a diagnostic.
+- [x] 10.3 Report every installed artifact satisfying a preset's companion criterion, selecting none automatically.
+- [x] 10.4 Add tests for a compatible assignment, a refused incompatible one, an overridden one, and several admissible options reported together.
 
 ## 11. Documentation and verification
 

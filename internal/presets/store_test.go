@@ -5,6 +5,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/mstranich/coquena/internal/model"
 )
 
 func newTestStore(t *testing.T) *Store {
@@ -229,6 +231,107 @@ func TestSetRuntimeAndUnsetRuntime(t *testing.T) {
 	p, _ = d.Find("qwen3-fast")
 	if p.Runtime != nil {
 		t.Fatalf("expected portable, got %+v", p.Runtime)
+	}
+}
+
+func TestSetCompanionPersistsAndSurvivesRestart(t *testing.T) {
+	s := newTestStore(t)
+	if _, err := s.Define(Preset{Name: "gemma4-vision"}); err != nil {
+		t.Fatal(err)
+	}
+	assignment := CompanionAssignment{
+		Role:      model.RoleProjector,
+		Requested: ModelReference{Provider: "huggingface", Repository: "google/Gemma4-GGUF", Quant: "mmproj", Raw: "google/Gemma4-GGUF:mmproj"},
+		Resolved:  &ResolvedModel{Filename: "mmproj-F16.gguf"},
+	}
+	if _, err := s.SetCompanion("gemma4-vision", assignment); err != nil {
+		t.Fatal(err)
+	}
+	d, err := NewStore(s.home).Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	p, _ := d.Find("gemma4-vision")
+	stored, ok := p.Companion(model.RoleProjector)
+	if !ok {
+		t.Fatalf("p=%+v", p)
+	}
+	if stored.Requested.Raw != "google/Gemma4-GGUF:mmproj" || stored.Resolved == nil || stored.Resolved.Filename != "mmproj-F16.gguf" {
+		t.Fatalf("stored=%+v", stored)
+	}
+}
+
+func TestSetCompanionReplacesTheSameRoleOnly(t *testing.T) {
+	s := newTestStore(t)
+	if _, err := s.Define(Preset{Name: "gemma4-vision"}); err != nil {
+		t.Fatal(err)
+	}
+	first := CompanionAssignment{Role: model.RoleProjector, Requested: ModelReference{Raw: "a/b:mmproj"}}
+	draft := CompanionAssignment{Role: model.RoleDraft, Requested: ModelReference{Raw: "c/d:Q4_K_M"}}
+	second := CompanionAssignment{Role: model.RoleProjector, Requested: ModelReference{Raw: "e/f:mmproj"}, UnmetCriterion: "overridden"}
+	for _, a := range []CompanionAssignment{first, draft, second} {
+		if _, err := s.SetCompanion("gemma4-vision", a); err != nil {
+			t.Fatal(err)
+		}
+	}
+	d, err := s.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	p, _ := d.Find("gemma4-vision")
+	if len(p.Companions) != 2 {
+		t.Fatalf("companions=%+v", p.Companions)
+	}
+	projector, _ := p.Companion(model.RoleProjector)
+	if projector.Requested.Raw != "e/f:mmproj" {
+		t.Fatalf("projector=%+v", projector)
+	}
+	if diagnostic, ok := projector.Diagnostic(); !ok || diagnostic != "overridden" {
+		t.Fatalf("diagnostic=%q ok=%v", diagnostic, ok)
+	}
+	if kept, ok := p.Companion(model.RoleDraft); !ok || kept.Requested.Raw != "c/d:Q4_K_M" {
+		t.Fatalf("draft=%+v ok=%v", kept, ok)
+	}
+}
+
+func TestUnsetCompanionRemovesOneRole(t *testing.T) {
+	s := newTestStore(t)
+	if _, err := s.Define(Preset{Name: "gemma4-vision"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.SetCompanion("gemma4-vision", CompanionAssignment{Role: model.RoleProjector, Requested: ModelReference{Raw: "a/b:mmproj"}}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.SetCompanion("gemma4-vision", CompanionAssignment{Role: model.RoleDraft, Requested: ModelReference{Raw: "c/d:Q4_K_M"}}); err != nil {
+		t.Fatal(err)
+	}
+	d, err := s.UnsetCompanion("gemma4-vision", model.RoleProjector)
+	if err != nil {
+		t.Fatal(err)
+	}
+	p, _ := d.Find("gemma4-vision")
+	if _, ok := p.Companion(model.RoleProjector); ok {
+		t.Fatalf("companions=%+v", p.Companions)
+	}
+	if _, ok := p.Companion(model.RoleDraft); !ok {
+		t.Fatalf("companions=%+v", p.Companions)
+	}
+	// Removing an assignment the preset does not carry is accepted.
+	if _, err := s.UnsetCompanion("gemma4-vision", model.RoleProjector); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestSetCompanionRefusedOnGlobalAndOnUnknownRole(t *testing.T) {
+	s := newTestStore(t)
+	if _, err := s.Define(Preset{Name: "gemma4-vision"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.SetCompanion(GlobalName, CompanionAssignment{Role: model.RoleProjector}); err == nil {
+		t.Fatal("expected the global preset to refuse a companion")
+	}
+	if _, err := s.SetCompanion("gemma4-vision", CompanionAssignment{Role: model.CompanionRole("adapter")}); err == nil {
+		t.Fatal("expected an unknown role to be refused")
 	}
 }
 

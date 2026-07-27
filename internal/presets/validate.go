@@ -3,6 +3,8 @@ package presets
 import (
 	"fmt"
 	"regexp"
+
+	"github.com/mstranich/coquena/internal/model"
 )
 
 // nameRE admits lowercase alphanumeric segments separated by '-' or '.'.
@@ -34,6 +36,9 @@ func ValidateDocument(d Document) error {
 	if d.Global.Runtime != nil {
 		return fmt.Errorf("global preset cannot bind a runtime")
 	}
+	if len(d.Global.Companions) > 0 {
+		return fmt.Errorf("global preset cannot assign a companion")
+	}
 	seen := map[string]bool{}
 	for _, p := range d.Presets {
 		if !validName(p.Name) {
@@ -49,6 +54,26 @@ func ValidateDocument(d Document) error {
 		if err := validateRuntimeConstraint(p.Runtime); err != nil {
 			return fmt.Errorf("preset %q: %w", p.Name, err)
 		}
+		if err := validateCompanions(p.Companions); err != nil {
+			return fmt.Errorf("preset %q: %w", p.Name, err)
+		}
+	}
+	return nil
+}
+
+// validateCompanions checks that every assignment names a role a preset may
+// assign and that a role is assigned at most once, so a read never has to
+// choose between two assignments for the same role.
+func validateCompanions(assignments []CompanionAssignment) error {
+	seen := map[model.CompanionRole]bool{}
+	for _, a := range assignments {
+		if !ValidCompanionRole(a.Role) {
+			return fmt.Errorf("companion role %q is not one of %q or %q", a.Role, model.RoleDraft, model.RoleProjector)
+		}
+		if seen[a.Role] {
+			return fmt.Errorf("duplicate companion role %q", a.Role)
+		}
+		seen[a.Role] = true
 	}
 	return nil
 }
