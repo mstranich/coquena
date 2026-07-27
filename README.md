@@ -540,19 +540,58 @@ A license has not been selected yet. No provisional license is implied by the cu
 
 ## GGUF model library
 
-Coquena manages GGUF artifacts independently of any installed runtime. Resolve and inspect public Hugging Face repositories, then download a selected GGUF through the shared backend:
+Coquena manages GGUF artifacts independently of any installed runtime. Resolve and explore public Hugging Face repositories, then download a selected GGUF through the shared backend:
 
 ```console
 coquena model resolve org/repository
-coquena model inspect org/repository:Q4_K_M
+coquena model discover org/repository
+coquena model discover org/repository:Q4_K_M
+coquena model inspect <model-path>
 coquena model download org/repository:Q4_K_M
+coquena model download org/repository:Q4_K_M --with-companions
 coquena model download list
 coquena model download status <job-id>
 coquena model download pause <job-id>
 coquena model download resume <job-id>
 coquena model download cancel <job-id>
 coquena model revision <model-path>
+coquena model list
+coquena model reconcile (<model-path>|--all) (--online|--accept)
+coquena model verify <reference>
+coquena model check-updates <reference>
 ```
+
+Remote exploration and local inspection are separate commands. `coquena model
+discover <repository-or-url[:selector]>` reaches the network: it lists every
+GGUF candidate in the repository with its classification, marks the candidate a
+selector would resolve to, and prints the repository model card as plain text.
+`coquena model inspect <model-path>` is local only, issues no network request,
+and renders a `Metadata`/`Value` table for an installed artifact, including its
+declared type.
+
+Every artifact is classified by its own `general.type` — `model` for a
+principal and `mmproj` for a multimodal projector — read from the first bytes of
+the GGUF header, over an HTTP range request for a remote candidate and directly
+for an installed file. A missing or unrecognised value is reported as `unknown`
+and is never inferred from the architecture or the filename. Companion
+compatibility is a computed criterion rather than a pin to a file: a projector
+matches a principal when its projection dimension equals that principal's
+architecture-specific embedding length.
+
+`coquena model download ... --with-companions` enqueues the principal together
+with the companions identified for it, creating one durable job per artifact and
+reporting every job ID. Without the flag, one invocation downloads exactly one
+artifact.
+
+`coquena model list` renders the library as a tree, nesting each companion
+beneath the principal it is compatible with; a companion matching no installed
+principal is reported at the top level. The same shape is produced by `--json`.
+
+`coquena model reconcile` accepts either a model path or `--all`, which walks
+the configured models directory, classifies every unreconciled artifact, and
+persists its sidecar in one pass. Exactly one of `--online` and `--accept` is
+still required, and reconciliation always remains an explicit operator action:
+no listing command triggers it.
 
 Runtime storage can be configured independently from model storage:
 
@@ -580,8 +619,21 @@ configured runtime directory.
 The shorter `coquena download ...` forms remain accepted aliases for download management.
 `coquena download` is the global download-management namespace, while `runtime download` and `model download` are resource-specific. Human `download list` output is tabular and includes percentage plus human-readable transferred/total sizes; `--json` retains the exact schema-version-1 automation contract. Pressing Ctrl+C during a CLI model resume leaves the durable job paused and resumable.
 
-Incomplete models persist beside their configured targets as `<model>.gguf.partial` and `<model>.gguf.download.json`, are rediscovered after a cold restart exclusively from the configured models tree, and resume only against the commit SHA resolved at creation. Model management does not use `<home>/downloads`. Completed library entries consist of a `.gguf`, raw-metadata `.json`, and `.revision` file containing the resolved remote commit SHA. The JSON and `.revision` values must agree; `.revision` is remote provenance, not a local checksum (a future checksum uses `.sha256`). GGUF metadata is informational only: Coquena never derives llama.cpp arguments or presets from it.
+Incomplete models persist beside their configured targets as `<model>.gguf.partial` and `<model>.gguf.download.json`, are rediscovered after a cold restart exclusively from the configured models tree, and resume only against the commit SHA resolved at creation. Model management does not use `<home>/downloads`. Completed library entries consist of a `.gguf`, a `.json` sidecar, and a `.revision` file containing the resolved remote commit SHA. The JSON and `.revision` values must agree; `.revision` is remote provenance, not a local checksum (a future checksum uses `.sha256`).
 
-Coquena best-effort caches the Hugging Face publisher avatar once at `<models>/<publisher>/publisher-avatar.<format>`. Models being downloaded or already installed use this local image; discovery may show the remote avatar. Avatar availability never determines whether a model download or publication succeeds. Installed GGUF metadata is loaded lazily from its validated JSON sidecar when its collapsible Metadata/Value table is opened.
+The sidecar no longer persists the raw GGUF metadata map. It carries a compact
+classification digest — declared type, architecture, size label, file type,
+context and embedding lengths or projection dimension, an SSM presence flag, a
+tokenizer digest, and the publisher's sampling recommendations — so a sidecar is
+kilobytes rather than the megabytes the vocabulary arrays used to cost. The
+sidecar schema version is therefore `2`. **This is a breaking change with no
+migration:** a sidecar written under version `1` reads as invalid, its artifact
+enumerates as `unreconciled`, and `coquena model reconcile --all` is the
+supported recovery route. When a specific raw metadata value is needed it is
+read from the `.gguf` on demand rather than from a cache.
 
-WebUI inspection summarizes very large tokenizer arrays so the browser remains responsive. CLI inspection retains the complete raw GGUF metadata; HTTP clients can request it explicitly with `{"includeRaw":true}` when they are prepared to process a multi-megabyte response.
+GGUF metadata remains informational: Coquena never derives llama.cpp arguments or preset values from it. The publisher's sampling recommendations are displayed as advisory suggestions and never applied. A model's classification can contribute an advisory *computed* runtime constraint to a preset — an out-of-range `general.file_type`, the declared architecture, and the presence of hybrid attention/SSM keys — which is reported alongside the preset's own field-derived bounds and never assigns a value, selects a runtime, or blocks authoring.
+
+Coquena best-effort caches the Hugging Face publisher avatar once at `<models>/<publisher>/publisher-avatar.<format>`. Models being downloaded or already installed use this local image; discovery may show the remote avatar. Avatar availability never determines whether a model download or publication succeeds. An installed artifact's classification is loaded lazily from its validated JSON sidecar when its collapsible Metadata/Value table is opened, which shows the declared type.
+
+Neither the CLI nor the HTTP API returns raw GGUF metadata as a bulk payload. Inspection responses are a derived projection carrying identity, classification, and scalar metadata keys only; vocabulary arrays are never included. **The `includeRaw` inspection option has been removed:** a request carrying it is rejected as an unknown property with status `400`. Library entries and inspection and remote-discovery responses carry the `classification` instead, and remote discovery is available to HTTP clients at `POST /api/models/discover`.

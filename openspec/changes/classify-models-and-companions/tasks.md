@@ -76,7 +76,34 @@
 
 ## 11. Documentation and verification
 
-- [ ] 11.1 Update `README.md`, which documents the removed raw-inspection behavior and the `includeRaw` option.
-- [ ] 11.2 Run the Go build, vet, formatting check, and full test suite, plus the frontend checks for the workspace change.
-- [ ] 11.3 Validate the change with `openspec validate classify-models-and-companions --strict`.
+- [x] 11.1 Update `README.md`, which documents the removed raw-inspection behavior and the `includeRaw` option.
+- [x] 11.2 Run the Go build, vet, formatting check, and full test suite, plus the frontend checks for the workspace change.
+- [x] 11.3 Validate the change with `openspec validate classify-models-and-companions --strict`.
 - [ ] 11.4 Demonstrate the end-to-end path manually against real artifacts: discover a repository holding a principal and a projector without downloading them, download both with the companion flag, confirm the published sidecars are kilobytes rather than megabytes, run `reconcile --all` over a directory holding models written by another application, and confirm `model list` nests each projector beneath the principal whose embedding length it matches.
+  - Partially demonstrated. Verified against the real repository over the
+    network, with no artifact downloaded: `coquena model discover
+    lmstudio-community/gemma-4-12B-it-QAT-GGUF[:Q4_0]` classified both
+    candidates from their headers over HTTP Range — principal
+    `gemma-4-12B-it-QAT-Q4_0.gguf` (`model`/`gemma4`, embedding length 3840)
+    and projector `mmproj-gemma-4-12B-it-QAT-BF16.gguf` (`mmproj`/`clip`,
+    projection dimension 3840) — marked the selector's candidate, and printed
+    the model card as plain text. The publisher sampling key spellings assumed
+    in section 1 are confirmed correct: the real header yields temp 1,
+    top_k 64, top_p 0.95 from `general.sampling.temp`/`.top_k`/`.top_p`, so
+    `Classify` needs no change. Verified offline against synthetic GGUF
+    artifacts placed in the models directory: `reconcile --all --accept`
+    classified both, reported the projector-to-principal relation, wrote
+    sub-kilobyte sidecars carrying `classification` and no raw metadata map,
+    `model list` nested the projector beneath the principal in both human and
+    `--json` output, `model inspect <path>` rendered the classified
+    Metadata/Value table with no network request, and rewriting a sidecar as
+    schema version 1 returned its artifact to `unreconciled`.
+  - Remaining for the operator, by hand: `coquena model download
+    lmstudio-community/gemma-4-12B-it-QAT-GGUF:Q4_0 --with-companions`
+    (multi-gigabyte transfer), confirming several job IDs are reported and one
+    job exists per artifact; confirming the sidecars published by that download
+    are kilobytes rather than the megabytes the previous schema cost; and
+    running `reconcile --all` over a directory of GGUF files written by another
+    application (e.g. an LM Studio model tree) and confirming `model list`
+    nests each projector beneath the principal whose embedding length it
+    matches.
