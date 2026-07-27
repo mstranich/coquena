@@ -30,9 +30,9 @@
 
 ## 6. `coquena model verify <ref>`
 
-- [ ] 6.1 Resolve the reference against the installed library, re-hash the file, and compare against the persisted `Artifact.SHA256`.
-- [ ] 6.2 Distinguish three outcomes: hash match, hash mismatch (mark unusable, report the option to re-download or re-reconcile), and no baseline recorded (pre-existing artifact from before this change or from a `local` reconciliation that predates hashing).
-- [ ] 6.3 Add tests for each of the three outcomes and for an unresolvable reference.
+- [x] 6.1 Resolve the reference against the installed library, re-hash the file, and compare against the persisted `Artifact.SHA256`.
+- [x] 6.2 Distinguish three outcomes: hash match, hash mismatch (mark unusable, report the option to re-download or re-reconcile), and no baseline recorded (pre-existing artifact from before this change or from a `local` reconciliation that predates hashing).
+- [x] 6.3 Add tests for each of the three outcomes and for an unresolvable reference.
 
 ## 7. `coquena model check-updates <ref>`
 
