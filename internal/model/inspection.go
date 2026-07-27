@@ -15,12 +15,12 @@ type Inspection struct {
 }
 
 func InspectionResult(record Record, includeRaw bool) Inspection {
-	result := Inspection{SchemaVersion: record.SchemaVersion, Source: record.Source, Artifact: record.Artifact, GGUF: record.GGUF}
+	result := Inspection{SchemaVersion: record.SchemaVersion, Source: record.Source, Artifact: record.Artifact, GGUF: record.Metadata}
 	if includeRaw {
 		return result
 	}
-	result.GGUF = make(map[string]any, len(record.GGUF))
-	for key, value := range record.GGUF {
+	result.GGUF = make(map[string]any, len(record.Metadata))
+	for key, value := range record.Metadata {
 		rv := reflect.ValueOf(value)
 		if rv.IsValid() && (rv.Kind() == reflect.Array || rv.Kind() == reflect.Slice) && rv.Len() > 256 {
 			result.GGUF[key] = map[string]any{"kind": "array", "count": rv.Len(), "omitted": true}

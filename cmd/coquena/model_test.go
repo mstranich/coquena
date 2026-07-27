@@ -49,7 +49,7 @@ func TestRunModelListInstalled(t *testing.T) {
 	if err := os.WriteFile(partial, []byte("bytes"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	r := modelapp.Record{Source: modelapp.Source{Provider: "huggingface", Repository: "org/repo", RequestedRevision: "main", ResolvedRevision: "abc", Filename: "m-Q4_K_M.gguf", URL: "https://example.test/m.gguf"}, Artifact: modelapp.Artifact{SizeBytes: 5}, GGUF: map[string]any{}}
+	r := modelapp.Record{Source: modelapp.Source{Provider: "huggingface", Repository: "org/repo", RequestedRevision: "main", ResolvedRevision: "abc", Filename: "m-Q4_K_M.gguf", URL: "https://example.test/m.gguf"}, Artifact: modelapp.Artifact{SizeBytes: 5}}
 	if _, err := modelapp.Publish(m.ModelsDir, partial, r); err != nil {
 		t.Fatal(err)
 	}
@@ -99,7 +99,7 @@ func TestRunModelRevisionJSON(t *testing.T) {
 	if err := os.WriteFile(partial, []byte("data"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	target, err := modelapp.Publish(filepath.Join(root, "models"), partial, modelapp.Record{Source: source, Artifact: modelapp.Artifact{SizeBytes: 4}, GGUF: map[string]any{}})
+	target, err := modelapp.Publish(filepath.Join(root, "models"), partial, modelapp.Record{Source: source, Artifact: modelapp.Artifact{SizeBytes: 4}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -228,7 +228,7 @@ func TestRunModelListReportsUnreconciledAndInstalled(t *testing.T) {
 	if err := os.WriteFile(partial, []byte("bytes"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	r := modelapp.Record{Source: modelapp.Source{Provider: "huggingface", Repository: "org/repo", RequestedRevision: "main", ResolvedRevision: "abc", Filename: "m-Q4_K_M.gguf", URL: "https://example.test/m.gguf"}, Artifact: modelapp.Artifact{SizeBytes: 5}, GGUF: map[string]any{}}
+	r := modelapp.Record{Source: modelapp.Source{Provider: "huggingface", Repository: "org/repo", RequestedRevision: "main", ResolvedRevision: "abc", Filename: "m-Q4_K_M.gguf", URL: "https://example.test/m.gguf"}, Artifact: modelapp.Artifact{SizeBytes: 5}}
 	if _, err := modelapp.Publish(m.ModelsDir, partial, r); err != nil {
 		t.Fatal(err)
 	}
@@ -327,7 +327,7 @@ func TestRunModelVerifyOutcomes(t *testing.T) {
 		t.Fatal(err)
 	}
 	digest := sha256.Sum256(body)
-	target, err := modelapp.Publish(filepath.Join(root, "models"), partial, modelapp.Record{Source: source, Artifact: modelapp.Artifact{SizeBytes: int64(len(body)), SHA256: hex.EncodeToString(digest[:])}, GGUF: map[string]any{}})
+	target, err := modelapp.Publish(filepath.Join(root, "models"), partial, modelapp.Record{Source: source, Artifact: modelapp.Artifact{SizeBytes: int64(len(body)), SHA256: hex.EncodeToString(digest[:])}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -363,7 +363,7 @@ func TestRunModelCheckUpdatesOutcomes(t *testing.T) {
 	if err := os.WriteFile(partial, []byte("bytes"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := modelapp.Publish(m.ModelsDir, partial, modelapp.Record{Source: source, Artifact: modelapp.Artifact{SizeBytes: 5}, GGUF: map[string]any{}}); err != nil {
+	if _, err := modelapp.Publish(m.ModelsDir, partial, modelapp.Record{Source: source, Artifact: modelapp.Artifact{SizeBytes: 5}}); err != nil {
 		t.Fatal(err)
 	}
 	old := modelManagerFactory

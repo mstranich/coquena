@@ -3,6 +3,7 @@ package webui
 import (
 	"bytes"
 	"context"
+	"encoding/binary"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -12,6 +13,25 @@ import (
 
 	modelapp "github.com/mstranich/coquena/internal/model"
 )
+
+// namedGGUF builds a minimal valid GGUF header carrying a single
+// general.name string value.
+func namedGGUF(name string) []byte {
+	b := make([]byte, 24)
+	copy(b, "GGUF")
+	binary.LittleEndian.PutUint32(b[4:], 3)
+	binary.LittleEndian.PutUint64(b[16:], 1)
+	appendString := func(b []byte, s string) []byte {
+		var n [8]byte
+		binary.LittleEndian.PutUint64(n[:], uint64(len(s)))
+		return append(append(b, n[:]...), []byte(s)...)
+	}
+	b = appendString(b, "general.name")
+	var t [4]byte
+	binary.LittleEndian.PutUint32(t[:], 8)
+	b = append(b, t[:]...)
+	return appendString(b, name)
+}
 
 func modelTestAPI(t *testing.T) (*modelAPI, *httptest.Server) {
 	t.Helper()
@@ -159,11 +179,14 @@ func TestModelAPIInstalledMetadataIsLazy(t *testing.T) {
 	defer server.Close()
 	m, _ := api.manager()
 	partial := filepath.Join(t.TempDir(), "m.partial")
-	if err := os.WriteFile(partial, []byte("model"), 0600); err != nil {
+	// A real GGUF header: the sidecar no longer caches metadata, so the lazy
+	// metadata endpoint reads general.name from the artifact itself.
+	body := namedGGUF("Example")
+	if err := os.WriteFile(partial, body, 0600); err != nil {
 		t.Fatal(err)
 	}
 	source := modelapp.Source{Provider: "huggingface", Repository: "org/repo", RequestedRevision: "main", ResolvedRevision: "abc", Filename: "m.gguf", URL: server.URL}
-	if _, err := modelapp.Publish(m.ModelsDir, partial, modelapp.Record{Source: source, Artifact: modelapp.Artifact{SizeBytes: 5}, GGUF: map[string]any{"general.name": "Example"}}); err != nil {
+	if _, err := modelapp.Publish(m.ModelsDir, partial, modelapp.Record{Source: source, Artifact: modelapp.Artifact{SizeBytes: int64(len(body))}}); err != nil {
 		t.Fatal(err)
 	}
 	library := httptest.NewRecorder()

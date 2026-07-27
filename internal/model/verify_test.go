@@ -110,10 +110,10 @@ func TestVerifyUnresolvableReference(t *testing.T) {
 	sourceA.Provider = "local"
 	sourceB := unreconciledSource(m2.ModelsDir, pathB)
 	sourceB.Provider = "local"
-	if _, err := PublishInPlace(m2.ModelsDir, Record{SchemaVersion: 1, Source: sourceA, Artifact: Artifact{SizeBytes: int64(len(body))}}); err != nil {
+	if _, err := PublishInPlace(m2.ModelsDir, Record{SchemaVersion: RecordSchemaVersion, Source: sourceA, Artifact: Artifact{SizeBytes: int64(len(body))}}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := PublishInPlace(m2.ModelsDir, Record{SchemaVersion: 1, Source: sourceB, Artifact: Artifact{SizeBytes: int64(len(body))}}); err != nil {
+	if _, err := PublishInPlace(m2.ModelsDir, Record{SchemaVersion: RecordSchemaVersion, Source: sourceB, Artifact: Artifact{SizeBytes: int64(len(body))}}); err != nil {
 		t.Fatal(err)
 	}
 

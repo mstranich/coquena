@@ -54,7 +54,10 @@ func Publish(modelsDir, partial string, record Record) (string, error) {
 	} else if !os.IsNotExist(err) {
 		return "", err
 	}
-	record.SchemaVersion = 1
+	record.SchemaVersion = RecordSchemaVersion
+	// The classification is derived from the completed file's own header, read
+	// here while the content still sits at partial and before it is staged.
+	record.Classification = classifyFile(partial)
 	record.Artifact.DownloadedAt = time.Now().UTC().Format(time.RFC3339)
 	sidecar := strings.TrimSuffix(target, filepath.Ext(target))
 	jsonPath := sidecar + ".json"
@@ -159,7 +162,8 @@ func PublishInPlace(modelsDir string, record Record) (string, error) {
 	if _, err = os.Stat(target); err != nil {
 		return "", err
 	}
-	record.SchemaVersion = 1
+	record.SchemaVersion = RecordSchemaVersion
+	record.Classification = classifyFile(target)
 	record.Artifact.DownloadedAt = time.Now().UTC().Format(time.RFC3339)
 	sidecar := strings.TrimSuffix(target, filepath.Ext(target))
 	jsonPath := sidecar + ".json"
@@ -189,6 +193,24 @@ func PublishInPlace(modelsDir string, record Record) (string, error) {
 	return target, nil
 }
 
+// classifyFile derives the classification digest from an artifact's own GGUF
+// header. A file whose header cannot be read — a foreign, truncated, or
+// deliberately accepted non-GGUF artifact — classifies as unknown rather than
+// failing publication, matching the explicit-unknown rule Classify applies to
+// an unrecognised declared type.
+func classifyFile(path string) Classification {
+	r, err := OpenLocal(path)
+	if err != nil {
+		return Classification{Type: TypeUnknown}
+	}
+	defer r.Close()
+	meta, err := ReadMetadata(r)
+	if err != nil {
+		return Classification{Type: TypeUnknown}
+	}
+	return Classify(meta)
+}
+
 func ReadRecord(target string) (Record, error) {
 	base := strings.TrimSuffix(target, filepath.Ext(target))
 	data, err := os.ReadFile(base + ".json")
@@ -201,7 +223,7 @@ func ReadRecord(target string) (Record, error) {
 	if err = d.Decode(&r); err != nil {
 		return Record{}, err
 	}
-	if r.SchemaVersion != 1 {
+	if r.SchemaVersion != RecordSchemaVersion {
 		return Record{}, fmt.Errorf("unsupported model sidecar schemaVersion %d", r.SchemaVersion)
 	}
 	if err = r.Source.Validate(); err != nil {

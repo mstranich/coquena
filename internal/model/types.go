@@ -48,11 +48,23 @@ type Artifact struct {
 	SHA256       string `json:"sha256,omitempty"`
 	DownloadedAt string `json:"downloadedAt,omitempty"`
 }
+
+// RecordSchemaVersion is the current model sidecar document version. Version 2
+// replaced the persisted raw GGUF map with the compact classification digest,
+// so a version 1 sidecar is rejected outright rather than upgraded: its
+// artifact then reports as unreconciled, which is a state the catalog already
+// has a defined recovery path for.
+const RecordSchemaVersion = 2
+
 type Record struct {
-	SchemaVersion int            `json:"schemaVersion"`
-	Source        Source         `json:"source"`
-	Artifact      Artifact       `json:"artifact"`
-	GGUF          map[string]any `json:"gguf"`
+	SchemaVersion  int            `json:"schemaVersion"`
+	Source         Source         `json:"source"`
+	Artifact       Artifact       `json:"artifact"`
+	Classification Classification `json:"classification"`
+	// Metadata carries the raw decoded GGUF map in memory for callers that
+	// still need it within a single operation. It is never persisted: the
+	// .gguf itself is the source of truth and is read on demand.
+	Metadata map[string]any `json:"-"`
 }
 type Status string
 

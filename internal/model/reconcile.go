@@ -52,7 +52,7 @@ func (m *Manager) ReconcileOnline(path string) (ReconcileResult, error) {
 	if !partial && candidate.LFSOID != digest {
 		return ReconcileResult{}, fmt.Errorf("reconcile refused: local file digest %s disagrees with Hugging Face content hash %s for %s", digest, candidate.LFSOID, source.Filename)
 	}
-	record := Record{SchemaVersion: 1, Source: candidate.Source, Artifact: candidate.Artifact}
+	record := Record{SchemaVersion: RecordSchemaVersion, Source: candidate.Source, Artifact: candidate.Artifact}
 	record.Artifact.SHA256 = digest
 	if _, err = PublishInPlace(m.ModelsDir, record); err != nil {
 		return ReconcileResult{}, err
@@ -84,7 +84,7 @@ func (m *Manager) ReconcileAccept(path string) (ReconcileResult, error) {
 	if err != nil {
 		return ReconcileResult{}, err
 	}
-	record := Record{SchemaVersion: 1, Source: source, Artifact: Artifact{SizeBytes: info.Size(), SHA256: digest}}
+	record := Record{SchemaVersion: RecordSchemaVersion, Source: source, Artifact: Artifact{SizeBytes: info.Size(), SHA256: digest}}
 	if _, err = PublishInPlace(m.ModelsDir, record); err != nil {
 		return ReconcileResult{}, err
 	}

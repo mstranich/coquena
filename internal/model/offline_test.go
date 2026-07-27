@@ -12,7 +12,7 @@ func installFixture(t *testing.T, modelsDir, repository, filename, revision stri
 	if err := os.WriteFile(partial, []byte("bytes"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	r := Record{Source: Source{Provider: "huggingface", Repository: repository, RequestedRevision: "main", ResolvedRevision: revision, Filename: filename, URL: "https://example.test/" + filename}, Artifact: Artifact{SizeBytes: 5}, GGUF: map[string]any{}}
+	r := Record{Source: Source{Provider: "huggingface", Repository: repository, RequestedRevision: "main", ResolvedRevision: revision, Filename: filename, URL: "https://example.test/" + filename}, Artifact: Artifact{SizeBytes: 5}}
 	if _, err := Publish(modelsDir, partial, r); err != nil {
 		t.Fatal(err)
 	}

@@ -68,7 +68,7 @@ func (m *Manager) InspectRemote(c Candidate) (Record, error) {
 	c.Artifact.ETag = r.ETag()
 	c.Artifact.LastModified = r.LastModified()
 	m.logf("model inspect completed filename=%s metadataKeys=%d sizeBytes=%d", c.Source.Filename, len(meta), c.Artifact.SizeBytes)
-	return Record{SchemaVersion: 1, Source: c.Source, Artifact: c.Artifact, GGUF: meta}, nil
+	return Record{SchemaVersion: RecordSchemaVersion, Source: c.Source, Artifact: c.Artifact, Classification: Classify(meta), Metadata: meta}, nil
 }
 func (m *Manager) InspectLocal(target string) (Record, error) {
 	r, e := OpenLocal(target)
@@ -84,7 +84,7 @@ func (m *Manager) InspectLocal(target string) (Record, error) {
 	if e != nil {
 		return Record{}, e
 	}
-	rec.GGUF = meta
+	rec.Metadata = meta
 	return rec, nil
 }
 func (m *Manager) Create(c Candidate) (Job, error) {
@@ -227,7 +227,10 @@ func (m *Manager) InstalledMetadata(repository, filename string) (Record, error)
 	}
 	for _, entry := range entries {
 		if entry.State == "installed" && entry.Source.Repository == repository && entry.Source.Filename == filename {
-			return ReadRecord(entry.TargetPath)
+			// Read through InspectLocal rather than ReadRecord alone: the
+			// sidecar no longer caches the raw GGUF map, so the metadata comes
+			// from the artifact itself on demand.
+			return m.InspectLocal(entry.TargetPath)
 		}
 	}
 	return Record{}, os.ErrNotExist
@@ -496,7 +499,7 @@ func (m *Manager) InspectPartial(p string, s Source, size int64) (Record, error)
 	if e != nil {
 		return Record{}, e
 	}
-	return Record{SchemaVersion: 1, Source: s, Artifact: Artifact{SizeBytes: size}, GGUF: meta}, nil
+	return Record{SchemaVersion: RecordSchemaVersion, Source: s, Artifact: Artifact{SizeBytes: size}, Classification: Classify(meta), Metadata: meta}, nil
 }
 func (m *Manager) fail(j Job, e error) (Job, error) {
 	j.Status = Failed

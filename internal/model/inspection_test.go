@@ -3,7 +3,7 @@ package model
 import "testing"
 
 func TestInspectionResultSummarizesLargeArrays(t *testing.T) {
-	record := Record{SchemaVersion: 1, GGUF: map[string]any{"small": []any{1, 2}, "tokens": make([]any, 300)}}
+	record := Record{SchemaVersion: 1, Metadata: map[string]any{"small": []any{1, 2}, "tokens": make([]any, 300)}}
 	summary := InspectionResult(record, false)
 	if len(summary.OmittedMetadata) != 1 || summary.OmittedMetadata[0] != "tokens" {
 		t.Fatalf("summary=%+v", summary)

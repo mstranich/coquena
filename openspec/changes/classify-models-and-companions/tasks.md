@@ -9,10 +9,10 @@
 
 ## 2. Sidecar schema: drop raw metadata, carry the digest
 
-- [ ] 2.1 Remove `Record.GGUF` as persisted state and add the classification digest to `Record`, raising the sidecar schema version.
-- [ ] 2.2 Reject a sidecar written under the previous schema version when reading a record, so its artifact falls into the existing `unreconciled` path rather than being upgraded in place.
-- [ ] 2.3 Populate the classification digest at publish time from the completed file's own header, in `Publish` and `PublishInPlace`.
-- [ ] 2.4 Add tests confirming a published sidecar carries the digest and no raw metadata map, that a previous-version sidecar reads as invalid, and that its artifact is then enumerated as `unreconciled`.
+- [x] 2.1 Remove `Record.GGUF` as persisted state and add the classification digest to `Record`, raising the sidecar schema version.
+- [x] 2.2 Reject a sidecar written under the previous schema version when reading a record, so its artifact falls into the existing `unreconciled` path rather than being upgraded in place.
+- [x] 2.3 Populate the classification digest at publish time from the completed file's own header, in `Publish` and `PublishInPlace`.
+- [x] 2.4 Add tests confirming a published sidecar carries the digest and no raw metadata map, that a previous-version sidecar reads as invalid, and that its artifact is then enumerated as `unreconciled`.
 
 ## 3. Inspection projection without raw metadata
 
