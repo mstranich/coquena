@@ -1,11 +1,11 @@
 ## 1. Classification digest type and extraction
 
-- [ ] 1.1 Add a `Classification` type in `internal/model` holding declared type, architecture, size label, file type, context length, embedding length (principal) or projection dimension and encoder flags (projector), an SSM presence flag, a tokenizer sub-digest (identity, pre, vocabulary size, bos/eos/pad/unk IDs, vocabulary digest), and publisher sampling recommendations.
-- [ ] 1.2 Add `Classify(meta map[string]any) Classification`, deriving the declared type from `general.type` and reporting an explicit unknown type when the key is absent or unrecognised, without inferring one from architecture or filename.
-- [ ] 1.3 Read the architecture-namespaced keys through the artifact's own `general.architecture` value rather than a fixed prefix, so `gemma4.embedding_length` and `qwen35.embedding_length` are both found.
-- [ ] 1.4 Accept both known projector key spellings — `clip.vision.projector_type` and `clip.projector_type` — and record an unrecognised spelling as unknown rather than guessing.
-- [ ] 1.5 Compute the tokenizer vocabulary digest as a stable hash over the vocabulary arrays, so two artifacts with identical vocabularies produce an identical digest and the arrays themselves are never retained.
-- [ ] 1.6 Add tests covering a principal, a projector carrying both key spellings, an artifact with `<arch>.ssm.*` keys, an artifact declaring no type, and two artifacts with identical vocabularies producing equal digests.
+- [x] 1.1 Add a `Classification` type in `internal/model` holding declared type, architecture, size label, file type, context length, embedding length (principal) or projection dimension and encoder flags (projector), an SSM presence flag, a tokenizer sub-digest (identity, pre, vocabulary size, bos/eos/pad/unk IDs, vocabulary digest), and publisher sampling recommendations.
+- [x] 1.2 Add `Classify(meta map[string]any) Classification`, deriving the declared type from `general.type` and reporting an explicit unknown type when the key is absent or unrecognised, without inferring one from architecture or filename.
+- [x] 1.3 Read the architecture-namespaced keys through the artifact's own `general.architecture` value rather than a fixed prefix, so `gemma4.embedding_length` and `qwen35.embedding_length` are both found.
+- [x] 1.4 Accept both known projector key spellings — `clip.vision.projector_type` and `clip.projector_type` — and record an unrecognised spelling as unknown rather than guessing.
+- [x] 1.5 Compute the tokenizer vocabulary digest as a stable hash over the vocabulary arrays, so two artifacts with identical vocabularies produce an identical digest and the arrays themselves are never retained.
+- [x] 1.6 Add tests covering a principal, a projector carrying both key spellings, an artifact with `<arch>.ssm.*` keys, an artifact declaring no type, and two artifacts with identical vocabularies producing equal digests.
 
 ## 2. Sidecar schema: drop raw metadata, carry the digest
 
