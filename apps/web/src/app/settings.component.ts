@@ -22,6 +22,8 @@ export class SettingsComponent {
   save(): void {
     this.directory.save(this.input() || this.directory.path());
   }
-  saveRuntimes(): void { this.runtimes.save(this.runtimeInput() || this.runtimes.path()); }
+  saveRuntimes(): void {
+    this.runtimes.save(this.runtimeInput() || this.runtimes.path());
+  }
   readonly runtimeInput = signal('');
 }

@@ -1,5 +1,5 @@
 import { NgTemplateOutlet } from '@angular/common';
-import { Component, signal } from '@angular/core';
+import { Component, OnInit, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { FieldCatalogStore, FieldDefinition, FieldKind } from './catalog-store';
 import { IconComponent } from './icon.component';
@@ -12,16 +12,23 @@ type Editor = { name: string; defaultValue: string; enumInput: string; enumOptio
   templateUrl: './fields.component.html',
   styleUrl: './workspace.scss',
 })
-export class FieldsComponent {
+export class FieldsComponent implements OnInit {
   readonly filter = signal('');
   readonly message = signal('');
   private readonly editors = new Map<string, Editor>();
+  private readonly childrenExpanded = new Set<string>();
   constructor(readonly store: FieldCatalogStore) {}
+  ngOnInit(): void {
+    this.store.load();
+  }
   get roots(): Array<FieldDefinition> {
     return this.store.fields().filter(field => !field.prerequisite && this.matchesTree(field));
   }
   children(parentId: string): Array<FieldDefinition> {
     return this.store.fields().filter(field => field.prerequisite?.parentId === parentId && this.matchesTree(field));
+  }
+  showChildren(field: FieldDefinition): boolean {
+    return this.store.hasChildren(field.id) || this.childrenExpanded.has(field.id);
   }
   editor(field: FieldDefinition): Editor {
     let editor = this.editors.get(field.id);
@@ -61,36 +68,28 @@ export class FieldsComponent {
       : field.kind === 'boolean'
       ? editor.defaultValue === 'true'
       : editor.defaultValue || undefined;
+    const name = field.draft ? editor.name.trim() : field.name;
     const input = {
-      name: editor.name.trim(),
+      name,
       kind: field.kind,
       ...(field.kind === 'void' ? {} : { defaultValue: value }),
       ...(field.kind === 'enum' ? { enumOptions: editor.enumOptions } : {}),
       ...(editor.falseArgument.trim() ? { falseArgument: editor.falseArgument.trim() } : {}),
       ...(field.prerequisite ? { prerequisite: field.prerequisite } : {}),
-      allowsChildren: field.allowsChildren ?? false,
     };
-    const result = this.store.updateField(field.id, input);
-    this.message.set(result.ok ? (input.name ? 'Field saved.' : 'Enter a name to finish this draft.') : result.message);
-    if (result.ok && input.name) this.editors.delete(field.id);
+    if (field.draft && !name) {
+      this.message.set('Enter a name to finish this draft.');
+      return;
+    }
+    this.message.set('');
+    this.store.save(field.id, input);
+    if (field.draft) this.editors.delete(field.id);
   }
   remove(field: FieldDefinition): void {
-    const result = this.store.deleteField(field.id);
-    this.message.set(result.ok ? 'Field deleted.' : result.message);
+    this.store.deleteField(field.id);
   }
-  toggleChildren(field: FieldDefinition, event: Event): void {
-    const enabled = (event.target as HTMLInputElement).checked;
-    const result = this.store.updateField(field.id, {
-      name: field.name,
-      kind: field.kind,
-      defaultValue: field.defaultValue,
-      enumOptions: field.enumOptions,
-      falseArgument: field.falseArgument,
-      prerequisite: field.prerequisite,
-      allowsChildren: enabled,
-    });
-    this.message.set(result.ok ? '' : result.message);
-    if (!result.ok) (event.target as HTMLInputElement).checked = !enabled;
+  enableChildren(field: FieldDefinition): void {
+    this.childrenExpanded.add(field.id);
   }
   private matchesTree(field: FieldDefinition): boolean {
     const query = this.filter().toLowerCase();

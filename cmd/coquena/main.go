@@ -64,6 +64,9 @@ func run(args []string, stdout io.Writer, initialize initializeFunc, inspect ins
 	if len(args) > 0 && args[0] == "model" {
 		return runModel(args[1:], stdout)
 	}
+	if len(args) > 0 && args[0] == "field" {
+		return runField(args[1:], stdout)
+	}
 	if len(args) > 0 && args[0] == "download" {
 		return runDownload(args[1:], stdout)
 	}

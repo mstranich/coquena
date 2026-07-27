@@ -119,10 +119,16 @@ export class LlamacppRuntimeService {
     this.mutating.set(action !== 'pause');
     if (action === 'resume') this.activeDownloadId.set(id);
     this.http.post<Envelope<Operation | unknown>>(`/api/runtimes/llama.cpp/downloads/${encodeURIComponent(id)}/actions`, { action }).pipe(
-      catchError(error => { this.finishError(this.message(error)); return of(null); }),
+      catchError(error => {
+        this.finishError(this.message(error));
+        return of(null);
+      }),
     ).subscribe(result => {
       if (action === 'resume' && result && 'result' in result && result.result && typeof result.result === 'object' && 'operationId' in result.result) {
-        this.events((result.result as Operation).operationId).subscribe({ next: event => this.consume(event), error: error => this.finishError(this.message(error)) });
+        this.events((result.result as Operation).operationId).subscribe({
+          next: event => this.consume(event),
+          error: error => this.finishError(this.message(error)),
+        });
       } else if (action !== 'pause') {
         this.mutating.set(false);
         this.load();
@@ -146,11 +152,11 @@ export class LlamacppRuntimeService {
   }
 
   private list(url: string): Observable<Array<LlamaRuntime>> {
-	return this.http.get<Envelope<Array<LlamaRuntime>>>(url).pipe(map(response => response.result || []));
+    return this.http.get<Envelope<Array<LlamaRuntime>>>(url).pipe(map(response => response.result || []));
   }
 
   private downloadList(): Observable<Array<RuntimeDownload>> {
-	return this.http.get<Envelope<Array<RuntimeDownload>>>('/api/runtimes/llama.cpp/downloads').pipe(map(response => response.result || []));
+    return this.http.get<Envelope<Array<RuntimeDownload>>>('/api/runtimes/llama.cpp/downloads').pipe(map(response => response.result || []));
   }
 
   private events(operationId: string): Observable<DownloadProgress> {
@@ -188,7 +194,18 @@ export class LlamacppRuntimeService {
   }
 
   phaseLabel(phase: string): string {
-    return ({ queued: 'Preparing download', downloading: 'Downloading', verifying: 'Verifying archive', extracting: 'Decompressing runtime', probing: 'Validating runtime', publishing: 'Installing runtime', paused: 'Paused', failed: 'Failed', cancelled: 'Cancelled', completed: 'Installed' } as Record<string, string>)[phase] || phase;
+    return ({
+      queued: 'Preparing download',
+      downloading: 'Downloading',
+      verifying: 'Verifying archive',
+      extracting: 'Decompressing runtime',
+      probing: 'Validating runtime',
+      publishing: 'Installing runtime',
+      paused: 'Paused',
+      failed: 'Failed',
+      cancelled: 'Cancelled',
+      completed: 'Installed',
+    } as Record<string, string>)[phase] || phase;
   }
   private finishError(message: string): void {
     this.error.set(message);

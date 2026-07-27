@@ -1,4 +1,6 @@
+import { HttpClient } from '@angular/common/http';
 import { computed, Injectable, signal } from '@angular/core';
+import { catchError, finalize, of } from 'rxjs';
 
 export type FieldKind = 'string' | 'integer' | 'boolean' | 'void' | 'enum';
 export type FieldValue = string | number | boolean;
@@ -12,11 +14,53 @@ export type FieldDefinition = {
   falseArgument?: string;
   prerequisite?: Prerequisite;
   draft?: boolean;
-  allowsChildren?: boolean;
 };
 export type PresetEntry = { fieldId: string; value?: FieldValue; };
 export type Preset = { id: string; name: string; entries: Array<PresetEntry>; };
 export type StoreResult = { ok: true; } | { ok: false; message: string; };
+
+interface Envelope<T> {
+  schemaVersion: number;
+  result: T;
+}
+interface ApiField {
+  name: string;
+  kind: FieldKind;
+  default?: FieldValue;
+  enumOptions?: Array<string>;
+  falseArgument?: string;
+  parent?: string;
+  parentValue?: FieldValue;
+}
+interface ApiCatalog {
+  schemaVersion: number;
+  fields: Array<ApiField>;
+}
+
+function fromApi(field: ApiField): FieldDefinition {
+  return {
+    id: field.name,
+    name: field.name,
+    kind: field.kind,
+    defaultValue: field.default,
+    enumOptions: field.enumOptions,
+    falseArgument: field.falseArgument,
+    prerequisite: field.parent ? { parentId: field.parent, value: field.parentValue } : undefined,
+    draft: false,
+  };
+}
+function toApi(name: string, input: Omit<FieldDefinition, 'id' | 'draft'>): ApiField {
+  return {
+    name,
+    kind: input.kind,
+    ...(input.defaultValue !== undefined ? { default: input.defaultValue } : {}),
+    ...(input.enumOptions ? { enumOptions: input.enumOptions } : {}),
+    ...(input.falseArgument ? { falseArgument: input.falseArgument } : {}),
+    ...(input.prerequisite
+      ? { parent: input.prerequisite.parentId, ...(input.prerequisite.value !== undefined ? { parentValue: input.prerequisite.value } : {}) }
+      : {}),
+  };
+}
 
 @Injectable({ providedIn: 'root' })
 export class FieldCatalogStore {
@@ -25,12 +69,25 @@ export class FieldCatalogStore {
   readonly fields = this.fieldsState.asReadonly();
   readonly presets = this.presetsState.asReadonly();
   readonly fieldCount = computed(() => this.fieldsState().length);
+  readonly loading = signal(false);
+  readonly error = signal<string | null>(null);
 
-  addField(input: Omit<FieldDefinition, 'id'>): StoreResult {
-    const result = this.validateField(input);
-    if (!result.ok) return result;
-    this.fieldsState.update(fields => [...fields, { ...input, id: crypto.randomUUID() }]);
-    return { ok: true };
+  constructor(private readonly http: HttpClient) {}
+
+  load(): void {
+    this.loading.set(true);
+    this.error.set(null);
+    this.http.get<Envelope<ApiCatalog>>('/api/fields').pipe(
+      finalize(() => this.loading.set(false)),
+      catchError(error => {
+        this.error.set(this.message(error));
+        return of(null);
+      }),
+    ).subscribe(value => {
+      if (!value) return;
+      const persisted = value.result.fields.map(fromApi);
+      this.fieldsState.update(current => [...persisted, ...current.filter(field => field.draft)]);
+    });
   }
 
   addDraft(kind: FieldKind, parentId?: string): string {
@@ -39,32 +96,57 @@ export class FieldCatalogStore {
     return id;
   }
 
-  updateField(id: string, input: Omit<FieldDefinition, 'id'>): StoreResult {
+  save(id: string, input: Omit<FieldDefinition, 'id' | 'draft'>): void {
     const current = this.fieldsState().find(field => field.id === id);
-    if (!current) return { ok: false, message: 'Field not found.' };
-    if (current.kind !== input.kind && this.isReferenced(id)) {
-      return { ok: false, message: 'Remove preset entries before changing a referenced field kind.' };
+    if (!current) {
+      this.error.set('Field not found.');
+      return;
     }
-    if (current.allowsChildren && input.allowsChildren === false && this.fieldsState().some(field => field.prerequisite?.parentId === id)) {
-      return { ok: false, message: 'Remove child fields before disabling child creation.' };
+    if (current.draft && !input.name.trim()) return;
+    if (current.kind !== input.kind) {
+      this.error.set('Field kind cannot change once created.');
+      return;
     }
-    const result = current.draft && !input.name.trim() ? { ok: true as const } : this.validateField(input, id);
-    if (!result.ok) return result;
-    this.fieldsState.update(fields => fields.map(field => field.id === id ? { ...input, id, draft: !input.name.trim() } : field));
-    return { ok: true };
+    this.error.set(null);
+    const name = current.draft ? input.name.trim() : current.name;
+    const payload = toApi(name, input);
+    const request = current.draft
+      ? this.http.post<Envelope<ApiField>>('/api/fields', payload)
+      : this.http.put<Envelope<ApiField>>(`/api/fields/${encodeURIComponent(current.name)}`, payload);
+    request.pipe(
+      catchError(error => {
+        this.error.set(this.message(error));
+        return of(null);
+      }),
+    ).subscribe(value => {
+      if (!value) return;
+      const saved = fromApi(value.result);
+      this.fieldsState.update(fields => fields.map(field => field.id === id ? { ...saved, id: saved.name } : field));
+    });
   }
 
-  deleteField(id: string): StoreResult {
-    if (!this.fieldsState().some(field => field.id === id)) return { ok: false, message: 'Field not found.' };
-    const removed = new Set<string>();
-    const collect = (fieldId: string): void => {
-      removed.add(fieldId);
-      this.fieldsState().filter(field => field.prerequisite?.parentId === fieldId).forEach(field => collect(field.id));
-    };
-    collect(id);
-    this.fieldsState.update(fields => fields.filter(field => !removed.has(field.id)));
-    this.presetsState.update(presets => presets.map(preset => ({ ...preset, entries: preset.entries.filter(entry => !removed.has(entry.fieldId)) })));
-    return { ok: true };
+  deleteField(id: string): void {
+    const current = this.fieldsState().find(field => field.id === id);
+    if (!current) {
+      this.error.set('Field not found.');
+      return;
+    }
+    if (current.draft) {
+      this.fieldsState.update(fields => fields.filter(field => field.id !== id));
+      return;
+    }
+    this.error.set(null);
+    this.http.delete<Envelope<ApiCatalog>>(`/api/fields/${encodeURIComponent(current.name)}`).pipe(
+      catchError(error => {
+        this.error.set(this.message(error));
+        return of(null);
+      }),
+    ).subscribe(value => {
+      if (!value) return;
+      const remainingNames = new Set(value.result.fields.map(field => field.name));
+      this.fieldsState.update(fields => fields.filter(field => field.draft || remainingNames.has(field.name)));
+      this.presetsState.update(presets => presets.map(preset => ({ ...preset, entries: preset.entries.filter(entry => remainingNames.has(entry.fieldId)) })));
+    });
   }
 
   addPreset(name: string): StoreResult {
@@ -114,11 +196,12 @@ export class FieldCatalogStore {
     return this.fieldsState().find(field => field.id === id);
   }
 
+  hasChildren(id: string): boolean {
+    return this.fieldsState().some(field => field.prerequisite?.parentId === id);
+  }
+
   private updatePreset(id: string, entries: Array<PresetEntry>): void {
     this.presetsState.update(presets => presets.map(preset => preset.id === id ? { ...preset, entries } : preset));
-  }
-  private isReferenced(id: string): boolean {
-    return this.presetsState().some(preset => preset.entries.some(entry => entry.fieldId === id));
   }
   private isEligible(field: FieldDefinition, preset: Preset): boolean {
     if (!field.prerequisite) return true;
@@ -132,16 +215,13 @@ export class FieldCatalogStore {
     if (field.kind === 'enum') return typeof value === 'string' && !!field.enumOptions?.includes(value);
     return typeof value === 'string';
   }
-  private validateField(input: Omit<FieldDefinition, 'id'>, replacing?: string): StoreResult {
-    if (!/^\S+$/.test(input.name) || input.name.includes('=')) return { ok: false, message: 'Field names must not contain spaces or =.' };
-    if (this.fieldsState().some(field => field.name === input.name && field.id !== replacing)) return { ok: false, message: 'Field names must be unique.' };
-    if (input.kind === 'enum' && (!input.enumOptions?.length || new Set(input.enumOptions).size !== input.enumOptions.length)) {
-      return { ok: false, message: 'Enum options must be non-empty and distinct.' };
+  private message(error: unknown): string {
+    if (typeof error === 'object' && error !== null && 'error' in error) {
+      const body = (error as { error: unknown; }).error;
+      if (typeof body === 'object' && body !== null && 'error' in body && typeof (body as { error: unknown; }).error === 'string') {
+        return (body as { error: string; }).error;
+      }
     }
-    if (input.kind === 'void' && input.defaultValue !== undefined) return { ok: false, message: 'Void fields cannot have values.' };
-    if (input.prerequisite && !this.fieldsState().some(field => field.id === input.prerequisite!.parentId && field.id !== replacing)) {
-      return { ok: false, message: 'Choose an existing parent field.' };
-    }
-    return { ok: true };
+    return 'Unable to update the field catalog';
   }
 }

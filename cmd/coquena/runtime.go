@@ -21,7 +21,9 @@ const commandUsage = `usage: coquena init
        coquena runtime list [<backend-selector>] [--json]
        coquena runtime remove <asset-id> [--json]
 	   coquena model resolve|inspect|download|revision <reference> [--json]
-       coquena download list|status|pause|resume|cancel <job-id> [--json]`
+       coquena download list|status|pause|resume|cancel <job-id> [--json]
+       coquena field define <kind> <name> [flags] [--json]
+       coquena field remove|list|show <name> [--json]`
 
 type runtimeQuery = runtimeapp.Query
 type runtimeDownloadRequest = runtimeapp.DownloadRequest

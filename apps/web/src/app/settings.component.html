@@ -33,10 +33,22 @@ save()"
       <p class="eyebrow">Runtime storage</p>
       <h3>Runtimes directory</h3>
       <p class="subtle">Where runtime installations and resumable downloads are stored.</p>
-      <label>Local path<input [ngModel]="runtimeInput() || runtimes.path()" (ngModelChange)="runtimeInput.set($event)" (keydown.enter)="$event.preventDefault(); saveRuntimes()" aria-label="Runtimes directory"></label>
-      @if (runtimes.loading()) { <p class="subtle">Loading…</p> }
-      @if (runtimes.error()) { <p class="error">{{ runtimes.error() }}</p> }
-      @if (runtimes.saved()) { <p class="subtle">Saved.</p> }
+      <label>Local path<input
+          [ngModel]="runtimeInput() || runtimes.path()"
+          (ngModelChange)="runtimeInput.set($event)"
+          (keydown.enter)="$event.preventDefault();
+saveRuntimes()"
+          aria-label="Runtimes directory"
+        ></label>
+      @if (runtimes.loading()) {
+        <p class="subtle">Loading…</p>
+      }
+      @if (runtimes.error()) {
+        <p class="error">{{ runtimes.error() }}</p>
+      }
+      @if (runtimes.saved()) {
+        <p class="subtle">Saved.</p>
+      }
       <button class="primary" (click)="saveRuntimes()" [disabled]="runtimes.saving()">Save</button>
     </article>
     <article class="card">

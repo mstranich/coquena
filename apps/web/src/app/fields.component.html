@@ -12,8 +12,8 @@
         (ngModelChange)="filter.set($event)"
       ></label>
   </header>
-  @if (message()) {
-    <p class="message">{{ message() }}</p>
+  @if (message() || store.error()) {
+    <p class="message">{{ message() || store.error() }}</p>
   }
 
   <ng-template #fieldTree let-field>
@@ -21,7 +21,13 @@
     <article class="field-node" [class.draft]="field.draft">
       <div class="field-row">
         <div class="field-identity"><strong>{{ field.draft ? 'New ' + field.kind : field.name }}</strong><small>{{ field.kind }}</small></div>
-        <label class="field-name">Field<input [id]="'field-' + field.id" [name]="'name-' + field.id" [(ngModel)]="form.name" placeholder="fit"></label>
+        <label class="field-name">Field<input
+            [id]="'field-' + field.id"
+            [name]="'name-' + field.id"
+            [(ngModel)]="form.name"
+            [disabled]="!field.draft"
+            placeholder="fit"
+          ></label>
         @if (field.kind !== 'void') {
           <label>Value<input [name]="'default-' + field.id" [(ngModel)]="form.defaultValue"></label>
         }
@@ -52,16 +58,11 @@ addOption(form)"
         </div>
       }
 
-      @if (!field.draft) {
-        <label class="children-toggle"><input
-            type="checkbox"
-            [name]="'children-' + field.id"
-            [checked]="field.allowsChildren"
-            (change)="toggleChildren(field, $event)"
-          >Allow children</label>
+      @if (!field.draft && !showChildren(field)) {
+        <button type="button" class="children-toggle" (click)="enableChildren(field)">Allow children</button>
       }
 
-      @if (field.allowsChildren) {
+      @if (showChildren(field)) {
         <div class="children-group">
           @for (child of children(field.id); track child.id) {
             <ng-container *ngTemplateOutlet="fieldTree; context: { $implicit: child }" />

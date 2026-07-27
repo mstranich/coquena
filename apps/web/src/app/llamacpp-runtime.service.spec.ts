@@ -121,12 +121,26 @@ describe('LlamacppRuntimeService', () => {
   it('resumes a durable runtime job and attaches progress to that runtime', () => {
     const service = TestBed.inject(LlamacppRuntimeService);
     const http = TestBed.inject(HttpTestingController);
-    const job = { id: runtime.assetId, type: 'runtime' as const, name: runtime.assetId, status: 'paused', downloadedBytes: 5, expectedBytes: 10, path: 'runtime.download.json' };
+    const job = {
+      id: runtime.assetId,
+      type: 'runtime' as const,
+      name: runtime.assetId,
+      status: 'paused',
+      downloadedBytes: 5,
+      expectedBytes: 10,
+      path: 'runtime.download.json',
+    };
     service.action(job, 'resume');
     const action = http.expectOne(`/api/runtimes/llama.cpp/downloads/${encodeURIComponent(runtime.assetId)}/actions`);
     expect(action.request.body).toEqual({ action: 'resume' });
     action.flush({ schemaVersion: 1, result: { operationId: 'operation-resume' } });
-    FakeEventSource.instances[0].emit('progress', { operationId: 'operation-resume', phase: 'extracting', assetId: runtime.assetId, totalTransferredBytes: 10, totalBytes: 10 });
+    FakeEventSource.instances[0].emit('progress', {
+      operationId: 'operation-resume',
+      phase: 'extracting',
+      assetId: runtime.assetId,
+      totalTransferredBytes: 10,
+      totalBytes: 10,
+    });
     expect(service.activeFor(runtime.assetId)?.phase).toBe('extracting');
     expect(service.phaseLabel('extracting')).toBe('Decompressing runtime');
   });
