@@ -154,13 +154,18 @@ func Publish(modelsDir, partial string, record Record) (string, error) {
 // operates on, since Library derives Repository/Filename from a path already
 // inside modelsDir). Unlike Publish, it never stages, copies, or renames the
 // model file itself — only the two sidecar files are written, atomically.
-func PublishInPlace(modelsDir string, record Record) (string, error) {
+//
+// It returns the record it actually persisted rather than the target path,
+// which no caller ever used: the classification and publication timestamp are
+// derived here, onto this function's own copy, so a caller returning the record
+// it passed in would hand back a zero classification.
+func PublishInPlace(modelsDir string, record Record) (Record, error) {
 	target, err := TargetPath(modelsDir, record.Source)
 	if err != nil {
-		return "", err
+		return Record{}, err
 	}
 	if _, err = os.Stat(target); err != nil {
-		return "", err
+		return Record{}, err
 	}
 	record.SchemaVersion = RecordSchemaVersion
 	record.Classification = classifyFile(target)
@@ -170,27 +175,27 @@ func PublishInPlace(modelsDir string, record Record) (string, error) {
 	revisionPath := sidecar + ".revision"
 	data, err := json.MarshalIndent(record, "", "  ")
 	if err != nil {
-		return "", err
+		return Record{}, err
 	}
 	data = append(data, '\n')
 	jsonTemp, err := writeTemp(filepath.Dir(jsonPath), filepath.Base(jsonPath), data)
 	if err != nil {
-		return "", err
+		return Record{}, err
 	}
 	defer os.Remove(jsonTemp)
 	revisionTemp, err := writeTemp(filepath.Dir(revisionPath), filepath.Base(revisionPath), []byte(record.Source.ResolvedRevision+"\n"))
 	if err != nil {
-		return "", err
+		return Record{}, err
 	}
 	defer os.Remove(revisionTemp)
 	if err = os.Rename(jsonTemp, jsonPath); err != nil {
-		return "", err
+		return Record{}, err
 	}
 	if err = os.Rename(revisionTemp, revisionPath); err != nil {
 		_ = os.Remove(jsonPath)
-		return "", err
+		return Record{}, err
 	}
-	return target, nil
+	return record, nil
 }
 
 // classifyFile derives the classification digest from an artifact's own GGUF

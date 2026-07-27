@@ -42,11 +42,11 @@
 
 ## 7. Bulk reconciliation with classification
 
-- [ ] 7.1 Add a bulk reconciliation that walks the configured models directory, reads each unreconciled artifact's header, classifies it, and persists its sidecar in one pass.
-- [ ] 7.2 Compute the companion relations among the artifacts found in that pass and report them as part of the result.
-- [ ] 7.3 Report a per-artifact diagnostic on failure and continue the pass rather than abandoning it.
-- [ ] 7.4 Confirm reconciliation stays explicit: no listing command triggers it.
-- [ ] 7.5 Add tests for a directory mixing installed, previous-schema, and foreign artifacts; for a pass continuing past one failure; and for the computed relations appearing in the result.
+- [x] 7.1 Add a bulk reconciliation that walks the configured models directory, reads each unreconciled artifact's header, classifies it, and persists its sidecar in one pass.
+- [x] 7.2 Compute the companion relations among the artifacts found in that pass and report them as part of the result.
+- [x] 7.3 Report a per-artifact diagnostic on failure and continue the pass rather than abandoning it.
+- [x] 7.4 Confirm reconciliation stays explicit: no listing command triggers it.
+- [x] 7.5 Add tests for a directory mixing installed, previous-schema, and foreign artifacts; for a pass continuing past one failure; and for the computed relations appearing in the result.
 
 ## 8. CLI: discover, local inspect, tree list, companion download
 
