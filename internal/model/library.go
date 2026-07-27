@@ -146,6 +146,49 @@ func Publish(modelsDir, partial string, record Record) (string, error) {
 	return target, nil
 }
 
+// PublishInPlace writes the .json/.revision sidecar pair for a .gguf that
+// already exists at its final on-disk location (the shape reconcile always
+// operates on, since Library derives Repository/Filename from a path already
+// inside modelsDir). Unlike Publish, it never stages, copies, or renames the
+// model file itself — only the two sidecar files are written, atomically.
+func PublishInPlace(modelsDir string, record Record) (string, error) {
+	target, err := TargetPath(modelsDir, record.Source)
+	if err != nil {
+		return "", err
+	}
+	if _, err = os.Stat(target); err != nil {
+		return "", err
+	}
+	record.SchemaVersion = 1
+	record.Artifact.DownloadedAt = time.Now().UTC().Format(time.RFC3339)
+	sidecar := strings.TrimSuffix(target, filepath.Ext(target))
+	jsonPath := sidecar + ".json"
+	revisionPath := sidecar + ".revision"
+	data, err := json.MarshalIndent(record, "", "  ")
+	if err != nil {
+		return "", err
+	}
+	data = append(data, '\n')
+	jsonTemp, err := writeTemp(filepath.Dir(jsonPath), filepath.Base(jsonPath), data)
+	if err != nil {
+		return "", err
+	}
+	defer os.Remove(jsonTemp)
+	revisionTemp, err := writeTemp(filepath.Dir(revisionPath), filepath.Base(revisionPath), []byte(record.Source.ResolvedRevision+"\n"))
+	if err != nil {
+		return "", err
+	}
+	defer os.Remove(revisionTemp)
+	if err = os.Rename(jsonTemp, jsonPath); err != nil {
+		return "", err
+	}
+	if err = os.Rename(revisionTemp, revisionPath); err != nil {
+		_ = os.Remove(jsonPath)
+		return "", err
+	}
+	return target, nil
+}
+
 func ReadRecord(target string) (Record, error) {
 	base := strings.TrimSuffix(target, filepath.Ext(target))
 	data, err := os.ReadFile(base + ".json")

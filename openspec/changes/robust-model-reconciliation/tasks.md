@@ -22,11 +22,11 @@
 
 ## 5. `coquena model reconcile <path>`
 
-- [ ] 5.1 Add `coquena model reconcile <path> --online`: treat the path-derived repository as a candidate, resolve it against Hugging Face, locate the matching sibling, hash the local file, compare against the sibling's LFS `oid` when Hugging Face reports one, and on agreement write the same `.json`/`.revision` sidecar pair a normal download produces with `Artifact.SHA256` populated.
-- [ ] 5.2 Refuse `--online` reconciliation with a clear diagnostic when the local hash disagrees with Hugging Face's reported `oid`, writing no sidecar.
-- [ ] 5.3 Add `coquena model reconcile <path> --accept`: no network access; write a reduced `local`-provider sidecar with path-derived repository/filename and `Artifact.SHA256` computed from the local file.
-- [ ] 5.4 Require exactly one of `--online`/`--accept`; refuse with usage when neither or both are given.
-- [ ] 5.5 Add tests for successful `--online` reconciliation, hash-mismatch refusal, successful `--accept` reconciliation, no-LFS-`oid`-available degradation reporting a partial comparison, and the mutual-exclusivity refusal.
+- [x] 5.1 Add `coquena model reconcile <path> --online`: treat the path-derived repository as a candidate, resolve it against Hugging Face, locate the matching sibling, hash the local file, compare against the sibling's LFS `oid` when Hugging Face reports one, and on agreement write the same `.json`/`.revision` sidecar pair a normal download produces with `Artifact.SHA256` populated.
+- [x] 5.2 Refuse `--online` reconciliation with a clear diagnostic when the local hash disagrees with Hugging Face's reported `oid`, writing no sidecar.
+- [x] 5.3 Add `coquena model reconcile <path> --accept`: no network access; write a reduced `local`-provider sidecar with path-derived repository/filename and `Artifact.SHA256` computed from the local file.
+- [x] 5.4 Require exactly one of `--online`/`--accept`; refuse with usage when neither or both are given.
+- [x] 5.5 Add tests for successful `--online` reconciliation, hash-mismatch refusal, successful `--accept` reconciliation, no-LFS-`oid`-available degradation reporting a partial comparison, and the mutual-exclusivity refusal.
 
 ## 6. `coquena model verify <ref>`
 

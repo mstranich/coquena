@@ -15,12 +15,20 @@ type Resolver struct {
 type Candidate struct {
 	Source   Source   `json:"source"`
 	Artifact Artifact `json:"artifact"`
+	// LFSOID is the LFS content hash (oid) Hugging Face reports for this
+	// sibling, when one is available. It is not part of the persisted
+	// sidecar shape, only used transiently to verify content identity during
+	// reconciliation, so it is excluded from JSON output.
+	LFSOID string `json:"-"`
 }
 type hfInfo struct {
 	SHA      string `json:"sha"`
 	Siblings []struct {
 		RFilename string `json:"rfilename"`
 		Size      int64  `json:"size"`
+		LFS       *struct {
+			OID string `json:"oid"`
+		} `json:"lfs"`
 	} `json:"siblings"`
 }
 
@@ -83,6 +91,10 @@ func (r Resolver) resolveRepository(repo, requested, filename string) ([]Candida
 		}
 		src := Source{Provider: "huggingface", Repository: repo, RequestedRevision: requested, ResolvedRevision: info.SHA, Filename: s.RFilename, URL: base + "/" + repo + "/resolve/" + info.SHA + "/" + pathEscape(s.RFilename)}
 		artifact := Artifact{SizeBytes: s.Size}
+		var lfsOID string
+		if s.LFS != nil {
+			lfsOID = s.LFS.OID
+		}
 		if head, headErr := http.NewRequest(http.MethodHead, src.URL, nil); headErr == nil {
 			if response, requestErr := client.Do(head); requestErr == nil {
 				if response.StatusCode >= 200 && response.StatusCode < 300 {
@@ -95,7 +107,7 @@ func (r Resolver) resolveRepository(repo, requested, filename string) ([]Candida
 				_ = response.Body.Close()
 			}
 		}
-		out = append(out, Candidate{src, artifact})
+		out = append(out, Candidate{src, artifact, lfsOID})
 	}
 	if filename != "" && len(out) != 1 {
 		return nil, fmt.Errorf("selector %q resolves to %d GGUF artifacts", filename, len(out))
