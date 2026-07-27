@@ -29,10 +29,10 @@
 
 ## 5. Model-implied runtime capability
 
-- [ ] 5.1 Derive an advisory runtime capability contribution from a classification: an out-of-range `general.file_type`, the declared architecture, and the presence of SSM keys.
-- [ ] 5.2 Extend the preset runtime constraint computation to accept the bound model's contribution as a second source of computed constraint, attributed to the model rather than to a field.
-- [ ] 5.3 Confirm the contribution stays advisory: it is reported, and it never assigns a preset value, selects a runtime, or blocks authoring.
-- [ ] 5.4 Add tests for a ternary/1-bit file type producing a contribution, an SSM-bearing model producing one, an ordinary model producing none, and the field-attributed bounds remaining reported separately.
+- [x] 5.1 Derive an advisory runtime capability contribution from a classification: an out-of-range `general.file_type`, the declared architecture, and the presence of SSM keys.
+- [x] 5.2 Extend the preset runtime constraint computation to accept the bound model's contribution as a second source of computed constraint, attributed to the model rather than to a field.
+- [x] 5.3 Confirm the contribution stays advisory: it is reported, and it never assigns a preset value, selects a runtime, or blocks authoring.
+- [x] 5.4 Add tests for a ternary/1-bit file type producing a contribution, an SSM-bearing model producing one, an ordinary model producing none, and the field-attributed bounds remaining reported separately.
 
 ## 6. Resolver diagnostics carrying candidates
 

@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/mstranich/coquena/internal/fields"
+	"github.com/mstranich/coquena/internal/model"
 )
 
 func availabilityCatalog() fields.Catalog {
@@ -41,6 +42,65 @@ func TestComputeConstraintIgnoresFieldsWithoutAvailability(t *testing.T) {
 	got := ComputeConstraint(availabilityCatalog(), fields.ProviderOfficial, values)
 	if got.MinRelease != nil || got.MaxRelease != nil {
 		t.Fatalf("got=%+v", got)
+	}
+}
+
+func modelFileType(v int64) *int64 { return &v }
+
+func TestComputeConstraintWithModelReportsTernaryContribution(t *testing.T) {
+	bound := &model.Classification{Type: model.TypeModel, Architecture: "qwen35", FileType: modelFileType(40)}
+	got := ComputeConstraintWithModel(availabilityCatalog(), fields.ProviderOfficial, nil, bound)
+	if got.Model == nil {
+		t.Fatalf("expected a model contribution")
+	}
+	if got.Model.Source != ModelSource {
+		t.Fatalf("source=%q", got.Model.Source)
+	}
+	if len(got.Model.Requirements) == 0 {
+		t.Fatalf("got=%+v", got.Model)
+	}
+}
+
+func TestComputeConstraintWithModelReportsSSMContribution(t *testing.T) {
+	bound := &model.Classification{Type: model.TypeModel, Architecture: "qwen35", FileType: modelFileType(2), SSM: true}
+	got := ComputeConstraintWithModel(availabilityCatalog(), fields.ProviderOfficial, nil, bound)
+	if got.Model == nil {
+		t.Fatalf("expected a model contribution")
+	}
+}
+
+func TestComputeConstraintWithModelReportsNothingForOrdinaryModel(t *testing.T) {
+	bound := &model.Classification{Type: model.TypeModel, Architecture: "gemma4", FileType: modelFileType(2)}
+	got := ComputeConstraintWithModel(availabilityCatalog(), fields.ProviderOfficial, nil, bound)
+	if got.Model != nil {
+		t.Fatalf("got=%+v", got.Model)
+	}
+}
+
+// The two sources are reported separately: a field bound stays attributed to
+// its field, the model contribution stays attributed to the model.
+func TestComputeConstraintWithModelKeepsFieldBoundsSeparate(t *testing.T) {
+	values := []EffectiveValue{{Field: "n-gpu-layers", Value: float64(99), Source: SourceOwn}}
+	bound := &model.Classification{Type: model.TypeModel, Architecture: "qwen35", FileType: modelFileType(40), SSM: true}
+	got := ComputeConstraintWithModel(availabilityCatalog(), fields.ProviderOfficial, values, bound)
+	if got.MinRelease == nil || got.MinRelease.Release != "b6180" || got.MinRelease.Field != "n-gpu-layers" {
+		t.Fatalf("min=%+v", got.MinRelease)
+	}
+	if got.Model == nil || got.Model.Source != ModelSource {
+		t.Fatalf("model=%+v", got.Model)
+	}
+	// The model contribution states capabilities, never a release bound, so it
+	// cannot be confused with the field-attributed bounds and does not move the
+	// advisory verdict.
+	if got := EvaluateRuntime(fields.ProviderOfficial, "b6234", nil, got); got != fields.Admitted {
+		t.Fatalf("status=%v", got)
+	}
+}
+
+func TestComputeConstraintWithoutModelReportsNoContribution(t *testing.T) {
+	values := []EffectiveValue{{Field: "n-gpu-layers", Value: float64(99), Source: SourceOwn}}
+	if got := ComputeConstraint(availabilityCatalog(), fields.ProviderOfficial, values); got.Model != nil {
+		t.Fatalf("got=%+v", got.Model)
 	}
 }
 
