@@ -4,10 +4,13 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/mstranich/coquena/internal/fields"
+	"github.com/mstranich/coquena/internal/presets"
 )
 
 type fakeFieldStore struct {
@@ -50,13 +53,21 @@ func (f *fakeFieldStore) Remove(name string) (fields.Catalog, error) {
 	return f.catalog, nil
 }
 
-func newFieldsAPIWith(store fieldStore, err error) *fieldsAPI {
-	return &fieldsAPI{store: func() (fieldStore, error) { return store, err }}
+func newFieldsAPIWith(t *testing.T, store fieldStore, err error) *fieldsAPI {
+	t.Helper()
+	home := t.TempDir()
+	if mkErr := os.MkdirAll(filepath.Join(home, "config"), 0o755); mkErr != nil {
+		t.Fatal(mkErr)
+	}
+	return &fieldsAPI{
+		store:   func() (fieldStore, error) { return store, err },
+		presets: func() (*presets.Store, error) { return presets.NewStore(home), nil },
+	}
 }
 
 func TestFieldsAPIListsCatalog(t *testing.T) {
 	store := &fakeFieldStore{catalog: fields.Catalog{Fields: []fields.Field{{Name: "ctx-size", Kind: fields.KindInteger}}}}
-	api := newFieldsAPIWith(store, nil)
+	api := newFieldsAPIWith(t, store, nil)
 	rec := httptest.NewRecorder()
 	api.serve(rec, httptest.NewRequest(http.MethodGet, "/api/fields", nil))
 	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), "ctx-size") {
@@ -66,7 +77,7 @@ func TestFieldsAPIListsCatalog(t *testing.T) {
 
 func TestFieldsAPIDefinesAndRefusesDuplicate(t *testing.T) {
 	store := &fakeFieldStore{}
-	api := newFieldsAPIWith(store, nil)
+	api := newFieldsAPIWith(t, store, nil)
 	rec := httptest.NewRecorder()
 	api.serve(rec, httptest.NewRequest(http.MethodPost, "/api/fields", strings.NewReader(`{"name":"ctx-size","kind":"integer"}`)))
 	if rec.Code != http.StatusOK {
@@ -81,7 +92,7 @@ func TestFieldsAPIDefinesAndRefusesDuplicate(t *testing.T) {
 
 func TestFieldsAPIReadsOneField(t *testing.T) {
 	store := &fakeFieldStore{catalog: fields.Catalog{Fields: []fields.Field{{Name: "ctx-size", Kind: fields.KindInteger}}}}
-	api := newFieldsAPIWith(store, nil)
+	api := newFieldsAPIWith(t, store, nil)
 	rec := httptest.NewRecorder()
 	api.serve(rec, httptest.NewRequest(http.MethodGet, "/api/fields/ctx-size", nil))
 	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), "ctx-size") {
@@ -91,7 +102,7 @@ func TestFieldsAPIReadsOneField(t *testing.T) {
 
 func TestFieldsAPIUpsertCreatesAndReplaces(t *testing.T) {
 	store := &fakeFieldStore{}
-	api := newFieldsAPIWith(store, nil)
+	api := newFieldsAPIWith(t, store, nil)
 	rec := httptest.NewRecorder()
 	api.serve(rec, httptest.NewRequest(http.MethodPut, "/api/fields/ctx-size", strings.NewReader(`{"kind":"integer","default":4096}`)))
 	if rec.Code != http.StatusOK {
@@ -106,7 +117,7 @@ func TestFieldsAPIUpsertCreatesAndReplaces(t *testing.T) {
 
 func TestFieldsAPIDeletesWithSubtree(t *testing.T) {
 	store := &fakeFieldStore{catalog: fields.Catalog{Fields: []fields.Field{{Name: "ctx-size", Kind: fields.KindInteger}}}}
-	api := newFieldsAPIWith(store, nil)
+	api := newFieldsAPIWith(t, store, nil)
 	rec := httptest.NewRecorder()
 	api.serve(rec, httptest.NewRequest(http.MethodDelete, "/api/fields/ctx-size", nil))
 	if rec.Code != http.StatusOK {
@@ -121,7 +132,7 @@ func TestFieldsAPIDeletesWithSubtree(t *testing.T) {
 
 func TestFieldsAPIRejectsUnsupportedMethodAndMalformedJSON(t *testing.T) {
 	store := &fakeFieldStore{}
-	api := newFieldsAPIWith(store, nil)
+	api := newFieldsAPIWith(t, store, nil)
 	rec := httptest.NewRecorder()
 	api.serve(rec, httptest.NewRequest(http.MethodPatch, "/api/fields", nil))
 	if rec.Code != http.StatusMethodNotAllowed {
@@ -140,7 +151,7 @@ func TestFieldsAPIRejectsUnsupportedMethodAndMalformedJSON(t *testing.T) {
 }
 
 func TestFieldsAPIReportsUninitializedInstallation(t *testing.T) {
-	api := newFieldsAPIWith(nil, errors.New("portable installation is not initialized; run coquena init"))
+	api := newFieldsAPIWith(t, nil, errors.New("portable installation is not initialized; run coquena init"))
 	rec := httptest.NewRecorder()
 	api.serve(rec, httptest.NewRequest(http.MethodGet, "/api/fields", nil))
 	if rec.Code != http.StatusConflict {
@@ -149,7 +160,7 @@ func TestFieldsAPIReportsUninitializedInstallation(t *testing.T) {
 }
 
 func TestFieldsAPIIgnoresUnrelatedPath(t *testing.T) {
-	api := newFieldsAPIWith(&fakeFieldStore{}, nil)
+	api := newFieldsAPIWith(t, &fakeFieldStore{}, nil)
 	if api.serve(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/api/models", nil)) {
 		t.Fatal("expected fieldsAPI to ignore unrelated paths")
 	}

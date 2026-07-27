@@ -1,9 +1,7 @@
 ## Purpose
 
 Define CLI and local WebUI interfaces for shared GGUF model management.
-
 ## Requirements
-
 ### Requirement: Expose shared model management through the CLI
 Coquena SHALL expose `coquena model resolve <repository-or-url>`, `coquena model inspect <repository-or-url[:selector]>`, and `coquena model download <repository-or-url[:selector]>`, plus download management as `coquena model download list`, `status <job-id>`, `pause <job-id>`, `resume <job-id>`, and `cancel <job-id>`. The shorter top-level `coquena download ...` forms SHALL remain accepted aliases. These commands SHALL invoke the shared model service and SHALL support one `--json` option that emits exactly one schema-version-1 JSON document on standard output.
 
@@ -72,6 +70,7 @@ Discovery entries SHOULD display the publisher avatar from Hugging Face when ava
 - **WHEN** an operator views a downloaded model's metadata and its manual preset controls
 - **THEN** the workspace displays metadata as a reference
 - **AND** it does not automatically create, change, or select a preset value
+
 ### Requirement: Query installed revision through the CLI
 Coquena SHALL expose `coquena model revision <model-reference>` using the shared model service. The revision command SHALL emit the installed resolved SHA in human output and repository, filename, requested revision, and resolved revision in schema-version-1 JSON output.
 
@@ -91,3 +90,20 @@ to `TYPE=model`.
 - **WHEN** an operator queries or resumes a valid model job through the model-specific or global command family
 - **THEN** both commands address the same job and report equivalent state
 - **AND** resume preserves the model's existing adjacent partial-file and sidecar safety guarantees
+
+### Requirement: List installed models through the CLI
+Coquena SHALL provide a CLI command that lists the models present in the configured model directory, reporting for each one the reference form accepted when binding it and its resolved artifact filename. The command SHALL issue no network request and SHALL report an empty list rather than an error when no model is installed.
+
+#### Scenario: List installed models
+- **WHEN** an operator lists models with artifacts installed
+- **THEN** the output reports each installed model's repository, quant reference form, and resolved filename
+- **AND** the command issues no network request
+
+#### Scenario: List an empty library
+- **WHEN** an operator lists models with no artifact installed
+- **THEN** the command reports an empty list and succeeds
+
+#### Scenario: List models as JSON
+- **WHEN** an operator requests JSON output
+- **THEN** the output is machine-readable and reports the same installed models
+

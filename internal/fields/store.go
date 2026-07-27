@@ -118,18 +118,11 @@ func (s *Store) Remove(nameOrAlias string) (Catalog, error) {
 	if !exists {
 		return Catalog{}, fmt.Errorf("field %q not found", nameOrAlias)
 	}
-	name := resolved.Name
+	subtree := c.Subtree(resolved.Name)
 	removed := map[string]bool{}
-	var collect func(string)
-	collect = func(n string) {
+	for _, n := range subtree {
 		removed[n] = true
-		for _, child := range c.Children(n) {
-			if !removed[child.Name] {
-				collect(child.Name)
-			}
-		}
 	}
-	collect(name)
 	remaining := make([]Field, 0, len(c.Fields))
 	for _, f := range c.Fields {
 		if !removed[f.Name] {

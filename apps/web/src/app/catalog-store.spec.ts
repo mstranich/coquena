@@ -18,6 +18,23 @@ describe('FieldCatalogStore', () => {
     http.expectOne('/api/fields').flush({ schemaVersion: 1, result: { schemaVersion: 1, fields } });
   }
 
+  type ApiValue = { field: string; value?: unknown; source: 'own' | 'global'; };
+  function definePreset(name: string, values: Array<ApiValue> = []): void {
+    store.addPreset(name);
+    http.expectOne('/api/presets').flush({ schemaVersion: 1, result: { name, kind: 'model', values } });
+    http.expectOne('/api/presets').flush({
+      schemaVersion: 1,
+      result: { global: { name: 'global', kind: 'global', values: [] }, presets: [{ name, kind: 'model', values }] },
+    });
+  }
+  function putValue(name: string, field: string, values: Array<ApiValue>): void {
+    http.expectOne(`/api/presets/${name}/values/${field}`).flush({ schemaVersion: 1, result: { field } });
+    http.expectOne('/api/presets').flush({
+      schemaVersion: 1,
+      result: { global: { name: 'global', kind: 'global', values: [] }, presets: [{ name, kind: 'model', values }] },
+    });
+  }
+
   it('loads the catalog from the API', () => {
     seed([{ name: 'ctx-size', kind: 'integer', default: 4096 }]);
     expect(store.fields().map(field => field.name)).toEqual(['ctx-size']);
@@ -71,10 +88,10 @@ describe('FieldCatalogStore', () => {
       { name: 'parent', kind: 'void' },
       { name: 'child', kind: 'string', parent: 'parent' },
     ]);
-    store.addPreset('spec');
+    definePreset('spec');
     const preset = store.presets()[0];
-    expect(store.addEntry(preset.id, 'parent').ok).toBe(true);
-    expect(store.addEntry(preset.id, 'child').ok).toBe(true);
+    expect(store.addEntry(preset.name, 'parent').ok).toBe(true);
+    putValue('spec', 'parent', [{ field: 'parent', value: true, source: 'own' }]);
 
     store.deleteField('parent');
     const request = http.expectOne('/api/fields/parent');
@@ -90,10 +107,11 @@ describe('FieldCatalogStore', () => {
       { name: 'speculative', kind: 'void' },
       { name: 'draft-model', kind: 'string', parent: 'speculative' },
     ]);
-    store.addPreset('spec');
+    definePreset('spec');
     const preset = store.presets()[0];
     expect(store.eligibleFields(preset).map(field => field.name)).toEqual(['speculative']);
-    store.addEntry(preset.id, 'speculative');
+    store.addEntry(preset.name, 'speculative');
+    putValue('spec', 'speculative', [{ field: 'speculative', value: true, source: 'own' }]);
     expect(store.eligibleFields(store.presets()[0]).map(field => field.name)).toContain('draft-model');
   });
 
@@ -102,10 +120,36 @@ describe('FieldCatalogStore', () => {
       { name: 'speculative', kind: 'void' },
       { name: 'draft-model', kind: 'string', parent: 'speculative' },
     ]);
-    store.addPreset('spec');
+    definePreset('spec');
     const preset = store.presets()[0];
-    store.addEntry(preset.id, 'speculative');
-    store.addEntry(preset.id, 'draft-model');
-    expect(store.removeEntry(preset.id, 'speculative').ok).toBe(false);
+    store.addEntry(preset.name, 'speculative');
+    putValue('spec', 'speculative', [{ field: 'speculative', value: true, source: 'own' }]);
+    store.addEntry(preset.name, 'draft-model');
+    putValue('spec', 'draft-model', [
+      { field: 'speculative', value: true, source: 'own' },
+      { field: 'draft-model', value: undefined, source: 'own' },
+    ]);
+    expect(store.removeEntry(preset.name, 'speculative').ok).toBe(false);
+  });
+
+  it('reports an effective value labeled by its inheritance source', () => {
+    definePreset('spec');
+    store.loadPresets();
+    http.expectOne('/api/presets').flush({
+      schemaVersion: 1,
+      result: { global: { name: 'global', kind: 'global', values: [] }, presets: [{ name: 'spec', kind: 'model', values: [{ field: 'temp', value: '0.7', source: 'global' }] }] },
+    });
+    expect(store.presets()[0].entries).toEqual([{ fieldId: 'temp', value: '0.7', source: 'global' }]);
+  });
+
+  it('renders a rejected preset mutation without discarding the preset', () => {
+    definePreset('spec');
+    store.deletePreset('spec');
+    const request = http.expectOne('/api/presets/spec');
+    expect(request.request.method).toBe('DELETE');
+    request.flush({ error: 'preset not found' }, { status: 404, statusText: 'Not Found' });
+    http.expectNone('/api/presets');
+    expect(store.error()).toBe('preset not found');
+    expect(store.presets().map(preset => preset.name)).toContain('spec');
   });
 });

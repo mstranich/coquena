@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/mstranich/coquena/internal/fields"
+	"github.com/mstranich/coquena/internal/presets"
 )
 
 func withFieldStore(t *testing.T, store fieldStoreCLI, err error) {
@@ -192,6 +193,69 @@ func TestFieldRemoveDeletesSubtree(t *testing.T) {
 	}
 	if len(store.catalog.Fields) != 0 {
 		t.Fatalf("expected subtree removed, got %+v", store.catalog.Fields)
+	}
+}
+
+func withPresetStore(t *testing.T, home string) {
+	t.Helper()
+	old := presetStoreFactory
+	presetStoreFactory = func() (*presets.Store, error) { return presets.NewStore(home), nil }
+	t.Cleanup(func() { presetStoreFactory = old })
+}
+
+func TestFieldRemoveRefusesReferencedFieldWithoutForce(t *testing.T) {
+	home := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(home, "config"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	withPresetStore(t, home)
+	store := &fakeFieldStoreCLI{catalog: fields.Catalog{Fields: []fields.Field{{Name: "context-size", Kind: fields.KindInteger}}}}
+	withFieldStore(t, store, nil)
+	presetStore := presets.NewStore(home)
+	if _, err := presetStore.Define(presets.Preset{Name: "qwen3-fast"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := presetStore.SetValue(store.catalog, "qwen3-fast", "context-size", float64(4096)); err != nil {
+		t.Fatal(err)
+	}
+	var out bytes.Buffer
+	if err := runField([]string{"remove", "context-size"}, &out); err == nil {
+		t.Fatal("expected error")
+	}
+	if len(store.catalog.Fields) != 1 {
+		t.Fatalf("expected field unchanged, got %+v", store.catalog.Fields)
+	}
+}
+
+func TestFieldRemoveForcesCascade(t *testing.T) {
+	home := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(home, "config"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	withPresetStore(t, home)
+	store := &fakeFieldStoreCLI{catalog: fields.Catalog{Fields: []fields.Field{{Name: "context-size", Kind: fields.KindInteger}}}}
+	withFieldStore(t, store, nil)
+	presetStore := presets.NewStore(home)
+	if _, err := presetStore.Define(presets.Preset{Name: "qwen3-fast"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := presetStore.SetValue(store.catalog, "qwen3-fast", "context-size", float64(4096)); err != nil {
+		t.Fatal(err)
+	}
+	var out bytes.Buffer
+	if err := runField([]string{"remove", "context-size", "--force"}, &out); err != nil {
+		t.Fatal(err)
+	}
+	if len(store.catalog.Fields) != 0 {
+		t.Fatalf("expected field removed, got %+v", store.catalog.Fields)
+	}
+	doc, err := presetStore.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	p, _ := doc.Find("qwen3-fast")
+	if len(p.Values) != 0 {
+		t.Fatalf("expected values cleared, got %+v", p.Values)
 	}
 }
 

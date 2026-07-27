@@ -1,3 +1,9 @@
+## RENAMED Requirements
+- FROM: `### Requirement: Maintain an in-memory field catalog`
+- TO: `### Requirement: Maintain an API-backed field catalog`
+- FROM: `### Requirement: Keep this slice browser-memory only`
+- TO: `### Requirement: Keep presets browser-memory only`
+
 ## MODIFIED Requirements
 
 ### Requirement: Maintain an API-backed field catalog
@@ -28,7 +34,7 @@ Presets SHALL be shared across client-side route navigation during the active ap
 - **WHEN** a user creates a preset and then navigates to fields
 - **THEN** the new preset remains available during that application session
 
-#### Scenario: No preset backend interaction
+#### Scenario: No backend interaction
 - **WHEN** a user creates or edits a preset
 - **THEN** the UI completes the operation without issuing a backend preset-persistence or command-execution request
 

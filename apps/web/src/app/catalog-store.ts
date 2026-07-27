@@ -15,8 +15,19 @@ export type FieldDefinition = {
   prerequisite?: Prerequisite;
   draft?: boolean;
 };
-export type PresetEntry = { fieldId: string; value?: FieldValue; };
-export type Preset = { id: string; name: string; entries: Array<PresetEntry>; };
+export type PresetEntry = { fieldId: string; value?: FieldValue; source: 'own' | 'global'; };
+export type ModelBindingView = { requested: { raw: string; }; resolved?: { filename: string; }; };
+export type RuntimeConstraintView = { provider?: string; backend?: string; minRelease?: string; maxRelease?: string; runtimeId?: string; };
+export type ComputedBound = { release: string; field: string; };
+export type Preset = {
+  name: string;
+  title?: string;
+  model?: ModelBindingView;
+  runtimeDeclared?: RuntimeConstraintView;
+  runtimeComputedMin?: ComputedBound;
+  runtimeComputedMax?: ComputedBound;
+  entries: Array<PresetEntry>;
+};
 export type StoreResult = { ok: true; } | { ok: false; message: string; };
 
 interface Envelope<T> {
@@ -35,6 +46,35 @@ interface ApiField {
 interface ApiCatalog {
   schemaVersion: number;
   fields: Array<ApiField>;
+}
+interface ApiPresetValue {
+  field: string;
+  value?: FieldValue;
+  source: 'own' | 'global';
+}
+interface ApiPresetView {
+  name: string;
+  kind: 'global' | 'model';
+  title?: string;
+  model?: ModelBindingView;
+  runtime?: { declared?: RuntimeConstraintView; computed: { minRelease?: ComputedBound; maxRelease?: ComputedBound; }; };
+  values: Array<ApiPresetValue>;
+}
+interface ApiPresetCollection {
+  global: ApiPresetView;
+  presets: Array<ApiPresetView>;
+}
+
+function fromApiPreset(view: ApiPresetView): Preset {
+  return {
+    name: view.name,
+    title: view.title,
+    model: view.model,
+    runtimeDeclared: view.runtime?.declared,
+    runtimeComputedMin: view.runtime?.computed.minRelease,
+    runtimeComputedMax: view.runtime?.computed.maxRelease,
+    entries: view.values.map(v => ({ fieldId: v.field, value: v.value, source: v.source })),
+  };
 }
 
 function fromApi(field: ApiField): FieldDefinition {
@@ -149,42 +189,73 @@ export class FieldCatalogStore {
     });
   }
 
+  loadPresets(): void {
+    this.loading.set(true);
+    this.error.set(null);
+    this.http.get<Envelope<ApiPresetCollection>>('/api/presets').pipe(
+      finalize(() => this.loading.set(false)),
+      catchError(error => {
+        this.error.set(this.message(error));
+        return of(null);
+      }),
+    ).subscribe(value => {
+      if (!value) return;
+      this.presetsState.set(value.result.presets.map(fromApiPreset));
+    });
+  }
+
   addPreset(name: string): StoreResult {
-    if (!name.trim() || this.presetsState().some(preset => preset.name === name.trim())) return { ok: false, message: 'Preset names must be unique.' };
-    this.presetsState.update(presets => [...presets, { id: crypto.randomUUID(), name: name.trim(), entries: [] }]);
+    const trimmed = name.trim();
+    if (!trimmed || this.presetsState().some(preset => preset.name === trimmed)) return { ok: false, message: 'Preset names must be unique.' };
+    this.error.set(null);
+    this.http.post<Envelope<ApiPresetView>>('/api/presets', { name: trimmed }).pipe(
+      catchError(error => {
+        this.error.set(this.message(error));
+        return of(null);
+      }),
+    ).subscribe(value => {
+      if (value) this.loadPresets();
+    });
     return { ok: true };
   }
 
-  deletePreset(id: string): void {
-    this.presetsState.update(presets => presets.filter(preset => preset.id !== id));
+  deletePreset(name: string): void {
+    this.error.set(null);
+    this.http.delete(`/api/presets/${encodeURIComponent(name)}`).subscribe({
+      next: () => this.loadPresets(),
+      error: error => this.error.set(this.message(error)),
+    });
   }
 
-  addEntry(presetId: string, fieldId: string): StoreResult {
-    const preset = this.presetsState().find(item => item.id === presetId);
+  addEntry(presetName: string, fieldId: string): StoreResult {
+    const preset = this.presetsState().find(item => item.name === presetName);
     const field = this.fieldsState().find(item => item.id === fieldId);
     if (!preset || !field) return { ok: false, message: 'Preset or field not found.' };
     if (preset.entries.some(entry => entry.fieldId === fieldId)) return { ok: false, message: 'This field is already in the preset.' };
     if (!this.isEligible(field, preset)) return { ok: false, message: 'Add and activate the parent field first.' };
-    const entry: PresetEntry = { fieldId, ...(field.kind === 'void' ? {} : { value: field.defaultValue }) };
-    this.updatePreset(presetId, [...preset.entries, entry]);
+    this.putValue(presetName, fieldId, field.kind === 'void' ? true : field.defaultValue);
     return { ok: true };
   }
 
-  updateEntry(presetId: string, fieldId: string, value?: FieldValue): StoreResult {
-    const preset = this.presetsState().find(item => item.id === presetId);
+  updateEntry(presetName: string, fieldId: string, value?: FieldValue): StoreResult {
+    const preset = this.presetsState().find(item => item.name === presetName);
     const field = this.fieldsState().find(item => item.id === fieldId);
     if (!preset || !field) return { ok: false, message: 'Preset or field not found.' };
     if (!this.validValue(field, value)) return { ok: false, message: 'Value does not match the field definition.' };
-    this.updatePreset(presetId, preset.entries.map(entry => entry.fieldId === fieldId ? { fieldId, ...(field.kind === 'void' ? {} : { value }) } : entry));
+    this.putValue(presetName, fieldId, field.kind === 'void' ? true : value);
     return { ok: true };
   }
 
-  removeEntry(presetId: string, fieldId: string): StoreResult {
-    const preset = this.presetsState().find(item => item.id === presetId);
+  removeEntry(presetName: string, fieldId: string): StoreResult {
+    const preset = this.presetsState().find(item => item.name === presetName);
     if (!preset) return { ok: false, message: 'Preset not found.' };
     const children = this.fieldsState().filter(field => field.prerequisite?.parentId === fieldId).map(field => field.id);
     if (preset.entries.some(entry => children.includes(entry.fieldId))) return { ok: false, message: 'Remove dependent fields first.' };
-    this.updatePreset(presetId, preset.entries.filter(entry => entry.fieldId !== fieldId));
+    this.error.set(null);
+    this.http.delete(`/api/presets/${encodeURIComponent(presetName)}/values/${encodeURIComponent(fieldId)}`).subscribe({
+      next: () => this.loadPresets(),
+      error: error => this.error.set(this.message(error)),
+    });
     return { ok: true };
   }
 
@@ -200,8 +271,14 @@ export class FieldCatalogStore {
     return this.fieldsState().some(field => field.prerequisite?.parentId === id);
   }
 
-  private updatePreset(id: string, entries: Array<PresetEntry>): void {
-    this.presetsState.update(presets => presets.map(preset => preset.id === id ? { ...preset, entries } : preset));
+  private putValue(presetName: string, fieldId: string, value: unknown): void {
+    this.error.set(null);
+    this.http.put(`/api/presets/${encodeURIComponent(presetName)}/values/${encodeURIComponent(fieldId)}`, { value }).pipe(
+      catchError(error => {
+        this.error.set(this.message(error));
+        return of(null);
+      }),
+    ).subscribe(() => this.loadPresets());
   }
   private isEligible(field: FieldDefinition, preset: Preset): boolean {
     if (!field.prerequisite) return true;

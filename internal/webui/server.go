@@ -99,6 +99,7 @@ func HandlerWithServicesAndLogger(inspect inspectFunc, runtimes RuntimeService, 
 	configAPI := newConfigAPI(installationConfigService{})
 	modelAPI := newModelAPI(logs)
 	fieldsAPI := newFieldsAPI()
+	presetsAPI := newPresetsAPI()
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/api/health" {
 			if r.Method != http.MethodGet {
@@ -132,6 +133,9 @@ func HandlerWithServicesAndLogger(inspect inspectFunc, runtimes RuntimeService, 
 			return
 		}
 		if fieldsAPI.serve(w, r) {
+			return
+		}
+		if presetsAPI.serve(w, r) {
 			return
 		}
 		if configAPI.serve(w, r) {

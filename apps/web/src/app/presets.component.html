@@ -8,16 +8,38 @@
   @if (message()) {
     <p class="message">{{ message() }}</p>
   }
+  @if (store.error()) {
+    <p class="message">{{ store.error() }}</p>
+  }
   <div class="preset-list">
-    @for (preset of store.presets(); track preset.id) {
+    @for (preset of store.presets(); track preset.name) {
       <article class="preset">
-        <header><h3>{{ preset.name }}</h3></header>
+        <header><h3>{{ preset.name }}</h3>@if (preset.title) { <span class="muted">{{ preset.title }}</span> }</header>
+        @if (preset.model) {
+          <p class="muted">
+            Model: <code>{{ preset.model.requested.raw }}</code>
+            @if (preset.model.resolved) {
+              <span>&rarr; {{ preset.model.resolved.filename }}</span>
+            } @else {
+              <span>(not installed)</span>
+            }
+          </p>
+        }
+        @if (preset.runtimeDeclared || preset.runtimeComputedMin || preset.runtimeComputedMax) {
+          <p class="muted">
+            Runtime:
+            @if (preset.runtimeDeclared?.backend) { <span>backend {{ preset.runtimeDeclared?.backend }}</span> }
+            @if (preset.runtimeComputedMin) { <span>requires &ge; {{ preset.runtimeComputedMin.release }} (from {{ preset.runtimeComputedMin.field }})</span> }
+            @if (preset.runtimeComputedMax) { <span>requires &lt; {{ preset.runtimeComputedMax.release }} (from {{ preset.runtimeComputedMax.field }})</span> }
+          </p>
+        }
         <div class="entries">
           @for (entry of preset.entries; track entry.fieldId) {
             @let field = store.field(entry.fieldId);
             @if (field) {
               <div class="entry">
                 <code>{{ field.name }}</code>
+                <span class="muted" [attr.title]="entry.source === 'global' ? 'Inherited from the global preset' : 'Overridden for this preset'">{{ entry.source === 'global' ? 'inherited' : 'overridden' }}</span>
                 @switch (field.kind) {
                   @case ('boolean') {
                     <input type="checkbox" [checked]="entry.value" (change)="setValue(preset, field.id, $any($event.target).checked)">
@@ -32,7 +54,7 @@
                       type="number"
                       step="1"
                       [attr.aria-label]="field.name + ' value'"
-                      [name]="'value-' + preset.id + '-' + field.id"
+                      [name]="'value-' + preset.name + '-' + field.id"
                       [ngModel]="entry.value"
                       (ngModelChange)="setValue(preset, field.id, $event)"
                     >
@@ -40,7 +62,7 @@
                   @case ('string') {
                     <input
                       [attr.aria-label]="field.name + ' value'"
-                      [name]="'value-' + preset.id + '-' + field.id"
+                      [name]="'value-' + preset.name + '-' + field.id"
                       [ngModel]="entry.value"
                       (ngModelChange)="setValue(preset, field.id, $event)"
                     >
@@ -48,6 +70,9 @@
                   @case ('void') {
                     <span>Present</span>
                   }
+                }
+                @if (entry.source === 'own') {
+                  <button type="button" (click)="returnToInheritance(preset, field.id)">Inherit</button>
                 }
                 <button class="danger" (click)="remove(preset, field.id)"><app-icon name="delete" />Delete</button>
               </div>
@@ -63,7 +88,7 @@
             <span class="muted">No available fields</span>
           }
         </div>
-        <div class="preset-actions"><button class="danger" (click)="store.deletePreset(preset.id)"><app-icon name="delete" />Delete preset</button></div>
+        <div class="preset-actions"><button class="danger" (click)="store.deletePreset(preset.name)"><app-icon name="delete" />Delete preset</button></div>
       </article>
     } @empty {
       <p>No presets yet. Use the form below.</p>

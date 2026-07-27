@@ -12,12 +12,21 @@ import (
 
 	"github.com/mstranich/coquena/internal/fields"
 	"github.com/mstranich/coquena/internal/installation"
+	"github.com/mstranich/coquena/internal/presets"
 )
 
 const fieldUsage = "usage: coquena field define <kind> <name> [--default <value>] [--options <value>[,<value>...]] [--parent <name>] [--parent-value <value>] [--short <alias>] [--env <alias>] [--provider <name>] [--introduced-in <release>] [--removed-in <release>] [--overwrite] [--json]\n" +
-	"       coquena field remove <name> [--json]\n" +
+	"       coquena field remove <name> [--force] [--json]\n" +
 	"       coquena field list [--json]\n" +
 	"       coquena field show <name> [--json]"
+
+var presetStoreFactory = func() (*presets.Store, error) {
+	home, err := installation.Home()
+	if err != nil {
+		return nil, err
+	}
+	return presets.NewStore(home), nil
+}
 
 // fieldStoreCLI is the persistence boundary the field commands depend on.
 type fieldStoreCLI interface {
@@ -226,14 +235,50 @@ func parseFieldValue(kind fields.Kind, raw string) (any, error) {
 }
 
 func runFieldRemove(args []string, out io.Writer, store fieldStoreCLI, jsonOutput bool) error {
-	if len(args) != 1 {
+	force := false
+	rest := make([]string, 0, len(args))
+	for _, a := range args {
+		if a == "--force" {
+			force = true
+			continue
+		}
+		rest = append(rest, a)
+	}
+	if len(rest) != 1 {
 		return errors.New(fieldUsage)
 	}
-	catalog, err := store.Remove(args[0])
+	name := rest[0]
+	catalog, err := store.Load()
 	if err != nil {
 		return err
 	}
-	return writeFieldCatalog(out, catalog, jsonOutput)
+	resolved, ok := catalog.Resolve(name)
+	if !ok {
+		return fmt.Errorf("field %q not found", name)
+	}
+	presetStore, err := presetStoreFactory()
+	if err != nil {
+		return err
+	}
+	doc, err := presetStore.Load()
+	if err != nil {
+		return err
+	}
+	referencing := presets.ReferencingPresets(doc, catalog, resolved.Name)
+	if len(referencing) > 0 && !force {
+		return fmt.Errorf("field %q is referenced by preset(s) %s; pass --force to remove it and their values", resolved.Name, strings.Join(referencing, ", "))
+	}
+	if len(referencing) > 0 {
+		cascaded := presets.CascadeRemoveFieldValues(doc, catalog.Subtree(resolved.Name))
+		if _, err := presetStore.PublishDocument(cascaded); err != nil {
+			return err
+		}
+	}
+	newCatalog, err := store.Remove(resolved.Name)
+	if err != nil {
+		return err
+	}
+	return writeFieldCatalog(out, newCatalog, jsonOutput)
 }
 
 func writeField(out io.Writer, f fields.Field, jsonOutput bool) error {

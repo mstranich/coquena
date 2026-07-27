@@ -27,6 +27,42 @@ func withModelManager(t *testing.T) *modelapp.Manager {
 	m.Resolver = modelapp.Resolver{Client: s.Client(), BaseURL: s.URL}
 	return m
 }
+func TestRunModelListEmpty(t *testing.T) {
+	m := withModelManager(t)
+	old := modelManagerFactory
+	modelManagerFactory = func() (*modelapp.Manager, error) { return m, nil }
+	t.Cleanup(func() { modelManagerFactory = old })
+	var out bytes.Buffer
+	if err := runModel([]string{"list", "--json"}, &out); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out.String(), `"result":[]`) {
+		t.Fatalf("out=%s", out.String())
+	}
+}
+
+func TestRunModelListInstalled(t *testing.T) {
+	m := withModelManager(t)
+	partial := filepath.Join(t.TempDir(), "partial")
+	if err := os.WriteFile(partial, []byte("bytes"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	r := modelapp.Record{Source: modelapp.Source{Provider: "huggingface", Repository: "org/repo", RequestedRevision: "main", ResolvedRevision: "abc", Filename: "m-Q4_K_M.gguf", URL: "https://example.test/m.gguf"}, Artifact: modelapp.Artifact{SizeBytes: 5}, GGUF: map[string]any{}}
+	if _, err := modelapp.Publish(m.ModelsDir, partial, r); err != nil {
+		t.Fatal(err)
+	}
+	old := modelManagerFactory
+	modelManagerFactory = func() (*modelapp.Manager, error) { return m, nil }
+	t.Cleanup(func() { modelManagerFactory = old })
+	var out bytes.Buffer
+	if err := runModel([]string{"list"}, &out); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out.String(), "org/repo") || !strings.Contains(out.String(), "m-Q4_K_M.gguf") {
+		t.Fatalf("out=%s", out.String())
+	}
+}
+
 func TestRunModelResolveJSON(t *testing.T) {
 	m := withModelManager(t)
 	old := modelManagerFactory

@@ -3,12 +3,14 @@ package webui
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"strings"
 
 	"github.com/mstranich/coquena/internal/fields"
 	"github.com/mstranich/coquena/internal/installation"
+	"github.com/mstranich/coquena/internal/presets"
 )
 
 type fieldStore interface {
@@ -19,17 +21,27 @@ type fieldStore interface {
 }
 
 type fieldsAPI struct {
-	store func() (fieldStore, error)
+	store   func() (fieldStore, error)
+	presets func() (*presets.Store, error)
 }
 
 func newFieldsAPI() *fieldsAPI {
-	return &fieldsAPI{store: func() (fieldStore, error) {
-		home, err := installation.Home()
-		if err != nil {
-			return nil, err
-		}
-		return fields.NewStore(home), nil
-	}}
+	return &fieldsAPI{
+		store: func() (fieldStore, error) {
+			home, err := installation.Home()
+			if err != nil {
+				return nil, err
+			}
+			return fields.NewStore(home), nil
+		},
+		presets: func() (*presets.Store, error) {
+			home, err := installation.Home()
+			if err != nil {
+				return nil, err
+			}
+			return presets.NewStore(home), nil
+		},
+	}
 }
 
 func (a *fieldsAPI) serve(w http.ResponseWriter, r *http.Request) bool {
@@ -108,12 +120,45 @@ func (a *fieldsAPI) serveField(w http.ResponseWriter, r *http.Request, store fie
 		field, _ := catalog.Find(name)
 		writeRuntimeJSON(w, field)
 	case http.MethodDelete:
-		catalog, err := store.Remove(name)
+		catalog, err := store.Load()
 		if err != nil {
-			writeFieldsError(w, http.StatusNotFound, err.Error())
+			writeFieldsError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
-		writeRuntimeJSON(w, catalog)
+		resolved, ok := catalog.Resolve(name)
+		if !ok {
+			writeFieldsError(w, http.StatusNotFound, "field not found")
+			return
+		}
+		force := r.URL.Query().Get("force") == "true" || r.URL.Query().Get("force") == "1"
+		presetStore, err := a.presets()
+		if err != nil {
+			writeFieldsError(w, http.StatusConflict, err.Error())
+			return
+		}
+		doc, err := presetStore.Load()
+		if err != nil {
+			writeFieldsError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		referencing := presets.ReferencingPresets(doc, catalog, resolved.Name)
+		if len(referencing) > 0 && !force {
+			writeFieldsError(w, http.StatusBadRequest, fmt.Sprintf("field %q is referenced by preset(s) %s; pass force to remove it and their values", resolved.Name, strings.Join(referencing, ", ")))
+			return
+		}
+		if len(referencing) > 0 {
+			cascaded := presets.CascadeRemoveFieldValues(doc, catalog.Subtree(resolved.Name))
+			if _, err := presetStore.PublishDocument(cascaded); err != nil {
+				writeFieldsError(w, http.StatusInternalServerError, err.Error())
+				return
+			}
+		}
+		newCatalog, err := store.Remove(resolved.Name)
+		if err != nil {
+			writeFieldsError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		writeRuntimeJSON(w, newCatalog)
 	default:
 		w.WriteHeader(http.StatusMethodNotAllowed)
 	}

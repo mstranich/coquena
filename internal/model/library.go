@@ -16,14 +16,21 @@ func TargetPath(modelsDir string, source Source) (string, error) {
 	if err := source.Validate(); err != nil {
 		return "", err
 	}
-	parts := strings.Split(source.Repository, "/")
-	for _, v := range append(parts, source.Filename) {
+	return PathFor(modelsDir, source.Repository, source.Filename)
+}
+
+// PathFor computes the on-disk path for a repository and filename beneath
+// modelsDir, without requiring a full Source (revision, URL, provider). It
+// applies the same path-safety checks as TargetPath.
+func PathFor(modelsDir, repository, filename string) (string, error) {
+	parts := strings.Split(repository, "/")
+	for _, v := range append(parts, filename) {
 		if v == "" || v == "." || v == ".." || strings.ContainsAny(v, `\\:`) {
 			return "", fmt.Errorf("unsafe model path component %q", v)
 		}
 	}
 	root := filepath.Clean(modelsDir)
-	target := filepath.Join(append([]string{root}, append(parts, source.Filename)...)...)
+	target := filepath.Join(append([]string{root}, append(parts, filename)...)...)
 	rel, err := filepath.Rel(root, target)
 	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(os.PathSeparator)) {
 		return "", fmt.Errorf("model target escapes models directory")

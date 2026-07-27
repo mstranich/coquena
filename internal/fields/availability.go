@@ -18,6 +18,14 @@ var tagRE = regexp.MustCompile(`^b(\d+)$`)
 
 func validTag(tag string) bool { return tagRE.MatchString(tag) }
 
+// ValidReleaseTag reports whether tag is a well-formed official b<digits>
+// release tag.
+func ValidReleaseTag(tag string) bool { return validTag(tag) }
+
+// CompareReleaseTags orders two official b<digits> release tags. ok is false
+// when either tag cannot be parsed.
+func CompareReleaseTags(a, b string) (result int, ok bool) { return compareTags(a, b) }
+
 // compareTags orders two official b<digits> release tags. ok is false when
 // either tag cannot be parsed.
 func compareTags(a, b string) (result int, ok bool) {

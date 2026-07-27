@@ -92,3 +92,25 @@ func (c Catalog) Children(name string) []Field {
 	}
 	return children
 }
+
+// Subtree returns name and every descendant reachable through parent
+// prerequisites, canonical names only.
+func (c Catalog) Subtree(name string) []string {
+	removed := map[string]bool{}
+	var collect func(string)
+	collect = func(n string) {
+		if removed[n] {
+			return
+		}
+		removed[n] = true
+		for _, child := range c.Children(n) {
+			collect(child.Name)
+		}
+	}
+	collect(name)
+	out := make([]string, 0, len(removed))
+	for n := range removed {
+		out = append(out, n)
+	}
+	return out
+}

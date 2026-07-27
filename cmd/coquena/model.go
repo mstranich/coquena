@@ -17,7 +17,15 @@ import (
 	runtimeapp "github.com/mstranich/coquena/internal/runtime"
 )
 
-const modelUsage = "usage: coquena model resolve <repository-or-url> [--json]\n       coquena model inspect <repository-or-url> [--json]\n       coquena model download <repository-or-url> [--json]\n       coquena model download list|status <job-id>|pause <job-id>|resume <job-id>|cancel <job-id> [--json]\n       coquena model revision <model-path> [--json]\n       coquena download list|status <job-id>|pause <job-id>|resume <job-id>|cancel <job-id> [--json]"
+const modelUsage = "usage: coquena model resolve <repository-or-url> [--json]\n       coquena model inspect <repository-or-url> [--json]\n       coquena model download <repository-or-url> [--json]\n       coquena model download list|status <job-id>|pause <job-id>|resume <job-id>|cancel <job-id> [--json]\n       coquena model revision <model-path> [--json]\n       coquena model list [--json]\n       coquena download list|status <job-id>|pause <job-id>|resume <job-id>|cancel <job-id> [--json]"
+
+// modelListEntry is the JSON-friendly, deterministic projection of an
+// installed library entry reported by `coquena model list`.
+type modelListEntry struct {
+	Repository string `json:"repository"`
+	Reference  string `json:"reference"`
+	Filename   string `json:"filename"`
+}
 
 func newModelManager() (*modelapp.Manager, error) {
 	models, e := installation.ModelsDirectory()
@@ -36,7 +44,46 @@ var downloadContextFactory = func() (context.Context, context.CancelFunc) {
 
 func runModel(args []string, out io.Writer) error {
 	jsonOut, args, e := extractJSON(args)
-	if e != nil || len(args) < 2 {
+	if e != nil || len(args) < 1 {
+		return errors.New(modelUsage)
+	}
+	if args[0] == "list" {
+		if len(args) != 1 {
+			return errors.New(modelUsage)
+		}
+		m, e := modelManagerFactory()
+		if e != nil {
+			return e
+		}
+		entries, e := m.Library()
+		if e != nil {
+			return e
+		}
+		list := make([]modelListEntry, 0, len(entries))
+		for _, entry := range entries {
+			if entry.State != "installed" {
+				continue
+			}
+			list = append(list, modelListEntry{
+				Repository: entry.Source.Repository,
+				Reference:  entry.Source.Repository + ":" + entry.Source.Filename,
+				Filename:   entry.Source.Filename,
+			})
+		}
+		if jsonOut {
+			return json.NewEncoder(out).Encode(struct {
+				SchemaVersion int              `json:"schemaVersion"`
+				Result        []modelListEntry `json:"result"`
+			}{1, list})
+		}
+		writer := tabwriter.NewWriter(out, 0, 4, 2, ' ', 0)
+		_, _ = fmt.Fprintln(writer, "REPOSITORY\tFILENAME")
+		for _, entry := range list {
+			_, _ = fmt.Fprintf(writer, "%s\t%s\n", entry.Repository, entry.Filename)
+		}
+		return writer.Flush()
+	}
+	if len(args) < 2 {
 		return errors.New(modelUsage)
 	}
 	if args[0] == "download" && isDownloadAction(args[1]) {
