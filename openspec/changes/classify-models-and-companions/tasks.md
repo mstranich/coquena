@@ -22,10 +22,10 @@
 
 ## 4. Compatibility criteria
 
-- [ ] 4.1 Add a projector-to-principal criterion comparing the projector's projection dimension against the principal's architecture-specific embedding length, returning admissible, not admissible, or unknown when either value is missing.
-- [ ] 4.2 Add a draft-to-target criterion comparing tokenizer identity, pre-tokenizer, vocabulary size, special token IDs, and vocabulary digest.
-- [ ] 4.3 Add an evaluation returning every installed artifact satisfying a given criterion, rather than selecting one.
-- [ ] 4.4 Add tests using the verified real values: projection dimension 5120 against embedding length 5120 admitted, projector internal width 1152 never used as the linking value, projection dimension 3840 against embedding length 3840 admitted, mismatched dimensions refused, identical tokenizers admitted as a draft pair, and differing tokenizer families refused.
+- [x] 4.1 Add a projector-to-principal criterion comparing the projector's projection dimension against the principal's architecture-specific embedding length, returning admissible, not admissible, or unknown when either value is missing.
+- [x] 4.2 Add a draft-to-target criterion comparing tokenizer identity, pre-tokenizer, vocabulary size, special token IDs, and vocabulary digest.
+- [x] 4.3 Add an evaluation returning every installed artifact satisfying a given criterion, rather than selecting one.
+- [x] 4.4 Add tests using the verified real values: projection dimension 5120 against embedding length 5120 admitted, projector internal width 1152 never used as the linking value, projection dimension 3840 against embedding length 3840 admitted, mismatched dimensions refused, identical tokenizers admitted as a draft pair, and differing tokenizer families refused.
 
 ## 5. Model-implied runtime capability
 
