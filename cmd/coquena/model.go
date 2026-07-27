@@ -167,6 +167,8 @@ func runModel(args []string, out io.Writer) error {
 	switch v := value.(type) {
 	case modelapp.Record:
 		_, e = fmt.Fprintln(out, v.Source.ResolvedRevision)
+	case modelapp.Inspection:
+		_, e = fmt.Fprintln(out, v.Source.ResolvedRevision)
 	case modelapp.Job:
 		_, e = fmt.Fprintln(out, v.ID)
 	default:

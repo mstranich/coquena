@@ -112,7 +112,7 @@ func TestPublishWritesRevisionUnit(t *testing.T) {
 	if err := os.WriteFile(partial, []byte("bytes"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	r := Record{Source: Source{Provider: "huggingface", Repository: "org/repo", RequestedRevision: "main", ResolvedRevision: "abc", Filename: "m.gguf", URL: "https://example.test/abc/m.gguf"}, Artifact: Artifact{SizeBytes: 5}, Metadata: map[string]any{"general.name": "M"}}
+	r := Record{Source: Source{Provider: "huggingface", Repository: "org/repo", RequestedRevision: "main", ResolvedRevision: "abc", Filename: "m.gguf", URL: "https://example.test/abc/m.gguf"}, Artifact: Artifact{SizeBytes: 5}}
 	target, err := Publish(filepath.Join(root, "models"), partial, r)
 	if err != nil {
 		t.Fatal(err)

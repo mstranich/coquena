@@ -113,12 +113,12 @@ func (a *modelAPI) serve(w http.ResponseWriter, r *http.Request) bool {
 			writeRuntimeError(w, http.StatusBadRequest, "repository and filename are required")
 			return true
 		}
-		record, metadataErr := m.InstalledMetadata(b.Repository, b.Filename)
+		inspection, metadataErr := m.InstalledMetadata(b.Repository, b.Filename)
 		if metadataErr != nil {
 			writeRuntimeError(w, http.StatusNotFound, "installed model metadata not found")
 			return true
 		}
-		writeRuntimeJSON(w, modelapp.InspectionResult(record, false))
+		writeRuntimeJSON(w, inspection)
 		return true
 	}
 	if s == "/resolve" || s == "/inspect" {
@@ -142,10 +142,13 @@ func (a *modelAPI) serve(w http.ResponseWriter, r *http.Request) bool {
 			if len(c) != 1 {
 				e = errors.New("inspection requires one GGUF artifact")
 			} else {
-				var x modelapp.Record
+				var x modelapp.Inspection
 				x, e = m.InspectRemote(c[0])
 				if e == nil {
-					writeRuntimeJSON(w, modelapp.InspectionResult(x, b.IncludeRaw))
+					// includeRaw is accepted but no longer changes the payload:
+					// inspection never returns the raw map. Task 9.1 removes the
+					// property outright.
+					writeRuntimeJSON(w, x)
 					return true
 				}
 			}

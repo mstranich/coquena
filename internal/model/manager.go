@@ -53,39 +53,43 @@ func (m *Manager) Resolve(input, selector string) ([]Candidate, error) {
 func (m *Manager) ResolveRevision(repository, requestedRevision, selector string) ([]Candidate, error) {
 	return m.Resolver.ResolveRevision(repository, requestedRevision, selector)
 }
-func (m *Manager) InspectRemote(c Candidate) (Record, error) {
+func (m *Manager) InspectRemote(c Candidate) (Inspection, error) {
 	m.logf("model inspect started repository=%s filename=%s revision=%s", c.Source.Repository, c.Source.Filename, c.Source.ResolvedRevision)
 	r, e := OpenHTTP(m.client(), c.Source.URL)
 	if e != nil {
-		return Record{}, e
+		return Inspection{}, e
 	}
 	meta, e := ReadMetadata(r)
 	if e != nil {
 		m.logf("model inspect failed filename=%s: %v", c.Source.Filename, e)
-		return Record{}, e
+		return Inspection{}, e
 	}
 	c.Artifact.SizeBytes = r.Size()
 	c.Artifact.ETag = r.ETag()
 	c.Artifact.LastModified = r.LastModified()
 	m.logf("model inspect completed filename=%s metadataKeys=%d sizeBytes=%d", c.Source.Filename, len(meta), c.Artifact.SizeBytes)
-	return Record{SchemaVersion: RecordSchemaVersion, Source: c.Source, Artifact: c.Artifact, Classification: Classify(meta), Metadata: meta}, nil
+	return NewInspection(c.Source, c.Artifact, meta), nil
 }
-func (m *Manager) InspectLocal(target string) (Record, error) {
+
+// InspectLocal reads the installed artifact's own header rather than trusting
+// the sidecar, which persists the classification but no metadata at all. The
+// sidecar still supplies the recorded source and artifact identity, which the
+// file itself cannot know.
+func (m *Manager) InspectLocal(target string) (Inspection, error) {
 	r, e := OpenLocal(target)
 	if e != nil {
-		return Record{}, e
+		return Inspection{}, e
 	}
 	defer r.Close()
 	rec, e := ReadRecord(target)
 	if e != nil {
-		return Record{}, e
+		return Inspection{}, e
 	}
 	meta, e := ReadMetadata(r)
 	if e != nil {
-		return Record{}, e
+		return Inspection{}, e
 	}
-	rec.Metadata = meta
-	return rec, nil
+	return NewInspection(rec.Source, rec.Artifact, meta), nil
 }
 func (m *Manager) Create(c Candidate) (Job, error) {
 	m.mu.Lock()
@@ -220,10 +224,10 @@ func unreconciledSource(modelsDir, path string) Source {
 	return Source{Repository: repository, Filename: filename}
 }
 
-func (m *Manager) InstalledMetadata(repository, filename string) (Record, error) {
+func (m *Manager) InstalledMetadata(repository, filename string) (Inspection, error) {
 	entries, err := m.Library()
 	if err != nil {
-		return Record{}, err
+		return Inspection{}, err
 	}
 	for _, entry := range entries {
 		if entry.State == "installed" && entry.Source.Repository == repository && entry.Source.Filename == filename {
@@ -233,7 +237,7 @@ func (m *Manager) InstalledMetadata(repository, filename string) (Record, error)
 			return m.InspectLocal(entry.TargetPath)
 		}
 	}
-	return Record{}, os.ErrNotExist
+	return Inspection{}, os.ErrNotExist
 }
 func (m *Manager) Pause(id string) (Job, error) {
 	m.logf("model download pause requested id=%s", id)
@@ -434,7 +438,7 @@ func (m *Manager) Resume(parent context.Context, id string, progress func(Job)) 
 	if e := f.Close(); e != nil {
 		return m.fail(j, e)
 	}
-	rec, e := m.InspectPartial(j.PartialPath, j.Source, j.ExpectedSizeBytes)
+	inspection, e := m.InspectPartial(j.PartialPath, j.Source, j.ExpectedSizeBytes)
 	if e != nil {
 		return m.fail(j, e)
 	}
@@ -442,6 +446,7 @@ func (m *Manager) Resume(parent context.Context, id string, progress func(Job)) 
 	if e != nil {
 		return m.fail(j, e)
 	}
+	rec := inspection.Record()
 	rec.Artifact.SHA256 = digest
 	_, e = Publish(m.ModelsDir, j.PartialPath, rec)
 	if e != nil {
@@ -489,17 +494,17 @@ func (m *Manager) doWithRetry(ctx context.Context, request *http.Request) (*http
 	}
 	return nil, last
 }
-func (m *Manager) InspectPartial(p string, s Source, size int64) (Record, error) {
+func (m *Manager) InspectPartial(p string, s Source, size int64) (Inspection, error) {
 	r, e := OpenLocal(p)
 	if e != nil {
-		return Record{}, e
+		return Inspection{}, e
 	}
 	defer r.Close()
 	meta, e := ReadMetadata(r)
 	if e != nil {
-		return Record{}, e
+		return Inspection{}, e
 	}
-	return Record{SchemaVersion: RecordSchemaVersion, Source: s, Artifact: Artifact{SizeBytes: size}, Classification: Classify(meta), Metadata: meta}, nil
+	return NewInspection(s, Artifact{SizeBytes: size}, meta), nil
 }
 func (m *Manager) fail(j Job, e error) (Job, error) {
 	j.Status = Failed

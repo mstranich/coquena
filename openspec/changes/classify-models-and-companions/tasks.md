@@ -16,9 +16,9 @@
 
 ## 3. Inspection projection without raw metadata
 
-- [ ] 3.1 Replace `InspectionResult` and the `Inspection` type with a derived projection reporting identity, classification, and scalar metadata keys only, removing the array-omission logic and `OmittedMetadata`.
-- [ ] 3.2 Change `InspectRemote`, `InspectLocal`, and `InspectPartial` to return the derived projection rather than a record carrying the raw metadata map, reading the header on demand in each case.
-- [ ] 3.3 Add tests confirming an inspection result contains no vocabulary array contents and that local and remote inspection of the same artifact agree on its classification.
+- [x] 3.1 Replace `InspectionResult` and the `Inspection` type with a derived projection reporting identity, classification, and scalar metadata keys only, removing the array-omission logic and `OmittedMetadata`.
+- [x] 3.2 Change `InspectRemote`, `InspectLocal`, and `InspectPartial` to return the derived projection rather than a record carrying the raw metadata map, reading the header on demand in each case.
+- [x] 3.3 Add tests confirming an inspection result contains no vocabulary array contents and that local and remote inspection of the same artifact agree on its classification.
 
 ## 4. Compatibility criteria
 

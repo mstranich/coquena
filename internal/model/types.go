@@ -61,10 +61,6 @@ type Record struct {
 	Source         Source         `json:"source"`
 	Artifact       Artifact       `json:"artifact"`
 	Classification Classification `json:"classification"`
-	// Metadata carries the raw decoded GGUF map in memory for callers that
-	// still need it within a single operation. It is never persisted: the
-	// .gguf itself is the source of truth and is read on demand.
-	Metadata map[string]any `json:"-"`
 }
 type Status string
 
