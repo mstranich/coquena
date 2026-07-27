@@ -72,8 +72,14 @@ func (r Resolver) resolveRepository(repo, requested, filename string) ([]Candida
 		if !isGGUF(s.RFilename) {
 			continue
 		}
-		if filename != "" && !strings.Contains(strings.ToLower(s.RFilename), strings.ToLower(filename)) {
-			continue
+		if filename != "" {
+			if strings.HasSuffix(strings.ToLower(filename), ".gguf") {
+				if !strings.EqualFold(s.RFilename, filename) {
+					continue
+				}
+			} else if !strings.Contains(strings.ToLower(s.RFilename), strings.ToLower(filename)) {
+				continue
+			}
 		}
 		src := Source{Provider: "huggingface", Repository: repo, RequestedRevision: requested, ResolvedRevision: info.SHA, Filename: s.RFilename, URL: base + "/" + repo + "/resolve/" + info.SHA + "/" + pathEscape(s.RFilename)}
 		artifact := Artifact{SizeBytes: s.Size}
@@ -110,6 +116,10 @@ func parseRef(input, sel string) (string, string, string, error) {
 	repo := parts[0]
 	if len(parts) == 2 && filename == "" {
 		filename = parts[1]
+	}
+	if at := strings.Index(repo, "@"); at != -1 {
+		requested = repo[at+1:]
+		repo = repo[:at]
 	}
 	if strings.Count(repo, "/") != 1 {
 		return "", "", "", fmt.Errorf("repository must be namespace/name")

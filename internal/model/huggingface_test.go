@@ -53,3 +53,45 @@ func TestParseCanonicalFileURL(t *testing.T) {
 		t.Fatalf("%q %q %q %v", repo, revision, file, err)
 	}
 }
+
+func TestParseRefShortFormPinnedRevision(t *testing.T) {
+	repo, revision, file, err := parseRef("org/repo@v2.1:Q4", "")
+	if err != nil || repo != "org/repo" || revision != "v2.1" || file != "Q4" {
+		t.Fatalf("%q %q %q %v", repo, revision, file, err)
+	}
+}
+
+func TestParseRefShortFormDefaultsToMain(t *testing.T) {
+	repo, revision, file, err := parseRef("org/repo:Q4", "")
+	if err != nil || repo != "org/repo" || revision != "main" || file != "Q4" {
+		t.Fatalf("%q %q %q %v", repo, revision, file, err)
+	}
+}
+
+func TestResolverExactFilenameSelectorMatchesOne(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodHead {
+			return
+		}
+		_, _ = w.Write([]byte(`{"sha":"abc","siblings":[{"rfilename":"model.Q4.gguf"},{"rfilename":"model.Q4-imatrix.gguf"}]}`))
+	}))
+	defer server.Close()
+	candidates, err := (Resolver{Client: server.Client(), BaseURL: server.URL}).Resolve("org/repo", "model.Q4.gguf")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(candidates) != 1 || candidates[0].Source.Filename != "model.Q4.gguf" {
+		t.Fatalf("candidates=%+v", candidates)
+	}
+}
+
+func TestResolverExactFilenameSelectorMatchesNone(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"sha":"abc","siblings":[{"rfilename":"model.Q4.gguf"}]}`))
+	}))
+	defer server.Close()
+	_, err := (Resolver{Client: server.Client(), BaseURL: server.URL}).Resolve("org/repo", "model.Q8_0.gguf")
+	if err == nil || !strings.Contains(err.Error(), "resolves to 0") {
+		t.Fatalf("err=%v", err)
+	}
+}

@@ -52,6 +52,30 @@ func TestResolveInstalledAmbiguousMatch(t *testing.T) {
 	}
 }
 
+func TestResolveInstalledExactFilenameSelectorMatchesOne(t *testing.T) {
+	dir := t.TempDir()
+	installFixture(t, dir, "org/repo", "model-Q4_K_M.gguf", "abc")
+	installFixture(t, dir, "org/repo", "model-Q4_K_M-imatrix.gguf", "def")
+	m := NewManager(dir)
+	entry, err := m.ResolveInstalled("org/repo:model-Q4_K_M.gguf")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if entry.Source.Filename != "model-Q4_K_M.gguf" {
+		t.Fatalf("filename=%q", entry.Source.Filename)
+	}
+}
+
+func TestResolveInstalledExactFilenameSelectorMatchesNone(t *testing.T) {
+	dir := t.TempDir()
+	installFixture(t, dir, "org/repo", "model-Q4_K_M.gguf", "abc")
+	m := NewManager(dir)
+	_, err := m.ResolveInstalled("org/repo:model-Q8_0.gguf")
+	if _, ok := err.(*ErrNoInstalledMatch); !ok {
+		t.Fatalf("err=%v", err)
+	}
+}
+
 func TestResolveInstalledEmptyLibrary(t *testing.T) {
 	dir := t.TempDir()
 	m := NewManager(dir)

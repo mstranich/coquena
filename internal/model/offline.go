@@ -48,8 +48,14 @@ func (m *Manager) ResolveInstalled(reference string) (LibraryEntry, error) {
 		if entry.State != "installed" || entry.Source.Repository != repo {
 			continue
 		}
-		if selector != "" && !strings.Contains(strings.ToLower(entry.Source.Filename), strings.ToLower(selector)) {
-			continue
+		if selector != "" {
+			if strings.HasSuffix(strings.ToLower(selector), ".gguf") {
+				if !strings.EqualFold(entry.Source.Filename, selector) {
+					continue
+				}
+			} else if !strings.Contains(strings.ToLower(entry.Source.Filename), strings.ToLower(selector)) {
+				continue
+			}
 		}
 		matches = append(matches, entry)
 	}
