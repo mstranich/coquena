@@ -3,6 +3,7 @@ package model
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"strings"
@@ -47,7 +48,34 @@ func (r Resolver) ResolveRevision(repository, requestedRevision, selector string
 	return r.resolveRepository(repository, requestedRevision, selector)
 }
 
-func (r Resolver) resolveRepository(repo, requested, filename string) ([]Candidate, error) {
+// SelectorMatches reports whether filename satisfies selector under the single
+// rule the whole product applies: a selector ending in .gguf matches by exact
+// filename equality, any other selector matches by case-insensitive substring,
+// and an empty selector matches everything. Discovery marks the candidate a
+// selector would resolve to without re-resolving the repository, so the rule
+// lives here rather than being restated at each call site.
+func SelectorMatches(selector, filename string) bool {
+	if selector == "" {
+		return true
+	}
+	if strings.HasSuffix(strings.ToLower(selector), ".gguf") {
+		return strings.EqualFold(filename, selector)
+	}
+	return strings.Contains(strings.ToLower(filename), strings.ToLower(selector))
+}
+
+// ParseReference splits a repository reference or a canonical Hugging Face
+// resolve URL into its repository, requested revision, and selector, without
+// contacting any network service. Discovery needs the three parts separately:
+// it resolves the repository with no selector so every candidate is reported,
+// and applies the selector afterwards only to mark one of them.
+func ParseReference(input string) (repository, revision, selector string, err error) {
+	return parseRef(input, "")
+}
+
+// endpoint reports the HTTP client and base URL every Hugging Face read uses,
+// defaulting to the shared client and the public host.
+func (r Resolver) endpoint() (*http.Client, string) {
 	client := r.Client
 	if client == nil {
 		client = http.DefaultClient
@@ -56,6 +84,11 @@ func (r Resolver) resolveRepository(repo, requested, filename string) ([]Candida
 	if base == "" {
 		base = "https://huggingface.co"
 	}
+	return client, base
+}
+
+func (r Resolver) resolveRepository(repo, requested, filename string) ([]Candidate, error) {
+	client, base := r.endpoint()
 	q, e := http.NewRequest(http.MethodGet, base+"/api/models/"+repo+"/revision/"+url.PathEscape(requested), nil)
 	if e != nil {
 		return nil, e
@@ -82,14 +115,8 @@ func (r Resolver) resolveRepository(repo, requested, filename string) ([]Candida
 			continue
 		}
 		available = append(available, s.RFilename)
-		if filename != "" {
-			if strings.HasSuffix(strings.ToLower(filename), ".gguf") {
-				if !strings.EqualFold(s.RFilename, filename) {
-					continue
-				}
-			} else if !strings.Contains(strings.ToLower(s.RFilename), strings.ToLower(filename)) {
-				continue
-			}
+		if !SelectorMatches(filename, s.RFilename) {
+			continue
 		}
 		src := Source{Provider: "huggingface", Repository: repo, RequestedRevision: requested, ResolvedRevision: info.SHA, Filename: s.RFilename, URL: base + "/" + repo + "/resolve/" + info.SHA + "/" + pathEscape(s.RFilename)}
 		artifact := Artifact{SizeBytes: s.Size}
@@ -119,6 +146,66 @@ func (r Resolver) resolveRepository(repo, requested, filename string) ([]Candida
 		return nil, &ErrSelectorCandidates{Repository: repo, Selector: filename, Matched: matched, Available: available}
 	}
 	return out, nil
+}
+
+// maxModelCardBytes bounds how much of a repository README is read. A model
+// card is prose meant for a human, so a publisher shipping a pathological one
+// must not be able to make discovery allocate without limit.
+const maxModelCardBytes = 1 << 20
+
+// ModelCard reads the repository's README.md at the given revision and returns
+// it as plain text, with the YAML front matter stripped: that block is
+// publication metadata rather than anything the publisher wrote for a reader.
+//
+// A repository publishing no model card is not an error — discovery reports its
+// candidates and omits the card — so a 404 returns the empty string and no
+// error. Any other non-200 response is reported, and the caller decides whether
+// it is fatal.
+func (r Resolver) ModelCard(repository, revision string) (string, error) {
+	if strings.Count(repository, "/") != 1 || revision == "" {
+		return "", fmt.Errorf("repository must be namespace/name with a resolved revision")
+	}
+	client, base := r.endpoint()
+	q, e := http.NewRequest(http.MethodGet, base+"/"+repository+"/resolve/"+url.PathEscape(revision)+"/README.md", nil)
+	if e != nil {
+		return "", e
+	}
+	resp, e := client.Do(q)
+	if e != nil {
+		return "", e
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode == http.StatusNotFound {
+		return "", nil
+	}
+	if resp.StatusCode != 200 {
+		return "", fmt.Errorf("read Hugging Face model card: %s", resp.Status)
+	}
+	body, e := io.ReadAll(io.LimitReader(resp.Body, maxModelCardBytes))
+	if e != nil {
+		return "", e
+	}
+	return stripFrontMatter(string(body)), nil
+}
+
+// stripFrontMatter removes the leading `---`-delimited YAML block a Hugging
+// Face model card conventionally opens with. An unterminated block is left
+// untouched rather than swallowing the whole document.
+func stripFrontMatter(card string) string {
+	trimmed := strings.TrimPrefix(card, "\ufeff")
+	if !strings.HasPrefix(trimmed, "---\n") && !strings.HasPrefix(trimmed, "---\r\n") {
+		return card
+	}
+	rest := trimmed[strings.Index(trimmed, "\n")+1:]
+	for _, terminator := range []string{"\n---\n", "\n---\r\n"} {
+		if end := strings.Index(rest, terminator); end != -1 {
+			return strings.TrimLeft(rest[end+len(terminator):], "\r\n")
+		}
+	}
+	if strings.HasPrefix(rest, "---\n") || strings.HasPrefix(rest, "---\r\n") {
+		return strings.TrimLeft(rest[strings.Index(rest, "\n")+1:], "\r\n")
+	}
+	return card
 }
 
 // ErrSelectorCandidates reports a selector that resolved to zero or several

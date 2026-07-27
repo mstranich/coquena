@@ -50,15 +50,15 @@
 
 ## 8. CLI: discover, local inspect, tree list, companion download
 
-- [ ] 8.1 Add `coquena model discover <repository-or-url[:selector]>`, reporting every candidate with its classification, marking the one a selector would resolve to, and printing the repository model card as plain text.
-- [ ] 8.2 Change `coquena model inspect` to take a local path, call `Manager.InspectLocal`, and issue no network request.
-- [ ] 8.3 Render human `inspect` output as a `Metadata`/`Value` table including the declared type, replacing the bare resolved-revision line.
-- [ ] 8.4 Print the candidate filenames when a selector matches zero or several artifacts, for every command that resolves a selector.
-- [ ] 8.5 Render `coquena model list` as a tree nesting companions beneath their compatible principal, reporting an unmatched companion at the top level, in both human and `--json` output.
-- [ ] 8.6 Add `--all` to `coquena model reconcile`, mutually exclusive with a path argument, still requiring exactly one of `--online`/`--accept`.
-- [ ] 8.7 Add the companion opt-in flag to `coquena model download`, creating one job per artifact and reporting every job ID, leaving default single-artifact behavior unchanged.
-- [ ] 8.8 Update `modelUsage` for the new and changed commands.
-- [ ] 8.9 Add tests for discovery output, local inspection, the classified table, candidate listing on ambiguity, the tree listing in both modes, bulk reconciliation dispatch, and companion download returning several job IDs.
+- [x] 8.1 Add `coquena model discover <repository-or-url[:selector]>`, reporting every candidate with its classification, marking the one a selector would resolve to, and printing the repository model card as plain text.
+- [x] 8.2 Change `coquena model inspect` to take a local path, call `Manager.InspectLocal`, and issue no network request.
+- [x] 8.3 Render human `inspect` output as a `Metadata`/`Value` table including the declared type, replacing the bare resolved-revision line.
+- [x] 8.4 Print the candidate filenames when a selector matches zero or several artifacts, for every command that resolves a selector.
+- [x] 8.5 Render `coquena model list` as a tree nesting companions beneath their compatible principal, reporting an unmatched companion at the top level, in both human and `--json` output.
+- [x] 8.6 Add `--all` to `coquena model reconcile`, mutually exclusive with a path argument, still requiring exactly one of `--online`/`--accept`.
+- [x] 8.7 Add the companion opt-in flag to `coquena model download`, creating one job per artifact and reporting every job ID, leaving default single-artifact behavior unchanged.
+- [x] 8.8 Update `modelUsage` for the new and changed commands.
+- [x] 8.9 Add tests for discovery output, local inspection, the classified table, candidate listing on ambiguity, the tree listing in both modes, bulk reconciliation dispatch, and companion download returning several job IDs.
 
 ## 9. HTTP API and Angular workspace
 

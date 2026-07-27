@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"os/signal"
+	"sort"
 	"strings"
 	"text/tabwriter"
 
@@ -17,15 +18,25 @@ import (
 	runtimeapp "github.com/mstranich/coquena/internal/runtime"
 )
 
-const modelUsage = "usage: coquena model resolve <repository-or-url> [--json]\n       coquena model inspect <repository-or-url> [--json]\n       coquena model download <repository-or-url> [--json]\n       coquena model download list|status <job-id>|pause <job-id>|resume <job-id>|cancel <job-id> [--json]\n       coquena model revision <model-path> [--json]\n       coquena model list [--json]\n       coquena model reconcile <model-path> (--online|--accept) [--json]\n       coquena model verify <reference> [--json]\n       coquena model check-updates <reference> [--json]\n       coquena download list|status <job-id>|pause <job-id>|resume <job-id>|cancel <job-id> [--json]"
+const modelUsage = "usage: coquena model resolve <repository-or-url> [--json]\n       coquena model discover <repository-or-url[:selector]> [--json]\n       coquena model inspect <model-path> [--json]\n       coquena model download <repository-or-url[:selector]> [--with-companions] [--json]\n       coquena model download list|status <job-id>|pause <job-id>|resume <job-id>|cancel <job-id> [--json]\n       coquena model revision <model-path> [--json]\n       coquena model list [--json]\n       coquena model reconcile (<model-path>|--all) (--online|--accept) [--json]\n       coquena model verify <reference> [--json]\n       coquena model check-updates <reference> [--json]\n       coquena download list|status <job-id>|pause <job-id>|resume <job-id>|cancel <job-id> [--json]"
+
+// companionFlag is the opt-in that additionally enqueues the companions
+// identified for the selected principal. The default stays one artifact per
+// invocation, so downloading a companion is always something the operator
+// asked for by name.
+const companionFlag = "--with-companions"
 
 // modelListEntry is the JSON-friendly, deterministic projection of a
-// library entry reported by `coquena model list`.
+// library entry reported by `coquena model list`. Companions holds the
+// artifacts nested beneath this entry, so the same shape carries the tree in
+// both human and JSON output.
 type modelListEntry struct {
-	State      string `json:"state"`
-	Repository string `json:"repository"`
-	Reference  string `json:"reference"`
-	Filename   string `json:"filename"`
+	State      string           `json:"state"`
+	Repository string           `json:"repository"`
+	Reference  string           `json:"reference"`
+	Filename   string           `json:"filename"`
+	Type       string           `json:"type,omitempty"`
+	Companions []modelListEntry `json:"companions,omitempty"`
 }
 
 func newModelManager() (*modelapp.Manager, error) {
@@ -43,7 +54,15 @@ var downloadContextFactory = func() (context.Context, context.CancelFunc) {
 	return signal.NotifyContext(context.Background(), os.Interrupt)
 }
 
+// runModel dispatches the model command family, translating a resolver
+// diagnostic that carries candidates into one naming every filename. The
+// wrapper sits at the single choke point every model subcommand returns
+// through, so no command that resolves a selector can report only a count.
 func runModel(args []string, out io.Writer) error {
+	return withCandidateNames(runModelCommand(args, out))
+}
+
+func runModelCommand(args []string, out io.Writer) error {
 	jsonOut, args, e := extractJSON(args)
 	if e != nil || len(args) < 1 {
 		return errors.New(modelUsage)
@@ -52,38 +71,7 @@ func runModel(args []string, out io.Writer) error {
 		if len(args) != 1 {
 			return errors.New(modelUsage)
 		}
-		m, e := modelManagerFactory()
-		if e != nil {
-			return e
-		}
-		entries, e := m.Library()
-		if e != nil {
-			return e
-		}
-		list := make([]modelListEntry, 0, len(entries))
-		for _, entry := range entries {
-			if entry.State != "installed" && entry.State != "unreconciled" {
-				continue
-			}
-			list = append(list, modelListEntry{
-				State:      entry.State,
-				Repository: entry.Source.Repository,
-				Reference:  entry.Source.Repository + ":" + entry.Source.Filename,
-				Filename:   entry.Source.Filename,
-			})
-		}
-		if jsonOut {
-			return json.NewEncoder(out).Encode(struct {
-				SchemaVersion int              `json:"schemaVersion"`
-				Result        []modelListEntry `json:"result"`
-			}{1, list})
-		}
-		writer := tabwriter.NewWriter(out, 0, 4, 2, ' ', 0)
-		_, _ = fmt.Fprintln(writer, "STATE\tREPOSITORY\tFILENAME")
-		for _, entry := range list {
-			_, _ = fmt.Fprintf(writer, "%s\t%s\t%s\n", entry.State, entry.Repository, entry.Filename)
-		}
-		return writer.Flush()
+		return runModelList(out, jsonOut)
 	}
 	if args[0] == "reconcile" {
 		return runModelReconcile(args[1:], out, jsonOut)
@@ -100,10 +88,17 @@ func runModel(args []string, out io.Writer) error {
 		}
 		return runModelCheckUpdates(args[1], out, jsonOut)
 	}
+	withCompanions := false
+	if args[0] == "download" {
+		args, withCompanions = extractModelFlag(args, companionFlag)
+	}
 	if len(args) < 2 {
 		return errors.New(modelUsage)
 	}
 	if args[0] == "download" && isDownloadAction(args[1]) {
+		if withCompanions {
+			return errors.New(modelUsage)
+		}
 		nested := append([]string(nil), args[1:]...)
 		if jsonOut {
 			nested = append(nested, "--json")
@@ -121,32 +116,23 @@ func runModel(args []string, out io.Writer) error {
 			return errors.New(modelUsage)
 		}
 		value, e = m.Resolve(args[1], "")
-	case "inspect":
+	case "discover":
 		if len(args) != 2 {
 			return errors.New(modelUsage)
 		}
-		var c []modelapp.Candidate
-		c, e = m.Resolve(args[1], "")
-		if e == nil && len(c) == 1 {
-			value, e = m.InspectRemote(c[0])
-		} else if e == nil {
-			e = errors.New("inspect requires one GGUF selection")
+		value, e = m.Discover(args[1])
+	case "inspect":
+		// inspect is local-only: remote exploration is discover's job, so this
+		// path reads the artifact's own header from disk and issues no request.
+		if len(args) != 2 {
+			return errors.New(modelUsage)
 		}
+		value, e = m.InspectLocal(args[1])
 	case "download":
 		if len(args) != 2 {
 			return errors.New(modelUsage)
 		}
-		var c []modelapp.Candidate
-		c, e = m.Resolve(args[1], "")
-		if e == nil && len(c) == 1 {
-			var j modelapp.Job
-			j, e = m.Create(c[0])
-			if e == nil {
-				value, e = m.Resume(context.Background(), j.ID, nil)
-			}
-		} else if e == nil {
-			e = errors.New("download requires one GGUF selection")
-		}
+		value, e = runModelDownload(m, args[1], withCompanions)
 	case "revision":
 		if len(args) != 2 {
 			return errors.New(modelUsage)
@@ -168,24 +154,274 @@ func runModel(args []string, out io.Writer) error {
 	case modelapp.Record:
 		_, e = fmt.Fprintln(out, v.Source.ResolvedRevision)
 	case modelapp.Inspection:
-		_, e = fmt.Fprintln(out, v.Source.ResolvedRevision)
+		e = writeInspectionHuman(out, v)
+	case modelapp.Discovery:
+		e = writeDiscoveryHuman(out, v)
 	case modelapp.Job:
 		_, e = fmt.Fprintln(out, v.ID)
+	case []modelapp.Job:
+		for _, job := range v {
+			if _, e = fmt.Fprintln(out, job.ID); e != nil {
+				return e
+			}
+		}
 	default:
 		_, e = fmt.Fprintln(out, value)
 	}
 	return e
 }
 
+// extractModelFlag removes one boolean flag from args, reporting whether it was
+// present. It mirrors extractJSON, which the model commands already use to keep
+// flag position free.
+func extractModelFlag(args []string, name string) ([]string, bool) {
+	out := make([]string, 0, len(args))
+	found := false
+	for _, arg := range args {
+		if arg == name {
+			found = true
+			continue
+		}
+		out = append(out, arg)
+	}
+	return out, found
+}
+
+// withCandidateNames augments a resolver diagnostic with the complete list of
+// candidate filenames it carries. The error's own sentence caps the names it
+// renders, but the CLI holds the structured slices, so it can list every one:
+// an operator facing an ambiguous selector needs the names to choose from, not
+// how many there were.
+func withCandidateNames(err error) error {
+	var selector *modelapp.ErrSelectorCandidates
+	if errors.As(err, &selector) {
+		candidates := selector.Matched
+		if len(candidates) == 0 {
+			candidates = selector.Available
+		}
+		return appendCandidateNames(err, candidates)
+	}
+	var ambiguous *modelapp.ErrAmbiguousInstalledMatch
+	if errors.As(err, &ambiguous) {
+		return appendCandidateNames(err, ambiguous.Matches)
+	}
+	var missing *modelapp.ErrNoInstalledMatch
+	if errors.As(err, &missing) {
+		return appendCandidateNames(err, missing.Available)
+	}
+	return err
+}
+
+func appendCandidateNames(err error, candidates []string) error {
+	if len(candidates) == 0 {
+		return err
+	}
+	var b strings.Builder
+	b.WriteString(err.Error())
+	b.WriteString("\navailable GGUF artifacts:")
+	for _, candidate := range candidates {
+		b.WriteString("\n  ")
+		b.WriteString(candidate)
+	}
+	return errors.New(b.String())
+}
+
+// runModelDownload creates and runs the job for the selected artifact, plus one
+// independent job per identified companion when the operator opted in. Each job
+// is created through the same path a lone download uses, so every one of them
+// stays independently pausable, resumable, and cancellable.
+func runModelDownload(m *modelapp.Manager, reference string, withCompanions bool) (any, error) {
+	candidates, err := m.Resolve(reference, "")
+	if err != nil {
+		return nil, err
+	}
+	if len(candidates) != 1 {
+		return nil, errors.New("download requires one GGUF selection")
+	}
+	principal := candidates[0]
+	if !withCompanions {
+		return runOneDownload(m, principal)
+	}
+	companions, err := m.RemoteCompanions(principal)
+	if err != nil {
+		return nil, err
+	}
+	if len(companions) == 0 {
+		// Reported on stderr so a --json invocation still emits exactly one
+		// document on stdout.
+		_, _ = fmt.Fprintf(os.Stderr, "no companion identified for %s:%s\n", principal.Source.Repository, principal.Source.Filename)
+	}
+	jobs := make([]modelapp.Job, 0, len(companions)+1)
+	for _, candidate := range append([]modelapp.Candidate{principal}, companions...) {
+		job, downloadErr := runOneDownload(m, candidate)
+		if downloadErr != nil {
+			return nil, downloadErr
+		}
+		jobs = append(jobs, job)
+	}
+	return jobs, nil
+}
+
+func runOneDownload(m *modelapp.Manager, candidate modelapp.Candidate) (modelapp.Job, error) {
+	job, err := m.Create(candidate)
+	if err != nil {
+		return modelapp.Job{}, err
+	}
+	return m.Resume(context.Background(), job.ID, nil)
+}
+
+// writeInspectionHuman renders the inspection as the two-column table the
+// specification requires, opening with the declared type so the operator reads
+// what the artifact says it is before its metadata. Keys are sorted so two runs
+// over the same artifact produce identical output.
+func writeInspectionHuman(out io.Writer, inspection modelapp.Inspection) error {
+	writer := tabwriter.NewWriter(out, 0, 4, 2, ' ', 0)
+	_, _ = fmt.Fprintln(writer, "METADATA\tVALUE")
+	_, _ = fmt.Fprintf(writer, "classification.type\t%s\n", inspection.Classification.Type)
+	if inspection.Classification.Architecture != "" {
+		_, _ = fmt.Fprintf(writer, "classification.architecture\t%s\n", inspection.Classification.Architecture)
+	}
+	if inspection.Classification.SizeLabel != "" {
+		_, _ = fmt.Fprintf(writer, "classification.sizeLabel\t%s\n", inspection.Classification.SizeLabel)
+	}
+	keys := make([]string, 0, len(inspection.Metadata))
+	for key := range inspection.Metadata {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	for _, key := range keys {
+		_, _ = fmt.Fprintf(writer, "%s\t%v\n", key, inspection.Metadata[key])
+	}
+	return writer.Flush()
+}
+
+// writeDiscoveryHuman reports every candidate the repository holds with its
+// declared type, marking the one the selector resolves to rather than reducing
+// the list to it, then prints the model card as plain text. Rendering styled
+// markdown is explicitly out of scope.
+func writeDiscoveryHuman(out io.Writer, discovery modelapp.Discovery) error {
+	if _, err := fmt.Fprintf(out, "%s @ %s\n", discovery.Repository, discovery.Revision); err != nil {
+		return err
+	}
+	writer := tabwriter.NewWriter(out, 0, 4, 2, ' ', 0)
+	_, _ = fmt.Fprintln(writer, "\tTYPE\tARCHITECTURE\tSIZE\tFILENAME")
+	for _, candidate := range discovery.Candidates {
+		mark := " "
+		if candidate.Selected {
+			mark = "*"
+		}
+		size := "—"
+		if candidate.Artifact.SizeBytes > 0 {
+			size = modelapp.HumanBytes(candidate.Artifact.SizeBytes)
+		}
+		_, _ = fmt.Fprintf(writer, "%s\t%s\t%s\t%s\t%s\n", mark, candidate.Classification.Type, candidate.Classification.Architecture, size, candidate.Source.Filename)
+	}
+	if err := writer.Flush(); err != nil {
+		return err
+	}
+	if discovery.Selector != "" {
+		if _, err := fmt.Fprintf(out, "* selector %q resolves here\n", discovery.Selector); err != nil {
+			return err
+		}
+	}
+	if discovery.ModelCard == "" {
+		return nil
+	}
+	_, err := fmt.Fprintf(out, "\nModel card:\n%s\n", strings.TrimRight(discovery.ModelCard, "\n"))
+	return err
+}
+
+// runModelList renders the library as a tree nesting each companion beneath the
+// principal it is compatible with. A companion admissible for several
+// principals is nested beneath the first of them in library order rather than
+// repeated, so every artifact appears exactly once; one matching no installed
+// principal stays at the top level rather than being omitted.
+func runModelList(out io.Writer, jsonOut bool) error {
+	m, err := modelManagerFactory()
+	if err != nil {
+		return err
+	}
+	entries, err := m.Library()
+	if err != nil {
+		return err
+	}
+	type libraryItem struct {
+		entry          modelListEntry
+		classification modelapp.Classification
+	}
+	items := make([]libraryItem, 0, len(entries))
+	for _, entry := range entries {
+		if entry.State != "installed" && entry.State != "unreconciled" {
+			continue
+		}
+		item := libraryItem{entry: modelListEntry{
+			State:      entry.State,
+			Repository: entry.Source.Repository,
+			Reference:  entry.Source.Repository + ":" + entry.Source.Filename,
+			Filename:   entry.Source.Filename,
+		}}
+		// The classification comes from the sidecar, which already holds it:
+		// listing must never re-read the .gguf, and it never reconciles.
+		if entry.State == "installed" {
+			if record, readErr := modelapp.ReadRecord(entry.TargetPath); readErr == nil {
+				item.classification = record.Classification
+				item.entry.Type = string(record.Classification.Type)
+			}
+		}
+		items = append(items, item)
+	}
+	nested := make([]bool, len(items))
+	for companion := range items {
+		if items[companion].classification.Type != modelapp.TypeProjector {
+			continue
+		}
+		for principal := range items {
+			if items[principal].classification.Type != modelapp.TypeModel {
+				continue
+			}
+			if modelapp.ProjectorCriterion(items[principal].classification).Evaluate(items[companion].classification) != modelapp.Admissible {
+				continue
+			}
+			items[principal].entry.Companions = append(items[principal].entry.Companions, items[companion].entry)
+			nested[companion] = true
+			break
+		}
+	}
+	list := make([]modelListEntry, 0, len(items))
+	for i, item := range items {
+		if nested[i] {
+			continue
+		}
+		list = append(list, item.entry)
+	}
+	if jsonOut {
+		return json.NewEncoder(out).Encode(struct {
+			SchemaVersion int              `json:"schemaVersion"`
+			Result        []modelListEntry `json:"result"`
+		}{1, list})
+	}
+	writer := tabwriter.NewWriter(out, 0, 4, 2, ' ', 0)
+	_, _ = fmt.Fprintln(writer, "STATE\tTYPE\tREPOSITORY\tFILENAME")
+	for _, entry := range list {
+		_, _ = fmt.Fprintf(writer, "%s\t%s\t%s\t%s\n", entry.State, entry.Type, entry.Repository, entry.Filename)
+		for _, companion := range entry.Companions {
+			_, _ = fmt.Fprintf(writer, "%s\t%s\t%s\t%s\n", companion.State, companion.Type, companion.Repository, "  └─ "+companion.Filename)
+		}
+	}
+	return writer.Flush()
+}
+
 func runModelReconcile(args []string, out io.Writer, jsonOut bool) error {
 	var path string
-	var online, accept bool
+	var online, accept, all bool
 	for _, a := range args {
 		switch a {
 		case "--online":
 			online = true
 		case "--accept":
 			accept = true
+		case "--all":
+			all = true
 		default:
 			if path != "" || strings.HasPrefix(a, "--") {
 				return errors.New(modelUsage)
@@ -193,12 +429,21 @@ func runModelReconcile(args []string, out io.Writer, jsonOut bool) error {
 			path = a
 		}
 	}
-	if path == "" || online == accept {
+	// --all replaces the path rather than qualifying it, and neither mode
+	// relaxes the rule that exactly one of --online/--accept is required.
+	if online == accept || all == (path != "") {
 		return errors.New(modelUsage)
 	}
 	m, e := modelManagerFactory()
 	if e != nil {
 		return e
+	}
+	if all {
+		mode := modelapp.ReconcileModeAccept
+		if online {
+			mode = modelapp.ReconcileModeOnline
+		}
+		return runModelReconcileAll(m, mode, out, jsonOut)
 	}
 	var result modelapp.ReconcileResult
 	if online {
@@ -221,6 +466,48 @@ func runModelReconcile(args []string, out io.Writer, jsonOut bool) error {
 	}
 	_, e = fmt.Fprintln(out, msg)
 	return e
+}
+
+// runModelReconcileAll renders a whole bulk pass: every artifact's outcome and
+// the companion relations computed among them. A per-artifact failure is part
+// of the reported result, not an error, because the pass deliberately continues
+// past one bad file.
+func runModelReconcileAll(m *modelapp.Manager, mode modelapp.ReconcileMode, out io.Writer, jsonOut bool) error {
+	result, err := m.ReconcileAll(mode)
+	if err != nil {
+		return err
+	}
+	if jsonOut {
+		return json.NewEncoder(out).Encode(struct {
+			SchemaVersion int                          `json:"schemaVersion"`
+			Result        modelapp.BulkReconcileResult `json:"result"`
+		}{1, result})
+	}
+	writer := tabwriter.NewWriter(out, 0, 4, 2, ' ', 0)
+	_, _ = fmt.Fprintln(writer, "OUTCOME\tTYPE\tREPOSITORY\tFILENAME\tDIAGNOSTIC")
+	for _, entry := range result.Entries {
+		diagnostic := entry.Diagnostic
+		if entry.Partial {
+			diagnostic = "partial: Hugging Face reported no content hash to compare against"
+		}
+		_, _ = fmt.Fprintf(writer, "%s\t%s\t%s\t%s\t%s\n", entry.Outcome, entry.Classification.Type, entry.Repository, entry.Filename, diagnostic)
+	}
+	if err = writer.Flush(); err != nil {
+		return err
+	}
+	if len(result.Relations) == 0 {
+		_, err = fmt.Fprintf(out, "\n%d artifacts, no companion relation computed.\n", len(result.Entries))
+		return err
+	}
+	if _, err = fmt.Fprintf(out, "\n%d artifacts, %d companion relations:\n", len(result.Entries), len(result.Relations)); err != nil {
+		return err
+	}
+	for _, relation := range result.Relations {
+		if _, err = fmt.Fprintf(out, "  %s %s -> %s\n", relation.Role, relation.CompanionPath, relation.PrincipalPath); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func runModelVerify(reference string, out io.Writer, jsonOut bool) error {
