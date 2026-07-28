@@ -1,94 +1,75 @@
 ## Why
 
-Coquena exists so that running `llama-server` stops being a craft of hand-kept
-scripts and becomes something close to a production environment. That depends
-on one thing the library cannot do today: answer, for every artifact it holds,
-what the artifact is and whether it can take part in a usable invocation.
+The logical name `user/repo:QUANT` is what Coquena manages, and everything
+depends on it holding together across one loop: discover a repository, filter
+its candidates to the quantization you want, download that quantization into
+the library, and end up with a library coherent enough to bind a preset
+against. Coquena does not close that loop today.
 
-A real library exposes the gap immediately. Nine GGUF files written by another
-application report no type at all, because classification is read from a
-sidecar that a foreign file does not have. The catalog therefore cannot say
-which of them are principal models, which are vision projectors, or which
-projector serves which model — the exact facts a preset needs before it can
-bind anything.
+The break is at the end of it. A library holding artifacts Coquena did not
+download reports no type for any of them, because classification is read from
+a sidecar a foreign file does not have. The catalog cannot say which artifacts
+are principal models, which are vision projectors, or which of them can take
+part in a `llama-server` invocation at all — the exact facts a preset needs
+before it can bind anything.
 
-Reconciliation, which is the operation that would close that gap, cannot be
-driven far enough to close it. It reconciles one artifact per invocation, so a
-repository holding a model and its projector is reconciled halfway by
-construction, leaving the library in precisely the inconsistent state the
-product exists to prevent. Its bulk mode reconciles the entire models
-directory instead of a repository, which was never the intent and conflates
-cases needing an operator decision with cases that do not. And it matches a
-single sibling by filename rather than exploring the repository the way
-`discover` and `download --with-companions` already do, so it cannot report
-that a principal's companion exists remotely but is missing locally.
+Reconciliation, which closes that gap, reconciles one artifact per invocation.
+A repository holding a model and its projector is therefore reconciled halfway
+by construction, which is the inconsistent state the product exists to prevent.
 
-The listing compounds this by rendering a tree that asserts a relationship the
-domain does not have. A projector is compatible with every quantization of its
+The listing compounds it by rendering a tree that asserts a relation the domain
+does not have: a projector is compatible with every quantization of its
 principal, because the criterion is embedding length and that does not change
-between quants. Nesting it beneath one of them is arbitrary, and actively
-misleading once a library holds two quantizations of the same model.
+between quants.
 
 ## What Changes
 
-- Classify every artifact from its own header when the library is enumerated,
-  so an unreconciled file reports what it is before anything is written about
-  it, and the catalog can distinguish a principal from a projector without
-  requiring reconciliation first.
-- Drive reconciliation by repository rather than by artifact: resolve the
-  repository, enumerate its remote candidates with their classification, and
-  match them against what is on disk by filename and metadata, reconciling the
-  principal and its companions in one action.
-- Report a companion that exists in the remote repository but is absent
-  locally, so an operator learns that a model is incomplete rather than
-  discovering it when an invocation fails.
-- Replace the tree listing with a flat listing that reports each artifact's
-  declared type and whether it is usable, since the principal/companion
-  relation is many-to-many and cannot be expressed by nesting.
+- Classify every artifact when the library is enumerated, reading the
+  artifact's own header when no sidecar records a classification, so the
+  catalog can tell a principal from a projector without requiring
+  reconciliation first.
 - Report usability explicitly: an artifact is usable when it is reconciled and
   classified, a projector is usable only as a companion of a compatible
-  principal, and an artifact whose type cannot be determined is reported as
-  unusable rather than silently listed.
-- Redefine `--all` as an online triage over the library: reconcile every
-  repository that can be resolved without an operator decision, and report the
-  remainder with the reason and the command that resolves each one.
-- Warn before a triage pass that will hash a large library and require
-  confirmation, with an explicit flag to accept without prompting.
-- Restrict `--accept` to a single artifact. Accepting an artifact is a claim
-  about that artifact's identity, which cannot be made in bulk.
-- Remove `--json` from `reconcile`, which prompts and therefore cannot emit one
-  clean document.
-- Expose companion assignment through the CLI, so the principal/companion
-  relation the listing no longer draws is resolved where the operator actually
-  chooses it.
+  installed principal, and an artifact whose type cannot be determined is
+  reported unusable rather than silently listed.
+- Reconcile a repository in one action: resolve it, enumerate its remote
+  candidates with their classification, and match them against what is on disk
+  by filename corroborated by metadata, so a principal and its companions are
+  never left reconciled halfway.
+- Report a companion present in the remote repository and absent locally, so an
+  incomplete model is visible before an invocation fails.
+- Replace the tree listing with a flat listing reporting each artifact's
+  declared type and usability.
+- Turn off library-wide reconciliation. Reconciliation is per artifact and per
+  repository; `--all` stops being accepted.
+- Remove `--json` from `reconcile`, which prompts and cannot emit one clean
+  document.
+- Expose companion assignment through the CLI, so the relation the listing no
+  longer draws is resolved where the operator chooses it — in the preset.
 - **BREAKING**: `coquena model list` no longer nests companions.
-- **BREAKING**: `coquena model reconcile --all` reconciles resolvable
-  repositories online instead of every artifact in the models directory, and no
-  longer accepts `--accept` or `--json`.
+- **BREAKING**: `coquena model reconcile --all` is no longer accepted.
 
 ## Non-Goals
 
-- Verifying or repairing artifact content. `coquena model verify` keeps its
-  current behaviour untouched, including the persisted invalid state its
-  original design called for and its implementation never wrote. Integrity is a
-  property of one file; this change is about the consistency of the library.
-- Re-downloading, overwriting, or updating an artifact. That belongs to a
-  future `update`/`upgrade` command.
+- Library-wide reconciliation in any form. The switch is turned off in this
+  change and the behaviour is reconsidered in a future one; the code left
+  behind is knowingly dead.
+- Verifying or repairing artifact content. `coquena model verify` is untouched.
+  Integrity is a property of one file; this change is about the library.
+- Re-downloading, overwriting, or updating an artifact.
 - Filtering or searching the listing.
-- Any HTTP API or Angular surface. The ports stay as they are; only the CLI and
-  the shared service change.
-- Supporting an artifact whose local filename differs from its remote name.
-- Reconciling against a revision other than the repository's current one.
+- Any HTTP API or Angular surface.
+- Supporting a local filename that differs from its remote name, or
+  reconciling against a revision other than the repository's current one.
 
 ## Capabilities
 
 ### Modified Capabilities
 - `gguf-model-library`: classify an artifact whenever the library is
   enumerated rather than only when a sidecar exists; define artifact usability.
-- `gguf-model-interfaces`: drive reconciliation by repository; redefine `--all`
-  as online triage; restrict `--accept` to one artifact; drop `--json` from
-  reconciliation; replace the tree listing with a flat listing reporting type
-  and usability.
+- `gguf-model-interfaces`: reconcile a repository in one action; stop accepting
+  library-wide reconciliation; drop `--json` from reconciliation; replace the
+  tree listing with a flat listing reporting type and usability.
 - `model-preset-persistence`: expose companion assignment and admissible
   companion options through the CLI.
 
@@ -96,12 +77,12 @@ misleading once a library holds two quantizations of the same model.
 
 - Affects `internal/model` (library enumeration and classification,
   repository-driven reconciliation, usability) and `cmd/coquena` (`reconcile`,
-  `list`, and new preset companion subcommands).
-- Affects `internal/presets` only at its existing companion API, which is
-  implemented and tested but currently unreachable.
-- Removes the tree-building logic and the library-wide bulk reconciliation
-  introduced by `classify-models-and-companions`, which manual testing found to
-  be the wrong design.
+  `list`, and preset companion subcommands).
+- Affects `internal/presets` only at its existing companion API, implemented
+  and tested but currently unreachable.
+- Removes the tree-building logic introduced by
+  `classify-models-and-companions`, and disables its library-wide bulk
+  reconciliation without deleting it.
 - Requires a metadata read that skips array payloads, since classifying on
   every listing must not decode vocabulary arrays.
 - Leaves the sidecar format unchanged.
