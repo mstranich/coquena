@@ -8,6 +8,11 @@ Coquena SHALL inspect the GGUF header and metadata through bounded random access
 - **THEN** Coquena reads its header from disk and returns its identity, classification, and scalar metadata
 - **AND** it issues no network request
 
+#### Scenario: Inspect a remote GGUF before download
+- **WHEN** Coquena classifies a resolved remote candidate as part of discovery
+- **THEN** it reads the artifact's identity and classification using HTTP Range access
+- **AND** it does not download the complete artifact
+
 #### Scenario: Omit raw metadata from an inspection payload
 - **WHEN** an inspected artifact declares vocabulary token, merge, or token-type arrays
 - **THEN** the inspection result reports the tokenizer's identity, size, special token IDs, and vocabulary digest
