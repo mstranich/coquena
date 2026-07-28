@@ -96,11 +96,16 @@ type Job struct {
 // binding. Classification stays a pointer so an incomplete entry — a download
 // still in flight, which has no artifact to read — reports its absence rather
 // than an all-zero digest.
+//
+// Usability is derived from the enumerated library as a whole and is never
+// persisted, since a projector's usability changes when a principal beside it
+// is installed or removed.
 type LibraryEntry struct {
 	Source         Source          `json:"source"`
 	TargetPath     string          `json:"targetPath"`
 	State          string          `json:"state"`
 	Classification *Classification `json:"classification,omitempty"`
+	Usability      Usability       `json:"usability"`
 	Job            *Job            `json:"job,omitempty"`
 }
 

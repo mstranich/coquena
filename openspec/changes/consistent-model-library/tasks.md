@@ -26,11 +26,11 @@ usable before the rest lands.
 
 ## 4. Usability
 
-- [ ] 4.1 Derive usability when the library is read: reconciled and typed is usable; a projector is usable only when a compatible installed principal exists; an unreconciled or unclassifiable artifact is unusable.
-- [ ] 4.2 Report a reason alongside an unusable artifact, distinguishing an unreconciled artifact from an orphaned projector from an unclassifiable one.
-- [ ] 4.3 Confirm a principal with no installed projector stays usable.
-- [ ] 4.4 Report usability in `coquena model list` in both output modes.
-- [ ] 4.5 Add tests for each usability outcome and for an orphaned projector becoming usable once a compatible principal is installed, with no sidecar rewritten.
+- [x] 4.1 Derive usability when the library is read: reconciled and typed is usable; a projector is usable only when a compatible installed principal exists; an unreconciled or unclassifiable artifact is unusable.
+- [x] 4.2 Report a reason alongside an unusable artifact, distinguishing an unreconciled artifact from an orphaned projector from an unclassifiable one.
+- [x] 4.3 Confirm a principal with no installed projector stays usable.
+- [x] 4.4 Report usability in `coquena model list` in both output modes.
+- [x] 4.5 Add tests for each usability outcome and for an orphaned projector becoming usable once a compatible principal is installed, with no sidecar rewritten.
 
 ## 5. Repository-driven reconciliation
 

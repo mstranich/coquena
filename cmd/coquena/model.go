@@ -38,6 +38,13 @@ type modelListEntry struct {
 	Reference  string `json:"reference"`
 	Filename   string `json:"filename"`
 	Type       string `json:"type,omitempty"`
+	// Usable and Reason are the derived usability, flattened into the entry so
+	// both output modes render it without consulting anything else. Reason is
+	// the machine-readable enumeration; Detail is the sentence shown to an
+	// operator.
+	Usable bool   `json:"usable"`
+	Reason string `json:"reason,omitempty"`
+	Detail string `json:"detail,omitempty"`
 }
 
 func newModelManager() (*modelapp.Manager, error) {
@@ -362,6 +369,9 @@ func runModelList(out io.Writer, jsonOut bool) error {
 			Repository: entry.Source.Repository,
 			Reference:  entry.Source.Repository + ":" + entry.Source.Filename,
 			Filename:   entry.Source.Filename,
+			Usable:     entry.Usability.Usable,
+			Reason:     string(entry.Usability.Reason),
+			Detail:     entry.Usability.Detail,
 		}
 		// The classification comes from the sidecar, which already holds it and
 		// which Library has already read: listing must never re-read the .gguf,
@@ -378,9 +388,16 @@ func runModelList(out io.Writer, jsonOut bool) error {
 		}{1, list})
 	}
 	writer := tabwriter.NewWriter(out, 0, 4, 2, ' ', 0)
-	_, _ = fmt.Fprintln(writer, "STATE\tTYPE\tREPOSITORY\tFILENAME")
+	_, _ = fmt.Fprintln(writer, "STATE\tTYPE\tUSABLE\tREPOSITORY\tFILENAME\tREASON")
 	for _, entry := range list {
-		_, _ = fmt.Fprintf(writer, "%s\t%s\t%s\t%s\n", entry.State, entry.Type, entry.Repository, entry.Filename)
+		// The reason column is empty for a usable artifact: a reason exists
+		// only to explain a refusal, and repeating "usable" in it would add a
+		// column of noise to the common case.
+		usable := "no"
+		if entry.Usable {
+			usable = "yes"
+		}
+		_, _ = fmt.Fprintf(writer, "%s\t%s\t%s\t%s\t%s\t%s\n", entry.State, entry.Type, usable, entry.Repository, entry.Filename, entry.Detail)
 	}
 	return writer.Flush()
 }

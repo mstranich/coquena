@@ -192,8 +192,12 @@ func (m *Manager) Library() ([]LibraryEntry, error) {
 		return nil
 	})
 	if errors.Is(err, os.ErrNotExist) {
-		return entries, nil
+		err = nil
 	}
+	// Usability is derived here, once the whole library is known, because a
+	// projector's usability depends on the principals enumerated beside it. It
+	// is computed on every read and written nowhere.
+	AssessUsability(entries)
 	return entries, err
 }
 
