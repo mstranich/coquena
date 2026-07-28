@@ -72,6 +72,25 @@ func (e *ErrAmbiguousInstalledMatch) Error() string {
 	return fmt.Sprintf("reference %q matches %d %s models: %s", e.Reference, len(e.Matches), state, formatCandidates(e.Matches))
 }
 
+// ErrAmbiguousPrincipals indicates a reference resolved to more than one
+// principal model of one repository during reconciliation.
+//
+// It is distinct from ErrAmbiguousInstalledMatch because the ambiguity is
+// judged on one axis only: reconciliation takes a principal together with its
+// companions, so a projector beside a principal is never an alternative to it,
+// while two quantizations of the same model are a choice for llama-server that
+// only the operator can make.
+type ErrAmbiguousPrincipals struct {
+	Reference  string
+	Repository string
+	// Matches holds the filenames of every principal the reference resolved to.
+	Matches []string
+}
+
+func (e *ErrAmbiguousPrincipals) Error() string {
+	return fmt.Sprintf("reference %q matches %d principal models in %s: %s; name one of them, since choosing a quantization is yours to make", e.Reference, len(e.Matches), e.Repository, formatCandidates(e.Matches))
+}
+
 // SplitReference parses the user/repo:QUANT reference grammar into its
 // repository and quant selector, without resolving it against any source.
 func SplitReference(reference string) (repository, quant string, err error) {

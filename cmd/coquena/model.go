@@ -436,20 +436,23 @@ func runModelReconcile(args []string, out io.Writer, jsonOut bool) error {
 		}
 		return runModelReconcileAll(m, mode, out, jsonOut)
 	}
-	// Reconciliation names its subject with the same user/repo:QUANT reference
-	// every other model command accepts. The artifact is by definition not yet
-	// installed, so the reference resolves against the unreconciled entries the
-	// listing reports.
+	// --online reconciles the whole repository the reference names: a principal
+	// and its projector are parts of one logical unit, and reconciling them one
+	// at a time is what produces the half-reconciled library this command exists
+	// to prevent.
+	if online {
+		return runModelReconcileRepository(m, reference, out)
+	}
+	// --accept stays one artifact per invocation: it asserts an identity from
+	// the path alone with nothing to corroborate it against, so it is never
+	// applied to a set the operator did not name one by one. The artifact is by
+	// definition not yet installed, so the reference resolves against the
+	// unreconciled entries the listing reports.
 	entry, e := m.ResolveUnreconciled(reference)
 	if e != nil {
 		return e
 	}
-	var result modelapp.ReconcileResult
-	if online {
-		result, e = m.ReconcileOnline(entry.TargetPath)
-	} else {
-		result, e = m.ReconcileAccept(entry.TargetPath)
-	}
+	result, e := m.ReconcileAccept(entry.TargetPath)
 	if e != nil {
 		return e
 	}
@@ -465,6 +468,45 @@ func runModelReconcile(args []string, out io.Writer, jsonOut bool) error {
 	}
 	_, e = fmt.Fprintln(out, msg)
 	return e
+}
+
+// runModelReconcileRepository renders one repository-driven reconciliation:
+// every artifact the repository and the library between them account for, with
+// what happened to it. An absent candidate and a foreign file are reported
+// rather than omitted, since each names something the operator has to decide.
+//
+// A refusal does not stop the pass but does fail the invocation: the operator
+// sees everything that was established, and the exit status still says the
+// repository was not fully reconciled.
+func runModelReconcileRepository(m *modelapp.Manager, reference string, out io.Writer) error {
+	result, err := m.ReconcileRepository(reference)
+	if err != nil {
+		return err
+	}
+	if _, err = fmt.Fprintf(out, "%s at revision %s\n", result.Repository, result.Revision); err != nil {
+		return err
+	}
+	writer := tabwriter.NewWriter(out, 0, 4, 2, ' ', 0)
+	_, _ = fmt.Fprintln(writer, "OUTCOME\tTYPE\tFILENAME\tDIAGNOSTIC")
+	for _, artifact := range result.Artifacts {
+		diagnostic := artifact.Diagnostic
+		if artifact.Partial {
+			diagnostic = "partial: Hugging Face reported no content hash to compare against"
+		}
+		_, _ = fmt.Fprintf(writer, "%s\t%s\t%s\t%s\n", artifact.Outcome, artifact.Classification.Type, artifact.Filename, diagnostic)
+	}
+	if err = writer.Flush(); err != nil {
+		return err
+	}
+	refused := result.Refused()
+	if len(refused) == 0 {
+		return nil
+	}
+	names := make([]string, 0, len(refused))
+	for _, artifact := range refused {
+		names = append(names, artifact.Filename)
+	}
+	return fmt.Errorf("%s was not fully reconciled: %s refused", result.Repository, strings.Join(names, ", "))
 }
 
 // runModelReconcileAll renders a whole bulk pass: every artifact's outcome and

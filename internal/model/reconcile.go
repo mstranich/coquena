@@ -43,14 +43,34 @@ func (m *Manager) ReconcileOnline(path string) (ReconcileResult, error) {
 	if len(candidates) != 1 {
 		return ReconcileResult{}, fmt.Errorf("reconcile: expected exactly one Hugging Face artifact matching %q in %s, got %d", source.Filename, source.Repository, len(candidates))
 	}
-	candidate := candidates[0]
+	result, err := m.reconcileAgainst(path, candidates[0])
+	if err != nil {
+		return ReconcileResult{}, err
+	}
+	m.logf("model reconcile online completed path=%s repository=%s filename=%s partial=%v", path, source.Repository, source.Filename, result.Partial)
+	return result, nil
+}
+
+// reconcileAgainst persists the sidecar for the single artifact at path from
+// the remote sibling it was matched to. It is the whole per-artifact
+// publication path — hash, compare, publish — factored out of ReconcileOnline
+// so repository-driven reconciliation drives the same code over a set of
+// artifacts rather than reimplementing it, and so the caller that already holds
+// the matched candidate does not resolve the repository once per artifact.
+//
+// A digest disagreement is refused, and the diagnostic says the artifact may be
+// from an earlier revision rather than asserting corruption: reconciliation
+// compares against the repository's current revision, so a file that was
+// legitimately downloaded before the repository was updated fails this
+// comparison while being perfectly intact.
+func (m *Manager) reconcileAgainst(path string, candidate Candidate) (ReconcileResult, error) {
 	digest, err := hashFile(path)
 	if err != nil {
 		return ReconcileResult{}, err
 	}
 	partial := candidate.LFSOID == ""
 	if !partial && candidate.LFSOID != digest {
-		return ReconcileResult{}, fmt.Errorf("reconcile refused: local file digest %s disagrees with Hugging Face content hash %s for %s", digest, candidate.LFSOID, source.Filename)
+		return ReconcileResult{}, fmt.Errorf("reconcile refused for %s: the local file's digest %s disagrees with the content hash %s Hugging Face reports at revision %s; the artifact may be from an earlier revision of the repository rather than corrupt, and --accept records it as local if that is what you intend", candidate.Source.Filename, digest, candidate.LFSOID, candidate.Source.ResolvedRevision)
 	}
 	record := Record{SchemaVersion: RecordSchemaVersion, Source: candidate.Source, Artifact: candidate.Artifact}
 	record.Artifact.SHA256 = digest
@@ -59,7 +79,6 @@ func (m *Manager) ReconcileOnline(path string) (ReconcileResult, error) {
 	if record, err = PublishInPlace(m.ModelsDir, record); err != nil {
 		return ReconcileResult{}, err
 	}
-	m.logf("model reconcile online completed path=%s repository=%s filename=%s partial=%v", path, source.Repository, source.Filename, partial)
 	return ReconcileResult{Record: record, Partial: partial}, nil
 }
 

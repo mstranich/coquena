@@ -34,13 +34,13 @@ usable before the rest lands.
 
 ## 5. Repository-driven reconciliation
 
-- [ ] 5.1 Reconcile the artifacts of one repository in a single action: resolve the repository, enumerate its remote candidates with their classification without downloading any complete artifact, and match them against the artifacts on disk by filename corroborated by metadata.
-- [ ] 5.2 Reconcile a principal together with its companions when a reference names a repository holding both.
-- [ ] 5.3 Refuse as ambiguous a reference matching more than one principal, naming the candidates.
-- [ ] 5.4 Report a remote candidate that is absent locally rather than omitting it.
-- [ ] 5.5 Refuse an artifact whose computed digest disagrees with the reported content hash, with a diagnostic that says the artifact may be from an earlier revision rather than asserting corruption.
-- [ ] 5.6 Keep `--accept` operating on exactly one referenced artifact, persisting a `local`-provider sidecar with no network request.
-- [ ] 5.7 Add tests for a repository holding a principal and a projector, a repository holding two principals, a companion absent locally, a digest disagreement, and a local artifact matching no remote sibling.
+- [x] 5.1 Reconcile the artifacts of one repository in a single action: resolve the repository, enumerate its remote candidates with their classification without downloading any complete artifact, and match them against the artifacts on disk by filename corroborated by metadata.
+- [x] 5.2 Reconcile a principal together with its companions when a reference names a repository holding both.
+- [x] 5.3 Refuse as ambiguous a reference matching more than one principal, naming the candidates.
+- [x] 5.4 Report a remote candidate that is absent locally rather than omitting it.
+- [x] 5.5 Refuse an artifact whose computed digest disagrees with the reported content hash, with a diagnostic that says the artifact may be from an earlier revision rather than asserting corruption.
+- [x] 5.6 Keep `--accept` operating on exactly one referenced artifact, persisting a `local`-provider sidecar with no network request.
+- [x] 5.7 Add tests for a repository holding a principal and a projector, a repository holding two principals, a companion absent locally, a digest disagreement, and a local artifact matching no remote sibling.
 
 ## 6. Turn off library-wide reconciliation
 
