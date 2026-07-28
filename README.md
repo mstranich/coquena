@@ -586,6 +586,9 @@ artifact.
 `coquena model list` renders the library as a tree, nesting each companion
 beneath the principal it is compatible with; a companion matching no installed
 principal is reported at the top level. The same shape is produced by `--json`.
+Every entry reports its on-disk path, which is what `coquena model reconcile`
+takes, so an artifact listed as `unreconciled` can be reconciled directly from
+what the listing shows.
 
 `coquena model reconcile` accepts either a model path or `--all`, which walks
 the configured models directory, classifies every unreconciled artifact, and

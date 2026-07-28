@@ -89,7 +89,7 @@ Discovery entries SHOULD display the publisher avatar from Hugging Face when ava
 - **AND** it does not automatically create, change, or select a preset value
 
 ### Requirement: List installed models through the CLI
-Coquena SHALL provide a CLI command that lists the models present in the configured model directory, reporting for each installed one the reference form accepted when binding it and its resolved artifact filename, and reporting each unreconciled `.gguf` separately with its path-derived identity and a status distinguishing it from an installed model. The listing SHALL be rendered as a tree in which a companion artifact appears nested beneath the principal it is compatible with, and a companion matching no installed principal SHALL be reported at the top level rather than omitted. The command SHALL issue no network request and SHALL report an empty list rather than an error when no model is present.
+Coquena SHALL provide a CLI command that lists the models present in the configured model directory, reporting for each installed one the reference form accepted when binding it and its resolved artifact filename, and reporting each unreconciled `.gguf` separately with its path-derived identity and a status distinguishing it from an installed model. Every entry SHALL report its on-disk path, so an unreconciled artifact can be reconciled directly from what the listing shows. The listing SHALL be rendered as a tree in which a companion artifact appears nested beneath the principal it is compatible with, and a companion matching no installed principal SHALL be reported at the top level rather than omitted. The command SHALL issue no network request and SHALL report an empty list rather than an error when no model is present.
 
 #### Scenario: List installed models
 - **WHEN** an operator lists models with artifacts installed
@@ -116,6 +116,7 @@ Coquena SHALL provide a CLI command that lists the models present in the configu
 #### Scenario: List an unreconciled model
 - **WHEN** the configured models directory contains a `.gguf` without a valid Coquena sidecar
 - **THEN** the listing reports it distinctly from an installed model, with its path-derived repository and filename
+- **AND** it reports the artifact's on-disk path, which reconciliation accepts directly
 - **AND** the command issues no network request
 
 ### Requirement: Reconcile a model without a valid sidecar

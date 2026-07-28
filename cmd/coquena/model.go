@@ -35,6 +35,7 @@ type modelListEntry struct {
 	Repository string           `json:"repository"`
 	Reference  string           `json:"reference"`
 	Filename   string           `json:"filename"`
+	Path       string           `json:"path"`
 	Type       string           `json:"type,omitempty"`
 	Companions []modelListEntry `json:"companions,omitempty"`
 }
@@ -359,6 +360,10 @@ func runModelList(out io.Writer, jsonOut bool) error {
 			Repository: entry.Source.Repository,
 			Reference:  entry.Source.Repository + ":" + entry.Source.Filename,
 			Filename:   entry.Source.Filename,
+			// Reported so an unreconciled entry can be reconciled directly:
+			// `reconcile <path>` takes a filesystem path, and this is the only
+			// place that path is ever surfaced to the operator.
+			Path: entry.TargetPath,
 		}}
 		// The classification comes from the sidecar, which already holds it and
 		// which Library has already read: listing must never re-read the .gguf,
@@ -400,11 +405,11 @@ func runModelList(out io.Writer, jsonOut bool) error {
 		}{1, list})
 	}
 	writer := tabwriter.NewWriter(out, 0, 4, 2, ' ', 0)
-	_, _ = fmt.Fprintln(writer, "STATE\tTYPE\tREPOSITORY\tFILENAME")
+	_, _ = fmt.Fprintln(writer, "STATE\tTYPE\tREPOSITORY\tFILENAME\tPATH")
 	for _, entry := range list {
-		_, _ = fmt.Fprintf(writer, "%s\t%s\t%s\t%s\n", entry.State, entry.Type, entry.Repository, entry.Filename)
+		_, _ = fmt.Fprintf(writer, "%s\t%s\t%s\t%s\t%s\n", entry.State, entry.Type, entry.Repository, entry.Filename, entry.Path)
 		for _, companion := range entry.Companions {
-			_, _ = fmt.Fprintf(writer, "%s\t%s\t%s\t%s\n", companion.State, companion.Type, companion.Repository, "  └─ "+companion.Filename)
+			_, _ = fmt.Fprintf(writer, "%s\t%s\t%s\t%s\t%s\n", companion.State, companion.Type, companion.Repository, "  └─ "+companion.Filename, companion.Path)
 		}
 	}
 	return writer.Flush()
