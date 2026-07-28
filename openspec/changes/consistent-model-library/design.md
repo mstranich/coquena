@@ -143,10 +143,14 @@ as `local` and forfeits update checking. Supporting `@revision` would fix it
 and is out of scope, so the diagnostic must say the artifact may be from an
 earlier revision rather than implying corruption.
 
-**Dead code is left behind on purpose.** Turning `--all` off without deleting
-its implementation leaves code no command reaches. This is a deliberate trade
-against spending the change's budget on a behaviour that is being reconsidered
-anyway; the tasks record it so a later reader does not mistake it for intent.
+**Dead code is left behind on purpose, twice.** Turning `--all` off, and
+turning the model card output off, without deleting either implementation
+leaves code no command reaches. Both are deliberate trades against spending
+this change's budget on behaviour being reconsidered anyway — the model card is
+expected back behind an explicit option, since the problem is that it is
+printed unconditionally and buries the candidate list, not that it is
+worthless. The tasks record both so a later reader does not mistake unreachable
+code for an abandoned implementation.
 
 ## Migration Plan
 

@@ -42,6 +42,9 @@ between quants.
   declared type and usability.
 - Turn off library-wide reconciliation. Reconciliation is per artifact and per
   repository; `--all` stops being accepted.
+- Stop printing the repository model card from `discover`. Its length buries
+  the candidate list the command exists to present, and choosing a
+  quantization is what discovery is for.
 - Remove `--json` from `reconcile`, which prompts and cannot emit one clean
   document.
 - Expose companion assignment through the CLI, so the relation the listing no
@@ -54,6 +57,8 @@ between quants.
 - Library-wide reconciliation in any form. The switch is turned off in this
   change and the behaviour is reconsidered in a future one; the code left
   behind is knowingly dead.
+- Reintroducing the model card behind an option. The output is turned off here;
+  the option that brings it back belongs to a later change.
 - Verifying or repairing artifact content. `coquena model verify` is untouched.
   Integrity is a property of one file; this change is about the library.
 - Re-downloading, overwriting, or updating an artifact.
@@ -67,6 +72,8 @@ between quants.
 ### Modified Capabilities
 - `gguf-model-library`: classify an artifact whenever the library is
   enumerated rather than only when a sidecar exists; define artifact usability.
+- `gguf-model-resolution`: stop reporting the repository model card from
+  discovery.
 - `gguf-model-interfaces`: reconcile a repository in one action; stop accepting
   library-wide reconciliation; drop `--json` from reconciliation; replace the
   tree listing with a flat listing reporting type and usability.

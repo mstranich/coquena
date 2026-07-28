@@ -27,12 +27,14 @@
 - [ ] 4.6 Keep `--accept` operating on exactly one referenced artifact, persisting a `local`-provider sidecar with no network request.
 - [ ] 4.7 Add tests for a repository holding a principal and a projector, a repository holding two principals, a companion absent locally, a digest disagreement, and a local artifact matching no remote sibling.
 
-## 5. Turn off library-wide reconciliation
+## 5. Turn off library-wide reconciliation and the model card
 
 - [ ] 5.1 Stop accepting `--all` on `coquena model reconcile`, reporting that the option is not accepted rather than ignoring it, and remove it from the usage text.
 - [ ] 5.2 Leave `Manager.ReconcileAll` and its result types in place, unreferenced, with a comment recording that the behaviour was deliberately turned off pending a future change rather than abandoned mid-implementation.
 - [ ] 5.3 Reject `--json` on reconciliation explicitly rather than accepting and ignoring it, given the flag is extracted before subcommand dispatch.
-- [ ] 5.4 Add tests for the refused `--all` and the refused `--json`.
+- [ ] 5.4 Stop printing the repository model card from `coquena model discover`, whose length buries the candidate list the command exists to present.
+- [ ] 5.5 Leave `Resolver.ModelCard` and the discovery field carrying it in place, unprinted, with the same comment convention as 5.2, since a later change reintroduces the output behind an explicit option.
+- [ ] 5.6 Add tests for the refused `--all`, the refused `--json`, and discovery output containing the candidates without the model card.
 
 ## 6. Flat listing
 
@@ -49,7 +51,7 @@
 
 ## 8. Documentation and verification
 
-- [ ] 8.1 Update `README.md` for the flat listing, repository-driven reconciliation, the removal of `--all` and of `--json` from reconciliation.
+- [ ] 8.1 Update `README.md` for the flat listing, repository-driven reconciliation, the removal of `--all` and of `--json` from reconciliation, and discovery no longer printing the model card.
 - [ ] 8.2 Run the Go build, vet, formatting check, and full test suite.
 - [ ] 8.3 Validate the change with `openspec validate consistent-model-library --strict`.
 - [ ] 8.4 Demonstrate the whole loop against real artifacts, which is the outcome this change exists for: discover a repository and filter its candidates to one quantization; download that quantization with its companions; confirm `model list` reports every artifact with a declared type and a usability verdict; reconcile a repository written by another application and confirm its principal and projector are reconciled in one action; and bind a preset to the resulting model.
