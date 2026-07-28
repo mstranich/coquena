@@ -556,7 +556,7 @@ coquena model download resume <job-id>
 coquena model download cancel <job-id>
 coquena model revision <model-path>
 coquena model list
-coquena model reconcile (<model-path>|--all) (--online|--accept)
+coquena model reconcile (<reference>|--all) (--online|--accept)
 coquena model verify <reference>
 coquena model check-updates <reference>
 ```
@@ -586,13 +586,14 @@ artifact.
 `coquena model list` renders the library as a tree, nesting each companion
 beneath the principal it is compatible with; a companion matching no installed
 principal is reported at the top level. The same shape is produced by `--json`.
-Every entry reports its on-disk path, which is what `coquena model reconcile`
-takes, so an artifact listed as `unreconciled` can be reconciled directly from
-what the listing shows.
-
-`coquena model reconcile` accepts either a model path or `--all`, which walks
-the configured models directory, classifies every unreconciled artifact, and
-persists its sidecar in one pass. Exactly one of `--online` and `--accept` is
+`coquena model reconcile` names its subject with the same `user/repo:QUANT`
+reference every other model command accepts, resolved against the unreconciled
+entries the listing reports. An artifact is addressed identically whether it is
+being reconciled, bound to a preset, verified, or checked for updates, and
+`--accept` keeps that reference form even for an artifact with no Hugging Face
+identity to update against. `--all` replaces the reference and walks the
+configured models directory, classifying every unreconciled artifact and
+persisting its sidecar in one pass. Exactly one of `--online` and `--accept` is
 still required, and reconciliation always remains an explicit operator action:
 no listing command triggers it.
 

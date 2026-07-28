@@ -289,20 +289,24 @@ func TestRunModelReconcileRequiresExactlyOneMode(t *testing.T) {
 
 func TestRunModelReconcileAccept(t *testing.T) {
 	m := withModelManager(t)
-	dir := filepath.Join(m.ModelsDir, "org", "repo")
-	if err := os.MkdirAll(dir, 0755); err != nil {
-		t.Fatal(err)
-	}
-	path := filepath.Join(dir, "m.gguf")
-	if err := os.WriteFile(path, []byte("bytes"), 0600); err != nil {
-		t.Fatal(err)
+	// Two artifacts, because reconciling one moves it out of the unreconciled
+	// state the reference resolves against: the second run needs its own
+	// subject rather than re-reconciling the first.
+	for _, repo := range []string{"one", "two"} {
+		dir := filepath.Join(m.ModelsDir, "org", repo)
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, "m.gguf"), []byte("bytes"), 0600); err != nil {
+			t.Fatal(err)
+		}
 	}
 	old := modelManagerFactory
 	modelManagerFactory = func() (*modelapp.Manager, error) { return m, nil }
 	t.Cleanup(func() { modelManagerFactory = old })
 
 	var out bytes.Buffer
-	if err := runModel([]string{"reconcile", path, "--accept", "--json"}, &out); err != nil {
+	if err := runModel([]string{"reconcile", "org/one", "--accept", "--json"}, &out); err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(out.String(), `"schemaVersion":1`) || !strings.Contains(out.String(), `"provider":"local"`) {
@@ -310,10 +314,10 @@ func TestRunModelReconcileAccept(t *testing.T) {
 	}
 
 	var human bytes.Buffer
-	if err := runModel([]string{"reconcile", path, "--accept"}, &human); err != nil {
+	if err := runModel([]string{"reconcile", "org/two", "--accept"}, &human); err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(human.String(), "org/repo") || !strings.Contains(human.String(), "m.gguf") {
+	if !strings.Contains(human.String(), "org/two") || !strings.Contains(human.String(), "m.gguf") {
 		t.Fatalf("out=%s", human.String())
 	}
 }

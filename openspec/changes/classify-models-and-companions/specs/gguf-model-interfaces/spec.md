@@ -89,7 +89,7 @@ Discovery entries SHOULD display the publisher avatar from Hugging Face when ava
 - **AND** it does not automatically create, change, or select a preset value
 
 ### Requirement: List installed models through the CLI
-Coquena SHALL provide a CLI command that lists the models present in the configured model directory, reporting for each installed one the reference form accepted when binding it and its resolved artifact filename, and reporting each unreconciled `.gguf` separately with its path-derived identity and a status distinguishing it from an installed model. Every entry SHALL report its on-disk path, so an unreconciled artifact can be reconciled directly from what the listing shows. The listing SHALL be rendered as a tree in which a companion artifact appears nested beneath the principal it is compatible with, and a companion matching no installed principal SHALL be reported at the top level rather than omitted. The command SHALL issue no network request and SHALL report an empty list rather than an error when no model is present.
+Coquena SHALL provide a CLI command that lists the models present in the configured model directory, reporting for each installed one the reference form accepted when binding it and its resolved artifact filename, and reporting each unreconciled `.gguf` separately with its path-derived identity and a status distinguishing it from an installed model. The listing SHALL be rendered as a tree in which a companion artifact appears nested beneath the principal it is compatible with, and a companion matching no installed principal SHALL be reported at the top level rather than omitted. The command SHALL issue no network request and SHALL report an empty list rather than an error when no model is present.
 
 #### Scenario: List installed models
 - **WHEN** an operator lists models with artifacts installed
@@ -116,16 +116,25 @@ Coquena SHALL provide a CLI command that lists the models present in the configu
 #### Scenario: List an unreconciled model
 - **WHEN** the configured models directory contains a `.gguf` without a valid Coquena sidecar
 - **THEN** the listing reports it distinctly from an installed model, with its path-derived repository and filename
-- **AND** it reports the artifact's on-disk path, which reconciliation accepts directly
 - **AND** the command issues no network request
 
 ### Requirement: Reconcile a model without a valid sidecar
-Coquena SHALL provide `coquena model reconcile <path> --online` and `coquena model reconcile <path> --accept`, exactly one of which SHALL be required per invocation. `--online` SHALL match the file against Hugging Face using its path-derived repository, compare a locally computed SHA-256 digest against the matched artifact's reported content hash when Hugging Face provides one, and on agreement persist a full Hugging Face-provenance sidecar. `--accept` SHALL persist a `local`-provider sidecar from path-derived identity alone, without any network request. Both modes SHALL persist a computed SHA-256 digest and a classification digest read from the artifact's own header. Coquena SHALL additionally accept `--all` in place of a path, reconciling every unreconciled `.gguf` beneath the configured models directory in one pass that reads each header, classifies each artifact, and computes the companion relations among them. Reconciliation SHALL remain an explicit operator action and SHALL NOT run as a side effect of any listing command.
+Coquena SHALL provide `coquena model reconcile <reference> --online` and `coquena model reconcile <reference> --accept`, exactly one of which SHALL be required per invocation. Reconciliation SHALL name its subject through the same `user/repo[@revision]:QUANT` reference grammar every other model command accepts, resolved against the unreconciled entries the listing reports rather than against a filesystem path, so an artifact is addressed identically whether it is being reconciled, bound to a preset, verified, or checked for updates. `--online` SHALL match the artifact against Hugging Face using its path-derived repository, compare a locally computed SHA-256 digest against the matched artifact's reported content hash when Hugging Face provides one, and on agreement persist a full Hugging Face-provenance sidecar. `--accept` SHALL persist a `local`-provider sidecar from path-derived identity alone, without any network request, retaining the same reference form so an artifact with no Hugging Face identity is still addressed as `user/repo:QUANT`. Both modes SHALL persist a computed SHA-256 digest and a classification digest read from the artifact's own header. Coquena SHALL additionally accept `--all` in place of a reference, reconciling every unreconciled `.gguf` beneath the configured models directory in one pass that reads each header, classifies each artifact, and computes the companion relations among them. Reconciliation SHALL remain an explicit operator action and SHALL NOT run as a side effect of any listing command.
+
+#### Scenario: Reconcile a listed artifact by its reference
+- **WHEN** an operator reconciles an artifact using the reference form the listing reports for it
+- **THEN** Coquena resolves it among the unreconciled entries and reconciles that artifact
+- **AND** the operator does not have to supply a filesystem path
+
+#### Scenario: Report an unmatched reconciliation reference
+- **WHEN** a reference names no unreconciled artifact
+- **THEN** the diagnostic reports that no unreconciled artifact matched
+- **AND** it does not report the artifact as not installed, which would invert the subject of the command
 
 #### Scenario: Reconcile online against Hugging Face
-- **WHEN** an operator reconciles a path-identified `.gguf` with `--online` and its content matches the corresponding Hugging Face artifact
+- **WHEN** an operator reconciles a referenced `.gguf` with `--online` and its content matches the corresponding Hugging Face artifact
 - **THEN** Coquena persists a full sidecar as if the file had been downloaded by Coquena
-- **AND** the model becomes resolvable and bindable afterward
+- **AND** the model becomes resolvable and bindable afterward under the same reference
 
 #### Scenario: Refuse an online reconciliation on content mismatch
 - **WHEN** the local file's computed digest disagrees with the content hash Hugging Face reports for the matched artifact
@@ -133,10 +142,10 @@ Coquena SHALL provide `coquena model reconcile <path> --online` and `coquena mod
 - **AND** it reports the mismatch rather than asserting a false identity
 
 #### Scenario: Accept a model offline without network access
-- **WHEN** an operator reconciles a path-identified `.gguf` with `--accept`
+- **WHEN** an operator reconciles a referenced `.gguf` with `--accept`
 - **THEN** Coquena persists a `local`-provider sidecar from the derived repository and filename
 - **AND** it issues no network request
-- **AND** the model becomes resolvable and bindable afterward
+- **AND** the model becomes resolvable and bindable afterward under the same reference form
 
 #### Scenario: Reconcile a whole directory in one pass
 - **WHEN** an operator reconciles with `--all` over a directory holding several unreconciled artifacts

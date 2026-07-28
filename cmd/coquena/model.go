@@ -18,7 +18,7 @@ import (
 	runtimeapp "github.com/mstranich/coquena/internal/runtime"
 )
 
-const modelUsage = "usage: coquena model resolve <repository-or-url> [--json]\n       coquena model discover <repository-or-url[:selector]> [--json]\n       coquena model inspect <model-path> [--json]\n       coquena model download <repository-or-url[:selector]> [--with-companions] [--json]\n       coquena model download list|status <job-id>|pause <job-id>|resume <job-id>|cancel <job-id> [--json]\n       coquena model revision <model-path> [--json]\n       coquena model list [--json]\n       coquena model reconcile (<model-path>|--all) (--online|--accept) [--json]\n       coquena model verify <reference> [--json]\n       coquena model check-updates <reference> [--json]\n       coquena download list|status <job-id>|pause <job-id>|resume <job-id>|cancel <job-id> [--json]"
+const modelUsage = "usage: coquena model resolve <repository-or-url> [--json]\n       coquena model discover <repository-or-url[:selector]> [--json]\n       coquena model inspect <model-path> [--json]\n       coquena model download <repository-or-url[:selector]> [--with-companions] [--json]\n       coquena model download list|status <job-id>|pause <job-id>|resume <job-id>|cancel <job-id> [--json]\n       coquena model revision <model-path> [--json]\n       coquena model list [--json]\n       coquena model reconcile (<reference>|--all) (--online|--accept) [--json]\n       coquena model verify <reference> [--json]\n       coquena model check-updates <reference> [--json]\n       coquena download list|status <job-id>|pause <job-id>|resume <job-id>|cancel <job-id> [--json]"
 
 // companionFlag is the opt-in that additionally enqueues the companions
 // identified for the selected principal. The default stays one artifact per
@@ -35,7 +35,6 @@ type modelListEntry struct {
 	Repository string           `json:"repository"`
 	Reference  string           `json:"reference"`
 	Filename   string           `json:"filename"`
-	Path       string           `json:"path"`
 	Type       string           `json:"type,omitempty"`
 	Companions []modelListEntry `json:"companions,omitempty"`
 }
@@ -360,10 +359,6 @@ func runModelList(out io.Writer, jsonOut bool) error {
 			Repository: entry.Source.Repository,
 			Reference:  entry.Source.Repository + ":" + entry.Source.Filename,
 			Filename:   entry.Source.Filename,
-			// Reported so an unreconciled entry can be reconciled directly:
-			// `reconcile <path>` takes a filesystem path, and this is the only
-			// place that path is ever surfaced to the operator.
-			Path: entry.TargetPath,
 		}}
 		// The classification comes from the sidecar, which already holds it and
 		// which Library has already read: listing must never re-read the .gguf,
@@ -405,18 +400,18 @@ func runModelList(out io.Writer, jsonOut bool) error {
 		}{1, list})
 	}
 	writer := tabwriter.NewWriter(out, 0, 4, 2, ' ', 0)
-	_, _ = fmt.Fprintln(writer, "STATE\tTYPE\tREPOSITORY\tFILENAME\tPATH")
+	_, _ = fmt.Fprintln(writer, "STATE\tTYPE\tREPOSITORY\tFILENAME")
 	for _, entry := range list {
-		_, _ = fmt.Fprintf(writer, "%s\t%s\t%s\t%s\t%s\n", entry.State, entry.Type, entry.Repository, entry.Filename, entry.Path)
+		_, _ = fmt.Fprintf(writer, "%s\t%s\t%s\t%s\n", entry.State, entry.Type, entry.Repository, entry.Filename)
 		for _, companion := range entry.Companions {
-			_, _ = fmt.Fprintf(writer, "%s\t%s\t%s\t%s\t%s\n", companion.State, companion.Type, companion.Repository, "  └─ "+companion.Filename, companion.Path)
+			_, _ = fmt.Fprintf(writer, "%s\t%s\t%s\t%s\n", companion.State, companion.Type, companion.Repository, "  └─ "+companion.Filename)
 		}
 	}
 	return writer.Flush()
 }
 
 func runModelReconcile(args []string, out io.Writer, jsonOut bool) error {
-	var path string
+	var reference string
 	var online, accept, all bool
 	for _, a := range args {
 		switch a {
@@ -427,15 +422,15 @@ func runModelReconcile(args []string, out io.Writer, jsonOut bool) error {
 		case "--all":
 			all = true
 		default:
-			if path != "" || strings.HasPrefix(a, "--") {
+			if reference != "" || strings.HasPrefix(a, "--") {
 				return errors.New(modelUsage)
 			}
-			path = a
+			reference = a
 		}
 	}
-	// --all replaces the path rather than qualifying it, and neither mode
+	// --all replaces the reference rather than qualifying it, and neither mode
 	// relaxes the rule that exactly one of --online/--accept is required.
-	if online == accept || all == (path != "") {
+	if online == accept || all == (reference != "") {
 		return errors.New(modelUsage)
 	}
 	m, e := modelManagerFactory()
@@ -449,11 +444,19 @@ func runModelReconcile(args []string, out io.Writer, jsonOut bool) error {
 		}
 		return runModelReconcileAll(m, mode, out, jsonOut)
 	}
+	// Reconciliation names its subject with the same user/repo:QUANT reference
+	// every other model command accepts. The artifact is by definition not yet
+	// installed, so the reference resolves against the unreconciled entries the
+	// listing reports.
+	entry, e := m.ResolveUnreconciled(reference)
+	if e != nil {
+		return e
+	}
 	var result modelapp.ReconcileResult
 	if online {
-		result, e = m.ReconcileOnline(path)
+		result, e = m.ReconcileOnline(entry.TargetPath)
 	} else {
-		result, e = m.ReconcileAccept(path)
+		result, e = m.ReconcileAccept(entry.TargetPath)
 	}
 	if e != nil {
 		return e

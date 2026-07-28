@@ -303,11 +303,10 @@ func TestRunModelListNestsCompanionBeneathPrincipal(t *testing.T) {
 	}
 }
 
-// The listing reports each artifact's on-disk path. `model reconcile <path>`
-// takes a filesystem path, and the listing is the only place an operator ever
-// sees it, so an unreconciled entry would otherwise be impossible to act on
-// from the CLI alone.
-func TestRunModelListReportsPathForReconciliation(t *testing.T) {
+// Reconciliation names its subject with the same user/repo:QUANT reference the
+// rest of the model commands accept, so an operator never has to translate a
+// listed artifact into a filesystem path to act on it.
+func TestRunModelReconcileAcceptsAReference(t *testing.T) {
 	m := withModelManager(t)
 	old := modelManagerFactory
 	modelManagerFactory = func() (*modelapp.Manager, error) { return m, nil }
@@ -320,29 +319,36 @@ func TestRunModelListReportsPathForReconciliation(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	var jsonOut bytes.Buffer
-	if err := runModel([]string{"list", "--json"}, &jsonOut); err != nil {
-		t.Fatal(err)
-	}
-	var envelope struct {
-		Result []modelListEntry `json:"result"`
-	}
-	if err := json.Unmarshal(jsonOut.Bytes(), &envelope); err != nil {
-		t.Fatal(err)
-	}
-	if len(envelope.Result) != 1 || envelope.Result[0].State != "unreconciled" {
-		t.Fatalf("result=%+v", envelope.Result)
-	}
-	if envelope.Result[0].Path != foreign {
-		t.Fatalf("path=%q want %q", envelope.Result[0].Path, foreign)
+	var out bytes.Buffer
+	if err := runModel([]string{"reconcile", "publisher/repo", "--accept"}, &out); err != nil {
+		t.Fatalf("reconcile by reference: %v", err)
 	}
 
-	var human bytes.Buffer
-	if err := runModel([]string{"list"}, &human); err != nil {
-		t.Fatal(err)
+	// The artifact is installed afterward, so the same reference now resolves
+	// through the installed path every other command uses.
+	entry, err := m.ResolveInstalled("publisher/repo")
+	if err != nil {
+		t.Fatalf("reconciled artifact is not resolvable: %v", err)
 	}
-	if !strings.Contains(human.String(), "PATH") || !strings.Contains(human.String(), foreign) {
-		t.Fatalf("human listing does not report the path: %s", human.String())
+	if entry.State != "installed" {
+		t.Fatalf("state=%q", entry.State)
+	}
+}
+
+// A reference naming no unreconciled artifact reports that state rather than
+// claiming the artifact is not installed, which would invert the subject.
+func TestRunModelReconcileReportsUnreconciledState(t *testing.T) {
+	m := withModelManager(t)
+	old := modelManagerFactory
+	modelManagerFactory = func() (*modelapp.Manager, error) { return m, nil }
+	t.Cleanup(func() { modelManagerFactory = old })
+
+	err := runModel([]string{"reconcile", "publisher/repo", "--accept"}, &bytes.Buffer{})
+	if err == nil {
+		t.Fatal("expected a diagnostic")
+	}
+	if !strings.Contains(err.Error(), "unreconciled") {
+		t.Fatalf("diagnostic does not name the state: %v", err)
 	}
 }
 

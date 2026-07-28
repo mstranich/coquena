@@ -23,32 +23,53 @@ func formatCandidates(filenames []string) string {
 	return fmt.Sprintf("%s and %d more", strings.Join(filenames[:maxNamedCandidates], ", "), len(filenames)-maxNamedCandidates)
 }
 
-// ErrNoInstalledMatch indicates a reference matched no installed artifact.
+// ErrNoInstalledMatch indicates a reference matched no artifact in the library
+// state it was resolved against.
 type ErrNoInstalledMatch struct {
 	Reference string
-	// Available holds the filenames installed for the reference's repository,
-	// so the diagnostic can name what the operator may select instead of the
-	// selector that missed.
+	// State names the library state the reference was resolved against, so a
+	// failed reconciliation does not report the artifact as "not installed"
+	// when being uninstalled is precisely its subject.
+	State string
+	// Available holds the filenames in that state for the reference's
+	// repository, so the diagnostic can name what the operator may select
+	// instead of the selector that missed.
 	Available []string
 }
 
-func (e *ErrNoInstalledMatch) Error() string {
-	return fmt.Sprintf("reference %q matches no installed model; installed for that repository: %s", e.Reference, formatCandidates(e.Available))
+// state reports the library state to name in a diagnostic, defaulting to
+// installed for a zero value written before the field existed.
+func (e *ErrNoInstalledMatch) state() string {
+	if e.State == "" {
+		return "installed"
+	}
+	return e.State
 }
 
-// ErrAmbiguousInstalledMatch indicates a reference matched more than one installed artifact.
+func (e *ErrNoInstalledMatch) Error() string {
+	return fmt.Sprintf("reference %q matches no %s model; %s for that repository: %s", e.Reference, e.state(), e.state(), formatCandidates(e.Available))
+}
+
+// ErrAmbiguousInstalledMatch indicates a reference matched more than one
+// artifact in the library state it was resolved against.
 type ErrAmbiguousInstalledMatch struct {
 	Reference string
+	// State names the library state the reference was resolved against.
+	State string
 	// Matches holds the filenames of every artifact the reference matched.
 	Matches []string
 }
 
-// Count reports how many installed artifacts the reference matched. It is
-// derived from Matches so the two can never disagree.
+// Count reports how many artifacts the reference matched. It is derived from
+// Matches so the two can never disagree.
 func (e *ErrAmbiguousInstalledMatch) Count() int { return len(e.Matches) }
 
 func (e *ErrAmbiguousInstalledMatch) Error() string {
-	return fmt.Sprintf("reference %q matches %d installed models: %s", e.Reference, len(e.Matches), formatCandidates(e.Matches))
+	state := e.State
+	if state == "" {
+		state = "installed"
+	}
+	return fmt.Sprintf("reference %q matches %d %s models: %s", e.Reference, len(e.Matches), state, formatCandidates(e.Matches))
 }
 
 // SplitReference parses the user/repo:QUANT reference grammar into its
@@ -64,6 +85,25 @@ func SplitReference(reference string) (repository, quant string, err error) {
 // ResolveInstalled resolves the user/repo:QUANT reference grammar against the
 // installed model library, without issuing any network request.
 func (m *Manager) ResolveInstalled(reference string) (LibraryEntry, error) {
+	return m.resolveLibrary(reference, "installed")
+}
+
+// ResolveUnreconciled resolves the same user/repo:QUANT reference grammar
+// against the artifacts that have no valid sidecar yet.
+//
+// Reconciliation is the one operation whose subject is by definition not
+// installed, so it cannot go through ResolveInstalled. It still addresses that
+// subject the way every other model command does: the reference is the
+// catalog's identity, and an operator never has to switch to a filesystem path
+// to name an artifact Coquena just listed.
+func (m *Manager) ResolveUnreconciled(reference string) (LibraryEntry, error) {
+	return m.resolveLibrary(reference, "unreconciled")
+}
+
+// resolveLibrary matches reference against the library entries in one state,
+// so the reference grammar is written once and every caller applies it
+// identically.
+func (m *Manager) resolveLibrary(reference, state string) (LibraryEntry, error) {
 	repo, _, selector, err := parseRef(reference, "")
 	if err != nil {
 		return LibraryEntry{}, err
@@ -75,7 +115,7 @@ func (m *Manager) ResolveInstalled(reference string) (LibraryEntry, error) {
 	var matches []LibraryEntry
 	var available []string
 	for _, entry := range entries {
-		if entry.State != "installed" || entry.Source.Repository != repo {
+		if entry.State != state || entry.Source.Repository != repo {
 			continue
 		}
 		available = append(available, entry.Source.Filename)
@@ -92,7 +132,7 @@ func (m *Manager) ResolveInstalled(reference string) (LibraryEntry, error) {
 	}
 	switch len(matches) {
 	case 0:
-		return LibraryEntry{}, &ErrNoInstalledMatch{Reference: reference, Available: available}
+		return LibraryEntry{}, &ErrNoInstalledMatch{Reference: reference, State: state, Available: available}
 	case 1:
 		return matches[0], nil
 	default:
@@ -100,6 +140,6 @@ func (m *Manager) ResolveInstalled(reference string) (LibraryEntry, error) {
 		for _, entry := range matches {
 			matched = append(matched, entry.Source.Filename)
 		}
-		return LibraryEntry{}, &ErrAmbiguousInstalledMatch{Reference: reference, Matches: matched}
+		return LibraryEntry{}, &ErrAmbiguousInstalledMatch{Reference: reference, State: state, Matches: matched}
 	}
 }
