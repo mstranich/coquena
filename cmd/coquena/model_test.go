@@ -99,8 +99,7 @@ func TestRunModelRevisionJSON(t *testing.T) {
 	if err := os.WriteFile(partial, []byte("data"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	target, err := modelapp.Publish(filepath.Join(root, "models"), partial, modelapp.Record{Source: source, Artifact: modelapp.Artifact{SizeBytes: 4}})
-	if err != nil {
+	if _, err := modelapp.Publish(filepath.Join(root, "models"), partial, modelapp.Record{Source: source, Artifact: modelapp.Artifact{SizeBytes: 4}}); err != nil {
 		t.Fatal(err)
 	}
 	m := modelapp.NewManager(filepath.Join(root, "models"))
@@ -108,7 +107,8 @@ func TestRunModelRevisionJSON(t *testing.T) {
 	modelManagerFactory = func() (*modelapp.Manager, error) { return m, nil }
 	t.Cleanup(func() { modelManagerFactory = old })
 	var out bytes.Buffer
-	if err := runModel([]string{"revision", target, "--json"}, &out); err != nil {
+	// Named by its logical reference, not by a filesystem path.
+	if err := runModel([]string{"revision", "org/repo", "--json"}, &out); err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(out.String(), `"resolvedRevision":"abc"`) {

@@ -546,7 +546,7 @@ Coquena manages GGUF artifacts independently of any installed runtime. Resolve a
 coquena model resolve org/repository
 coquena model discover org/repository
 coquena model discover org/repository:Q4_K_M
-coquena model inspect <model-path>
+coquena model inspect org/repository:Q4_K_M
 coquena model download org/repository:Q4_K_M
 coquena model download org/repository:Q4_K_M --with-companions
 coquena model download list
@@ -554,7 +554,7 @@ coquena model download status <job-id>
 coquena model download pause <job-id>
 coquena model download resume <job-id>
 coquena model download cancel <job-id>
-coquena model revision <model-path>
+coquena model revision org/repository:Q4_K_M
 coquena model list
 coquena model reconcile (<reference>|--all) (--online|--accept)
 coquena model verify <reference>
@@ -565,9 +565,19 @@ Remote exploration and local inspection are separate commands. `coquena model
 discover <repository-or-url[:selector]>` reaches the network: it lists every
 GGUF candidate in the repository with its classification, marks the candidate a
 selector would resolve to, and prints the repository model card as plain text.
-`coquena model inspect <model-path>` is local only, issues no network request,
+`coquena model inspect <reference>` is local only, issues no network request,
 and renders a `Metadata`/`Value` table for an installed artifact, including its
 declared type.
+
+An artifact already present in the models directory is always named by its
+logical `user/repo:QUANT` reference — the form Coquena, LM Studio and Hugging
+Face all share — and never by a filesystem path. The same name identifies it
+whether it is being inspected, reconciled, bound to a preset, verified, or
+checked for updates, which is what makes a configuration coherent rather than a
+set of paths that can drift apart. Reconciliation is mandatory for the same
+reason: until an artifact has a sidecar, one logical name does not yet mean one
+known thing, so it is reported as `unreconciled` and no command that reads the
+catalog will address it.
 
 Every artifact is classified by its own `general.type` — `model` for a
 principal and `mmproj` for a multimodal projector — read from the first bytes of

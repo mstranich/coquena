@@ -210,10 +210,9 @@ func TestRunModelInspectLocalRendersClassifiedTable(t *testing.T) {
 	if _, err := modelapp.Publish(m.ModelsDir, partial, modelapp.Record{Source: source}); err != nil {
 		t.Fatal(err)
 	}
-	target := filepath.Join(m.ModelsDir, "org", "repo", "m.gguf")
-
+	// Named by its logical reference, not by a filesystem path.
 	var human bytes.Buffer
-	if err := runModel([]string{"inspect", target}, &human); err != nil {
+	if err := runModel([]string{"inspect", "org/repo"}, &human); err != nil {
 		t.Fatal(err)
 	}
 	for _, expected := range []string{"METADATA", "VALUE", "classification.type", "model", "general.architecture", "qwen35"} {
@@ -223,7 +222,7 @@ func TestRunModelInspectLocalRendersClassifiedTable(t *testing.T) {
 	}
 	// Deterministic across runs: the same artifact renders identically.
 	var again bytes.Buffer
-	if err := runModel([]string{"inspect", target}, &again); err != nil {
+	if err := runModel([]string{"inspect", "org/repo"}, &again); err != nil {
 		t.Fatal(err)
 	}
 	if again.String() != human.String() {
@@ -300,6 +299,31 @@ func TestRunModelListNestsCompanionBeneathPrincipal(t *testing.T) {
 	}
 	if envelope.Result[0].Type != "model" || envelope.Result[0].Companions[0].Type != "mmproj" {
 		t.Fatalf("types=%+v", envelope.Result)
+	}
+}
+
+// An unreconciled artifact is not addressable by the commands that read the
+// catalog: reconciling it first is what keeps one logical name meaning one
+// coherent thing.
+func TestRunModelInspectRefusesAnUnreconciledArtifact(t *testing.T) {
+	m := withModelManager(t)
+	old := modelManagerFactory
+	modelManagerFactory = func() (*modelapp.Manager, error) { return m, nil }
+	t.Cleanup(func() { modelManagerFactory = old })
+	dir := filepath.Join(m.ModelsDir, "publisher", "repo")
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "foreign.gguf"), cliPrincipalGGUF(), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	err := runModel([]string{"inspect", "publisher/repo"}, &bytes.Buffer{})
+	if err == nil {
+		t.Fatal("expected a diagnostic for an unreconciled artifact")
+	}
+	if !strings.Contains(err.Error(), "installed") {
+		t.Fatalf("diagnostic does not point at reconciliation: %v", err)
 	}
 }
 

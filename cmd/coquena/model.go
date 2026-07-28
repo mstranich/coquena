@@ -18,7 +18,7 @@ import (
 	runtimeapp "github.com/mstranich/coquena/internal/runtime"
 )
 
-const modelUsage = "usage: coquena model resolve <repository-or-url> [--json]\n       coquena model discover <repository-or-url[:selector]> [--json]\n       coquena model inspect <model-path> [--json]\n       coquena model download <repository-or-url[:selector]> [--with-companions] [--json]\n       coquena model download list|status <job-id>|pause <job-id>|resume <job-id>|cancel <job-id> [--json]\n       coquena model revision <model-path> [--json]\n       coquena model list [--json]\n       coquena model reconcile (<reference>|--all) (--online|--accept) [--json]\n       coquena model verify <reference> [--json]\n       coquena model check-updates <reference> [--json]\n       coquena download list|status <job-id>|pause <job-id>|resume <job-id>|cancel <job-id> [--json]"
+const modelUsage = "usage: coquena model resolve <repository-or-url> [--json]\n       coquena model discover <repository-or-url[:selector]> [--json]\n       coquena model inspect <reference> [--json]\n       coquena model download <repository-or-url[:selector]> [--with-companions] [--json]\n       coquena model download list|status <job-id>|pause <job-id>|resume <job-id>|cancel <job-id> [--json]\n       coquena model revision <reference> [--json]\n       coquena model list [--json]\n       coquena model reconcile (<reference>|--all) (--online|--accept) [--json]\n       coquena model verify <reference> [--json]\n       coquena model check-updates <reference> [--json]\n       coquena download list|status <job-id>|pause <job-id>|resume <job-id>|cancel <job-id> [--json]"
 
 // companionFlag is the opt-in that additionally enqueues the companions
 // identified for the selected principal. The default stays one artifact per
@@ -123,21 +123,31 @@ func runModelCommand(args []string, out io.Writer) error {
 		value, e = m.Discover(args[1])
 	case "inspect":
 		// inspect is local-only: remote exploration is discover's job, so this
-		// path reads the artifact's own header from disk and issues no request.
+		// reads the artifact's own header from disk and issues no request. An
+		// unreconciled artifact is not addressable here — reconciling it first
+		// is what keeps one logical name meaning one coherent thing.
 		if len(args) != 2 {
 			return errors.New(modelUsage)
 		}
-		value, e = m.InspectLocal(args[1])
+		var entry modelapp.LibraryEntry
+		if entry, e = m.ResolveInstalled(args[1]); e == nil {
+			value, e = m.InspectLocal(entry.TargetPath)
+		}
 	case "download":
 		if len(args) != 2 {
 			return errors.New(modelUsage)
 		}
 		value, e = runModelDownload(m, args[1], withCompanions)
 	case "revision":
+		// A revision is recorded in the sidecar, so only an installed artifact
+		// has one to report.
 		if len(args) != 2 {
 			return errors.New(modelUsage)
 		}
-		value, e = modelapp.ReadRecord(args[1])
+		var entry modelapp.LibraryEntry
+		if entry, e = m.ResolveInstalled(args[1]); e == nil {
+			value, e = modelapp.ReadRecord(entry.TargetPath)
+		}
 	default:
 		return errors.New(modelUsage)
 	}

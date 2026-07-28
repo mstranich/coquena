@@ -1,7 +1,7 @@
 ## MODIFIED Requirements
 
 ### Requirement: Expose shared model management through the CLI
-Coquena SHALL expose `coquena model resolve <repository-or-url>`, `coquena model discover <repository-or-url[:selector]>`, `coquena model inspect <model-path>`, and `coquena model download <repository-or-url[:selector]>`, plus download management as `coquena model download list`, `status <job-id>`, `pause <job-id>`, `resume <job-id>`, and `cancel <job-id>`. The shorter top-level `coquena download ...` forms SHALL remain accepted aliases. `inspect` SHALL operate only on a local artifact and SHALL issue no network request; remote exploration SHALL be reached through `discover`. Human `inspect` output SHALL render the artifact's classification and its scalar metadata as a `Metadata`/`Value` table rather than the resolved revision alone. These commands SHALL invoke the shared model service and SHALL support one `--json` option that emits exactly one schema-version-1 JSON document on standard output.
+Coquena SHALL expose `coquena model resolve <repository-or-url>`, `coquena model discover <repository-or-url[:selector]>`, `coquena model inspect <reference>`, and `coquena model download <repository-or-url[:selector]>`, plus download management as `coquena model download list`, `status <job-id>`, `pause <job-id>`, `resume <job-id>`, and `cancel <job-id>`. The shorter top-level `coquena download ...` forms SHALL remain accepted aliases. Every command addressing an artifact already present in the models directory SHALL name it through the `user/repo[@revision]:QUANT` reference grammar and SHALL NOT require a filesystem path, so one logical name identifies an artifact across resolution, inspection, reconciliation, binding, verification, and update checking. `inspect` SHALL operate only on a local artifact and SHALL issue no network request; remote exploration SHALL be reached through `discover`. Human `inspect` output SHALL render the artifact's classification and its scalar metadata as a `Metadata`/`Value` table rather than the resolved revision alone. These commands SHALL invoke the shared model service and SHALL support one `--json` option that emits exactly one schema-version-1 JSON document on standard output.
 
 #### Scenario: Automate model inspection
 - **WHEN** an operator invokes a supported model command with `--json`
@@ -17,6 +17,16 @@ Coquena SHALL expose `coquena model resolve <repository-or-url>`, `coquena model
 - **WHEN** an operator inspects a local artifact without `--json`
 - **THEN** the output presents its declared type and scalar metadata as a two-column table
 - **AND** it does not reduce the result to the resolved commit SHA
+
+#### Scenario: Address an installed artifact by its logical name
+- **WHEN** an operator inspects or reads the revision of an installed artifact
+- **THEN** Coquena accepts the same reference form used to bind, verify, or check it for updates
+- **AND** it does not require the operator to supply the artifact's filesystem path
+
+#### Scenario: Refuse to address an unreconciled artifact
+- **WHEN** an operator inspects or reads the revision of an artifact that has not been reconciled
+- **THEN** Coquena reports that no installed artifact matches the reference
+- **AND** the artifact becomes addressable only once it has been reconciled
 
 #### Scenario: Name the candidates behind an ambiguous selection
 - **WHEN** a command's selector matches zero or several GGUF artifacts
