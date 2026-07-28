@@ -14,9 +14,9 @@ usable before the rest lands.
 
 ## 2. Metadata reading without array payloads
 
-- [ ] 2.1 Add a metadata read that decodes scalar values and skips array payloads instead of materializing them, computing the span for fixed-width element types and walking length prefixes for string arrays without allocating.
-- [ ] 2.2 Keep the existing full read for the paths that need array contents, so the tokenizer vocabulary digest computed at reconciliation time is unchanged.
-- [ ] 2.3 Add tests confirming the skipping read returns the same scalar keys as the full read for a real-shaped header, and that a malformed array still fails rather than being silently skipped.
+- [x] 2.1 Add a metadata read that decodes scalar values and skips array payloads instead of materializing them, computing the span for fixed-width element types and walking length prefixes for string arrays without allocating.
+- [x] 2.2 Keep the existing full read for the paths that need array contents, so the tokenizer vocabulary digest computed at reconciliation time is unchanged.
+- [x] 2.3 Add tests confirming the skipping read returns the same scalar keys as the full read for a real-shaped header, and that a malformed array still fails rather than being silently skipped.
 
 ## 3. Classification at library enumeration
 

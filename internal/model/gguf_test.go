@@ -2,6 +2,7 @@ package model
 
 import (
 	"encoding/binary"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -60,6 +61,128 @@ func TestReadMetadataPreservesScalarArrayAndUnknownKeys(t *testing.T) {
 		t.Fatalf("array=%#v", got["tokenizer.list"])
 	}
 }
+func appendUint64(b []byte, v uint64) []byte {
+	var n [8]byte
+	binary.LittleEndian.PutUint64(n[:], v)
+	return append(b, n[:]...)
+}
+
+// realShapedHeader builds a header with the shape of a real principal: scalars
+// of several widths, a large string array standing in for the token vocabulary,
+// and a fixed-width array standing in for the token types.
+func realShapedHeader(tokens int) []byte {
+	b := make([]byte, 24)
+	copy(b, "GGUF")
+	binary.LittleEndian.PutUint32(b[4:], 3)
+	binary.LittleEndian.PutUint64(b[16:], 5)
+	b = appendString(b, "general.architecture")
+	b = appendType(b, 8)
+	b = appendString(b, "qwen35")
+	b = appendString(b, "general.type")
+	b = appendType(b, 8)
+	b = appendString(b, "model")
+	b = appendString(b, "qwen35.context_length")
+	b = appendType(b, 4)
+	b = appendType(b, 262144)
+	b = appendString(b, "tokenizer.ggml.tokens")
+	b = appendType(b, 9)
+	b = appendType(b, 8)
+	b = appendUint64(b, uint64(tokens))
+	for i := 0; i < tokens; i++ {
+		b = appendString(b, fmt.Sprintf("token%d", i))
+	}
+	b = appendString(b, "tokenizer.ggml.token_type")
+	b = appendType(b, 9)
+	b = appendType(b, 5)
+	b = appendUint64(b, uint64(tokens))
+	for i := 0; i < tokens; i++ {
+		b = appendType(b, 1)
+	}
+	return b
+}
+
+func writeFixture(t *testing.T, b []byte) RandomAccessReader {
+	t.Helper()
+	p := filepath.Join(t.TempDir(), "fixture.gguf")
+	if err := os.WriteFile(p, b, 0600); err != nil {
+		t.Fatal(err)
+	}
+	r, err := OpenLocal(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = r.Close() })
+	return r
+}
+
+func TestReadMetadataSkippingArraysMatchesScalarsOfFullRead(t *testing.T) {
+	b := realShapedHeader(2048)
+	full, err := ReadMetadata(writeFixture(t, b))
+	if err != nil {
+		t.Fatal(err)
+	}
+	skipped, err := ReadMetadataSkippingArrays(writeFixture(t, b))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(full) != len(skipped) {
+		t.Fatalf("keys full=%d skipped=%d", len(full), len(skipped))
+	}
+	for key, want := range full {
+		got := skipped[key]
+		if values, ok := want.([]any); ok {
+			a, ok := got.(SkippedArray)
+			if !ok || a.Len != int64(len(values)) {
+				t.Fatalf("%s: skipped=%#v want length %d", key, got, len(values))
+			}
+			continue
+		}
+		if got != want {
+			t.Fatalf("%s: skipped=%#v full=%#v", key, got, want)
+		}
+	}
+	if a := skipped["tokenizer.ggml.tokens"].(SkippedArray); a.ElemType != 8 || a.Len != 2048 {
+		t.Fatalf("tokens=%#v", a)
+	}
+	if a := skipped["tokenizer.ggml.token_type"].(SkippedArray); a.ElemType != 5 || a.Len != 2048 {
+		t.Fatalf("token_type=%#v", a)
+	}
+}
+
+func TestReadMetadataSkippingArraysRejectsMalformedArrays(t *testing.T) {
+	header := func(t uint32, count uint64, tail []byte) []byte {
+		b := make([]byte, 24)
+		copy(b, "GGUF")
+		binary.LittleEndian.PutUint32(b[4:], 3)
+		binary.LittleEndian.PutUint64(b[16:], 1)
+		b = appendString(b, "tokenizer.ggml.tokens")
+		b = appendType(b, 9)
+		b = appendType(b, t)
+		b = appendUint64(b, count)
+		return append(b, tail...)
+	}
+	cases := map[string][]byte{
+		// A fixed-width count that would run far past the end of the file: the
+		// span is arithmetic, so nothing fails unless it is checked.
+		"fixed count past end": header(5, 100000, nil),
+		// A string array whose declared elements are simply not there.
+		"string payload truncated": header(8, 4, appendString(nil, "only-one")),
+		// A string element whose length prefix reaches past the end.
+		"string length past end": header(8, 1, appendUint64(nil, 1<<19)),
+		// Nested arrays have no computable span and must be refused.
+		"nested array": header(9, 2, nil),
+		// An element type that is not a known width.
+		"unknown element type": header(99, 2, nil),
+	}
+	for name, b := range cases {
+		t.Run(name, func(t *testing.T) {
+			if got, err := ReadMetadataSkippingArrays(writeFixture(t, b)); err == nil {
+				t.Fatalf("malformed array accepted: %#v", got)
+			}
+		})
+	}
+}
+
 func TestReadMetadataRejectsUnsupportedValue(t *testing.T) {
 	b := emptyGGUF()
 	binary.LittleEndian.PutUint64(b[16:], 1)
