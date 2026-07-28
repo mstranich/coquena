@@ -101,9 +101,20 @@
   - Remaining for the operator, by hand: `coquena model download
     lmstudio-community/gemma-4-12B-it-QAT-GGUF:Q4_0 --with-companions`
     (multi-gigabyte transfer), confirming several job IDs are reported and one
-    job exists per artifact; confirming the sidecars published by that download
-    are kilobytes rather than the megabytes the previous schema cost; and
-    running `reconcile --all` over a directory of GGUF files written by another
-    application (e.g. an LM Studio model tree) and confirming `model list`
-    nests each projector beneath the principal whose embedding length it
-    matches.
+    job exists per artifact; and confirming the sidecars published by that
+    download are kilobytes rather than the megabytes the previous schema cost.
+  - NOTE (2026-07-28, post-merge design review): manual testing against a real
+    multi-repository library (`coquena model list`, `coquena model reconcile
+    <reference> --online`) surfaced that the tree rendering and the
+    library-wide `--all` this task asked to confirm were themselves the wrong
+    design — a projector is compatible with every quantization of its
+    principal, so nesting it under one is arbitrary, and reconciling an entire
+    library in one pass conflates cases that need a human decision with cases
+    that do not. Both are being corrected in the follow-up change
+    `repository-driven-reconciliation` (design discussion captured in Engram
+    observations #345–#352), which also fixes `reconcile`'s reference
+    resolution defaulting to the wrong library state, and the two-vocabulary
+    inconsistency (path vs. reference) this task's own testing exposed across
+    `inspect`, `revision`, and `reconcile`. The remainder of this task —
+    discovery, classification, the sidecar digest, and companion-aware
+    download — held up under manual testing and is not affected.
