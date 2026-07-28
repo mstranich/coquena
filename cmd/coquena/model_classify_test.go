@@ -427,7 +427,10 @@ func TestRunModelListReportsUnmatchedCompanion(t *testing.T) {
 	}
 }
 
-func TestRunModelReconcileAllDispatch(t *testing.T) {
+// Library-wide reconciliation is turned off: --all is reported as not accepted
+// rather than ignored, and nothing is written for the artifacts it would have
+// walked.
+func TestRunModelReconcileRefusesAll(t *testing.T) {
 	m := withModelManager(t)
 	old := modelManagerFactory
 	modelManagerFactory = func() (*modelapp.Manager, error) { return m, nil }
@@ -442,37 +445,62 @@ func TestRunModelReconcileAllDispatch(t *testing.T) {
 		}
 	}
 
-	// --all is mutually exclusive with a path, and still needs exactly one mode.
-	if err := runModel([]string{"reconcile", "--all"}, &bytes.Buffer{}); err == nil {
-		t.Fatal("expected usage error without a mode")
-	}
-	if err := runModel([]string{"reconcile", "--all", "somepath", "--accept"}, &bytes.Buffer{}); err == nil {
-		t.Fatal("expected usage error for --all with a path")
-	}
-
-	var human bytes.Buffer
-	if err := runModel([]string{"reconcile", "--all", "--accept"}, &human); err != nil {
-		t.Fatal(err)
-	}
-	for _, expected := range []string{"OUTCOME", "reconciled", "principal.gguf", "mmproj.gguf", "companion relations", "projector"} {
-		if !strings.Contains(human.String(), expected) {
-			t.Fatalf("missing %q in %s", expected, human.String())
+	for _, args := range [][]string{
+		{"reconcile", "--all", "--accept"},
+		{"reconcile", "--all", "--online"},
+		{"reconcile", "--all"},
+	} {
+		var out bytes.Buffer
+		err := runModel(args, &out)
+		if err == nil {
+			t.Fatalf("%v: expected refusal, out=%s", args, out.String())
+		}
+		if !strings.Contains(err.Error(), "--all is not accepted") {
+			t.Fatalf("%v: err=%v", args, err)
+		}
+		if out.Len() != 0 {
+			t.Fatalf("%v: wrote %q", args, out.String())
 		}
 	}
 
-	var jsonOut bytes.Buffer
-	if err := runModel([]string{"reconcile", "--all", "--accept", "--json"}, &jsonOut); err != nil {
+	// The refusal writes no sidecar for either artifact.
+	for _, name := range []string{"principal.json", "mmproj.json"} {
+		if _, err := os.Stat(filepath.Join(dir, name)); !os.IsNotExist(err) {
+			t.Fatalf("%s: expected no sidecar, err=%v", name, err)
+		}
+	}
+}
+
+// Reconciliation prompts, so it cannot emit exactly one JSON document: --json
+// is refused rather than accepted and ignored, in both modes.
+func TestRunModelReconcileRefusesJSON(t *testing.T) {
+	m := withModelManager(t)
+	old := modelManagerFactory
+	modelManagerFactory = func() (*modelapp.Manager, error) { return m, nil }
+	t.Cleanup(func() { modelManagerFactory = old })
+	dir := filepath.Join(m.ModelsDir, "org", "repo")
+	if err := os.MkdirAll(dir, 0755); err != nil {
 		t.Fatal(err)
 	}
-	var envelope struct {
-		SchemaVersion int                          `json:"schemaVersion"`
-		Result        modelapp.BulkReconcileResult `json:"result"`
-	}
-	if err := json.Unmarshal(jsonOut.Bytes(), &envelope); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "principal.gguf"), cliPrincipalGGUF(), 0600); err != nil {
 		t.Fatal(err)
 	}
-	if envelope.SchemaVersion != 1 || len(envelope.Result.Entries) != 2 || len(envelope.Result.Relations) != 1 {
-		t.Fatalf("result=%+v", envelope.Result)
+
+	for _, mode := range []string{"--accept", "--online"} {
+		var out bytes.Buffer
+		err := runModel([]string{"reconcile", "org/repo", mode, "--json"}, &out)
+		if err == nil {
+			t.Fatalf("%s: expected refusal, out=%s", mode, out.String())
+		}
+		if !strings.Contains(err.Error(), "--json does not apply to this command") {
+			t.Fatalf("%s: err=%v", mode, err)
+		}
+		if out.Len() != 0 {
+			t.Fatalf("%s: wrote %q", mode, out.String())
+		}
+	}
+	if _, err := os.Stat(filepath.Join(dir, "principal.json")); !os.IsNotExist(err) {
+		t.Fatalf("expected no sidecar, err=%v", err)
 	}
 }
 

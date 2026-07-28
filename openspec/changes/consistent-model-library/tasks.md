@@ -44,10 +44,10 @@ usable before the rest lands.
 
 ## 6. Turn off library-wide reconciliation
 
-- [ ] 6.1 Stop accepting `--all` on `coquena model reconcile`, reporting that the option is not accepted rather than ignoring it, and remove it from the usage text.
-- [ ] 6.2 Leave `Manager.ReconcileAll` and its result types in place, unreferenced, with the same comment convention as 1.2.
-- [ ] 6.3 Reject `--json` on reconciliation explicitly rather than accepting and ignoring it, given the flag is extracted before subcommand dispatch.
-- [ ] 6.4 Add tests for the refused `--all` and the refused `--json`.
+- [x] 6.1 Stop accepting `--all` on `coquena model reconcile`, reporting that the option is not accepted rather than ignoring it, and remove it from the usage text.
+- [x] 6.2 Leave `Manager.ReconcileAll` and its result types in place, unreferenced, with the same comment convention as 1.2.
+- [x] 6.3 Reject `--json` on reconciliation explicitly rather than accepting and ignoring it, given the flag is extracted before subcommand dispatch.
+- [x] 6.4 Add tests for the refused `--all` and the refused `--json`.
 
 ## 7. Companion CLI surface
 

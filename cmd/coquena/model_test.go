@@ -306,10 +306,10 @@ func TestRunModelReconcileAccept(t *testing.T) {
 	t.Cleanup(func() { modelManagerFactory = old })
 
 	var out bytes.Buffer
-	if err := runModel([]string{"reconcile", "org/one", "--accept", "--json"}, &out); err != nil {
+	if err := runModel([]string{"reconcile", "org/one", "--accept"}, &out); err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(out.String(), `"schemaVersion":1`) || !strings.Contains(out.String(), `"provider":"local"`) {
+	if !strings.Contains(out.String(), "Reconciled org/one") {
 		t.Fatalf("out=%s", out.String())
 	}
 

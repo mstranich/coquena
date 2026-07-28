@@ -18,7 +18,7 @@ import (
 	runtimeapp "github.com/mstranich/coquena/internal/runtime"
 )
 
-const modelUsage = "usage: coquena model resolve <repository-or-url> [--json]\n       coquena model discover <repository-or-url[:selector]> [--json]\n       coquena model inspect <reference> [--json]\n       coquena model download <repository-or-url[:selector]> [--with-companions] [--json]\n       coquena model download list|status <job-id>|pause <job-id>|resume <job-id>|cancel <job-id> [--json]\n       coquena model revision <reference> [--json]\n       coquena model list [--json]\n       coquena model reconcile (<reference>|--all) (--online|--accept) [--json]\n       coquena model verify <reference> [--json]\n       coquena model check-updates <reference> [--json]\n       coquena download list|status <job-id>|pause <job-id>|resume <job-id>|cancel <job-id> [--json]"
+const modelUsage = "usage: coquena model resolve <repository-or-url> [--json]\n       coquena model discover <repository-or-url[:selector]> [--json]\n       coquena model inspect <reference> [--json]\n       coquena model download <repository-or-url[:selector]> [--with-companions] [--json]\n       coquena model download list|status <job-id>|pause <job-id>|resume <job-id>|cancel <job-id> [--json]\n       coquena model revision <reference> [--json]\n       coquena model list [--json]\n       coquena model reconcile <reference> (--online|--accept)\n       coquena model verify <reference> [--json]\n       coquena model check-updates <reference> [--json]\n       coquena download list|status <job-id>|pause <job-id>|resume <job-id>|cancel <job-id> [--json]"
 
 // companionFlag is the opt-in that additionally enqueues the companions
 // identified for the selected principal. The default stays one artifact per
@@ -402,9 +402,21 @@ func runModelList(out io.Writer, jsonOut bool) error {
 	return writer.Flush()
 }
 
+// runModelReconcile parses one reconciliation invocation and refuses the two
+// options this command no longer accepts, rather than ignoring them: an option
+// that is silently dropped looks to the operator like it worked.
+//
+// --all is refused because reconciling the whole library conflates artifacts
+// that need an operator decision with artifacts that do not. The behaviour is
+// turned off here and reconsidered in a later change; see Manager.ReconcileAll.
+//
+// --json is refused because reconciliation prompts, and a command that prompts
+// cannot emit exactly one clean JSON document. The rule is about interactivity,
+// not about mutation. The flag is extracted globally before dispatch, so this
+// is a refusal of something already parsed rather than an unrecognized option.
 func runModelReconcile(args []string, out io.Writer, jsonOut bool) error {
 	var reference string
-	var online, accept, all bool
+	var online, accept bool
 	for _, a := range args {
 		switch a {
 		case "--online":
@@ -412,7 +424,7 @@ func runModelReconcile(args []string, out io.Writer, jsonOut bool) error {
 		case "--accept":
 			accept = true
 		case "--all":
-			all = true
+			return errors.New("coquena model reconcile: --all is not accepted: reconciliation operates on one repository named by reference, never on the whole library. Reconcile each repository by name.")
 		default:
 			if reference != "" || strings.HasPrefix(a, "--") {
 				return errors.New(modelUsage)
@@ -420,21 +432,15 @@ func runModelReconcile(args []string, out io.Writer, jsonOut bool) error {
 			reference = a
 		}
 	}
-	// --all replaces the reference rather than qualifying it, and neither mode
-	// relaxes the rule that exactly one of --online/--accept is required.
-	if online == accept || all == (reference != "") {
+	if jsonOut {
+		return errors.New("coquena model reconcile: --json does not apply to this command: reconciliation prompts, and a command that prompts cannot emit exactly one JSON document.")
+	}
+	if online == accept || reference == "" {
 		return errors.New(modelUsage)
 	}
 	m, e := modelManagerFactory()
 	if e != nil {
 		return e
-	}
-	if all {
-		mode := modelapp.ReconcileModeAccept
-		if online {
-			mode = modelapp.ReconcileModeOnline
-		}
-		return runModelReconcileAll(m, mode, out, jsonOut)
 	}
 	// --online reconciles the whole repository the reference names: a principal
 	// and its projector are parts of one logical unit, and reconciling them one
@@ -455,12 +461,6 @@ func runModelReconcile(args []string, out io.Writer, jsonOut bool) error {
 	result, e := m.ReconcileAccept(entry.TargetPath)
 	if e != nil {
 		return e
-	}
-	if jsonOut {
-		return json.NewEncoder(out).Encode(struct {
-			SchemaVersion int                      `json:"schemaVersion"`
-			Result        modelapp.ReconcileResult `json:"result"`
-		}{1, result})
 	}
 	msg := fmt.Sprintf("Reconciled %s:%s.", result.Record.Source.Repository, result.Record.Source.Filename)
 	if result.Partial {
@@ -507,48 +507,6 @@ func runModelReconcileRepository(m *modelapp.Manager, reference string, out io.W
 		names = append(names, artifact.Filename)
 	}
 	return fmt.Errorf("%s was not fully reconciled: %s refused", result.Repository, strings.Join(names, ", "))
-}
-
-// runModelReconcileAll renders a whole bulk pass: every artifact's outcome and
-// the companion relations computed among them. A per-artifact failure is part
-// of the reported result, not an error, because the pass deliberately continues
-// past one bad file.
-func runModelReconcileAll(m *modelapp.Manager, mode modelapp.ReconcileMode, out io.Writer, jsonOut bool) error {
-	result, err := m.ReconcileAll(mode)
-	if err != nil {
-		return err
-	}
-	if jsonOut {
-		return json.NewEncoder(out).Encode(struct {
-			SchemaVersion int                          `json:"schemaVersion"`
-			Result        modelapp.BulkReconcileResult `json:"result"`
-		}{1, result})
-	}
-	writer := tabwriter.NewWriter(out, 0, 4, 2, ' ', 0)
-	_, _ = fmt.Fprintln(writer, "OUTCOME\tTYPE\tREPOSITORY\tFILENAME\tDIAGNOSTIC")
-	for _, entry := range result.Entries {
-		diagnostic := entry.Diagnostic
-		if entry.Partial {
-			diagnostic = "partial: Hugging Face reported no content hash to compare against"
-		}
-		_, _ = fmt.Fprintf(writer, "%s\t%s\t%s\t%s\t%s\n", entry.Outcome, entry.Classification.Type, entry.Repository, entry.Filename, diagnostic)
-	}
-	if err = writer.Flush(); err != nil {
-		return err
-	}
-	if len(result.Relations) == 0 {
-		_, err = fmt.Fprintf(out, "\n%d artifacts, no companion relation computed.\n", len(result.Entries))
-		return err
-	}
-	if _, err = fmt.Fprintf(out, "\n%d artifacts, %d companion relations:\n", len(result.Entries), len(result.Relations)); err != nil {
-		return err
-	}
-	for _, relation := range result.Relations {
-		if _, err = fmt.Fprintf(out, "  %s %s -> %s\n", relation.Role, relation.CompanionPath, relation.PrincipalPath); err != nil {
-			return err
-		}
-	}
-	return nil
 }
 
 func runModelVerify(reference string, out io.Writer, jsonOut bool) error {

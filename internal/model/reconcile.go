@@ -186,6 +186,14 @@ type BulkReconcileResult struct {
 // A per-artifact failure is recorded as a diagnostic and the pass continues:
 // one unreadable or mismatched file must not cost the operator the rest of the
 // directory. The error return is reserved for a failure of the pass itself.
+//
+// No caller reaches this today: `coquena model reconcile --all` was turned off
+// because a library-wide pass conflates artifacts that need an operator
+// decision with artifacts that do not. It is kept, unreferenced and
+// deliberately, together with BulkReconcileResult, BulkReconcileEntry,
+// ReconcileMode and companionRelations, for the later change that reconsiders
+// library-wide reconciliation — unreachable here is a decision, not an
+// abandoned implementation. Its tests are kept running for the same reason.
 func (m *Manager) ReconcileAll(mode ReconcileMode) (BulkReconcileResult, error) {
 	if mode != ReconcileModeOnline && mode != ReconcileModeAccept {
 		return BulkReconcileResult{}, fmt.Errorf("reconcile: exactly one of --online/--accept is required, got mode %q", mode)
