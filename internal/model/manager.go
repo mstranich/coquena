@@ -183,7 +183,8 @@ func (m *Manager) Library() ([]LibraryEntry, error) {
 		}
 		record, readErr := ReadRecord(path)
 		if readErr != nil {
-			entries = append(entries, LibraryEntry{Source: unreconciledSource(m.ModelsDir, path), TargetPath: path, State: "unreconciled"})
+			classification := classifyUnreconciled(path)
+			entries = append(entries, LibraryEntry{Source: unreconciledSource(m.ModelsDir, path), TargetPath: path, State: "unreconciled", Classification: &classification})
 			return nil
 		}
 		classification := record.Classification
@@ -194,6 +195,34 @@ func (m *Manager) Library() ([]LibraryEntry, error) {
 		return entries, nil
 	}
 	return entries, err
+}
+
+// classifyUnreconciled reports what an artifact with no valid sidecar declares
+// itself to be, read from the artifact's own header. It exists because a
+// library of foreign files otherwise lists every row with an empty type column
+// and no way to tell a projector from a model.
+//
+// Reading a header is an observation and grants no standing: nothing is
+// written, and the caller leaves the entry unreconciled and so excluded from
+// ResolveInstalled. The read is local, so enumeration issues no network
+// request, and it skips array payloads, since a principal's vocabulary is the
+// entire cost of a full read and classification needs only its length.
+//
+// An unreadable or malformed header degrades to an explicit unknown
+// classification rather than failing the walk, exactly as an unreadable
+// sidecar already does: one foreign file must not hide the rest of the
+// library.
+func classifyUnreconciled(path string) Classification {
+	reader, err := OpenLocal(path)
+	if err != nil {
+		return Classification{Type: TypeUnknown}
+	}
+	defer reader.Close()
+	meta, err := ReadMetadataSkippingArrays(reader)
+	if err != nil {
+		return Classification{Type: TypeUnknown}
+	}
+	return Classify(meta)
 }
 
 // unreconciledSource derives a best-effort Source for a .gguf file that has

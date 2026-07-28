@@ -89,11 +89,13 @@ type Job struct {
 
 // LibraryEntry is one artifact the configured models directory holds.
 //
-// Classification is carried for an installed entry only, read from the sidecar
-// that already holds it: listing reports what an artifact declares itself to be
-// without re-reading the .gguf and without reconciling anything. It stays a
-// pointer so an incomplete or unreconciled entry — which has no classification
-// at all — reports its absence rather than an all-zero digest.
+// Classification is read from the sidecar when one records it, and from the
+// artifact's own header when none does, so an artifact's declared type is
+// reported before anything is written about it. Classifying an unreconciled
+// artifact is an observation only: it stays unreconciled and unresolvable for
+// binding. Classification stays a pointer so an incomplete entry — a download
+// still in flight, which has no artifact to read — reports its absence rather
+// than an all-zero digest.
 type LibraryEntry struct {
 	Source         Source          `json:"source"`
 	TargetPath     string          `json:"targetPath"`

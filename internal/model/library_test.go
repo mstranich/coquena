@@ -2,6 +2,7 @@ package model
 
 import (
 	"encoding/binary"
+	"maps"
 	"os"
 	"path/filepath"
 	"strings"
@@ -104,6 +105,150 @@ func TestLibraryReportsPreviousSchemaVersionAsUnreconciled(t *testing.T) {
 	if len(entries) != 1 || entries[0].State != "unreconciled" {
 		t.Fatalf("entries=%+v", entries)
 	}
+}
+
+// TestLibraryClassifiesUnreconciledArtifactFromItsHeader covers the case a
+// real library is made of: files another application downloaded, with no
+// sidecar at all. The type column must be filled from the artifact itself.
+func TestLibraryClassifiesUnreconciledArtifactFromItsHeader(t *testing.T) {
+	models := t.TempDir()
+	writeArtifact(t, models, "org/repo/m.gguf", classifiableGGUF())
+	writeArtifact(t, models, "org/repo/mmproj.gguf", projectorGGUF())
+	entries, err := NewManager(models).Library()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 2 {
+		t.Fatalf("entries=%+v", entries)
+	}
+	byName := map[string]LibraryEntry{}
+	for _, entry := range entries {
+		byName[entry.Source.Filename] = entry
+	}
+	principal, ok := byName["m.gguf"]
+	if !ok || principal.State != "unreconciled" || principal.Classification == nil {
+		t.Fatalf("principal=%+v", principal)
+	}
+	if principal.Classification.Type != TypeModel || principal.Classification.Architecture != "gemma4" {
+		t.Fatalf("classification=%#v", principal.Classification)
+	}
+	// The vocabulary count survives the skipping read, while its digest does
+	// not: the tokens were never decoded, and an empty digest is the honest
+	// report of that.
+	if principal.Classification.Tokenizer.VocabSize != 2 {
+		t.Fatalf("vocabSize=%d", principal.Classification.Tokenizer.VocabSize)
+	}
+	if principal.Classification.Tokenizer.Digest != "" {
+		t.Fatalf("digest=%q from a skipping read", principal.Classification.Tokenizer.Digest)
+	}
+	projector, ok := byName["mmproj.gguf"]
+	if !ok || projector.Classification == nil || projector.Classification.Type != TypeProjector || projector.Classification.ProjectionDim != 5120 {
+		t.Fatalf("projector=%+v", projector)
+	}
+}
+
+// TestLibraryReportsUnknownForAnUnreadableHeader confirms one malformed file
+// degrades to an explicit unknown rather than hiding the rest of the library.
+func TestLibraryReportsUnknownForAnUnreadableHeader(t *testing.T) {
+	models := t.TempDir()
+	writeArtifact(t, models, "org/repo/broken.gguf", []byte("not a gguf at all"))
+	writeArtifact(t, models, "org/repo/m.gguf", classifiableGGUF())
+	entries, err := NewManager(models).Library()
+	if err != nil {
+		t.Fatalf("one malformed artifact failed the whole enumeration: %v", err)
+	}
+	if len(entries) != 2 {
+		t.Fatalf("entries=%+v", entries)
+	}
+	for _, entry := range entries {
+		if entry.Classification == nil {
+			t.Fatalf("entry=%+v has no classification", entry)
+		}
+		if entry.Source.Filename == "broken.gguf" && entry.Classification.Type != TypeUnknown {
+			t.Fatalf("broken classification=%#v", entry.Classification)
+		}
+	}
+}
+
+// TestLibraryUsesSidecarClassificationForInstalled pins that an installed
+// artifact reports what its sidecar records rather than a fresh read of the
+// file. The sidecar here deliberately contradicts the header.
+func TestLibraryUsesSidecarClassificationForInstalled(t *testing.T) {
+	models := t.TempDir()
+	target := writeArtifact(t, models, "org/repo/m.gguf", classifiableGGUF())
+	base := strings.TrimSuffix(target, ".gguf")
+	if err := os.WriteFile(base+".json", []byte(`{"schemaVersion":2,"source":{"provider":"huggingface","repository":"org/repo","requestedRevision":"main","resolvedRevision":"abc","filename":"m.gguf","url":"u"},"artifact":{"sizeBytes":1},"classification":{"type":"mmproj","architecture":"recorded-by-sidecar"}}`), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(base+".revision", []byte("abc\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	entries, err := NewManager(models).Library()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 1 || entries[0].State != "installed" || entries[0].Classification == nil {
+		t.Fatalf("entries=%+v", entries)
+	}
+	if entries[0].Classification.Type != TypeProjector || entries[0].Classification.Architecture != "recorded-by-sidecar" {
+		t.Fatalf("classification=%#v was re-read from the artifact", entries[0].Classification)
+	}
+}
+
+// TestLibraryWritesNothingOverForeignArtifacts is the constraint classification
+// at enumeration must not breach: reading a header grants no standing, so no
+// sidecar, revision unit or temporary file may appear, and the artifacts stay
+// unresolvable for binding.
+func TestLibraryWritesNothingOverForeignArtifacts(t *testing.T) {
+	models := t.TempDir()
+	writeArtifact(t, models, "org/repo/m.gguf", classifiableGGUF())
+	writeArtifact(t, models, "org/repo/mmproj.gguf", projectorGGUF())
+	writeArtifact(t, models, "other/repo/n.gguf", principalGGUF())
+	before := treeSnapshot(t, models)
+	manager := NewManager(models)
+	if _, err := manager.Library(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.Library(); err != nil {
+		t.Fatal(err)
+	}
+	after := treeSnapshot(t, models)
+	if !maps.Equal(before, after) {
+		t.Fatalf("enumeration changed the models directory:\nbefore=%v\nafter=%v", before, after)
+	}
+	// Classified but still without standing: binding must not resolve them.
+	if _, err := manager.ResolveInstalled("org/repo:m.gguf"); err == nil {
+		t.Fatal("a classified unreconciled artifact resolved as installed")
+	}
+}
+
+// treeSnapshot records every file beneath root with its size, so a test can
+// assert that an operation created, removed or rewrote nothing.
+func treeSnapshot(t *testing.T, root string) map[string]int64 {
+	t.Helper()
+	out := map[string]int64{}
+	err := filepath.WalkDir(root, func(path string, entry os.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if entry.IsDir() {
+			return nil
+		}
+		info, err := entry.Info()
+		if err != nil {
+			return err
+		}
+		rel, err := filepath.Rel(root, path)
+		if err != nil {
+			return err
+		}
+		out[filepath.ToSlash(rel)] = info.Size()
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return out
 }
 
 func TestPublishWritesRevisionUnit(t *testing.T) {

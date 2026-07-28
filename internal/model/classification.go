@@ -145,8 +145,15 @@ func tokenizerDigest(meta map[string]any) TokenizerDigest {
 		Unk:    metaOptionalInt(meta, "tokenizer.ggml.unknown_token_id"),
 		Digest: vocabularyDigest(meta),
 	}
-	if tokens, ok := meta["tokenizer.ggml.tokens"].([]any); ok {
+	switch tokens := meta["tokenizer.ggml.tokens"].(type) {
+	case []any:
 		d.VocabSize = int64(len(tokens))
+	case SkippedArray:
+		// A skipping read preserves the element count precisely so the
+		// vocabulary size survives without the contents. Digest stays empty in
+		// that case, which is correct: the tokens genuinely were not read, and
+		// an absent digest is better than a fabricated one.
+		d.VocabSize = tokens.Len
 	}
 	return d
 }
