@@ -133,13 +133,17 @@ func TestRunModelDiscoverReportsEveryCandidateAndMarksSelector(t *testing.T) {
 	if err := runModel([]string{"discover", "org/repo:Q4_K_M"}, &human); err != nil {
 		t.Fatal(err)
 	}
-	for _, expected := range []string{"principal-Q4_K_M.gguf", "mmproj-BF16.gguf", "model", "mmproj", "A principal and its projector."} {
+	for _, expected := range []string{"principal-Q4_K_M.gguf", "mmproj-BF16.gguf", "model", "mmproj"} {
 		if !strings.Contains(human.String(), expected) {
 			t.Fatalf("missing %q in %s", expected, human.String())
 		}
 	}
-	if strings.Contains(human.String(), "license: mit") {
-		t.Fatalf("front matter should be stripped from the model card: %s", human.String())
+	// The candidate list is what discovery exists to present, so the model card
+	// must not appear and bury it — in either output mode.
+	for _, forbidden := range []string{"Model card:", "A principal and its projector.", "license: mit"} {
+		if strings.Contains(human.String(), forbidden) {
+			t.Fatalf("model card leaked into discovery output (%q): %s", forbidden, human.String())
+		}
 	}
 
 	var jsonOut bytes.Buffer
@@ -168,20 +172,37 @@ func TestRunModelDiscoverReportsEveryCandidateAndMarksSelector(t *testing.T) {
 	if selected != 1 {
 		t.Fatalf("selected=%d", selected)
 	}
-	if envelope.Result.ModelCard == "" {
-		t.Fatal("model card missing")
+	if envelope.Result.ModelCard != "" {
+		t.Fatalf("model card reported: %q", envelope.Result.ModelCard)
 	}
 }
 
-// A repository publishing no model card must still discover successfully.
-func TestRunModelDiscoverWithoutModelCard(t *testing.T) {
-	withRepositoryManager(t, map[string][]byte{"principal.gguf": cliPrincipalGGUF()}, "")
-	var out bytes.Buffer
-	if err := runModel([]string{"discover", "org/repo"}, &out); err != nil {
-		t.Fatal(err)
-	}
-	if !strings.Contains(out.String(), "principal.gguf") || strings.Contains(out.String(), "Model card:") {
-		t.Fatalf("out=%s", out.String())
+// Whether or not a repository publishes a model card, discovery reports its
+// candidates and nothing else: the card's presence must make no difference to
+// the output now that reporting it is turned off.
+func TestRunModelDiscoverReportsCandidatesWithoutTheModelCard(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		card string
+	}{
+		{"with a model card", "---\nlicense: mit\n---\n# Bonsai\nA principal and its projector.\n"},
+		{"without a model card", ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			withRepositoryManager(t, map[string][]byte{"principal.gguf": cliPrincipalGGUF()}, tc.card)
+			var out bytes.Buffer
+			if err := runModel([]string{"discover", "org/repo"}, &out); err != nil {
+				t.Fatal(err)
+			}
+			if !strings.Contains(out.String(), "principal.gguf") {
+				t.Fatalf("candidate missing: %s", out.String())
+			}
+			for _, forbidden := range []string{"Model card:", "A principal and its projector."} {
+				if strings.Contains(out.String(), forbidden) {
+					t.Fatalf("model card leaked (%q): %s", forbidden, out.String())
+				}
+			}
+		})
 	}
 }
 
@@ -260,7 +281,9 @@ func publishArtifact(t *testing.T, m *modelapp.Manager, filename string, body []
 	}
 }
 
-func TestRunModelListNestsCompanionBeneathPrincipal(t *testing.T) {
+// A principal and a projector compatible with it are two independent rows: the
+// listing reports facts, not the many-to-many relation between them.
+func TestRunModelListReportsEveryArtifactAtTheSameLevel(t *testing.T) {
 	m := withModelManager(t)
 	old := modelManagerFactory
 	modelManagerFactory = func() (*modelapp.Manager, error) { return m, nil }
@@ -272,13 +295,13 @@ func TestRunModelListNestsCompanionBeneathPrincipal(t *testing.T) {
 	if err := runModel([]string{"list"}, &human); err != nil {
 		t.Fatal(err)
 	}
-	principal := strings.Index(human.String(), "principal.gguf")
-	projector := strings.Index(human.String(), "mmproj.gguf")
-	if principal < 0 || projector < 0 || projector < principal {
-		t.Fatalf("expected the projector nested beneath the principal: %s", human.String())
+	for _, expected := range []string{"principal.gguf", "mmproj.gguf", "model", "mmproj"} {
+		if !strings.Contains(human.String(), expected) {
+			t.Fatalf("missing %q in %s", expected, human.String())
+		}
 	}
-	if !strings.Contains(human.String(), "└─ mmproj.gguf") {
-		t.Fatalf("companion not rendered as a nested row: %s", human.String())
+	if strings.Contains(human.String(), "└─") {
+		t.Fatalf("listing still draws a tree: %s", human.String())
 	}
 
 	var jsonOut bytes.Buffer
@@ -291,14 +314,19 @@ func TestRunModelListNestsCompanionBeneathPrincipal(t *testing.T) {
 	if err := json.Unmarshal(jsonOut.Bytes(), &envelope); err != nil {
 		t.Fatal(err)
 	}
-	if len(envelope.Result) != 1 || envelope.Result[0].Filename != "principal.gguf" {
-		t.Fatalf("result=%+v", envelope.Result)
+	if len(envelope.Result) != 2 {
+		t.Fatalf("expected both artifacts at the top level, result=%+v", envelope.Result)
 	}
-	if len(envelope.Result[0].Companions) != 1 || envelope.Result[0].Companions[0].Filename != "mmproj.gguf" {
-		t.Fatalf("companions=%+v", envelope.Result[0].Companions)
+	types := map[string]string{}
+	for _, entry := range envelope.Result {
+		types[entry.Filename] = entry.Type
 	}
-	if envelope.Result[0].Type != "model" || envelope.Result[0].Companions[0].Type != "mmproj" {
-		t.Fatalf("types=%+v", envelope.Result)
+	if types["principal.gguf"] != "model" || types["mmproj.gguf"] != "mmproj" {
+		t.Fatalf("types=%+v", types)
+	}
+	// No nesting survives anywhere in the document, key included.
+	if strings.Contains(jsonOut.String(), "companions") {
+		t.Fatalf("companions key still emitted: %s", jsonOut.String())
 	}
 }
 

@@ -21,31 +21,34 @@ type DiscoveredCandidate struct {
 }
 
 // Discovery is the result of exploring a remote repository: every GGUF
-// candidate it contains with its classification, plus the model card the
-// publisher wrote.
+// candidate it contains with its classification.
 type Discovery struct {
 	Repository string `json:"repository"`
 	Revision   string `json:"revision"`
 	// Selector is the selector carried by the reference, empty when none was
 	// supplied.
-	Selector string `json:"selector,omitempty"`
-	// ModelCard is the repository README as plain text, empty when the
-	// repository publishes none or it could not be read.
+	Selector   string                `json:"selector,omitempty"`
 	Candidates []DiscoveredCandidate `json:"candidates"`
-	ModelCard  string                `json:"modelCard,omitempty"`
+	// ModelCard is the repository README as plain text. It is deliberately left
+	// unpopulated: reporting the model card was turned off because its length
+	// buries the candidate list discovery exists to present, and a later change
+	// reintroduces it behind an explicit option. The field and Resolver.ModelCard
+	// are kept so that change reconnects them rather than reimplementing them —
+	// until then discovery issues no request whose result is never shown.
+	ModelCard string `json:"modelCard,omitempty"`
 }
 
 // Discover reports every GGUF candidate in a repository with its
 // classification, marking the one a selector would resolve to rather than
-// reducing the result to it, and reads the repository's model card.
+// reducing the result to it.
 //
 // The repository is resolved with no selector on purpose: an operator exploring
 // a repository needs to see what else is in it, above all the projector that
 // makes the principal multimodal, which no quant selector would ever name.
 //
-// A model card that cannot be read is omitted rather than fatal: the candidates
-// are the substance of the result and prose the publisher may not have written
-// must not cost the operator the discovery.
+// The repository's model card is not read. Its output was turned off because it
+// buries the candidate list, so fetching it would spend a request on a result
+// nothing reports; see the comment on Discovery.ModelCard.
 func (m *Manager) Discover(reference string) (Discovery, error) {
 	repository, revision, selector, err := ParseReference(reference)
 	if err != nil {
@@ -75,12 +78,7 @@ func (m *Manager) Discover(reference string) (Discovery, error) {
 	if len(candidates) > 0 {
 		result.Revision = candidates[0].Source.ResolvedRevision
 	}
-	card, cardErr := m.Resolver.ModelCard(repository, result.Revision)
-	if cardErr != nil {
-		m.logf("model discover model card unavailable repository=%s: %v", repository, cardErr)
-	}
-	result.ModelCard = card
-	m.logf("model discover completed repository=%s candidates=%d modelCardBytes=%d", repository, len(result.Candidates), len(result.ModelCard))
+	m.logf("model discover completed repository=%s candidates=%d", repository, len(result.Candidates))
 	return result, nil
 }
 

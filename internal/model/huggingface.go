@@ -157,10 +157,15 @@ const maxModelCardBytes = 1 << 20
 // it as plain text, with the YAML front matter stripped: that block is
 // publication metadata rather than anything the publisher wrote for a reader.
 //
-// A repository publishing no model card is not an error — discovery reports its
-// candidates and omits the card — so a 404 returns the empty string and no
-// error. Any other non-200 response is reported, and the caller decides whether
-// it is fatal.
+// A repository publishing no model card is not an error, so a 404 returns the
+// empty string and no error. Any other non-200 response is reported, and the
+// caller decides whether it is fatal.
+//
+// No caller reaches this today: discovery stopped reporting the model card
+// because its length buries the candidate list. It is kept, unreferenced and
+// deliberately, for the later change that reintroduces the output behind an
+// explicit option — unreachable here is a decision, not an abandoned
+// implementation.
 func (r Resolver) ModelCard(repository, revision string) (string, error) {
 	if strings.Count(repository, "/") != 1 || revision == "" {
 		return "", fmt.Errorf("repository must be namespace/name with a resolved revision")

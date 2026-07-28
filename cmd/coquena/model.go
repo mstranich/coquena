@@ -27,16 +27,17 @@ const modelUsage = "usage: coquena model resolve <repository-or-url> [--json]\n 
 const companionFlag = "--with-companions"
 
 // modelListEntry is the JSON-friendly, deterministic projection of a
-// library entry reported by `coquena model list`. Companions holds the
-// artifacts nested beneath this entry, so the same shape carries the tree in
-// both human and JSON output.
+// library entry reported by `coquena model list`. Every artifact is reported at
+// the same level: a projector is compatible with every quantization of its
+// principal, because the criterion is embedding length and that does not change
+// between quants, so nesting one beneath another would assert a relation the
+// domain does not have.
 type modelListEntry struct {
-	State      string           `json:"state"`
-	Repository string           `json:"repository"`
-	Reference  string           `json:"reference"`
-	Filename   string           `json:"filename"`
-	Type       string           `json:"type,omitempty"`
-	Companions []modelListEntry `json:"companions,omitempty"`
+	State      string `json:"state"`
+	Repository string `json:"repository"`
+	Reference  string `json:"reference"`
+	Filename   string `json:"filename"`
+	Type       string `json:"type,omitempty"`
 }
 
 func newModelManager() (*modelapp.Manager, error) {
@@ -307,8 +308,10 @@ func writeInspectionHuman(out io.Writer, inspection modelapp.Inspection) error {
 
 // writeDiscoveryHuman reports every candidate the repository holds with its
 // declared type, marking the one the selector resolves to rather than reducing
-// the list to it, then prints the model card as plain text. Rendering styled
-// markdown is explicitly out of scope.
+// the list to it. The repository model card is deliberately not printed: on a
+// real repository it runs to hundreds of lines and buries the candidate list,
+// which is the whole point of the command. A later change reintroduces it
+// behind an explicit option.
 func writeDiscoveryHuman(out io.Writer, discovery modelapp.Discovery) error {
 	if _, err := fmt.Fprintf(out, "%s @ %s\n", discovery.Repository, discovery.Revision); err != nil {
 		return err
@@ -334,18 +337,12 @@ func writeDiscoveryHuman(out io.Writer, discovery modelapp.Discovery) error {
 			return err
 		}
 	}
-	if discovery.ModelCard == "" {
-		return nil
-	}
-	_, err := fmt.Fprintf(out, "\nModel card:\n%s\n", strings.TrimRight(discovery.ModelCard, "\n"))
-	return err
+	return nil
 }
 
-// runModelList renders the library as a tree nesting each companion beneath the
-// principal it is compatible with. A companion admissible for several
-// principals is nested beneath the first of them in library order rather than
-// repeated, so every artifact appears exactly once; one matching no installed
-// principal stays at the top level rather than being omitted.
+// runModelList renders the library flat: every artifact is one row at the same
+// level, reporting its declared type. The principal/companion relation is
+// many-to-many and is resolved in the preset, not drawn here.
 func runModelList(out io.Writer, jsonOut bool) error {
 	m, err := modelManagerFactory()
 	if err != nil {
@@ -355,53 +352,24 @@ func runModelList(out io.Writer, jsonOut bool) error {
 	if err != nil {
 		return err
 	}
-	type libraryItem struct {
-		entry          modelListEntry
-		classification modelapp.Classification
-	}
-	items := make([]libraryItem, 0, len(entries))
+	list := make([]modelListEntry, 0, len(entries))
 	for _, entry := range entries {
 		if entry.State != "installed" && entry.State != "unreconciled" {
 			continue
 		}
-		item := libraryItem{entry: modelListEntry{
+		item := modelListEntry{
 			State:      entry.State,
 			Repository: entry.Source.Repository,
 			Reference:  entry.Source.Repository + ":" + entry.Source.Filename,
 			Filename:   entry.Source.Filename,
-		}}
+		}
 		// The classification comes from the sidecar, which already holds it and
 		// which Library has already read: listing must never re-read the .gguf,
 		// and it never reconciles.
 		if entry.Classification != nil {
-			item.classification = *entry.Classification
-			item.entry.Type = string(entry.Classification.Type)
+			item.Type = string(entry.Classification.Type)
 		}
-		items = append(items, item)
-	}
-	nested := make([]bool, len(items))
-	for companion := range items {
-		if items[companion].classification.Type != modelapp.TypeProjector {
-			continue
-		}
-		for principal := range items {
-			if items[principal].classification.Type != modelapp.TypeModel {
-				continue
-			}
-			if modelapp.ProjectorCriterion(items[principal].classification).Evaluate(items[companion].classification) != modelapp.Admissible {
-				continue
-			}
-			items[principal].entry.Companions = append(items[principal].entry.Companions, items[companion].entry)
-			nested[companion] = true
-			break
-		}
-	}
-	list := make([]modelListEntry, 0, len(items))
-	for i, item := range items {
-		if nested[i] {
-			continue
-		}
-		list = append(list, item.entry)
+		list = append(list, item)
 	}
 	if jsonOut {
 		return json.NewEncoder(out).Encode(struct {
@@ -413,9 +381,6 @@ func runModelList(out io.Writer, jsonOut bool) error {
 	_, _ = fmt.Fprintln(writer, "STATE\tTYPE\tREPOSITORY\tFILENAME")
 	for _, entry := range list {
 		_, _ = fmt.Fprintf(writer, "%s\t%s\t%s\t%s\n", entry.State, entry.Type, entry.Repository, entry.Filename)
-		for _, companion := range entry.Companions {
-			_, _ = fmt.Fprintf(writer, "%s\t%s\t%s\t%s\n", companion.State, companion.Type, companion.Repository, "  └─ "+companion.Filename)
-		}
 	}
 	return writer.Flush()
 }

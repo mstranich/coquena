@@ -6,11 +6,11 @@ bind it to a preset — depends only on this section. Everything after it serves
 artifacts Coquena did not download. This section comes first so the flow is
 usable before the rest lands.
 
-- [ ] 1.1 Stop printing the repository model card from `coquena model discover`, whose length buries the candidate list the command exists to present.
-- [ ] 1.2 Leave `Resolver.ModelCard` and the discovery field carrying it in place, unreferenced, with a comment recording that the output was deliberately turned off pending a later change that reintroduces it behind an explicit option.
-- [ ] 1.3 Remove the tree nesting from `coquena model list` in both output modes, reporting every artifact at the same level with its declared type.
-- [ ] 1.4 Add tests for discovery reporting the candidates without the model card, and for the flat listing in both output modes.
-- [ ] 1.5 Verify the whole flow end to end against a stubbed Hugging Face repository, using the existing test transport rather than a real multi-gigabyte transfer: discover a repository holding several quantizations and a projector, download one quantization by `user/repo:QUANT`, confirm the listing reports it with its declared type, and bind a preset to it by the same reference. Report any step that does not work rather than adjusting the test to pass.
+- [x] 1.1 Stop printing the repository model card from `coquena model discover`, whose length buries the candidate list the command exists to present.
+- [x] 1.2 Leave `Resolver.ModelCard` and the discovery field carrying it in place, unreferenced, with a comment recording that the output was deliberately turned off pending a later change that reintroduces it behind an explicit option.
+- [x] 1.3 Remove the tree nesting from `coquena model list` in both output modes, reporting every artifact at the same level with its declared type.
+- [x] 1.4 Add tests for discovery reporting the candidates without the model card, and for the flat listing in both output modes.
+- [x] 1.5 Verify the whole flow end to end against a stubbed Hugging Face repository, using the existing test transport rather than a real multi-gigabyte transfer: discover a repository holding several quantizations and a projector, download one quantization by `user/repo:QUANT`, confirm the listing reports it with its declared type, and bind a preset to it by the same reference. Report any step that does not work rather than adjusting the test to pass.
 
 ## 2. Metadata reading without array payloads
 
