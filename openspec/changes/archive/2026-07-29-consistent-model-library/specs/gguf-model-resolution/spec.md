@@ -13,6 +13,11 @@ Coquena SHALL provide remote discovery of a Hugging Face repository that reports
 - **THEN** Coquena still reports every candidate in the repository
 - **AND** it marks the one the selector resolves to
 
+#### Scenario: Report the repository model card
+- **WHEN** an operator discovers a repository that publishes a model card
+- **THEN** Coquena does not print the model card
+- **AND** the reporting this scenario previously required is withdrawn, because the card's length buries the candidate list; a later change reintroduces it behind an explicit option
+
 #### Scenario: Present the candidates without the model card
 - **WHEN** an operator discovers a repository that publishes a long model card
 - **THEN** the output reports the candidates and their classification only

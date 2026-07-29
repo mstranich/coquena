@@ -84,7 +84,7 @@ Coquena SHALL resolve a `user/repo[@revision]:QUANT` model reference against the
 - **AND** it does not fall back to substring matching for that selector
 
 ### Requirement: Discover a remote repository's classified candidates
-Coquena SHALL provide remote discovery of a Hugging Face repository that reports every GGUF candidate it contains together with each candidate's classification, read through bounded range access without downloading any complete artifact. When the reference carries a selector, discovery SHALL still report every candidate and SHALL mark which one the selector would resolve to, rather than reducing the result to that candidate. Discovery SHALL also report the repository's model card as plain text.
+Coquena SHALL provide remote discovery of a Hugging Face repository that reports every GGUF candidate it contains together with each candidate's classification, read through bounded range access without downloading any complete artifact. When the reference carries a selector, discovery SHALL still report every candidate and SHALL mark which one the selector would resolve to, rather than reducing the result to that candidate. Discovery SHALL NOT print the repository's model card, whose length buries the candidate list discovery exists to present; reporting it SHALL be reintroduced behind an explicit option in a later change.
 
 #### Scenario: Discover every candidate in a repository
 - **WHEN** an operator discovers a repository containing a principal model and a projector
@@ -98,10 +98,16 @@ Coquena SHALL provide remote discovery of a Hugging Face repository that reports
 
 #### Scenario: Report the repository model card
 - **WHEN** an operator discovers a repository that publishes a model card
-- **THEN** Coquena reports the model card as plain text alongside the candidates
+- **THEN** Coquena does not print the model card
+- **AND** the reporting this scenario previously required is withdrawn, because the card's length buries the candidate list; a later change reintroduces it behind an explicit option
+
+#### Scenario: Present the candidates without the model card
+- **WHEN** an operator discovers a repository that publishes a long model card
+- **THEN** the output reports the candidates and their classification only
+- **AND** the model card does not appear
 
 #### Scenario: Discover a repository without a model card
 - **WHEN** the repository publishes no model card
-- **THEN** Coquena reports the candidates and omits the model card
+- **THEN** Coquena reports the candidates
 - **AND** it does not fail discovery
 
