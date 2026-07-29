@@ -556,15 +556,16 @@ coquena model download resume <job-id>
 coquena model download cancel <job-id>
 coquena model revision org/repository:Q4_K_M
 coquena model list
-coquena model reconcile (<reference>|--all) (--online|--accept)
+coquena model reconcile <reference> (--online|--accept)
 coquena model verify <reference>
 coquena model check-updates <reference>
 ```
 
 Remote exploration and local inspection are separate commands. `coquena model
 discover <repository-or-url[:selector]>` reaches the network: it lists every
-GGUF candidate in the repository with its classification, marks the candidate a
-selector would resolve to, and prints the repository model card as plain text.
+GGUF candidate in the repository with its classification and marks the candidate
+a selector would resolve to. It does not print the repository model card: its
+length buries the candidate list, which is what discovery exists to present.
 `coquena model inspect <reference>` is local only, issues no network request,
 and renders a `Metadata`/`Value` table for an installed artifact, including its
 declared type.
@@ -593,19 +594,35 @@ with the companions identified for it, creating one durable job per artifact and
 reporting every job ID. Without the flag, one invocation downloads exactly one
 artifact.
 
-`coquena model list` renders the library as a tree, nesting each companion
-beneath the principal it is compatible with; a companion matching no installed
-principal is reported at the top level. The same shape is produced by `--json`.
+`coquena model list` reports every artifact at the same level, with its declared
+type and whether it is usable. It does not nest a companion beneath a principal:
+a projector is compatible with every quantization of its principal, because the
+criterion is embedding length and that does not change between quants, so
+nesting it under one of them would assert a relation that does not exist. An
+artifact is usable once it is reconciled and classified; a projector is usable
+only while a compatible principal is installed, and an unusable artifact carries
+the reason. Usability is derived on every read rather than stored, since it
+depends on which other artifacts are present. Every artifact is classified here
+even before it is reconciled, read from its own header, so the listing can tell
+a principal from a projector without anything being written first.
+
 `coquena model reconcile` names its subject with the same `user/repo:QUANT`
-reference every other model command accepts, resolved against the unreconciled
-entries the listing reports. An artifact is addressed identically whether it is
-being reconciled, bound to a preset, verified, or checked for updates, and
-`--accept` keeps that reference form even for an artifact with no Hugging Face
-identity to update against. `--all` replaces the reference and walks the
-configured models directory, classifying every unreconciled artifact and
-persisting its sidecar in one pass. Exactly one of `--online` and `--accept` is
-still required, and reconciliation always remains an explicit operator action:
-no listing command triggers it.
+reference every other model command accepts, and reconciles the artifacts of one
+repository in a single action: it resolves the repository, enumerates its remote
+candidates with their classification without downloading any of them, and
+matches them against what is on disk by filename corroborated by metadata. A
+principal and its companions are reconciled together, since they are parts of
+one logical unit, while a reference matching more than one principal is refused
+as ambiguous — choosing among quantizations is the operator's decision. A
+candidate present remotely and absent locally is reported, so an incomplete
+model is visible before an invocation fails, and an artifact whose content
+disagrees with Hugging Face is refused with a diagnostic saying it may be from
+an earlier revision rather than asserting corruption. `--accept` operates on one
+artifact, keeping the reference form even where there is no Hugging Face
+identity to update against. Reconciliation is always an explicit operator
+action: no listing command triggers it, it never runs over the whole library,
+and it takes no `--json`, because it prompts and a command that prompts cannot
+emit exactly one document.
 
 Runtime storage can be configured independently from model storage:
 
@@ -642,7 +659,7 @@ tokenizer digest, and the publisher's sampling recommendations — so a sidecar 
 kilobytes rather than the megabytes the vocabulary arrays used to cost. The
 sidecar schema version is therefore `2`. **This is a breaking change with no
 migration:** a sidecar written under version `1` reads as invalid, its artifact
-enumerates as `unreconciled`, and `coquena model reconcile --all` is the
+enumerates as `unreconciled`, and reconciling that artifact's repository is the
 supported recovery route. When a specific raw metadata value is needed it is
 read from the `.gguf` on demand rather than from a cache.
 

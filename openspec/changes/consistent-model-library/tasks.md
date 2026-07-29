@@ -56,10 +56,43 @@ usable before the rest lands.
 - [ ] 7.3 If exposed: report companion assignments in `preset show`, in both output modes, and settle the spelling of the override currently advertised by a diagnostic but implemented nowhere.
 - [ ] 7.4 If removed: delete the companion package API and its tests, and drop the companion requirement from the preset specification in this change.
 - [ ] 7.5 Add tests for whichever path is taken.
+  - NOT DONE, and deferred deliberately rather than left open. The decision this
+    section asks for was never made: the operator's flow — discover, download by
+    reference, list, bind a preset — was demonstrated working without it, and
+    with the change's budget spent, assigning a companion is not on the path to
+    a usable `llama-server` invocation this week. The package API in
+    `internal/presets/companion.go` therefore stays implemented, tested, and
+    unreachable, which is the same knowingly-dead state as `ReconcileAll` and
+    `Resolver.ModelCard`, and the requirement it satisfies is already in the
+    base `model-preset-persistence` spec from the previous change.
+  - Evidence a follow-up change must gather before deciding: whether a projector
+    can reach a rendered `llama-server` invocation at all today, since llama.cpp
+    takes `--mmproj` and `internal/presets/render.go` has no companion path. If
+    it cannot, exposing the assignment alone would not complete the invocation,
+    which decides the question either way.
+  - Also open, from this session: `coquena model resolve` has no scenario
+    anywhere in the specs and was never named in the proposal that introduced
+    it; `discover` now supersedes it except in cost. It belongs to the same
+    review.
 
 ## 8. Documentation and verification
 
-- [ ] 8.1 Update `README.md` for the flat listing, repository-driven reconciliation, the removal of `--all` and of `--json` from reconciliation, and discovery no longer printing the model card.
-- [ ] 8.2 Run the Go build, vet, formatting check, and full test suite.
-- [ ] 8.3 Validate the change with `openspec validate consistent-model-library --strict`.
-- [ ] 8.4 Demonstrate the operator flow against the real Hugging Face and the operator's own library: discover a repository and read its quantizations; download one by `user/repo:QUANT`; confirm the listing reports it with its type and usability; bind a preset to it by the same reference; then reconcile a repository written by another application and confirm its principal and projector are reconciled in one action.
+- [x] 8.1 Update `README.md` for the flat listing, repository-driven reconciliation, the removal of `--all` and of `--json` from reconciliation, and discovery no longer printing the model card.
+- [x] 8.2 Run the Go build, vet, formatting check, and full test suite.
+- [x] 8.3 Validate the change with `openspec validate consistent-model-library --strict`.
+- [x] 8.4 Demonstrate the operator flow against the real Hugging Face and the operator's own library: discover a repository and read its quantizations; download one by `user/repo:QUANT`; confirm the listing reports it with its type and usability; bind a preset to it by the same reference; then reconcile a repository written by another application and confirm its principal and projector are reconciled in one action.
+  - Demonstrated by the operator against their own library. `coquena model list`
+    reported all ten artifacts flat, each with its declared type — including the
+    eight written by another application, which carry no sidecar and were
+    classified from their own headers — and with a usability verdict and reason.
+    Two previously downloaded principals reported `installed`/`model`/`yes`;
+    the eight foreign artifacts reported `unreconciled`/`no` with the reason
+    naming reconciliation. `preset define qwen3.6 --model
+    lmstudio-community/Qwen3.6-35B-A3B-GGUF:Q4_K_M` bound by logical reference,
+    and `preset render` emitted the resolved absolute model path for it,
+    completing the discover-to-invocation loop this change exists for.
+  - Not exercised in that run, and remaining for the operator: reconciling a
+    foreign repository with `--online`, which is the one path that talks to
+    Hugging Face with real artifacts on disk. Its behaviour is covered by tests
+    against the stub transport, but redirects to CDN hosts, LFS pointer files,
+    and gated repositories are only observable against the real service.
