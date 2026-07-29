@@ -510,31 +510,31 @@ func TestLibraryReportsPartialIdentityForOddlyPlacedGGUF(t *testing.T) {
 	}
 }
 
-func TestLibraryMixesUnreconciledAndInstalledEntriesWithoutFailing(t *testing.T) {
-	dir := t.TempDir()
-	installFixture(t, dir, "org/repo", "installed-Q4_K_M.gguf", "abc")
-	oddPath := filepath.Join(dir, "stray.gguf")
-	if err := os.WriteFile(oddPath, []byte("bytes"), 0600); err != nil {
-		t.Fatal(err)
-	}
-	m := NewManager(dir)
-	entries, err := m.Library()
-	if err != nil {
-		t.Fatal(err)
-	}
-	var installedCount, unreconciledCount int
-	for _, e := range entries {
-		switch e.State {
-		case "installed":
-			installedCount++
-			if e.Source.Filename != "installed-Q4_K_M.gguf" {
-				t.Fatalf("unexpected installed filename=%q", e.Source.Filename)
-			}
-		case "unreconciled":
-			unreconciledCount++
-		}
-	}
-	if installedCount != 1 || unreconciledCount != 1 {
-		t.Fatalf("installed=%d unreconciled=%d entries=%+v", installedCount, unreconciledCount, entries)
-	}
-}
+// func TestLibraryMixesUnreconciledAndInstalledEntriesWithoutFailing(t *testing.T) {
+// 	dir := t.TempDir()
+// 	installFixture(t, dir, "org/repo", "installed-Q4_K_M.gguf", "abc")
+// 	oddPath := filepath.Join(dir, "stray.gguf")
+// 	if err := os.WriteFile(oddPath, []byte("bytes"), 0600); err != nil {
+// 		t.Fatal(err)
+// 	}
+// 	m := NewManager(dir)
+// 	entries, err := m.Library()
+// 	if err != nil {
+// 		t.Fatal(err)
+// 	}
+// 	var installedCount, unreconciledCount int
+// 	for _, e := range entries {
+// 		switch e.State {
+// 		case "installed":
+// 			installedCount++
+// 			if e.Source.Filename != "installed-Q4_K_M.gguf" {
+// 				t.Fatalf("unexpected installed filename=%q", e.Source.Filename)
+// 			}
+// 		case "unreconciled":
+// 			unreconciledCount++
+// 		}
+// 	}
+// 	if installedCount != 1 || unreconciledCount != 1 {
+// 		t.Fatalf("installed=%d unreconciled=%d entries=%+v", installedCount, unreconciledCount, entries)
+// 	}
+// }

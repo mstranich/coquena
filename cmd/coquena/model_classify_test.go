@@ -50,11 +50,11 @@ func cliGGUF(pairs ...any) []byte {
 }
 
 func cliPrincipalGGUF() []byte {
-	return cliGGUF("general.type", "model", "general.architecture", "qwen35", "qwen35.embedding_length", uint32(5120))
+	return cliGGUF("general.type", "model", "general.architecture", "qwen35", "general.file_type", uint32(15), "qwen35.embedding_length", uint32(5120))
 }
 
 func cliProjectorGGUF() []byte {
-	return cliGGUF("general.type", "mmproj", "general.architecture", "clip", "clip.vision.projection_dim", uint32(5120))
+	return cliGGUF("general.type", "mmproj", "general.architecture", "clip", "general.file_type", uint32(15), "clip.vision.projection_dim", uint32(5120))
 }
 
 // repositoryServer serves the Hugging Face surface discovery and download read:
@@ -295,7 +295,7 @@ func TestRunModelListReportsEveryArtifactAtTheSameLevel(t *testing.T) {
 	if err := runModel([]string{"list"}, &human); err != nil {
 		t.Fatal(err)
 	}
-	for _, expected := range []string{"principal.gguf", "mmproj.gguf", "model", "mmproj"} {
+	for _, expected := range []string{"org/repo:Q8_K", "model", "mmproj"} {
 		if !strings.Contains(human.String(), expected) {
 			t.Fatalf("missing %q in %s", expected, human.String())
 		}

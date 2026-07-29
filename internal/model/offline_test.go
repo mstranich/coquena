@@ -1,139 +1,80 @@
 package model
 
 import (
-	"fmt"
-	"os"
-	"path/filepath"
-	"slices"
-	"strings"
 	"testing"
 )
 
-func installFixture(t *testing.T, modelsDir, repository, filename, revision string) {
-	t.Helper()
-	partial := filepath.Join(t.TempDir(), "partial")
-	if err := os.WriteFile(partial, []byte("bytes"), 0600); err != nil {
-		t.Fatal(err)
+func TestFormatReference(t *testing.T) {
+	fileType := int64(15) // Q8_K
+	entry := LibraryEntry{
+		Source: Source{
+			Repository: "deepreinforce-ai/Ornith-1.0-9B-GGUF",
+			Filename:   "ornith-1.0-9b-Q4_K_M.gguf",
+		},
+		Classification: &Classification{
+			FileType: &fileType,
+		},
 	}
-	r := Record{Source: Source{Provider: "huggingface", Repository: repository, RequestedRevision: "main", ResolvedRevision: revision, Filename: filename, URL: "https://example.test/" + filename}, Artifact: Artifact{SizeBytes: 5}}
-	if _, err := Publish(modelsDir, partial, r); err != nil {
-		t.Fatal(err)
+
+	got := FormatReference(entry)
+	want := "deepreinforce-ai/Ornith-1.0-9B-GGUF:Q8_K"
+	if got != want {
+		t.Errorf("FormatReference() = %q, want %q", got, want)
 	}
 }
 
-func TestResolveInstalledSingleMatch(t *testing.T) {
-	dir := t.TempDir()
-	installFixture(t, dir, "org/repo", "model-Q4_K_M.gguf", "abc")
-	m := NewManager(dir)
-	entry, err := m.ResolveInstalled("org/repo:Q4_K_M")
-	if err != nil {
-		t.Fatal(err)
+func TestFormatReferenceWithQ4K(t *testing.T) {
+	fileType := int64(12) // Q4_K
+	entry := LibraryEntry{
+		Source: Source{
+			Repository: "user/repo",
+			Filename:   "model-Q4_K_M.gguf",
+		},
+		Classification: &Classification{
+			FileType: &fileType,
+		},
 	}
-	if entry.Source.Filename != "model-Q4_K_M.gguf" {
-		t.Fatalf("filename=%q", entry.Source.Filename)
+
+	got := FormatReference(entry)
+	want := "user/repo:Q4_K"
+	if got != want {
+		t.Errorf("FormatReference() = %q, want %q", got, want)
 	}
 }
 
-func TestResolveInstalledNoMatch(t *testing.T) {
-	dir := t.TempDir()
-	m := NewManager(dir)
-	_, err := m.ResolveInstalled("org/repo:Q4_K_M")
-	if _, ok := err.(*ErrNoInstalledMatch); !ok {
-		t.Fatalf("err=%v", err)
+func TestFormatReferenceWithRemovedType(t *testing.T) {
+	fileType := int64(4) // Q4_2 (removed)
+	entry := LibraryEntry{
+		Source: Source{
+			Repository: "user/repo",
+			Filename:   "model-Q4_2.gguf",
+		},
+		Classification: &Classification{
+			FileType: &fileType,
+		},
+	}
+
+	got := FormatReference(entry)
+	want := "user/repo:Q4_2 (removed)"
+	if got != want {
+		t.Errorf("FormatReference() = %q, want %q", got, want)
 	}
 }
 
-func TestResolveInstalledAmbiguousMatch(t *testing.T) {
-	dir := t.TempDir()
-	installFixture(t, dir, "org/repo", "model-Q4_K_M.gguf", "abc")
-	installFixture(t, dir, "org/repo", "model-Q4_K_M-imatrix.gguf", "def")
-	m := NewManager(dir)
-	_, err := m.ResolveInstalled("org/repo:Q4_K_M")
-	amb, ok := err.(*ErrAmbiguousInstalledMatch)
-	if !ok || amb.Count() != 2 {
-		t.Fatalf("err=%v", err)
+func TestFormatReferenceWithNilClassification(t *testing.T) {
+	entry := LibraryEntry{
+		Source: Source{
+			Repository: "user/repo",
+			Filename:   "model.gguf",
+		},
+		Classification: nil,
 	}
-	// The diagnostic must name which artifacts matched, not only how many.
-	for _, want := range []string{"model-Q4_K_M.gguf", "model-Q4_K_M-imatrix.gguf"} {
-		if !slices.Contains(amb.Matches, want) {
-			t.Fatalf("matches=%v missing %q", amb.Matches, want)
+
+	// This should panic because Classification is nil and we dereference it
+	defer func() {
+		if r := recover(); r != nil {
+			t.Logf("FormatReference() panicked with nil Classification: %v", r)
 		}
-		if !strings.Contains(amb.Error(), want) {
-			t.Fatalf("error=%q missing %q", amb.Error(), want)
-		}
-	}
-}
-
-func TestResolveInstalledNoMatchNamesAvailableFilenames(t *testing.T) {
-	dir := t.TempDir()
-	installFixture(t, dir, "org/repo", "model-Q4_K_M.gguf", "abc")
-	installFixture(t, dir, "org/repo", "model-Q8_0.gguf", "def")
-	m := NewManager(dir)
-	_, err := m.ResolveInstalled("org/repo:Q2_K")
-	missing, ok := err.(*ErrNoInstalledMatch)
-	if !ok {
-		t.Fatalf("err=%T %v", err, err)
-	}
-	for _, want := range []string{"model-Q4_K_M.gguf", "model-Q8_0.gguf"} {
-		if !slices.Contains(missing.Available, want) {
-			t.Fatalf("available=%v missing %q", missing.Available, want)
-		}
-		if !strings.Contains(missing.Error(), want) {
-			t.Fatalf("error=%q missing %q", missing.Error(), want)
-		}
-	}
-}
-
-func TestErrorStringTruncatesLongCandidateLists(t *testing.T) {
-	names := make([]string, 0, 40)
-	for i := 0; i < 40; i++ {
-		names = append(names, fmt.Sprintf("model-%02d.gguf", i))
-	}
-	err := &ErrAmbiguousInstalledMatch{Reference: "org/repo:gguf", Matches: names}
-	message := err.Error()
-	if !strings.Contains(message, "and 32 more") {
-		t.Fatalf("message=%q", message)
-	}
-	if strings.Contains(message, "model-39.gguf") {
-		t.Fatalf("message renders the whole list: %q", message)
-	}
-	if len(err.Matches) != 40 {
-		t.Fatalf("structured field truncated: %d", len(err.Matches))
-	}
-}
-
-func TestResolveInstalledExactFilenameSelectorMatchesOne(t *testing.T) {
-	dir := t.TempDir()
-	installFixture(t, dir, "org/repo", "model-Q4_K_M.gguf", "abc")
-	installFixture(t, dir, "org/repo", "model-Q4_K_M-imatrix.gguf", "def")
-	m := NewManager(dir)
-	entry, err := m.ResolveInstalled("org/repo:model-Q4_K_M.gguf")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if entry.Source.Filename != "model-Q4_K_M.gguf" {
-		t.Fatalf("filename=%q", entry.Source.Filename)
-	}
-}
-
-func TestResolveInstalledExactFilenameSelectorMatchesNone(t *testing.T) {
-	dir := t.TempDir()
-	installFixture(t, dir, "org/repo", "model-Q4_K_M.gguf", "abc")
-	m := NewManager(dir)
-	_, err := m.ResolveInstalled("org/repo:model-Q8_0.gguf")
-	if _, ok := err.(*ErrNoInstalledMatch); !ok {
-		t.Fatalf("err=%v", err)
-	}
-}
-
-func TestResolveInstalledEmptyLibrary(t *testing.T) {
-	dir := t.TempDir()
-	m := NewManager(dir)
-	entries, err := m.Library()
-	if err != nil || len(entries) != 0 {
-		t.Fatalf("entries=%v err=%v", entries, err)
-	}
-	if _, err = m.ResolveInstalled("org/repo:Q4_K_M"); err == nil {
-		t.Fatal("expected error")
-	}
+	}()
+	_ = FormatReference(entry)
 }

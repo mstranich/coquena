@@ -23,6 +23,15 @@ func formatCandidates(filenames []string) string {
 	return fmt.Sprintf("%s and %d more", strings.Join(filenames[:maxNamedCandidates], ", "), len(filenames)-maxNamedCandidates)
 }
 
+// FormatReference builds the <user>/<repo>:<quant> reference string from a LibraryEntry.
+// It uses the fileTypeNames mapping to convert the fileType integer to a human-readable name.
+func FormatReference(entry LibraryEntry) string {
+	if entry.Classification == nil || entry.Classification.FileType == nil {
+		return entry.Source.Repository + ":unknown"
+	}
+	return entry.Source.Repository + ":" + fileTypeNames[*entry.Classification.FileType]
+}
+
 // ErrNoInstalledMatch indicates a reference matched no artifact in the library
 // state it was resolved against.
 type ErrNoInstalledMatch struct {

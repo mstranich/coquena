@@ -367,7 +367,7 @@ func runModelList(out io.Writer, jsonOut bool) error {
 		item := modelListEntry{
 			State:      entry.State,
 			Repository: entry.Source.Repository,
-			Reference:  entry.Source.Repository + ":" + entry.Source.Filename,
+			Reference:  modelapp.FormatReference(entry),
 			Filename:   entry.Source.Filename,
 			Usable:     entry.Usability.Usable,
 			Reason:     string(entry.Usability.Reason),
@@ -388,7 +388,7 @@ func runModelList(out io.Writer, jsonOut bool) error {
 		}{1, list})
 	}
 	writer := tabwriter.NewWriter(out, 0, 4, 2, ' ', 0)
-	_, _ = fmt.Fprintln(writer, "STATE\tTYPE\tUSABLE\tREPOSITORY\tFILENAME\tREASON")
+	_, _ = fmt.Fprintln(writer, "STATE\tTYPE\tUSABLE\tREFERENCE\tFILENAME\tREASON")
 	for _, entry := range list {
 		// The reason column is empty for a usable artifact: a reason exists
 		// only to explain a refusal, and repeating "usable" in it would add a
@@ -397,7 +397,7 @@ func runModelList(out io.Writer, jsonOut bool) error {
 		if entry.Usable {
 			usable = "yes"
 		}
-		_, _ = fmt.Fprintf(writer, "%s\t%s\t%s\t%s\t%s\t%s\n", entry.State, entry.Type, usable, entry.Repository, entry.Filename, entry.Detail)
+		_, _ = fmt.Fprintf(writer, "%s\t%s\t%s\t%s\t%s\t%s\n", entry.State, entry.Type, usable, entry.Reference, entry.Filename, entry.Detail)
 	}
 	return writer.Flush()
 }

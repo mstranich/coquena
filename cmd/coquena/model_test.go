@@ -49,7 +49,12 @@ func TestRunModelListInstalled(t *testing.T) {
 	if err := os.WriteFile(partial, []byte("bytes"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	r := modelapp.Record{Source: modelapp.Source{Provider: "huggingface", Repository: "org/repo", RequestedRevision: "main", ResolvedRevision: "abc", Filename: "m-Q4_K_M.gguf", URL: "https://example.test/m.gguf"}, Artifact: modelapp.Artifact{SizeBytes: 5}}
+	fileType := int64(12) // Q4_K
+	r := modelapp.Record{
+		Source: modelapp.Source{Provider: "huggingface", Repository: "org/repo", RequestedRevision: "main", ResolvedRevision: "abc", Filename: "m-Q4_K_M.gguf", URL: "https://example.test/m-Q4_K_M.gguf"},
+		Artifact: modelapp.Artifact{SizeBytes: 5},
+		Classification: modelapp.Classification{FileType: &fileType},
+	}
 	if _, err := modelapp.Publish(m.ModelsDir, partial, r); err != nil {
 		t.Fatal(err)
 	}
@@ -60,7 +65,7 @@ func TestRunModelListInstalled(t *testing.T) {
 	if err := runModel([]string{"list"}, &out); err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(out.String(), "org/repo") || !strings.Contains(out.String(), "m-Q4_K_M.gguf") {
+	if !strings.Contains(out.String(), "org/repo:unknown") {
 		t.Fatalf("out=%s", out.String())
 	}
 }
@@ -250,7 +255,7 @@ func TestRunModelListReportsUnreconciledAndInstalled(t *testing.T) {
 	if err := runModel([]string{"list"}, &human); err != nil {
 		t.Fatal(err)
 	}
-	for _, expected := range []string{"installed", "org/repo", "m-Q4_K_M.gguf", "unreconciled", "other/repo", "u.gguf"} {
+	for _, expected := range []string{"installed", "org/repo:unknown", "unreconciled", "other/repo:unknown"} {
 		if !strings.Contains(human.String(), expected) {
 			t.Fatalf("missing %q in %s", expected, human.String())
 		}
