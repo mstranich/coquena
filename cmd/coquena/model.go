@@ -435,19 +435,21 @@ func runModelList(out io.Writer, jsonOut bool) error {
 			Result        map[string][]modelListEntry `json:"result"`
 		}{1, byRepo})
 	}
-	// Render grouped by repository with indented entries
+	// Render grouped by repository with headers
+	writer := tabwriter.NewWriter(out, 0, 4, 2, ' ', 0)
 	for _, repo := range repoOrder {
-		_, _ = fmt.Fprintf(out, "%s\n", repo)
+		_, _ = fmt.Fprintf(writer, "REPOSITORY: %s\n", repo)
+		_, _ = fmt.Fprintln(writer, "  STATE\tTYPE\tUSABLE\tQUANT\tFILENAME")
 		for _, entry := range byRepo[repo] {
 			usable := "no"
 			if entry.Usable {
 				usable = "yes"
 			}
-			_, _ = fmt.Fprintf(out, "  %-12s %-12s %-6s %s\n", entry.Type, entry.State, usable, entry.Quant)
-			_, _ = fmt.Fprintf(out, "    %s\n", entry.Filename)
+			_, _ = fmt.Fprintf(writer, "  %s\t%s\t%s\t%s\t%s\n", entry.State, entry.Type, usable, entry.Quant, entry.Filename)
 		}
+		_, _ = fmt.Fprintln(writer)
 	}
-	return nil
+	return writer.Flush()
 }
 
 // runModelReconcile parses one reconciliation invocation and refuses the two
