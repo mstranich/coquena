@@ -309,6 +309,51 @@ func CountParameters(r RandomAccessReader) (int64, error) {
 	return totalParams, nil
 }
 
+// MostCommonTensorType reads the tensor table and returns the most common tensor type.
+// This is the deterministic way to determine quantization: read actual tensor types,
+// not the legacy general.file_type metadata field which is unreliable.
+func MostCommonTensorType(r RandomAccessReader) (uint32, error) {
+	h := make([]byte, 24)
+	if _, err := r.ReadAt(h, 0); err != nil {
+		return 0, err
+	}
+	if string(h[:4]) != "GGUF" {
+		return 0, fmt.Errorf("invalid GGUF magic")
+	}
+	nTensors := binary.LittleEndian.Uint64(h[8:16])
+	typeCounts := map[uint32]int{}
+	off := int64(24)
+	for i := uint64(0); i < nTensors; i++ {
+		_, next, err := readString(r, off)
+		if err != nil {
+			return 0, err
+		}
+		off = next
+		typeBytes := make([]byte, 4)
+		if _, err := r.ReadAt(typeBytes, off); err != nil {
+			return 0, err
+		}
+		tensorType := binary.LittleEndian.Uint32(typeBytes)
+		off += 4
+		_, nextOff, err := readUint32Array(r, off)
+		if err != nil {
+			return 0, err
+		}
+		off = nextOff
+		off += 8 // skip offset
+		typeCounts[tensorType]++
+	}
+	var mostCommon uint32
+	maxCount := 0
+	for t, c := range typeCounts {
+		if c > maxCount {
+			mostCommon = t
+			maxCount = c
+		}
+	}
+	return mostCommon, nil
+}
+
 // readUint32Array reads an array of uint32 values from the GGUF reader.
 // Returns the shape values and the offset after the array.
 func readUint32Array(r RandomAccessReader, off int64) ([]uint32, int64, error) {

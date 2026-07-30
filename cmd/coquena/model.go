@@ -374,6 +374,17 @@ func computeQuant(entry modelapp.LibraryEntry) string {
 	if entry.Classification.FileType != nil {
 		return modelapp.FileTypeNames[*entry.Classification.FileType]
 	}
+	// Fallback: try to determine from tensor table (deterministic)
+	if entry.TargetPath != "" {
+		if r, err := modelapp.OpenLocal(entry.TargetPath); err == nil {
+			defer r.Close()
+			if t, err := modelapp.MostCommonTensorType(r); err == nil {
+				if name, ok := modelapp.FileTypeNames[int64(t)]; ok {
+					return name
+				}
+			}
+		}
+	}
 	return "unknown"
 }
 
