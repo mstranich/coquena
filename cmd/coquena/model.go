@@ -33,11 +33,12 @@ const companionFlag = "--with-companions"
 // between quants, so nesting one beneath another would assert a relation the
 // domain does not have.
 type modelListEntry struct {
-	State      string `json:"state"`
-	Repository string `json:"repository"`
-	Reference  string `json:"reference"`
-	Filename   string `json:"filename"`
-	Type       string `json:"type,omitempty"`
+	State           string `json:"state"`
+	Repository      string `json:"repository"`
+	Quant           string `json:"quant"`
+	Filename        string `json:"filename"`
+	Type            string `json:"type,omitempty"`
+	CountParameters int64  `json:"countParameters"`
 	// Usable is the derived usability, flattened into the entry so both output
 	// modes render it without consulting anything else.
 	Usable bool `json:"usable"`
@@ -343,9 +344,42 @@ func writeDiscoveryHuman(out io.Writer, discovery modelapp.Discovery) error {
 	return nil
 }
 
-// runModelList renders the library flat: every artifact is one row at the same
-// level, reporting its declared type. The principal/companion relation is
-// many-to-many and is resolved in the preset, not drawn here.
+// typePriority maps artifact types to their sort priority. Lower values sort first.
+var typePriority = map[string]int{
+	"model":    0,
+	"mmproj":   1,
+	"lora":     2,
+	"draft":    3,
+	"vocoder":  4,
+}
+
+// statePriority maps library states to their sort priority. Lower values sort first.
+var statePriority = map[string]int{
+	"installed":     0,
+	"unreconciled":  1,
+}
+
+// computeQuant derives the QUANT value for an entry. For model artifacts it's
+// just the quantization type; for mmproj it's architecture:quantization.
+func computeQuant(entry modelapp.LibraryEntry) string {
+	if entry.Classification == nil {
+		return "unknown"
+	}
+	if entry.Classification.Type == modelapp.TypeProjector && entry.Classification.Architecture != "" {
+		if entry.Classification.FileType != nil {
+			return entry.Classification.Architecture + ":" + modelapp.FileTypeNames[*entry.Classification.FileType]
+		}
+		return entry.Classification.Architecture + ":BF16"
+	}
+	if entry.Classification.FileType != nil {
+		return modelapp.FileTypeNames[*entry.Classification.FileType]
+	}
+	return "unknown"
+}
+
+// runModelList renders the library grouped by repository, with a QUANT column
+// instead of REFERENCE. Entries within each repository are sorted by type
+// priority, then state, then parameter count.
 func runModelList(out io.Writer, jsonOut bool) error {
 	m, err := modelManagerFactory()
 	if err != nil {
@@ -355,43 +389,63 @@ func runModelList(out io.Writer, jsonOut bool) error {
 	if err != nil {
 		return err
 	}
-	list := make([]modelListEntry, 0, len(entries))
+	// Group by repository
+	byRepo := map[string][]modelListEntry{}
+	var repoOrder []string
 	for _, entry := range entries {
 		if entry.State != "installed" && entry.State != "unreconciled" {
 			continue
 		}
+		repo := entry.Source.Repository
+		if _, exists := byRepo[repo]; !exists {
+			repoOrder = append(repoOrder, repo)
+		}
 		item := modelListEntry{
-			State:      entry.State,
-			Repository: entry.Source.Repository,
-			Reference:  modelapp.FormatReference(entry),
-			Filename:   entry.Source.Filename,
-			Usable:     entry.Usability.Usable,
+			State:           entry.State,
+			Repository:      repo,
+			Quant:           computeQuant(entry),
+			Filename:        entry.Source.Filename,
+			Type:            string(entry.Classification.Type),
+			CountParameters: entry.Classification.CountParameters,
+			Usable:          entry.Usability.Usable,
 		}
-		// The classification comes from the sidecar, which already holds it and
-		// which Library has already read: listing must never re-read the .gguf,
-		// and it never reconciles.
-		if entry.Classification != nil {
-			item.Type = string(entry.Classification.Type)
-		}
-		list = append(list, item)
+		byRepo[repo] = append(byRepo[repo], item)
+	}
+	// Sort entries within each repository
+	for _, items := range byRepo {
+		sort.SliceStable(items, func(i, j int) bool {
+			pi := typePriority[items[i].Type]
+			pj := typePriority[items[j].Type]
+			if pi != pj {
+				return pi < pj
+			}
+			// State: installed before unreconciled
+			si := statePriority[items[i].State]
+			sj := statePriority[items[j].State]
+			if si != sj {
+				return si < sj
+			}
+			// Parameters: descending
+			return items[i].CountParameters > items[j].CountParameters
+		})
 	}
 	if jsonOut {
 		return json.NewEncoder(out).Encode(struct {
-			SchemaVersion int              `json:"schemaVersion"`
-			Result        []modelListEntry `json:"result"`
-		}{1, list})
+			SchemaVersion int                    `json:"schemaVersion"`
+			Result        map[string][]modelListEntry `json:"result"`
+		}{1, byRepo})
 	}
 	writer := tabwriter.NewWriter(out, 0, 4, 2, ' ', 0)
-	_, _ = fmt.Fprintln(writer, "STATE\tTYPE\tUSABLE\tREFERENCE\tFILENAME")
-	for _, entry := range list {
-		// The reason column is empty for a usable artifact: a reason exists
-		// only to explain a refusal, and repeating "usable" in it would add a
-		// column of noise to the common case.
-		usable := "no"
-		if entry.Usable {
-			usable = "yes"
+	_, _ = fmt.Fprintln(writer, "REPOSITORY\tSTATE\tTYPE\tUSABLE\tQUANT\tFILENAME")
+	for _, repo := range repoOrder {
+		_, _ = fmt.Fprintln(writer, fmt.Sprintf("REPOSITORY: %s", repo))
+		for _, entry := range byRepo[repo] {
+			usable := "no"
+			if entry.Usable {
+				usable = "yes"
+			}
+			_, _ = fmt.Fprintf(writer, "%s\t%s\t%s\t%s\t%s\t%s\n", entry.Repository, entry.State, entry.Type, usable, entry.Quant, entry.Filename)
 		}
-		_, _ = fmt.Fprintf(writer, "%s\t%s\t%s\t%s\t%s\n", entry.State, entry.Type, usable, entry.Reference, entry.Filename)
 	}
 	return writer.Flush()
 }

@@ -78,7 +78,7 @@ func TestOperatorFlowDiscoverDownloadListBind(t *testing.T) {
 		t.Fatalf("list: %v", err)
 	}
 	var envelope struct {
-		Result []modelListEntry `json:"result"`
+		Result map[string][]modelListEntry `json:"result"`
 	}
 	if err := json.Unmarshal(listed.Bytes(), &envelope); err != nil {
 		t.Fatal(err)
@@ -86,7 +86,11 @@ func TestOperatorFlowDiscoverDownloadListBind(t *testing.T) {
 	if len(envelope.Result) != 1 {
 		t.Fatalf("expected the one downloaded artifact, result=%+v", envelope.Result)
 	}
-	entry := envelope.Result[0]
+	repoEntries := envelope.Result["org/repo"]
+	if len(repoEntries) != 1 {
+		t.Fatalf("expected the one downloaded artifact, result=%+v", repoEntries)
+	}
+	entry := repoEntries[0]
 	if entry.Filename != "bonsai-Q4_K_M.gguf" || entry.State != "installed" || entry.Type != "model" {
 		t.Fatalf("entry=%+v", entry)
 	}

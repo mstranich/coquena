@@ -295,7 +295,7 @@ func TestRunModelListReportsEveryArtifactAtTheSameLevel(t *testing.T) {
 	if err := runModel([]string{"list"}, &human); err != nil {
 		t.Fatal(err)
 	}
-	for _, expected := range []string{"org/repo:Q8_K", "model", "mmproj"} {
+	for _, expected := range []string{"REPOSITORY: org/repo", "model", "mmproj", "Q8_K"} {
 		if !strings.Contains(human.String(), expected) {
 			t.Fatalf("missing %q in %s", expected, human.String())
 		}
@@ -309,16 +309,20 @@ func TestRunModelListReportsEveryArtifactAtTheSameLevel(t *testing.T) {
 		t.Fatal(err)
 	}
 	var envelope struct {
-		Result []modelListEntry `json:"result"`
+		Result map[string][]modelListEntry `json:"result"`
 	}
 	if err := json.Unmarshal(jsonOut.Bytes(), &envelope); err != nil {
 		t.Fatal(err)
 	}
-	if len(envelope.Result) != 2 {
-		t.Fatalf("expected both artifacts at the top level, result=%+v", envelope.Result)
+	if len(envelope.Result) != 1 {
+		t.Fatalf("expected one repository, result=%+v", envelope.Result)
+	}
+	repoEntries := envelope.Result["org/repo"]
+	if len(repoEntries) != 2 {
+		t.Fatalf("expected both artifacts at the top level, result=%+v", repoEntries)
 	}
 	types := map[string]string{}
-	for _, entry := range envelope.Result {
+	for _, entry := range repoEntries {
 		types[entry.Filename] = entry.Type
 	}
 	if types["principal.gguf"] != "model" || types["mmproj.gguf"] != "mmproj" {
@@ -417,13 +421,17 @@ func TestRunModelListReportsUnmatchedCompanion(t *testing.T) {
 		t.Fatal(err)
 	}
 	var envelope struct {
-		Result []modelListEntry `json:"result"`
+		Result map[string][]modelListEntry `json:"result"`
 	}
 	if err := json.Unmarshal(jsonOut.Bytes(), &envelope); err != nil {
 		t.Fatal(err)
 	}
-	if len(envelope.Result) != 1 || envelope.Result[0].Filename != "mmproj.gguf" || envelope.Result[0].Type != "mmproj" {
-		t.Fatalf("result=%+v", envelope.Result)
+	if len(envelope.Result) != 1 {
+		t.Fatalf("expected one repository, result=%+v", envelope.Result)
+	}
+	repoEntries := envelope.Result["org/repo"]
+	if len(repoEntries) != 1 || repoEntries[0].Filename != "mmproj.gguf" || repoEntries[0].Type != "mmproj" {
+		t.Fatalf("result=%+v", repoEntries)
 	}
 }
 

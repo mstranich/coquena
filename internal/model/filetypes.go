@@ -1,11 +1,11 @@
 // Package model provides the internal model library management for Coquena.
 package model
 
-// fileTypeNames maps fileType integers to human-readable quantization names.
+// FileTypeNames maps fileType integers to human-readable quantization names.
 // The mapping is derived from enum ggml_type in ggml/include/ggml.h of llama.cpp.
 // Each entry includes types that are marked as "support has been removed" in the source,
 // with descriptive names like "removed" (e.g., "Q4_2 (removed)").
-var fileTypeNames = map[int64]string{
+var FileTypeNames = map[int64]string{
 	0:  "F32",
 	1:  "F16",
 	2:  "Q4_0",

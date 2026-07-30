@@ -63,6 +63,7 @@ type Classification struct {
 	Architecture     string          `json:"architecture,omitempty"`
 	SizeLabel        string          `json:"sizeLabel,omitempty"`
 	FileType         *int64          `json:"fileType,omitempty"`
+	CountParameters  int64           `json:"countParameters,omitempty"`
 	ContextLength    int64           `json:"contextLength,omitempty"`
 	EmbeddingLength  int64           `json:"embeddingLength,omitempty"`
 	ProjectionDim    int64           `json:"projectionDim,omitempty"`

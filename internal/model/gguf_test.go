@@ -196,3 +196,138 @@ func TestReadMetadataRejectsUnsupportedValue(t *testing.T) {
 		t.Fatal("unsupported value accepted")
 	}
 }
+
+// buildTensorTable builds a tensor table section for a GGUF binary.
+// It writes: for each tensor: name, type, shape, offset.
+func buildTensorTable(tensors []tensorEntry) []byte {
+	b := make([]byte, 0)
+
+	for _, te := range tensors {
+		// name
+		b = appendString(b, te.name)
+		// type
+		var t [4]byte
+		binary.LittleEndian.PutUint32(t[:], te.tensorType)
+		b = append(b, t[:]...)
+		// shape
+		shapeBytes := make([]byte, 0)
+		var et [4]byte
+		binary.LittleEndian.PutUint32(et[:], 4) // uint32 element type
+		shapeBytes = append(shapeBytes, et[:]...)
+		var count [8]byte
+		binary.LittleEndian.PutUint64(count[:], uint64(len(te.shape)))
+		shapeBytes = append(shapeBytes, count[:]...)
+		for _, dim := range te.shape {
+			var v [4]byte
+			binary.LittleEndian.PutUint32(v[:], dim)
+			shapeBytes = append(shapeBytes, v[:]...)
+		}
+		b = append(b, shapeBytes...)
+		// offset
+		var off [8]byte
+		binary.LittleEndian.PutUint64(off[:], te.offset)
+		b = append(b, off[:]...)
+	}
+
+	return b
+}
+
+type tensorEntry struct {
+	name   string
+	tensorType uint32
+	shape  []uint32
+	offset uint64
+}
+
+// TestCountParameters verifies the parameter count for a known tensor table.
+func TestCountParameters(t *testing.T) {
+	// Build a minimal GGUF binary with proper header and tensor table
+	b := make([]byte, 24)
+	copy(b, "GGUF")
+	binary.LittleEndian.PutUint32(b[4:], 3)
+	binary.LittleEndian.PutUint64(b[8:], 3) // n_tensors = 3
+
+	// Tensor table
+	tensors := []tensorEntry{
+		{
+			name:       "blk.0.attn_q.weight",
+			tensorType: 12, // Q4_K
+			shape:      []uint32{512, 4096},
+			offset:     0,
+		},
+		{
+			name:       "blk.0.attn_k.weight",
+			tensorType: 12, // Q4_K
+			shape:      []uint32{512, 4096},
+			offset:     100,
+		},
+		{
+			name:       "output.weight",
+			tensorType: 15, // Q8_K
+			shape:      []uint32{4096},
+			offset:     200,
+		},
+	}
+
+	tensorTable := buildTensorTable(tensors)
+
+	// Combine header and tensor table
+	fullBinary := make([]byte, 0, len(b)+len(tensorTable))
+	fullBinary = append(fullBinary, b...)
+	fullBinary = append(fullBinary, tensorTable...)
+
+	// Write to temp file
+	p := filepath.Join(t.TempDir(), "test.gguf")
+	if err := os.WriteFile(p, fullBinary, 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	r, err := OpenLocal(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer r.Close()
+
+	got, err := CountParameters(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Count elements, not bytes:
+	// blk.0.attn_q.weight: 512 * 4096 = 2097152 elements
+	// blk.0.attn_k.weight: 512 * 4096 = 2097152 elements
+	// output.weight: 4096 elements
+	// Total: 2097152 + 2097152 + 4096 = 4198400
+	want := int64(4198400)
+	if got != want {
+		t.Fatalf("CountParameters() = %d, want %d", got, want)
+	}
+}
+
+// TestCountParametersEmpty verifies that an empty tensor table returns 0.
+func TestCountParametersEmpty(t *testing.T) {
+	b := make([]byte, 24)
+	copy(b, "GGUF")
+	binary.LittleEndian.PutUint32(b[4:], 3)
+	binary.LittleEndian.PutUint64(b[8:], 0) // n_tensors = 0
+
+	p := filepath.Join(t.TempDir(), "empty.gguf")
+	if err := os.WriteFile(p, b, 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	r, err := OpenLocal(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer r.Close()
+
+	got, err := CountParameters(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if got != 0 {
+		t.Fatalf("CountParameters() = %d, want 0", got)
+	}
+}

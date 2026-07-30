@@ -19,14 +19,16 @@ func listedEntries(t *testing.T) map[string]modelListEntry {
 		t.Fatal(err)
 	}
 	var envelope struct {
-		Result []modelListEntry `json:"result"`
+		Result map[string][]modelListEntry `json:"result"`
 	}
 	if err := json.Unmarshal(out.Bytes(), &envelope); err != nil {
 		t.Fatal(err)
 	}
 	byName := map[string]modelListEntry{}
-	for _, entry := range envelope.Result {
-		byName[entry.Filename] = entry
+	for _, entries := range envelope.Result {
+		for _, entry := range entries {
+			byName[entry.Filename] = entry
+		}
 	}
 	return byName
 }
@@ -106,3 +108,7 @@ func TestRunModelListReflectsANewPrincipalWithoutRewritingSidecars(t *testing.T)
 		t.Fatal("the projector's sidecar was rewritten to record its usability")
 	}
 }
+
+
+
+

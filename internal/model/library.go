@@ -213,7 +213,15 @@ func classifyFile(path string) Classification {
 	if err != nil {
 		return Classification{Type: TypeUnknown}
 	}
-	return Classify(meta)
+	// Count parameters from the tensor table
+	params, err := CountParameters(r)
+	if err != nil {
+		// If counting fails, set to 0 rather than failing classification
+		params = 0
+	}
+	c := Classify(meta)
+	c.CountParameters = params
+	return c
 }
 
 func ReadRecord(target string) (Record, error) {

@@ -53,7 +53,7 @@ func TestFileTypeNames(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		got, ok := fileTypeNames[tt.fileType]
+		got, ok := FileTypeNames[tt.fileType]
 		if !ok {
 			t.Errorf("fileType %d: not found in map", tt.fileType)
 			continue
@@ -66,7 +66,7 @@ func TestFileTypeNames(t *testing.T) {
 
 func TestFileTypeNamesMissing(t *testing.T) {
 	// Test that missing fileTypes return empty string
-	got, ok := fileTypeNames[100]
+	got, ok := FileTypeNames[100]
 	if ok {
 		t.Errorf("fileType 100: should not be in map, got %q", got)
 	}
