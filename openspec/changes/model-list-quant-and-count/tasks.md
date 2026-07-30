@@ -2,15 +2,15 @@
 
 ## Tasks
 
-- [ ] **T1**: Add `CountParameters` field to `Classification` struct in `internal/model/classification.go`
-- [ ] **T2**: Implement `CountParameters` function in `internal/model/gguf.go` with `ggufTypeSize` mapping
-- [ ] **T3**: Compute `CountParameters` during `classifyFile` in `internal/model/manager.go`
-- [ ] **T4**: Update `modelListEntry` struct to add `Repository`, `Quant` fields in `cmd/coquena/model.go`
-- [ ] **T5**: Restructure `runModelList` to group by repository, add QUANT column, implement sorting
-- [ ] **T6**: Update JSON encoding to use dictionary keyed by repository
-- [ ] **T7**: Update `model_usability_test.go` for new output format
-- [ ] **T8**: Add tests for `CountParameters` function
-- [ ] **T9**: Add tests for new sorting logic
+- [x] **T1**: Add `CountParameters` field to `Classification` struct in `internal/model/classification.go`
+- [x] **T2**: Implement `CountParameters` function in `internal/model/gguf.go` with `ggufTypeSize` mapping
+- [x] **T3**: Compute `CountParameters` during `classifyFile` in `internal/model/library.go`
+- [x] **T4**: Update `modelListEntry` struct to add `Repository`, `Quant` fields in `cmd/coquena/model.go`
+- [x] **T5**: Restructure `runModelList` to group by repository, add QUANT column, implement sorting
+- [x] **T6**: Update JSON encoding to use dictionary keyed by repository
+- [x] **T7**: Update `model_usability_test.go` for new output format
+- [x] **T8**: Add tests for `CountParameters` function
+- [x] **T9**: Add tests for new sorting logic
 
 ## Dependencies
 
