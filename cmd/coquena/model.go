@@ -371,10 +371,44 @@ func computeQuant(entry modelapp.LibraryEntry) string {
 		}
 		return entry.Classification.Architecture + ":BF16"
 	}
+	// Try to extract quantization from filename first
+	if quant := extractQuantFromFilename(entry.Source.Filename); quant != "" {
+		return quant
+	}
 	if entry.Classification.FileType != nil {
 		return modelapp.FileTypeNames[*entry.Classification.FileType]
 	}
 	return "unknown"
+}
+
+// extractQuantFromFilename tries to extract the quantization from the filename.
+// Examples: "model-Q4_K_M.gguf" -> "Q4_K_M", "model.gguf" -> ""
+func extractQuantFromFilename(filename string) string {
+	// Remove extension
+	name := strings.TrimSuffix(filename, ".gguf")
+	// Split by dash
+	parts := strings.Split(name, "-")
+	if len(parts) < 2 {
+		return ""
+	}
+	// The quantization is usually the last part before .gguf
+	quant := parts[len(parts)-1]
+	// Validate it looks like a quantization name
+	validQuants := map[string]bool{
+		"F32": true, "F16": true, "Q4_0": true, "Q4_1": true, "Q4_2": true, "Q4_3": true,
+		"Q5_0": true, "Q5_1": true, "Q8_0": true, "Q8_1": true, "Q2_K": true, "Q3_K": true,
+		"Q4_K": true, "Q4_K_M": true, "Q4_K_S": true, "Q5_K": true, "Q5_K_M": true, "Q5_K_S": true,
+		"Q6_K": true, "Q6_K_M": true, "Q8_K": true, "Q8_K_M": true, "IQ2_XXS": true, "IQ2_XS": true,
+		"IQ3_XXS": true, "IQ1_S": true, "IQ4_NL": true, "IQ3_S": true, "IQ2_S": true, "IQ4_XS": true,
+		"I8": true, "I16": true, "I32": true, "I64": true, "F64": true, "IQ1_M": true, "BF16": true,
+		"Q4_0_4_4": true, "Q4_0_4_8": true, "Q4_0_8_8": true, "TQ1_0": true, "TQ2_0": true,
+		"IQ4_NL_4_4": true, "IQ4_NL_4_8": true, "IQ4_NL_8_8": true, "MXFP4": true, "NVFP4": true,
+		"Q1_0": true, "Q2_0": true,
+	}
+	if validQuants[quant] {
+		return quant
+	}
+	return ""
 }
 
 // runModelList renders the library grouped by repository, with a QUANT column
@@ -435,19 +469,19 @@ func runModelList(out io.Writer, jsonOut bool) error {
 			Result        map[string][]modelListEntry `json:"result"`
 		}{1, byRepo})
 	}
-	// Render grouped by repository with indented entries
+	writer := tabwriter.NewWriter(out, 0, 4, 2, ' ', 0)
+	_, _ = fmt.Fprintln(writer, "REPOSITORY\tSTATE\tTYPE\tUSABLE\tQUANT\tFILENAME")
 	for _, repo := range repoOrder {
-		_, _ = fmt.Fprintf(out, "%s\n", repo)
+		_, _ = fmt.Fprintln(writer, fmt.Sprintf("REPOSITORY: %s", repo))
 		for _, entry := range byRepo[repo] {
 			usable := "no"
 			if entry.Usable {
 				usable = "yes"
 			}
-			_, _ = fmt.Fprintf(out, "  %-12s %-12s %-6s %s\n", entry.Type, entry.State, usable, entry.Quant)
-			_, _ = fmt.Fprintf(out, "    %s\n", entry.Filename)
+			_, _ = fmt.Fprintf(writer, "%s\t%s\t%s\t%s\t%s\t%s\n", entry.Repository, entry.State, entry.Type, usable, entry.Quant, entry.Filename)
 		}
 	}
-	return nil
+	return writer.Flush()
 }
 
 // runModelReconcile parses one reconciliation invocation and refuses the two

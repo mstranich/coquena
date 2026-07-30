@@ -24,12 +24,50 @@ func formatCandidates(filenames []string) string {
 }
 
 // FormatReference builds the <user>/<repo>:<quant> reference string from a LibraryEntry.
-// It uses the FileTypeNames mapping to convert the fileType integer to a human-readable name.
+// It tries to extract the quantization from the filename first, falling back to
+// the FileTypeNames mapping for the general.file_type value.
 func FormatReference(entry LibraryEntry) string {
-	if entry.Classification == nil || entry.Classification.FileType == nil {
+	if entry.Classification == nil {
 		return entry.Source.Repository + ":unknown"
 	}
-	return entry.Source.Repository + ":" + FileTypeNames[*entry.Classification.FileType]
+	if entry.Classification.FileType != nil {
+		quant := extractQuantFromFilename(entry.Source.Filename)
+		if quant != "" {
+			return entry.Source.Repository + ":" + quant
+		}
+		return entry.Source.Repository + ":" + FileTypeNames[*entry.Classification.FileType]
+	}
+	return entry.Source.Repository + ":unknown"
+}
+
+// extractQuantFromFilename tries to extract the quantization from the filename.
+// Examples: "model-Q4_K_M.gguf" -> "Q4_K_M", "model.gguf" -> ""
+func extractQuantFromFilename(filename string) string {
+	// Remove extension
+	name := strings.TrimSuffix(filename, ".gguf")
+	// Split by dash
+	parts := strings.Split(name, "-")
+	if len(parts) < 2 {
+		return ""
+	}
+	// The quantization is usually the last part before .gguf
+	quant := parts[len(parts)-1]
+	// Validate it looks like a quantization name
+	validQuants := map[string]bool{
+		"F32": true, "F16": true, "Q4_0": true, "Q4_1": true, "Q4_2": true, "Q4_3": true,
+		"Q5_0": true, "Q5_1": true, "Q8_0": true, "Q8_1": true, "Q2_K": true, "Q3_K": true,
+		"Q4_K": true, "Q4_K_M": true, "Q4_K_S": true, "Q5_K": true, "Q5_K_M": true, "Q5_K_S": true,
+		"Q6_K": true, "Q6_K_M": true, "Q8_K": true, "Q8_K_M": true, "IQ2_XXS": true, "IQ2_XS": true,
+		"IQ3_XXS": true, "IQ1_S": true, "IQ4_NL": true, "IQ3_S": true, "IQ2_S": true, "IQ4_XS": true,
+		"I8": true, "I16": true, "I32": true, "I64": true, "F64": true, "IQ1_M": true, "BF16": true,
+		"Q4_0_4_4": true, "Q4_0_4_8": true, "Q4_0_8_8": true, "TQ1_0": true, "TQ2_0": true,
+		"IQ4_NL_4_4": true, "IQ4_NL_4_8": true, "IQ4_NL_8_8": true, "MXFP4": true, "NVFP4": true,
+		"Q1_0": true, "Q2_0": true,
+	}
+	if validQuants[quant] {
+		return quant
+	}
+	return ""
 }
 
 // ErrNoInstalledMatch indicates a reference matched no artifact in the library
