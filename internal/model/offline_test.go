@@ -43,7 +43,7 @@ func TestFormatReferenceWithQ4K(t *testing.T) {
 }
 
 func TestFormatReferenceWithRemovedType(t *testing.T) {
-	fileType := int64(4) // Q4_2
+	fileType := int64(4) // Q4_2 (removed)
 	entry := LibraryEntry{
 		Source: Source{
 			Repository: "user/repo",
@@ -55,7 +55,7 @@ func TestFormatReferenceWithRemovedType(t *testing.T) {
 	}
 
 	got := FormatReference(entry)
-	want := "user/repo:Q4_2"
+	want := "user/repo:Q4_2 (removed)"
 	if got != want {
 		t.Errorf("FormatReference() = %q, want %q", got, want)
 	}

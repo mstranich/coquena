@@ -65,7 +65,7 @@ func TestRunModelListInstalled(t *testing.T) {
 	if err := runModel([]string{"list"}, &out); err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(out.String(), "org/repo") {
+	if !strings.Contains(out.String(), "REPOSITORY: org/repo") {
 		t.Fatalf("out=%s", out.String())
 	}
 }
@@ -255,7 +255,7 @@ func TestRunModelListReportsUnreconciledAndInstalled(t *testing.T) {
 	if err := runModel([]string{"list"}, &human); err != nil {
 		t.Fatal(err)
 	}
-	for _, expected := range []string{"installed", "org/repo", "unreconciled", "other/repo"} {
+	for _, expected := range []string{"installed", "REPOSITORY: org/repo", "unreconciled", "REPOSITORY: other/repo"} {
 		if !strings.Contains(human.String(), expected) {
 			t.Fatalf("missing %q in %s", expected, human.String())
 		}

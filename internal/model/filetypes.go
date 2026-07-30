@@ -3,13 +3,15 @@ package model
 
 // FileTypeNames maps fileType integers to human-readable quantization names.
 // The mapping is derived from enum ggml_type in ggml/include/ggml.h of llama.cpp.
+// Each entry includes types that are marked as "support has been removed" in the source,
+// with descriptive names like "removed" (e.g., "Q4_2 (removed)").
 var FileTypeNames = map[int64]string{
 	0:  "F32",
 	1:  "F16",
 	2:  "Q4_0",
 	3:  "Q4_1",
-	4:  "Q4_2",
-	5:  "Q4_3",
+	4:  "Q4_2 (removed)",
+	5:  "Q4_3 (removed)",
 	6:  "Q5_0",
 	7:  "Q5_1",
 	8:  "Q8_0",
@@ -35,14 +37,14 @@ var FileTypeNames = map[int64]string{
 	28: "F64",
 	29: "IQ1_M",
 	30: "BF16",
-	31: "Q4_0_4_4",
-	32: "Q4_0_4_8",
-	33: "Q4_0_8_8",
+	31: "Q4_0_4_4 (removed)",
+	32: "Q4_0_4_8 (removed)",
+	33: "Q4_0_8_8 (removed)",
 	34: "TQ1_0",
 	35: "TQ2_0",
-	36: "IQ4_NL_4_4",
-	37: "IQ4_NL_4_8",
-	38: "IQ4_NL_8_8",
+	36: "IQ4_NL_4_4 (removed)",
+	37: "IQ4_NL_4_8 (removed)",
+	38: "IQ4_NL_8_8 (removed)",
 	39: "MXFP4",
 	40: "NVFP4",
 	41: "Q1_0",
