@@ -24,12 +24,12 @@ func formatCandidates(filenames []string) string {
 }
 
 // FormatReference builds the <user>/<repo>:<quant> reference string from a LibraryEntry.
-// It uses the FileTypeNames mapping to convert the fileType integer to a human-readable name.
+// It uses the fileTypeDisplayName lookup to convert the fileType integer to a human-readable name.
 func FormatReference(entry LibraryEntry) string {
 	if entry.Classification == nil || entry.Classification.FileType == nil {
 		return entry.Source.Repository + ":unknown"
 	}
-	return entry.Source.Repository + ":" + FileTypeNames[*entry.Classification.FileType]
+	return entry.Source.Repository + ":" + FileTypeDisplayName(*entry.Classification.FileType)
 }
 
 // ErrNoInstalledMatch indicates a reference matched no artifact in the library

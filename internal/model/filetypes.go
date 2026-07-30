@@ -1,17 +1,15 @@
 // Package model provides the internal model library management for Coquena.
 package model
 
-// FileTypeNames maps fileType integers to human-readable quantization names.
-// The mapping is derived from enum ggml_type in ggml/include/ggml.h of llama.cpp.
-// Each entry includes types that are marked as "support has been removed" in the source,
-// with descriptive names like "removed" (e.g., "Q4_2 (removed)").
+// FileTypeNames maps fileType integers to human-readable quantization names for
+// types that are actively supported by llama.cpp. The mapping is derived from
+// enum ggml_type in ggml/include/ggml.h. Types whose support has been removed
+// from active development live in DeprecatedFileTypeNames.
 var FileTypeNames = map[int64]string{
 	0:  "F32",
 	1:  "F16",
 	2:  "Q4_0",
 	3:  "Q4_1",
-	4:  "Q4_2 (removed)",
-	5:  "Q4_3 (removed)",
 	6:  "Q5_0",
 	7:  "Q5_1",
 	8:  "Q8_0",
@@ -37,16 +35,44 @@ var FileTypeNames = map[int64]string{
 	28: "F64",
 	29: "IQ1_M",
 	30: "BF16",
-	31: "Q4_0_4_4 (removed)",
-	32: "Q4_0_4_8 (removed)",
-	33: "Q4_0_8_8 (removed)",
 	34: "TQ1_0",
 	35: "TQ2_0",
-	36: "IQ4_NL_4_4 (removed)",
-	37: "IQ4_NL_4_8 (removed)",
-	38: "IQ4_NL_8_8 (removed)",
 	39: "MXFP4",
 	40: "NVFP4",
 	41: "Q1_0",
 	42: "Q2_0",
+}
+
+// DeprecatedFileTypeNames maps fileType integers to human-readable
+// quantization names for types whose support has been removed from active
+// development in llama.cpp. These types still function correctly (especially
+// for companion artifacts like projectors) but are no longer actively
+// maintained. Names are clean — no "(removed)" suffix — since the display
+// layer has no need to signal deprecation status.
+var DeprecatedFileTypeNames = map[int64]string{
+	4:  "Q4_2",
+	5:  "Q4_3",
+	31: "Q4_0_4_4",
+	32: "Q4_0_4_8",
+	33: "Q4_0_8_8",
+	36: "IQ4_NL_4_4",
+	37: "IQ4_NL_4_8",
+	38: "IQ4_NL_8_8",
+}
+
+// FileTypeDisplayName resolves a fileType integer to its human-readable
+// quantization name. It checks FileTypeNames first (actively supported types),
+// then DeprecatedFileTypeNames (types whose active development stopped but
+// which still function correctly). Returns "unknown" when neither map has an
+// entry, which is the same fallback behavior as a missing map key — callers
+// that need to distinguish "not mapped" from "deprecated" should consult the
+// maps directly.
+func FileTypeDisplayName(ft int64) string {
+	if n, ok := FileTypeNames[ft]; ok {
+		return n
+	}
+	if n, ok := DeprecatedFileTypeNames[ft]; ok {
+		return n
+	}
+	return "unknown"
 }
