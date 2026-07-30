@@ -17,7 +17,7 @@ func TestFormatReference(t *testing.T) {
 	}
 
 	got := FormatReference(entry)
-	want := "deepreinforce-ai/Ornith-1.0-9B-GGUF:Q4_K_M"
+	want := "deepreinforce-ai/Ornith-1.0-9B-GGUF:Q8_K"
 	if got != want {
 		t.Errorf("FormatReference() = %q, want %q", got, want)
 	}
@@ -36,7 +36,7 @@ func TestFormatReferenceWithQ4K(t *testing.T) {
 	}
 
 	got := FormatReference(entry)
-	want := "user/repo:Q4_K_M"
+	want := "user/repo:Q4_K"
 	if got != want {
 		t.Errorf("FormatReference() = %q, want %q", got, want)
 	}
