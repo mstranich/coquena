@@ -38,13 +38,9 @@ type modelListEntry struct {
 	Reference  string `json:"reference"`
 	Filename   string `json:"filename"`
 	Type       string `json:"type,omitempty"`
-	// Usable and Reason are the derived usability, flattened into the entry so
-	// both output modes render it without consulting anything else. Reason is
-	// the machine-readable enumeration; Detail is the sentence shown to an
-	// operator.
-	Usable bool   `json:"usable"`
-	Reason string `json:"reason,omitempty"`
-	Detail string `json:"detail,omitempty"`
+	// Usable is the derived usability, flattened into the entry so both output
+	// modes render it without consulting anything else.
+	Usable bool `json:"usable"`
 }
 
 func newModelManager() (*modelapp.Manager, error) {
@@ -370,8 +366,6 @@ func runModelList(out io.Writer, jsonOut bool) error {
 			Reference:  modelapp.FormatReference(entry),
 			Filename:   entry.Source.Filename,
 			Usable:     entry.Usability.Usable,
-			Reason:     string(entry.Usability.Reason),
-			Detail:     entry.Usability.Detail,
 		}
 		// The classification comes from the sidecar, which already holds it and
 		// which Library has already read: listing must never re-read the .gguf,
@@ -388,7 +382,7 @@ func runModelList(out io.Writer, jsonOut bool) error {
 		}{1, list})
 	}
 	writer := tabwriter.NewWriter(out, 0, 4, 2, ' ', 0)
-	_, _ = fmt.Fprintln(writer, "STATE\tTYPE\tUSABLE\tREFERENCE\tFILENAME\tREASON")
+	_, _ = fmt.Fprintln(writer, "STATE\tTYPE\tUSABLE\tREFERENCE\tFILENAME")
 	for _, entry := range list {
 		// The reason column is empty for a usable artifact: a reason exists
 		// only to explain a refusal, and repeating "usable" in it would add a
@@ -397,7 +391,7 @@ func runModelList(out io.Writer, jsonOut bool) error {
 		if entry.Usable {
 			usable = "yes"
 		}
-		_, _ = fmt.Fprintf(writer, "%s\t%s\t%s\t%s\t%s\t%s\n", entry.State, entry.Type, usable, entry.Reference, entry.Filename, entry.Detail)
+		_, _ = fmt.Fprintf(writer, "%s\t%s\t%s\t%s\t%s\n", entry.State, entry.Type, usable, entry.Reference, entry.Filename)
 	}
 	return writer.Flush()
 }

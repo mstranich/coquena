@@ -52,26 +52,23 @@ func TestRunModelListReportsUsabilityAndItsReason(t *testing.T) {
 	}
 
 	entries := listedEntries(t)
-	if principal := entries["principal.gguf"]; !principal.Usable || principal.Reason != "" {
+	if principal := entries["principal.gguf"]; !principal.Usable {
 		t.Fatalf("principal=%+v", principal)
 	}
 	orphan := entries["orphan.gguf"]
-	if orphan.Usable || orphan.Reason != string(modelapp.ReasonOrphanedProjector) || orphan.Detail == "" {
+	if orphan.Usable {
 		t.Fatalf("orphan=%+v", orphan)
 	}
 	unreconciled := entries["foreign.gguf"]
-	if unreconciled.Usable || unreconciled.Reason != string(modelapp.ReasonUnreconciled) {
+	if unreconciled.Usable {
 		t.Fatalf("unreconciled=%+v", unreconciled)
-	}
-	if orphan.Reason == unreconciled.Reason {
-		t.Fatal("the two unusable artifacts report the same reason")
 	}
 
 	var human bytes.Buffer
 	if err := runModel([]string{"list"}, &human); err != nil {
 		t.Fatal(err)
 	}
-	for _, expected := range []string{"USABLE", "REASON", "yes", "no", orphan.Detail, unreconciled.Detail} {
+	for _, expected := range []string{"USABLE", "yes", "no"} {
 		if !strings.Contains(human.String(), expected) {
 			t.Fatalf("missing %q in:\n%s", expected, human.String())
 		}
@@ -98,7 +95,7 @@ func TestRunModelListReflectsANewPrincipalWithoutRewritingSidecars(t *testing.T)
 	publishArtifact(t, m, "principal.gguf", cliPrincipalGGUF())
 
 	entry := listedEntries(t)["mmproj.gguf"]
-	if !entry.Usable || entry.Reason != "" {
+	if !entry.Usable {
 		t.Fatalf("mmproj=%+v", entry)
 	}
 	after, err := os.ReadFile(sidecar)
