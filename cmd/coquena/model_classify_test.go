@@ -295,7 +295,7 @@ func TestRunModelListReportsEveryArtifactAtTheSameLevel(t *testing.T) {
 	if err := runModel([]string{"list"}, &human); err != nil {
 		t.Fatal(err)
 	}
-	for _, expected := range []string{"REPOSITORY: org/repo", "model", "mmproj", "Q8_K"} {
+	for _, expected := range []string{"org/repo", "model", "mmproj", "Q8_K"} {
 		if !strings.Contains(human.String(), expected) {
 			t.Fatalf("missing %q in %s", expected, human.String())
 		}

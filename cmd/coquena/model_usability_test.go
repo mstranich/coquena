@@ -70,7 +70,7 @@ func TestRunModelListReportsUsabilityAndItsReason(t *testing.T) {
 	if err := runModel([]string{"list"}, &human); err != nil {
 		t.Fatal(err)
 	}
-	for _, expected := range []string{"USABLE", "yes", "no"} {
+	for _, expected := range []string{"yes", "no"} {
 		if !strings.Contains(human.String(), expected) {
 			t.Fatalf("missing %q in:\n%s", expected, human.String())
 		}
