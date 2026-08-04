@@ -33,13 +33,16 @@ const companionFlag = "--with-companions"
 // between quants, so nesting one beneath another would assert a relation the
 // domain does not have.
 type modelListEntry struct {
-	State           string `json:"state"`
-	Repository      string `json:"repository"`
-	Quant           string `json:"quant"`
-	Filename        string `json:"filename"`
-	Type            string `json:"type,omitempty"`
-	CountParameters int64  `json:"countParameters"`
-	DerivationStale bool   `json:"derivationStale,omitempty"`
+	State            string `json:"state"`
+	Repository       string `json:"repository"`
+	Reference        string `json:"reference"`
+	LogicalSelector  string `json:"logicalSelector,omitempty"`
+	ResolvedRevision string `json:"resolvedRevision,omitempty"`
+	Quant            string `json:"quant"`
+	Filename         string `json:"filename"`
+	Type             string `json:"type,omitempty"`
+	CountParameters  int64  `json:"countParameters"`
+	DerivationStale  bool   `json:"derivationStale,omitempty"`
 	// Usable is the derived usability, flattened into the entry so both output
 	// modes render it without consulting anything else.
 	Usable bool `json:"usable"`
@@ -203,9 +206,12 @@ func extractModelFlag(args []string, name string) ([]string, bool) {
 func withCandidateNames(err error) error {
 	var selector *modelapp.ErrSelectorCandidates
 	if errors.As(err, &selector) {
-		candidates := selector.Matched
+		candidates := selector.References
 		if len(candidates) == 0 {
-			candidates = selector.Available
+			candidates = selector.Matched
+			if len(candidates) == 0 {
+				candidates = selector.Available
+			}
 		}
 		return appendCandidateNames(err, candidates)
 	}
@@ -375,14 +381,19 @@ func runModelList(out io.Writer, jsonOut bool) error {
 			repoOrder = append(repoOrder, repo)
 		}
 		item := modelListEntry{
-			State:           entry.State,
-			Repository:      repo,
-			Quant:           computeQuant(entry),
-			Filename:        entry.Source.Filename,
-			Type:            string(entry.Classification.Type),
-			CountParameters: entry.Classification.CountParameters,
-			DerivationStale: entry.DerivationStale,
-			Usable:          entry.Usability.Usable,
+			State:            entry.State,
+			Repository:       repo,
+			Reference:        modelapp.CanonicalReference(entry.Source),
+			LogicalSelector:  modelapp.LogicalReference(entry),
+			ResolvedRevision: entry.Source.ResolvedRevision,
+			Quant:            computeQuant(entry),
+			Filename:         entry.Source.Filename,
+			DerivationStale:  entry.DerivationStale,
+			Usable:           entry.Usability.Usable,
+		}
+		if entry.Classification != nil {
+			item.Type = string(entry.Classification.Type)
+			item.CountParameters = entry.Classification.CountParameters
 		}
 		byRepo[repo] = append(byRepo[repo], item)
 	}
@@ -414,7 +425,7 @@ func runModelList(out io.Writer, jsonOut bool) error {
 	writer := tabwriter.NewWriter(out, 0, 4, 2, ' ', 0)
 	for _, repo := range repoOrder {
 		_, _ = fmt.Fprintf(writer, "REPOSITORY: %s\n", repo)
-		_, _ = fmt.Fprintln(writer, "  STATE\tDERIVATION\tTYPE\tUSABLE\tQUANT\tFILENAME")
+		_, _ = fmt.Fprintln(writer, "  STATE\tDERIVATION\tTYPE\tUSABLE\tREFERENCE\tQUANT SELECTOR")
 		for _, entry := range byRepo[repo] {
 			usable := "no"
 			if entry.Usable {
@@ -424,7 +435,7 @@ func runModelList(out io.Writer, jsonOut bool) error {
 			if entry.DerivationStale {
 				derivation = "stale"
 			}
-			_, _ = fmt.Fprintf(writer, "  %s\t%s\t%s\t%s\t%s\t%s\n", entry.State, derivation, entry.Type, usable, entry.Quant, entry.Filename)
+			_, _ = fmt.Fprintf(writer, "  %s\t%s\t%s\t%s\t%s\t%s\n", entry.State, derivation, entry.Type, usable, entry.Reference, entry.LogicalSelector)
 		}
 		_, _ = fmt.Fprintln(writer)
 	}

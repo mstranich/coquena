@@ -108,7 +108,3 @@ func TestRunModelListReflectsANewPrincipalWithoutRewritingSidecars(t *testing.T)
 		t.Fatal("the projector's sidecar was rewritten to record its usability")
 	}
 }
-
-
-
-

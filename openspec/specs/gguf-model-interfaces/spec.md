@@ -134,51 +134,53 @@ to `TYPE=model`.
 - **AND** resume preserves the model's existing adjacent partial-file and sidecar safety guarantees
 
 ### Requirement: List installed models through the CLI
-Coquena SHALL provide a CLI command that lists the models present in the configured model directory, reporting for each installed one the reference form accepted when binding it and its resolved artifact filename, and reporting each unreconciled `.gguf` separately with its path-derived identity and a status distinguishing it from an installed model. The listing SHALL report every artifact at the same level and SHALL NOT nest one artifact beneath another, since a projector is compatible with every quantization of its principal and nesting it beneath one of them asserts a relation the domain does not have. Each entry SHALL report the artifact's declared type and whether it is usable, with a reason when it is not. The command SHALL issue no network request and SHALL report an empty list rather than an error when no model is present.
+Coquena SHALL provide a CLI command that lists every model present in the configured model directory at the artifact level. For each installed artifact it SHALL report its canonical `user/repo[@revision]:filename.gguf` reference, exact filename, resolved revision, and any logical `user/repo[@revision]:QUANT` selector that describes its quantization class. The logical selector SHALL be presented as a potentially non-unique class and SHALL NOT replace the canonical artifact reference.
 
-#### Scenario: List installed models
-- **WHEN** an operator lists models with artifacts installed
-- **THEN** the output reports each installed model's repository, quant reference form, and resolved filename
-- **AND** the command issues no network request
+The listing SHALL report each unreconciled `.gguf` separately with its path-derived identity and a status distinguishing it from an installed model. It SHALL NOT nest companions beneath principals, because doing so asserts a relation that does not hold across all quantizations. Each entry SHALL report the artifact's declared type and whether it is usable, with a reason when it is not. The command SHALL issue no network request and SHALL report an empty list rather than an error when no model is present.
+
+#### Scenario: List canonical and logical references
+- **WHEN** an operator lists installed artifacts
+- **THEN** each installed entry reports its canonical exact-filename reference
+- **AND** it may additionally report the logical quantization selector without claiming that selector is unique
+
+#### Scenario: List two variants in one quantization class
+- **WHEN** two installed filenames share the same declared quantization
+- **THEN** the listing reports two different canonical artifact references and the shared logical selector
+- **AND** neither artifact is hidden or selected as the preferred variant
 
 #### Scenario: Report a companion at the same level as any other artifact
 - **WHEN** the library holds a principal model and a projector compatible with it
-- **THEN** the listing reports both as independent entries with their declared types
+- **THEN** the listing reports both as independent entries with canonical references and declared types
 - **AND** it does not nest either beneath the other
 
 #### Scenario: Nest a companion beneath its principal
 - **WHEN** the library holds a principal model and a projector compatible with it
 - **THEN** the listing does not nest the projector beneath that principal
-- **AND** the nesting this scenario previously required is withdrawn, because a projector is compatible with every quantization of its principal and nesting it under one asserts a relation that does not exist
+- **AND** the nesting this scenario previously required remains withdrawn
 
 #### Scenario: List an unmatched companion
 - **WHEN** the library holds a projector compatible with no installed principal
-- **THEN** the listing reports it with its type
+- **THEN** the listing reports it with its canonical reference and type
 - **AND** it reports the projector as unusable, naming the absent compatible principal as the reason
 
-#### Scenario: Report the type of an artifact that has no sidecar
-- **WHEN** the configured models directory contains a `.gguf` written by another application
-- **THEN** the listing reports its declared type read from its own header
-- **AND** it reports the artifact as unreconciled and unusable
+#### Scenario: Report an unreconciled artifact
+- **WHEN** the configured models directory contains a `.gguf` without a valid matching sidecar
+- **THEN** the listing reports its path-derived repository and filename distinctly from a canonical installed identity
+- **AND** it does not fabricate revision provenance
 
-#### Scenario: Report why an artifact is unusable
-- **WHEN** the listing reports an artifact that cannot take part in an invocation
-- **THEN** it names the reason
-- **AND** the reason distinguishes an unreconciled artifact from an orphaned projector
+#### Scenario: Report the type and reason for an unusable artifact
+- **WHEN** the listing reports a sidecar-less artifact or an orphaned projector
+- **THEN** it reports the artifact's declared type read from its own header
+- **AND** it names a usability reason distinguishing unreconciled from orphaned
 
 #### Scenario: List an empty library
-- **WHEN** an operator lists models with no artifact installed
+- **WHEN** the configured models directory contains no model artifacts
 - **THEN** the command reports an empty list and succeeds
+- **AND** it issues no network request
 
 #### Scenario: List models as JSON
 - **WHEN** an operator requests JSON output
-- **THEN** the output is machine-readable and reports the same artifacts with their type and usability
-
-#### Scenario: List an unreconciled model
-- **WHEN** the configured models directory contains a `.gguf` without a valid Coquena sidecar
-- **THEN** the listing reports it distinctly from an installed model, with its path-derived repository and filename
-- **AND** the command issues no network request
-
+- **THEN** it reports the same canonical references, logical selectors, types, revisions, and usability as machine-readable fields
 ### Requirement: Reconcile a model without a valid sidecar
 Coquena SHALL provide `coquena model reconcile <reference> --online`, which reconciles the artifacts of one repository in a single action. It SHALL resolve the repository named by the `user/repo[@revision]:QUANT` reference grammar, enumerate that repository's remote candidates with their classification without downloading any complete artifact, and match them against the artifacts present on disk by filename, corroborated by metadata. A reference naming a repository that holds a principal and its companions SHALL reconcile all of them, since they are parts of one logical unit; a reference matching more than one principal SHALL be refused as ambiguous, naming the candidates, since choosing among quantizations is the operator's decision. Reconciliation SHALL persist a full Hugging Face-provenance sidecar for each artifact whose locally computed SHA-256 digest agrees with the content hash Hugging Face reports, SHALL refuse any artifact whose digest disagrees, and SHALL report a remote candidate that is absent locally rather than omitting it. Coquena SHALL provide `coquena model reconcile <reference> --accept` for a single artifact, persisting a `local`-provider sidecar from path-derived identity alone without any network request. Reconciliation SHALL operate on one artifact or one repository per invocation and SHALL NOT accept an option reconciling the whole configured models directory. Reconciliation SHALL remain an explicit operator action, SHALL NOT run as a side effect of any listing command, and SHALL NOT accept `--json`, since it prompts and therefore cannot emit exactly one document.
 
@@ -343,4 +345,3 @@ Coquena SHALL download exactly one artifact per `coquena model download` invocat
 #### Scenario: Request companions where none exist
 - **WHEN** an operator downloads with the companion flag from a repository holding no companion
 - **THEN** Coquena creates the principal's job alone and reports that no companion was identified
-

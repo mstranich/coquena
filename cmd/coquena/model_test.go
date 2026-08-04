@@ -255,7 +255,7 @@ func TestRunModelListReportsUnreconciledAndInstalled(t *testing.T) {
 	if err := runModel([]string{"list"}, &human); err != nil {
 		t.Fatal(err)
 	}
-	for _, expected := range []string{"installed", "REPOSITORY: org/repo", "unreconciled", "REPOSITORY: other/repo"} {
+	for _, expected := range []string{"installed", "REPOSITORY: org/repo", "org/repo@abc:m-Q4_K_M.gguf", "unreconciled", "REPOSITORY: other/repo"} {
 		if !strings.Contains(human.String(), expected) {
 			t.Fatalf("missing %q in %s", expected, human.String())
 		}
@@ -268,13 +268,55 @@ func TestRunModelListReportsUnreconciledAndInstalled(t *testing.T) {
 	if err := runModel([]string{"list", "--json"}, &jsonOut); err != nil {
 		t.Fatal(err)
 	}
-	for _, expected := range []string{`"state":"installed"`, `"state":"unreconciled"`, `"repository":"other/repo"`} {
+	for _, expected := range []string{`"state":"installed"`, `"reference":"org/repo@abc:m-Q4_K_M.gguf"`, `"resolvedRevision":"abc"`, `"state":"unreconciled"`, `"repository":"other/repo"`} {
 		if !strings.Contains(jsonOut.String(), expected) {
 			t.Fatalf("missing %q in %s", expected, jsonOut.String())
 		}
 	}
 	if strings.Contains(jsonOut.String(), "job.gguf") {
 		t.Fatalf("expected in-progress job to be excluded from model list json: %s", jsonOut.String())
+	}
+}
+
+func TestSingletonCLIRefusesLogicalAmbiguityAndAcceptsCanonicalFilename(t *testing.T) {
+	m := withModelManager(t)
+	for _, filename := range []string{"model-Q4_K_M.gguf", "model-Q4_K_M-imatrix.gguf"} {
+		partial := filepath.Join(t.TempDir(), "partial")
+		if err := os.WriteFile(partial, []byte("bytes"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		record := modelapp.Record{
+			Source: modelapp.Source{
+				Provider:          "huggingface",
+				Repository:        "org/repo",
+				RequestedRevision: "main",
+				ResolvedRevision:  "abc",
+				Filename:          filename,
+				URL:               "https://example.test/" + filename,
+			},
+			Artifact: modelapp.Artifact{SizeBytes: 5},
+		}
+		if _, err := modelapp.Publish(m.ModelsDir, partial, record); err != nil {
+			t.Fatal(err)
+		}
+	}
+	old := modelManagerFactory
+	modelManagerFactory = func() (*modelapp.Manager, error) { return m, nil }
+	t.Cleanup(func() { modelManagerFactory = old })
+
+	var out bytes.Buffer
+	err := runModel([]string{"revision", "org/repo:Q4_K_M"}, &out)
+	if err == nil || !strings.Contains(err.Error(), "org/repo@abc:model-Q4_K_M.gguf") ||
+		!strings.Contains(err.Error(), "org/repo@abc:model-Q4_K_M-imatrix.gguf") {
+		t.Fatalf("ambiguous err=%v", err)
+	}
+
+	out.Reset()
+	if err := runModel([]string{"revision", "org/repo@abc:model-Q4_K_M-imatrix.gguf"}, &out); err != nil {
+		t.Fatal(err)
+	}
+	if strings.TrimSpace(out.String()) != "abc" {
+		t.Fatalf("revision=%q", out.String())
 	}
 }
 

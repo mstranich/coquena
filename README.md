@@ -574,15 +574,16 @@ that evidence was produced without the current algorithm version; it does not
 mean the model is corrupt or remotely outdated. Refresh it explicitly with
 `coquena model verify <reference> --repair-derived`.
 
-An artifact already present in the models directory is always named by its
-logical `user/repo:QUANT` reference — the form Coquena, LM Studio and Hugging
-Face all share — and never by a filesystem path. The same name identifies it
-whether it is being inspected, reconciled, bound to a preset, verified, or
-checked for updates, which is what makes a configuration coherent rather than a
-set of paths that can drift apart. Reconciliation is mandatory for the same
-reason: until an artifact has a sidecar, one logical name does not yet mean one
-known thing, so it is reported as `unreconciled` and no command that reads the
-catalog will address it.
+An artifact already present in the models directory is named without exposing a
+filesystem path. `user/repo[@revision]:QUANT` is a logical quantization class
+that may contain several calibration or production variants;
+`user/repo[@revision]:filename.gguf` is the canonical name of one repository
+artifact. Commands that need one artifact refuse an ambiguous quantization
+selector and list the exact filename references the operator can choose.
+Explicit revisions are enforced locally rather than silently discarded.
+Reconciliation remains mandatory: until an artifact has a sidecar, Coquena
+cannot establish its canonical repository provenance, so it is reported as
+`unreconciled`.
 
 Every artifact is classified by its own `general.type` — `model` for a
 principal and `mmproj` for a multimodal projector — read from the first bytes of
@@ -610,8 +611,9 @@ depends on which other artifacts are present. Every artifact is classified here
 even before it is reconciled, read from its own header, so the listing can tell
 a principal from a projector without anything being written first.
 
-`coquena model reconcile` names its subject with the same `user/repo:QUANT`
-reference every other model command accepts, and reconciles the artifacts of one
+`coquena model reconcile` names its subject with the same
+`user/repo[@revision]:selector` grammar every other model command accepts, and
+reconciles the artifacts of one
 repository in a single action: it resolves the repository, enumerates its remote
 candidates with their classification without downloading any of them, and
 matches them against what is on disk by filename corroborated by metadata. A

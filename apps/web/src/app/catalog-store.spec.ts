@@ -137,7 +137,10 @@ describe('FieldCatalogStore', () => {
     store.loadPresets();
     http.expectOne('/api/presets').flush({
       schemaVersion: 1,
-      result: { global: { name: 'global', kind: 'global', values: [] }, presets: [{ name: 'spec', kind: 'model', values: [{ field: 'temp', value: '0.7', source: 'global' }] }] },
+      result: {
+        global: { name: 'global', kind: 'global', values: [] },
+        presets: [{ name: 'spec', kind: 'model', values: [{ field: 'temp', value: '0.7', source: 'global' }] }],
+      },
     });
     expect(store.presets()[0].entries).toEqual([{ fieldId: 'temp', value: '0.7', source: 'global' }]);
   });

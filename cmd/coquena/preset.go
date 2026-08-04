@@ -299,12 +299,13 @@ type presetValueView struct {
 }
 
 type presetJSONView struct {
-	Name    string                 `json:"name"`
-	Kind    string                 `json:"kind"`
-	Title   string                 `json:"title,omitempty"`
-	Model   *presets.ModelBinding  `json:"model,omitempty"`
-	Runtime *presetRuntimeJSONView `json:"runtime,omitempty"`
-	Values  []presetValueView      `json:"values"`
+	Name       string                 `json:"name"`
+	Kind       string                 `json:"kind"`
+	Title      string                 `json:"title,omitempty"`
+	Model      *presets.ModelBinding  `json:"model,omitempty"`
+	ModelState presets.BindingState   `json:"modelState,omitempty"`
+	Runtime    *presetRuntimeJSONView `json:"runtime,omitempty"`
+	Values     []presetValueView      `json:"values"`
 }
 
 type presetRuntimeJSONView struct {
@@ -334,6 +335,13 @@ func buildPresetView(catalog fields.Catalog, global, p presets.Preset) presetJSO
 	return view
 }
 
+func evaluatePresetView(view presetJSONView, resolver presets.ModelResolver) presetJSONView {
+	if view.Model != nil {
+		view.ModelState = presets.EvaluateBinding(resolver, *view.Model)
+	}
+	return view
+}
+
 func writePresetView(out io.Writer, view presetJSONView, jsonOutput bool) error {
 	if jsonOutput {
 		return json.NewEncoder(out).Encode(struct {
@@ -355,7 +363,10 @@ func writePresetView(out io.Writer, view presetJSONView, jsonOutput bool) error 
 	if view.Model != nil {
 		state := "not installed"
 		if view.Model.Resolved != nil {
-			state = view.Model.Resolved.Filename
+			state = presets.ResolvedReference(*view.Model)
+		}
+		if view.ModelState != "" {
+			state += " (" + string(view.ModelState) + ")"
 		}
 		if _, err := fmt.Fprintf(out, "MODEL   %s -> %s\n", view.Model.Requested.Raw, state); err != nil {
 			return err
@@ -420,11 +431,15 @@ func runPresetList(out io.Writer, store *presets.Store, catalogStore fieldStoreC
 		return err
 	}
 	catalog, _ := catalogStore.Load()
+	manager, managerErr := presetModelManagerFactory()
+	if managerErr != nil {
+		return managerErr
+	}
 	if jsonOutput {
 		global := buildPresetView(catalog, doc.Global, doc.Global)
 		items := make([]presetJSONView, 0, len(doc.Presets))
 		for _, p := range doc.Presets {
-			items = append(items, buildPresetView(catalog, doc.Global, p))
+			items = append(items, evaluatePresetView(buildPresetView(catalog, doc.Global, p), manager))
 		}
 		return json.NewEncoder(out).Encode(struct {
 			SchemaVersion int              `json:"schemaVersion"`
@@ -451,7 +466,11 @@ func runPresetShow(out io.Writer, store *presets.Store, catalogStore fieldStoreC
 		return fmt.Errorf("preset %q not found", name)
 	}
 	catalog, _ := catalogStore.Load()
-	return writePresetView(out, buildPresetView(catalog, doc.Global, p), jsonOutput)
+	manager, err := presetModelManagerFactory()
+	if err != nil {
+		return err
+	}
+	return writePresetView(out, evaluatePresetView(buildPresetView(catalog, doc.Global, p), manager), jsonOutput)
 }
 
 func runPresetRender(args []string, out io.Writer, store *presets.Store, catalogStore fieldStoreCLI, jsonOutput bool) error {

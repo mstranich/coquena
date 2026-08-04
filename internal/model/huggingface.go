@@ -143,7 +143,20 @@ func (r Resolver) resolveRepository(repo, requested, filename string) ([]Candida
 		for _, c := range out {
 			matched = append(matched, c.Source.Filename)
 		}
-		return nil, &ErrSelectorCandidates{Repository: repo, Selector: filename, Matched: matched, Available: available}
+		references := make([]string, 0, len(out))
+		sourceNames := matched
+		if len(sourceNames) == 0 {
+			sourceNames = available
+		}
+		for _, name := range sourceNames {
+			references = append(references, CanonicalReference(Source{
+				Provider:         "huggingface",
+				Repository:       repo,
+				ResolvedRevision: info.SHA,
+				Filename:         name,
+			}))
+		}
+		return nil, &ErrSelectorCandidates{Repository: repo, Selector: filename, Matched: matched, Available: available, References: references}
 	}
 	return out, nil
 }
@@ -226,6 +239,9 @@ type ErrSelectorCandidates struct {
 	// Available holds every GGUF filename in the repository, so a zero-match
 	// diagnostic can still name what the operator may choose from.
 	Available []string
+	// References holds actionable canonical exact-filename references for the
+	// matched set, or for all available artifacts on a zero match.
+	References []string
 }
 
 // Count reports how many artifacts the selector matched.
@@ -234,34 +250,24 @@ func (e *ErrSelectorCandidates) Count() int { return len(e.Matched) }
 func (e *ErrSelectorCandidates) Error() string {
 	// A zero-match selector has no matches worth naming, so the whole
 	// repository is offered instead.
-	candidates := e.Matched
+	candidates := e.References
 	if len(candidates) == 0 {
-		candidates = e.Available
+		candidates = e.Matched
+		if len(candidates) == 0 {
+			candidates = e.Available
+		}
 	}
 	return fmt.Sprintf("selector %q resolves to %d GGUF artifacts in %s; candidates: %s", e.Selector, len(e.Matched), e.Repository, formatCandidates(candidates))
 }
 func parseRef(input, sel string) (string, string, string, error) {
-	requested := "main"
-	filename := sel
-	if u, e := url.Parse(input); e == nil && u.Host == "huggingface.co" {
-		p := strings.Split(strings.Trim(u.Path, "/"), "/")
-		if len(p) < 5 || p[2] != "resolve" {
-			return "", "", "", fmt.Errorf("invalid Hugging Face resolve URL")
-		}
-		return strings.Join(p[:2], "/"), p[3], strings.Join(p[4:], "/"), nil
+	ref, err := ParseModelReference(input)
+	if err != nil {
+		return "", "", "", err
 	}
-	parts := strings.SplitN(input, ":", 2)
-	repo := parts[0]
-	if len(parts) == 2 && filename == "" {
-		filename = parts[1]
+	selector := ref.Selector
+	if sel != "" {
+		selector = sel
 	}
-	if at := strings.Index(repo, "@"); at != -1 {
-		requested = repo[at+1:]
-		repo = repo[:at]
-	}
-	if strings.Count(repo, "/") != 1 {
-		return "", "", "", fmt.Errorf("repository must be namespace/name")
-	}
-	return repo, requested, filename, nil
+	return ref.Repository, ref.RequestedRevision(), selector, nil
 }
 func pathEscape(v string) string { return strings.ReplaceAll(url.PathEscape(v), "%2F", "/") }

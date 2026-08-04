@@ -52,37 +52,49 @@ Coquena SHALL resolve a mutable requested revision, normally `main`, to an exact
 - **AND** it does not silently inspect a newer artifact
 
 ### Requirement: Resolve a model reference against the installed library
-Coquena SHALL resolve a `user/repo[@revision]:QUANT` model reference against the installed model library without contacting Hugging Face or any other network service, applying the same reference grammar accepted for remote resolution. An omitted `@revision` SHALL default to `main`. A `QUANT` selector ending in `.gguf` (case-insensitive) SHALL match by exact filename equality; any other selector SHALL match by case-insensitive substring as before. Resolution SHALL report the matched artifact's exact filename and its recorded resolved revision. Resolution SHALL fail with a distinguishable diagnostic when no installed artifact matches and when more than one matches, and an ambiguous-match diagnostic SHALL carry the matching filenames rather than only their count.
+Coquena SHALL resolve model references against the installed library without contacting any network service using the grammar `user/repo[@revision]:selector`, where `selector` is either a logical quantization selector or an exact `.gguf` filename. A quantization selector SHALL represent a class with cardinality `0..N`; an exact filename selector SHALL represent a canonical repository artifact name with cardinality `0..1`. A filename selector SHALL match by case-insensitive exact equality, while a quantization selector SHALL retain the established case-insensitive quantization matching behavior.
 
-#### Scenario: Resolve an installed reference offline
-- **WHEN** a reference is resolved against a library holding exactly one matching artifact
-- **THEN** Coquena reports that artifact's exact filename and recorded revision
+An omitted `@revision` SHALL leave the installed artifact's recorded revision unconstrained. An explicit `@revision` SHALL be compared with persisted resolved provenance and SHALL match only artifacts carrying that revision; local resolution SHALL NOT discard or silently default an explicit revision. Resolution SHALL return the matched artifact's canonical `user/repo[@revision]:filename.gguf` reference and distinguish resolved-same, resolved-different, missing, and ambiguous outcomes when a caller supplies an expected artifact. Missing and ambiguous diagnostics SHALL be distinct, and ambiguity SHALL name every matching canonical artifact reference rather than choosing one.
+
+#### Scenario: Resolve a logical selector to one installed artifact
+- **WHEN** `user/repo:Q4_K_M` matches exactly one installed artifact
+- **THEN** Coquena reports that artifact's canonical exact-filename reference and recorded revision
 - **AND** it issues no network request
+
+#### Scenario: Resolve an exact-filename selector
+- **WHEN** `user/repo:model-Q4_K_M-imatrix.gguf` names an installed artifact
+- **THEN** Coquena matches only that exact filename
+- **AND** it does not apply quantization substring matching
+
+#### Scenario: Report an ambiguous logical selector
+- **WHEN** `user/repo:Q4_K_M` matches more than one installed artifact
+- **THEN** Coquena returns an ambiguous outcome carrying each matching `user/repo[@revision]:filename.gguf` reference
+- **AND** it does not select a calibration or production variant implicitly
 
 #### Scenario: Report no installed match
 - **WHEN** a reference matches no installed artifact
-- **THEN** Coquena reports that the reference is not installed
-- **AND** the diagnostic is distinguishable from an ambiguous match
+- **THEN** Coquena returns a missing outcome distinguishable from ambiguity
+- **AND** it does not invent a canonical artifact reference
 
-#### Scenario: Report an ambiguous installed match
-- **WHEN** a reference matches more than one installed artifact
-- **THEN** Coquena reports how many artifacts matched and names each matching filename
-- **AND** it does not select one of them
+#### Scenario: Enforce an explicit revision locally
+- **WHEN** an operator resolves `user/repo@abc123:model.gguf` against an installed artifact recorded at another revision
+- **THEN** Coquena reports no match for the pinned reference
+- **AND** it does not silently resolve the artifact from the other revision
 
-#### Scenario: Resolve without a configured revision axis
-- **WHEN** a reference is resolved offline without an `@revision` segment
-- **THEN** Coquena reports the revision already recorded in the artifact's sidecar
-- **AND** it does not require the reference to carry a revision
+#### Scenario: Pin a revision on a logical selector
+- **WHEN** an operator resolves `user/repo@abc123:Q4_K_M`
+- **THEN** only installed artifacts carrying persisted resolved revision `abc123` participate
+- **AND** ambiguity is evaluated after applying the revision constraint
 
-#### Scenario: Pin a revision in the short reference form
-- **WHEN** an operator supplies `user/repo@revision:QUANT`
-- **THEN** Coquena resolves using the supplied revision instead of defaulting to `main`
+#### Scenario: Resolve without an explicit revision
+- **WHEN** an operator resolves `user/repo:model.gguf` against exactly one installed artifact
+- **THEN** Coquena reports the revision recorded in that artifact's sidecar
+- **AND** omission of `@revision` does not imply that the artifact is recorded at `main`
 
-#### Scenario: Resolve an exact-filename selector
-- **WHEN** a selector names a complete `.gguf` filename
-- **THEN** Coquena matches only the artifact whose filename equals the selector exactly
-- **AND** it does not fall back to substring matching for that selector
-
+#### Scenario: Distinguish a changed binding from new ambiguity
+- **WHEN** a caller compares a previously resolved canonical artifact with the current result of its authored logical selector
+- **THEN** Coquena distinguishes the same artifact, a different artifact, a missing selector, and an ambiguous selector
+- **AND** it does not collapse all non-singleton outcomes into one boolean
 ### Requirement: Discover a remote repository's classified candidates
 Coquena SHALL provide remote discovery of a Hugging Face repository that reports every GGUF candidate it contains together with each candidate's classification, read through bounded range access without downloading any complete artifact. When the reference carries a selector, discovery SHALL still report every candidate and SHALL mark which one the selector would resolve to, rather than reducing the result to that candidate. Discovery SHALL NOT print the repository's model card, whose length buries the candidate list discovery exists to present; reporting it SHALL be reintroduced behind an explicit option in a later change.
 
@@ -110,4 +122,3 @@ Coquena SHALL provide remote discovery of a Hugging Face repository that reports
 - **WHEN** the repository publishes no model card
 - **THEN** Coquena reports the candidates
 - **AND** it does not fail discovery
-

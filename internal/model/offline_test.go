@@ -1,6 +1,8 @@
 package model
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 )
 
@@ -77,4 +79,27 @@ func TestFormatReferenceWithNilClassification(t *testing.T) {
 		}
 	}()
 	_ = FormatReference(entry)
+}
+
+func TestResolveInstalledEnforcesExplicitRevision(t *testing.T) {
+	root := t.TempDir()
+	partial := filepath.Join(root, "partial")
+	body := classifiableGGUF()
+	if err := os.WriteFile(partial, body, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	source := Source{Provider: "huggingface", Repository: "org/repo", RequestedRevision: "main", ResolvedRevision: "abc", Filename: "model.gguf", URL: "https://example.test/model.gguf"}
+	if _, err := Publish(filepath.Join(root, "models"), partial, Record{Source: source, Artifact: Artifact{SizeBytes: int64(len(body))}}); err != nil {
+		t.Fatal(err)
+	}
+	manager := NewManager(filepath.Join(root, "models"))
+	if _, err := manager.ResolveInstalled("org/repo@abc:model.gguf"); err != nil {
+		t.Fatalf("matching revision: %v", err)
+	}
+	if _, err := manager.ResolveInstalled("org/repo@def:model.gguf"); err == nil {
+		t.Fatal("mismatched explicit revision resolved")
+	}
+	if got, err := manager.ResolveInstalled("org/repo:model.gguf"); err != nil || got.Source.ResolvedRevision != "abc" {
+		t.Fatalf("unpinned got=%+v err=%v", got.Source, err)
+	}
 }

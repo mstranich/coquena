@@ -85,12 +85,13 @@ func (a *presetsAPI) serve(w http.ResponseWriter, r *http.Request) bool {
 }
 
 type presetView struct {
-	Name    string                   `json:"name"`
-	Kind    string                   `json:"kind"`
-	Title   string                   `json:"title,omitempty"`
-	Model   *presets.ModelBinding    `json:"model,omitempty"`
-	Runtime *presetRuntimeView       `json:"runtime,omitempty"`
-	Values  []presets.EffectiveValue `json:"values"`
+	Name       string                   `json:"name"`
+	Kind       string                   `json:"kind"`
+	Title      string                   `json:"title,omitempty"`
+	Model      *presets.ModelBinding    `json:"model,omitempty"`
+	ModelState presets.BindingState     `json:"modelState,omitempty"`
+	Runtime    *presetRuntimeView       `json:"runtime,omitempty"`
+	Values     []presets.EffectiveValue `json:"values"`
 }
 
 type presetRuntimeView struct {
@@ -105,6 +106,11 @@ func (a *presetsAPI) view(catalog fields.Catalog, global, p presets.Preset) pres
 	}
 	effective := presets.Effective(global, p)
 	view := presetView{Name: p.Name, Kind: kind, Title: p.Title, Model: p.Model, Values: effective}
+	if p.Model != nil {
+		if models, err := a.modelDir(); err == nil {
+			view.ModelState = presets.EvaluateBinding(modelapp.NewManager(models), *p.Model)
+		}
+	}
 	if !p.IsGlobal() {
 		provider := fields.ProviderOfficial
 		if p.Runtime != nil && p.Runtime.Provider != "" {

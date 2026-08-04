@@ -17,18 +17,21 @@ var ReservedNames = []string{GlobalName, "render"}
 // model, using the same `user/repo:QUANT` grammar accepted for model
 // downloads. It is durable and is never rewritten by resolution.
 type ModelReference struct {
-	Provider   string `json:"provider"`
-	Repository string `json:"repository"`
-	Quant      string `json:"quant,omitempty"`
-	Raw        string `json:"raw"`
+	Provider     string `json:"provider"`
+	Repository   string `json:"repository"`
+	Revision     string `json:"revision,omitempty"`
+	SelectorKind string `json:"selectorKind,omitempty"`
+	Quant        string `json:"quant,omitempty"`
+	Raw          string `json:"raw"`
 }
 
 // ResolvedModel is the advisory attestation of what a ModelReference matched
 // in the installed library at the time of binding.
 type ResolvedModel struct {
-	Filename         string `json:"filename"`
-	ResolvedRevision string `json:"resolvedRevision,omitempty"`
-	ResolvedAt       string `json:"resolvedAt,omitempty"`
+	CanonicalReference string `json:"canonicalReference,omitempty"`
+	Filename           string `json:"filename"`
+	ResolvedRevision   string `json:"resolvedRevision,omitempty"`
+	ResolvedAt         string `json:"resolvedAt,omitempty"`
 }
 
 // ModelBinding is a preset's reference to the model it configures.

@@ -51,9 +51,10 @@ func (a CompanionAssignment) Diagnostic() (string, bool) {
 // interchangeable within their compatibility class, so the choice is the
 // operator's.
 type CompanionOption struct {
-	Repository     string               `json:"repository"`
-	Filename       string               `json:"filename"`
-	Classification model.Classification `json:"classification"`
+	Repository         string               `json:"repository"`
+	CanonicalReference string               `json:"canonicalReference"`
+	Filename           string               `json:"filename"`
+	Classification     model.Classification `json:"classification"`
 }
 
 // ErrNoPrincipal reports that a preset cannot carry a companion criterion
@@ -111,7 +112,11 @@ func Principal(resolver ModelResolver, preset Preset) (model.LibraryEntry, error
 	if preset.Model == nil {
 		return model.LibraryEntry{}, fmt.Errorf("preset %q: %w; bind a model first", preset.Name, ErrNoPrincipal)
 	}
-	entry, err := resolver.ResolveInstalled(preset.Model.Requested.Raw)
+	reference := preset.Model.Requested.Raw
+	if preset.Model.Resolved != nil {
+		reference = ResolvedReference(*preset.Model)
+	}
+	entry, err := resolver.ResolveInstalled(reference)
 	if err != nil {
 		return model.LibraryEntry{}, fmt.Errorf("preset %q: %w: %w", preset.Name, ErrNoPrincipal, err)
 	}
@@ -167,9 +172,10 @@ func BindCompanion(resolver ModelResolver, preset Preset, role model.CompanionRo
 		Role:      role,
 		Requested: requested,
 		Resolved: &ResolvedModel{
-			Filename:         entry.Source.Filename,
-			ResolvedRevision: entry.Source.ResolvedRevision,
-			ResolvedAt:       time.Now().UTC().Format(time.RFC3339),
+			CanonicalReference: model.CanonicalReference(entry.Source),
+			Filename:           entry.Source.Filename,
+			ResolvedRevision:   entry.Source.ResolvedRevision,
+			ResolvedAt:         time.Now().UTC().Format(time.RFC3339),
 		},
 	}
 	outcome := criterion.Evaluate(*entry.Classification)
@@ -217,9 +223,10 @@ func CompanionOptions(resolver ModelResolver, library InstalledLibrary, preset P
 	for _, candidate := range admissible {
 		entry := byName[candidate.Name]
 		options = append(options, CompanionOption{
-			Repository:     entry.Source.Repository,
-			Filename:       entry.Source.Filename,
-			Classification: candidate.Classification,
+			Repository:         entry.Source.Repository,
+			CanonicalReference: model.CanonicalReference(entry.Source),
+			Filename:           entry.Source.Filename,
+			Classification:     candidate.Classification,
 		})
 	}
 	return options, nil

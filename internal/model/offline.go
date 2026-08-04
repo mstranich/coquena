@@ -23,13 +23,13 @@ func formatCandidates(filenames []string) string {
 	return fmt.Sprintf("%s and %d more", strings.Join(filenames[:maxNamedCandidates], ", "), len(filenames)-maxNamedCandidates)
 }
 
-// FormatReference builds the <user>/<repo>:<quant> reference string from a LibraryEntry.
-// It uses the fileTypeDisplayName lookup to convert the fileType integer to a human-readable name.
+// FormatReference retains the logical quantization reference used by existing
+// callers. CanonicalReference is the singleton artifact identity.
 func FormatReference(entry LibraryEntry) string {
-	if entry.Classification == nil || entry.Classification.FileType == nil {
-		return entry.Source.Repository + ":unknown"
+	if logical := LogicalReference(entry); logical != "" {
+		return logical
 	}
-	return entry.Source.Repository + ":" + LlamaFileTypeDisplayName(*entry.Classification.FileType)
+	return entry.Source.Repository + ":unknown"
 }
 
 // ErrNoInstalledMatch indicates a reference matched no artifact in the library
@@ -40,8 +40,8 @@ type ErrNoInstalledMatch struct {
 	// failed reconciliation does not report the artifact as "not installed"
 	// when being uninstalled is precisely its subject.
 	State string
-	// Available holds the filenames in that state for the reference's
-	// repository, so the diagnostic can name what the operator may select
+	// Available holds canonical artifact references in that state for the
+	// reference's repository, so the diagnostic can name what the operator may select
 	// instead of the selector that missed.
 	Available []string
 }
@@ -65,7 +65,7 @@ type ErrAmbiguousInstalledMatch struct {
 	Reference string
 	// State names the library state the reference was resolved against.
 	State string
-	// Matches holds the filenames of every artifact the reference matched.
+	// Matches holds canonical references for every artifact matched.
 	Matches []string
 }
 
@@ -103,11 +103,11 @@ func (e *ErrAmbiguousPrincipals) Error() string {
 // SplitReference parses the user/repo:QUANT reference grammar into its
 // repository and quant selector, without resolving it against any source.
 func SplitReference(reference string) (repository, quant string, err error) {
-	repo, _, selector, err := parseRef(reference, "")
+	ref, err := ParseModelReference(reference)
 	if err != nil {
 		return "", "", err
 	}
-	return repo, selector, nil
+	return ref.Repository, ref.Selector, nil
 }
 
 // ResolveInstalled resolves the user/repo:QUANT reference grammar against the
@@ -132,7 +132,7 @@ func (m *Manager) ResolveUnreconciled(reference string) (LibraryEntry, error) {
 // so the reference grammar is written once and every caller applies it
 // identically.
 func (m *Manager) resolveLibrary(reference, state string) (LibraryEntry, error) {
-	repo, _, selector, err := parseRef(reference, "")
+	ref, err := ParseModelReference(reference)
 	if err != nil {
 		return LibraryEntry{}, err
 	}
@@ -143,16 +143,19 @@ func (m *Manager) resolveLibrary(reference, state string) (LibraryEntry, error) 
 	var matches []LibraryEntry
 	var available []string
 	for _, entry := range entries {
-		if entry.State != state || entry.Source.Repository != repo {
+		if entry.State != state || entry.Source.Repository != ref.Repository {
 			continue
 		}
-		available = append(available, entry.Source.Filename)
-		if selector != "" {
-			if strings.HasSuffix(strings.ToLower(selector), ".gguf") {
-				if !strings.EqualFold(entry.Source.Filename, selector) {
+		available = append(available, CanonicalReference(entry.Source))
+		if ref.RevisionExplicit && !strings.EqualFold(entry.Source.ResolvedRevision, ref.Revision) {
+			continue
+		}
+		if ref.Selector != "" {
+			if ref.SelectorKind == SelectorFilename {
+				if !strings.EqualFold(entry.Source.Filename, ref.Selector) {
 					continue
 				}
-			} else if !strings.Contains(strings.ToLower(entry.Source.Filename), strings.ToLower(selector)) {
+			} else if !strings.Contains(strings.ToLower(entry.Source.Filename), strings.ToLower(ref.Selector)) {
 				continue
 			}
 		}
@@ -166,7 +169,7 @@ func (m *Manager) resolveLibrary(reference, state string) (LibraryEntry, error) 
 	default:
 		matched := make([]string, 0, len(matches))
 		for _, entry := range matches {
-			matched = append(matched, entry.Source.Filename)
+			matched = append(matched, CanonicalReference(entry.Source))
 		}
 		return LibraryEntry{}, &ErrAmbiguousInstalledMatch{Reference: reference, State: state, Matches: matched}
 	}

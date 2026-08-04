@@ -14,7 +14,12 @@
   <div class="preset-list">
     @for (preset of store.presets(); track preset.name) {
       <article class="preset">
-        <header><h3>{{ preset.name }}</h3>@if (preset.title) { <span class="muted">{{ preset.title }}</span> }</header>
+        <header>
+          <h3>{{ preset.name }}</h3>
+          @if (preset.title) {
+            <span class="muted">{{ preset.title }}</span>
+          }
+        </header>
         @if (preset.model) {
           <p class="muted">
             Model: <code>{{ preset.model.requested.raw }}</code>
@@ -28,9 +33,15 @@
         @if (preset.runtimeDeclared || preset.runtimeComputedMin || preset.runtimeComputedMax) {
           <p class="muted">
             Runtime:
-            @if (preset.runtimeDeclared?.backend) { <span>backend {{ preset.runtimeDeclared?.backend }}</span> }
-            @if (preset.runtimeComputedMin) { <span>requires &ge; {{ preset.runtimeComputedMin.release }} (from {{ preset.runtimeComputedMin.field }})</span> }
-            @if (preset.runtimeComputedMax) { <span>requires &lt; {{ preset.runtimeComputedMax.release }} (from {{ preset.runtimeComputedMax.field }})</span> }
+            @if (preset.runtimeDeclared?.backend) {
+              <span>backend {{ preset.runtimeDeclared?.backend }}</span>
+            }
+            @if (preset.runtimeComputedMin) {
+              <span>requires &ge; {{ preset.runtimeComputedMin.release }} (from {{ preset.runtimeComputedMin.field }})</span>
+            }
+            @if (preset.runtimeComputedMax) {
+              <span>requires &lt; {{ preset.runtimeComputedMax.release }} (from {{ preset.runtimeComputedMax.field }})</span>
+            }
           </p>
         }
         <div class="entries">
@@ -39,7 +50,9 @@
             @if (field) {
               <div class="entry">
                 <code>{{ field.name }}</code>
-                <span class="muted" [attr.title]="entry.source === 'global' ? 'Inherited from the global preset' : 'Overridden for this preset'">{{ entry.source === 'global' ? 'inherited' : 'overridden' }}</span>
+                <span class="muted" [attr.title]="entry.source === 'global' ? 'Inherited from the global preset' : 'Overridden for this preset'">{{
+                    entry.source === 'global' ? 'inherited' : 'overridden'
+                  }}</span>
                 @switch (field.kind) {
                   @case ('boolean') {
                     <input type="checkbox" [checked]="entry.value" (change)="setValue(preset, field.id, $any($event.target).checked)">

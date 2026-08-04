@@ -42,30 +42,85 @@ func BindModel(resolver ModelResolver, reference string, allowMissing bool) (Mod
 	return ModelBinding{
 		Requested: requested,
 		Resolved: &ResolvedModel{
-			Filename:         entry.Source.Filename,
-			ResolvedRevision: entry.Source.ResolvedRevision,
-			ResolvedAt:       time.Now().UTC().Format(time.RFC3339),
+			CanonicalReference: model.CanonicalReference(entry.Source),
+			Filename:           entry.Source.Filename,
+			ResolvedRevision:   entry.Source.ResolvedRevision,
+			ResolvedAt:         time.Now().UTC().Format(time.RFC3339),
 		},
 	}, nil
 }
 
 func parseModelReference(reference string) (ModelReference, error) {
-	repo, quant, err := model.SplitReference(reference)
+	ref, err := model.ParseModelReference(reference)
 	if err != nil {
 		return ModelReference{}, err
 	}
-	return ModelReference{Provider: "huggingface", Repository: repo, Quant: quant, Raw: reference}, nil
+	return ModelReference{
+		Provider:     "huggingface",
+		Repository:   ref.Repository,
+		Revision:     ref.Revision,
+		SelectorKind: string(ref.SelectorKind),
+		Quant:        ref.Selector,
+		Raw:          reference,
+	}, nil
 }
 
-// StaleModel reports whether a resolved binding's filename is no longer
-// present among the resolver's installed artifacts for the same repository.
-func StaleModel(resolver ModelResolver, binding ModelBinding) bool {
+// BindingState preserves the recovery-relevant outcomes of evaluating a
+// durable canonical binding and its unchanged authored selector.
+type BindingState string
+
+const (
+	BindingUnresolved BindingState = "unresolved"
+	BindingSame       BindingState = "resolved-same"
+	BindingDifferent  BindingState = "resolved-different"
+	BindingMissing    BindingState = "missing"
+	BindingAmbiguous  BindingState = "ambiguous"
+)
+
+// ResolvedReference returns the canonical singleton reference represented by a
+// binding, deriving it for schema-1 documents written before the explicit field
+// was added.
+func ResolvedReference(binding ModelBinding) string {
 	if binding.Resolved == nil {
-		return false
+		return ""
+	}
+	if binding.Resolved.CanonicalReference != "" {
+		return binding.Resolved.CanonicalReference
+	}
+	base := binding.Requested.Repository
+	if binding.Resolved.ResolvedRevision != "" {
+		base += "@" + binding.Resolved.ResolvedRevision
+	}
+	return base + ":" + binding.Resolved.Filename
+}
+
+// EvaluateBinding checks the canonical artifact first. The authored logical
+// selector is consulted only to explain what replaced or obscured it.
+func EvaluateBinding(resolver ModelResolver, binding ModelBinding) BindingState {
+	if binding.Resolved == nil {
+		return BindingUnresolved
+	}
+	if _, err := resolver.ResolveInstalled(ResolvedReference(binding)); err == nil {
+		return BindingSame
 	}
 	entry, err := resolver.ResolveInstalled(binding.Requested.Raw)
 	if err != nil {
-		return true
+		var ambiguous *model.ErrAmbiguousInstalledMatch
+		if errors.As(err, &ambiguous) {
+			return BindingAmbiguous
+		}
+		return BindingMissing
 	}
-	return entry.Source.Filename != binding.Resolved.Filename
+	if entry.Source.Filename == binding.Resolved.Filename &&
+		(binding.Resolved.ResolvedRevision == "" || entry.Source.ResolvedRevision == binding.Resolved.ResolvedRevision) {
+		return BindingSame
+	}
+	return BindingDifferent
+}
+
+// StaleModel remains as a compatibility convenience. Only a missing or
+// uniquely different artifact is stale; ambiguity alone is not.
+func StaleModel(resolver ModelResolver, binding ModelBinding) bool {
+	state := EvaluateBinding(resolver, binding)
+	return state == BindingMissing || state == BindingDifferent
 }

@@ -31,15 +31,36 @@ that the corresponding flag or behavior is already available.
 
 ## References and cardinality
 
-The current CLI commonly accepts logical references such as
-`user/repository:QUANT`. Work on stable artifact addressing is intentionally
-separate from the GGUF evidence correction. Until that work is specified and
-implemented, this document does not promise that every logical selector names a
-unique physical file.
+The CLI accepts one optional selector slot with two alternatives:
 
-Commands that operate on one artifact must refuse ambiguity rather than select
-a calibration, filename, or revision implicitly. The exact canonical reference
-grammar belongs to a later change.
+```text
+user/repository[@revision]:QUANT
+user/repository[@revision]:filename.gguf
+```
+
+`:QUANT` is a logical quantization class with cardinality `0..N`.
+`:filename.gguf` is the canonical exact-artifact selector with cardinality
+`0..1`. They are alternatives in the same colon slot; Coquena does not accept
+a slash filename form, nested selectors, or an invented calibration-variant
+suffix.
+
+Commands that require one artifact refuse an ambiguous logical selector and
+name every matching canonical filename reference. An explicit `@revision` is
+enforced against installed sidecar provenance; omission leaves the installed
+revision unconstrained and does not imply `main`.
+
+For example, if two installed files share Q4_K_M, a singleton operation on
+`org/repository:Q4_K_M` refuses and offers references such as:
+
+```text
+org/repository@abc123:model-Q4_K_M.gguf
+org/repository@def456:model-Q4_K_M-imatrix.gguf
+```
+
+Preset bindings retain the authored selector and separately record the
+canonical artifact and resolved revision chosen at bind time. Installing a
+sibling in the same quantization class makes the authored selector ambiguous;
+it does not make the already-bound canonical artifact stale or rebind it.
 
 ## Remote exploration
 
