@@ -45,7 +45,7 @@ func TestComputeConstraintIgnoresFieldsWithoutAvailability(t *testing.T) {
 	}
 }
 
-func modelFileType(v int64) *int64 { return &v }
+func modelFileType(v int64) *model.LlamaFileType { ft := model.LlamaFileType(v); return &ft }
 
 func TestComputeConstraintWithModelReportsTernaryContribution(t *testing.T) {
 	bound := &model.Classification{Type: model.TypeModel, Architecture: "qwen35", FileType: modelFileType(40)}

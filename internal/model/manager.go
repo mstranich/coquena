@@ -188,7 +188,7 @@ func (m *Manager) Library() ([]LibraryEntry, error) {
 			return nil
 		}
 		classification := record.Classification
-		entries = append(entries, LibraryEntry{Source: record.Source, TargetPath: path, State: "installed", Classification: &classification})
+		entries = append(entries, LibraryEntry{Source: record.Source, TargetPath: path, State: "installed", Classification: &classification, DerivationStale: record.DerivationStale(), PhysicalQuantization: record.Derivation.PhysicalQuantization})
 		return nil
 	})
 	if errors.Is(err, os.ErrNotExist) {

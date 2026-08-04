@@ -62,8 +62,8 @@ type Classification struct {
 	Type             ArtifactType    `json:"type"`
 	Architecture     string          `json:"architecture,omitempty"`
 	SizeLabel        string          `json:"sizeLabel,omitempty"`
-	FileType         *int64          `json:"fileType,omitempty"`
-	CountParameters  int64           `json:"countParameters,omitempty"`
+	FileType         *LlamaFileType  `json:"fileType,omitempty"`
+	CountParameters  int64           `json:"-"`
 	ContextLength    int64           `json:"contextLength,omitempty"`
 	EmbeddingLength  int64           `json:"embeddingLength,omitempty"`
 	ProjectionDim    int64           `json:"projectionDim,omitempty"`
@@ -86,7 +86,7 @@ func Classify(meta map[string]any) Classification {
 		Type:         declaredType(meta),
 		Architecture: arch,
 		SizeLabel:    metaString(meta, "general.size_label"),
-		FileType:     metaOptionalInt(meta, "general.file_type"),
+		FileType:     metaOptionalLlamaFileType(meta, "general.file_type"),
 		Tokenizer:    tokenizerDigest(meta),
 		Sampling:     samplingRecommendations(meta),
 	}
@@ -240,6 +240,13 @@ func metaInt(meta map[string]any, key string) (int64, bool) {
 func metaOptionalInt(meta map[string]any, key string) *int64 {
 	if v, ok := metaInt(meta, key); ok {
 		return &v
+	}
+	return nil
+}
+func metaOptionalLlamaFileType(meta map[string]any, key string) *LlamaFileType {
+	if v, ok := metaInt(meta, key); ok {
+		ft := LlamaFileType(v)
+		return &ft
 	}
 	return nil
 }

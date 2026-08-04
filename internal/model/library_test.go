@@ -1,6 +1,7 @@
 package model
 
 import (
+	"bytes"
 	"encoding/binary"
 	"maps"
 	"os"
@@ -192,6 +193,13 @@ func TestLibraryUsesSidecarClassificationForInstalled(t *testing.T) {
 	}
 	if entries[0].Classification.Type != TypeProjector || entries[0].Classification.Architecture != "recorded-by-sidecar" {
 		t.Fatalf("classification=%#v was re-read from the artifact", entries[0].Classification)
+	}
+	if !entries[0].DerivationStale {
+		t.Fatal("schema-2 sidecar was not reported as derivation-stale")
+	}
+	after, err := os.ReadFile(base + ".json")
+	if err != nil || !bytes.Contains(after, []byte(`"schemaVersion":2`)) {
+		t.Fatalf("library read rewrote legacy sidecar: %s err=%v", after, err)
 	}
 }
 

@@ -5,7 +5,8 @@ import (
 	"reflect"
 )
 
-// Inspection is the operator-facing projection of a GGUF header. It reports the
+// Inspection is the internal projection of a GGUF header used by discovery and
+// download publication. It reports the
 // artifact's identity, its classification digest and the scalar metadata keys
 // only: the vocabulary arrays are never carried, because they are 99.9% of a
 // real header and nothing downstream consumes their contents. The tokenizer's
@@ -37,7 +38,9 @@ func NewInspection(source Source, artifact Artifact, meta map[string]any) Inspec
 // the download completion path builds its record from the inspection rather
 // than reading the header a second time.
 func (i Inspection) Record() Record {
-	return Record{SchemaVersion: i.SchemaVersion, Source: i.Source, Artifact: i.Artifact, Classification: i.Classification}
+	r := Record{SchemaVersion: i.SchemaVersion, Source: i.Source, Artifact: i.Artifact}
+	r.SetDerivation(Derivation{Version: DerivationVersion, Classification: i.Classification, CountParameters: i.Classification.CountParameters})
+	return r
 }
 
 // scalarMetadata keeps every key whose value is not an array or slice. The

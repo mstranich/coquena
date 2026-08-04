@@ -3,56 +3,69 @@
 Define CLI and local WebUI interfaces for shared GGUF model management.
 ## Requirements
 ### Requirement: Expose shared model management through the CLI
-Coquena SHALL expose `coquena model resolve <repository-or-url>`, `coquena model discover <repository-or-url[:selector]>`, `coquena model inspect <reference>`, and `coquena model download <repository-or-url[:selector]>`, plus download management as `coquena model download list`, `status <job-id>`, `pause <job-id>`, `resume <job-id>`, and `cancel <job-id>`. The shorter top-level `coquena download ...` forms SHALL remain accepted aliases. Every command addressing an artifact already present in the models directory SHALL name it through the `user/repo[@revision]:QUANT` reference grammar and SHALL NOT require a filesystem path, so one logical name identifies an artifact across resolution, inspection, reconciliation, binding, verification, and update checking. `inspect` SHALL operate only on a local artifact and SHALL issue no network request; remote exploration SHALL be reached through `discover`. Human `inspect` output SHALL render the artifact's classification and its scalar metadata as a `Metadata`/`Value` table rather than the resolved revision alone. These commands SHALL invoke the shared model service and SHALL support one `--json` option that emits exactly one schema-version-1 JSON document on standard output.
 
-#### Scenario: Automate model inspection
-- **WHEN** an operator invokes a supported model command with `--json`
-- **THEN** standard output contains only a newline-terminated schema-version-1 JSON document
-- **AND** operational diagnostics do not contaminate that document
+Coquena SHALL expose `coquena model resolve <repository-or-url>`, `coquena model
+discover <repository-or-url[:selector]>`, `coquena model download
+<repository-or-url[:selector]>`, `coquena model revision <reference>`,
+`coquena model list`, `coquena model verify <reference>`, `coquena model
+check-updates <reference>`, and the accepted reconciliation and download-job
+subcommands. The CLI SHALL NOT expose `coquena model inspect`; local byte
+evidence and recorded evidence SHALL be compared through `verify`, while the
+internal inspection projection remains available to non-CLI workflows.
+
+Non-interactive commands SHALL support one `--json` option that emits exactly
+one schema-versioned JSON document on standard output. Commands addressing one
+installed artifact SHALL use the currently supported model reference grammar,
+shall refuse ambiguity safely, and SHALL NOT require a filesystem path.
+
+#### Scenario: Reject the removed inspect command
+
+- **WHEN** an operator invokes `coquena model inspect`
+- **THEN** the CLI reports usage that does not advertise the removed command
+- **AND** no local or remote state changes
+
+#### Scenario: Preserve internal inspection for download
+
+- **WHEN** a managed download completes after its GGUF header has been inspected
+- **THEN** the download workflow may use the internal inspection projection to
+  construct the sidecar
+- **AND** removing the CLI command does not require parsing the header twice
+
+#### Scenario: Automate a supported model command
+
+- **WHEN** an operator invokes a supported non-interactive model command with
+  `--json`
+- **THEN** standard output contains only one newline-terminated,
+  schema-versioned JSON document
+- **AND** diagnostics do not contaminate that document
 
 #### Scenario: Reject invalid model command input
-- **WHEN** an operator supplies malformed, ambiguous, unsupported, or missing command input
+
+- **WHEN** an operator supplies malformed, ambiguous, unsupported, or missing
+  command input
 - **THEN** the CLI exits unsuccessfully with usage or a safe diagnostic
 - **AND** it creates no job or model artifact
 
-#### Scenario: Read a classified inspection in human output
-- **WHEN** an operator inspects a local artifact without `--json`
-- **THEN** the output presents its declared type and scalar metadata as a two-column table
-- **AND** it does not reduce the result to the resolved commit SHA
-
 #### Scenario: Address an installed artifact by its logical name
-- **WHEN** an operator inspects or reads the revision of an installed artifact
-- **THEN** Coquena accepts the same reference form used to bind, verify, or check it for updates
-- **AND** it does not require the operator to supply the artifact's filesystem path
 
-#### Scenario: Refuse to address an unreconciled artifact
-- **WHEN** an operator inspects or reads the revision of an artifact that has not been reconciled
-- **THEN** Coquena reports that no installed artifact matches the reference
-- **AND** the artifact becomes addressable only once it has been reconciled
+- **WHEN** an operator reads the revision, verifies, or checks updates for an
+  installed artifact
+- **THEN** Coquena accepts the same currently supported reference family
+- **AND** it does not require a filesystem path
 
-#### Scenario: Name the candidates behind an ambiguous selection
-- **WHEN** a command's selector matches zero or several GGUF artifacts
-- **THEN** the CLI reports the filenames available for selection
-- **AND** it does not report only how many matched
+#### Scenario: Name candidates behind an ambiguous selection
+
+- **WHEN** a command requiring one artifact matches zero or several GGUF
+  artifacts
+- **THEN** the CLI reports the available candidate filenames
+- **AND** it does not choose one implicitly
 
 #### Scenario: Manage a download below the model command
-- **WHEN** an operator invokes `coquena model download status <job-id>` or another supported job action
-- **THEN** Coquena applies that action to the named durable job
-- **AND** it does not interpret the action name as a Hugging Face repository reference
 
-#### Scenario: Read human download status
-- **WHEN** an operator invokes `coquena download list` without `--json`
-- **THEN** Coquena renders a tabular global download view containing ID, model, status, human-readable percentage/byte progress, and target path
-
-#### Scenario: Interrupt a resumed model download
-- **WHEN** an operator presses Ctrl+C while a CLI resume is transferring a model
-- **THEN** Coquena cancels the active request, persists the job as paused, and reports that the download was paused
-- **AND** the job remains resumable from its reconciled partial length
-
-#### Scenario: Read human progress logs
-- **WHEN** a CLI or WebUI-backed model transfer emits its throttled operational progress log
-- **THEN** downloaded and total sizes use human-readable binary units
-- **AND** the log includes a percentage while JSON/API job state retains exact byte counts
+- **WHEN** an operator invokes `coquena model download status <job-id>` or
+  another supported job action
+- **THEN** Coquena applies that action to the named durable model job
+- **AND** it does not interpret the action name as a repository reference
 
 ### Requirement: Expose model management through the local HTTP API
 The local WebUI server SHALL expose schema-version-1 JSON APIs for resolving and inspecting GGUF artifacts, discovering remote repository candidates with their classification, discovering installed and incomplete model units, lazily reading an installed artifact's classification, serving cached publisher avatars, creating a download job, listing jobs, inspecting a job, and pausing, resuming, or cancelling a job. Inspection responses SHALL return the derived classification and scalar metadata only; the API SHALL NOT offer an option to return the raw GGUF metadata map. Accepted creation SHALL return `202` with an opaque job ID; job progress and terminal state SHALL be available through polling and an SSE endpoint. Invalid API paths, input, and methods SHALL return API errors or `405`, never an Angular document.
@@ -234,22 +247,70 @@ Coquena SHALL provide `coquena model reconcile <reference> --online`, which reco
 - **THEN** Coquena reports that the option does not apply to this command
 - **AND** it does not silently ignore the option
 
-### Requirement: Verify local model integrity on demand
-Coquena SHALL provide `coquena model verify <ref>`, which re-hashes the resolved installed file and compares it against the sidecar's persisted SHA-256 digest. It SHALL distinguish a hash match, a hash mismatch, and the absence of a persisted digest, and SHALL NOT run as a side effect of any other command.
+### Requirement: Verify local model integrity and repair derived evidence on demand
 
-#### Scenario: Verify an intact model
-- **WHEN** an operator verifies a model whose current file digest matches its sidecar
+Coquena SHALL provide `coquena model verify <ref>`, which re-hashes the resolved
+installed file and compares it with the sidecar's persisted SHA-256 baseline.
+Default verification SHALL distinguish a hash match, hash mismatch, and absence
+of a baseline; it SHALL make no network request and SHALL NOT modify local
+state.
+
+Coquena SHALL accept `--repair-derived` for one referenced artifact. Repair
+SHALL proceed only after a hash match and SHALL recalculate only locally derived
+GGUF evidence and its derivation version. It SHALL preserve model bytes, the
+persisted digest baseline, source/provenance, attestation, remote drift, and
+operator ownership. Hash mismatch or absent baseline SHALL refuse repair. The
+command SHALL NOT accept a bulk repair mode.
+
+#### Scenario: Verify an intact model read-only
+
+- **WHEN** an operator verifies a model whose current digest matches its sidecar
+  without requesting repair
 - **THEN** Coquena reports the model as verified
+- **AND** it writes no sidecar or verification timestamp
 
 #### Scenario: Detect local corruption
-- **WHEN** an operator verifies a model whose current file digest disagrees with its sidecar
-- **THEN** Coquena marks the model unusable
-- **AND** it reports the option to re-download or reconcile the model again
+
+- **WHEN** an operator verifies a model whose current digest disagrees with its
+  sidecar
+- **THEN** Coquena reports verification failure and an appropriate recovery
+  direction
+- **AND** it does not modify bytes or metadata
 
 #### Scenario: Verify a model with no recorded digest
-- **WHEN** an operator verifies a model installed before a digest was ever persisted for it
-- **THEN** Coquena reports that no baseline digest is available
-- **AND** it does not report this as a mismatch
+
+- **WHEN** an operator verifies a model with no persisted digest baseline
+- **THEN** Coquena reports that no baseline is available
+- **AND** it does not report a match or repair derived evidence
+
+#### Scenario: Repair stale derived evidence
+
+- **WHEN** an operator invokes `verify <ref> --repair-derived` for an artifact
+  whose digest matches and whose derivation is stale
+- **THEN** Coquena writes current classification, parameter count, physical
+  evidence when available, and derivation version
+- **AND** it preserves every non-derived authority field and the model bytes
+
+#### Scenario: Refuse repair after a digest mismatch
+
+- **WHEN** `verify <ref> --repair-derived` computes a digest that differs from
+  the stored baseline
+- **THEN** Coquena refuses the repair
+- **AND** the sidecar and model bytes remain unchanged
+
+#### Scenario: Repair a supported legacy sidecar
+
+- **WHEN** an otherwise valid schema-version-2 sidecar is verified with
+  `--repair-derived` and its digest matches
+- **THEN** Coquena publishes the current sidecar shape with current derivation
+- **AND** it preserves the legacy record's valid source and artifact evidence
+
+#### Scenario: Reject bulk repair
+
+- **WHEN** an operator requests `verify --all` or an equivalent library-wide
+  repair
+- **THEN** Coquena rejects the invocation
+- **AND** it does not repair any artifact
 
 ### Requirement: Check for remote model updates on demand
 Coquena SHALL provide `coquena model check-updates <ref>`, which queries Hugging Face using only the installed model's recorded repository, requested revision, and filename, without reading or hashing the local file. It SHALL report whether Hugging Face's current content for that path differs from what is recorded locally, degrading to a commit-revision-only comparison when Hugging Face reports no content hash for the artifact. It SHALL NOT run automatically from any listing command.

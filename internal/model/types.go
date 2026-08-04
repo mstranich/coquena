@@ -1,6 +1,7 @@
 package model
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -49,18 +50,35 @@ type Artifact struct {
 	DownloadedAt string `json:"downloadedAt,omitempty"`
 }
 
-// RecordSchemaVersion is the current model sidecar document version. Version 2
-// replaced the persisted raw GGUF map with the compact classification digest,
-// so a version 1 sidecar is rejected outright rather than upgraded: its
-// artifact then reports as unreconciled, which is a state the catalog already
-// has a defined recovery path for.
-const RecordSchemaVersion = 2
+const (
+	RecordSchemaVersion = 3
+	DerivationVersion   = 1
+)
+
+type PhysicalQuantization struct {
+	Type            GGMLType `json:"type"`
+	Name            string   `json:"name"`
+	CountParameters uint64   `json:"countParameters"`
+}
+
+type Derivation struct {
+	Version              int                   `json:"version"`
+	ComputedAt           string                `json:"computedAt"`
+	Classification       Classification        `json:"classification"`
+	CountParameters      int64                 `json:"countParameters"`
+	PhysicalQuantization *PhysicalQuantization `json:"physicalQuantization,omitempty"`
+}
 
 type Record struct {
-	SchemaVersion  int            `json:"schemaVersion"`
-	Source         Source         `json:"source"`
-	Artifact       Artifact       `json:"artifact"`
-	Classification Classification `json:"classification"`
+	SchemaVersion int        `json:"schemaVersion"`
+	Source        Source     `json:"source"`
+	Artifact      Artifact   `json:"artifact"`
+	Derivation    Derivation `json:"derivation"`
+	// Classification is an in-memory compatibility projection. Schema 3
+	// persists it only inside Derivation; schema 2 readers populate this field
+	// and mark Derivation stale.
+	Classification Classification             `json:"-"`
+	Extra          map[string]json.RawMessage `json:"-"`
 }
 type Status string
 
@@ -101,12 +119,14 @@ type Job struct {
 // persisted, since a projector's usability changes when a principal beside it
 // is installed or removed.
 type LibraryEntry struct {
-	Source         Source          `json:"source"`
-	TargetPath     string          `json:"targetPath"`
-	State          string          `json:"state"`
-	Classification *Classification `json:"classification,omitempty"`
-	Usability      Usability       `json:"usability"`
-	Job            *Job            `json:"job,omitempty"`
+	Source               Source                `json:"source"`
+	TargetPath           string                `json:"targetPath"`
+	State                string                `json:"state"`
+	Classification       *Classification       `json:"classification,omitempty"`
+	DerivationStale      bool                  `json:"derivationStale,omitempty"`
+	PhysicalQuantization *PhysicalQuantization `json:"physicalQuantization,omitempty"`
+	Usability            Usability             `json:"usability"`
+	Job                  *Job                  `json:"job,omitempty"`
 }
 
 func (j Job) Validate() error {

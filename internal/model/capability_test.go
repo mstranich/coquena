@@ -2,7 +2,7 @@ package model
 
 import "testing"
 
-func fileType(v int64) *int64 { return &v }
+func fileType(v int64) *LlamaFileType { ft := LlamaFileType(v); return &ft }
 
 func TestDeriveRuntimeCapabilityTernaryFileType(t *testing.T) {
 	got := DeriveRuntimeCapability(Classification{Type: TypeModel, Architecture: "qwen35", FileType: fileType(40)})

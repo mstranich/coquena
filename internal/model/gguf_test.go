@@ -1,6 +1,7 @@
 package model
 
 import (
+	"bytes"
 	"encoding/binary"
 	"fmt"
 	"os"
@@ -198,31 +199,25 @@ func TestReadMetadataRejectsUnsupportedValue(t *testing.T) {
 }
 
 // buildTensorTable builds a tensor table section for a GGUF binary.
-// It writes: for each tensor: name, type, shape, offset.
+// It writes the GGUF descriptor order: name, dimension count, uint64
+// dimensions, physical type, data offset.
 func buildTensorTable(tensors []tensorEntry) []byte {
 	b := make([]byte, 0)
 
 	for _, te := range tensors {
 		// name
 		b = appendString(b, te.name)
-		// type
-		var t [4]byte
-		binary.LittleEndian.PutUint32(t[:], te.tensorType)
-		b = append(b, t[:]...)
-		// shape
-		shapeBytes := make([]byte, 0)
-		var et [4]byte
-		binary.LittleEndian.PutUint32(et[:], 4) // uint32 element type
-		shapeBytes = append(shapeBytes, et[:]...)
-		var count [8]byte
-		binary.LittleEndian.PutUint64(count[:], uint64(len(te.shape)))
-		shapeBytes = append(shapeBytes, count[:]...)
+		var count [4]byte
+		binary.LittleEndian.PutUint32(count[:], uint32(len(te.shape)))
+		b = append(b, count[:]...)
 		for _, dim := range te.shape {
-			var v [4]byte
-			binary.LittleEndian.PutUint32(v[:], dim)
-			shapeBytes = append(shapeBytes, v[:]...)
+			var v [8]byte
+			binary.LittleEndian.PutUint64(v[:], dim)
+			b = append(b, v[:]...)
 		}
-		b = append(b, shapeBytes...)
+		var typ [4]byte
+		binary.LittleEndian.PutUint32(typ[:], te.tensorType)
+		b = append(b, typ[:]...)
 		// offset
 		var off [8]byte
 		binary.LittleEndian.PutUint64(off[:], te.offset)
@@ -233,10 +228,10 @@ func buildTensorTable(tensors []tensorEntry) []byte {
 }
 
 type tensorEntry struct {
-	name   string
+	name       string
 	tensorType uint32
-	shape  []uint32
-	offset uint64
+	shape      []uint64
+	offset     uint64
 }
 
 // TestCountParameters verifies the parameter count for a known tensor table.
@@ -252,19 +247,19 @@ func TestCountParameters(t *testing.T) {
 		{
 			name:       "blk.0.attn_q.weight",
 			tensorType: 12, // Q4_K
-			shape:      []uint32{512, 4096},
+			shape:      []uint64{512, 4096},
 			offset:     0,
 		},
 		{
 			name:       "blk.0.attn_k.weight",
 			tensorType: 12, // Q4_K
-			shape:      []uint32{512, 4096},
+			shape:      []uint64{512, 4096},
 			offset:     100,
 		},
 		{
 			name:       "output.weight",
 			tensorType: 15, // Q8_K
-			shape:      []uint32{4096},
+			shape:      []uint64{4096},
 			offset:     200,
 		},
 	}
@@ -301,6 +296,49 @@ func TestCountParameters(t *testing.T) {
 	want := int64(4198400)
 	if got != want {
 		t.Fatalf("CountParameters() = %d, want %d", got, want)
+	}
+}
+
+func TestScanGGUFConsumesMetadataBeforeTensorDescriptors(t *testing.T) {
+	b := emptyGGUF()
+	binary.LittleEndian.PutUint64(b[8:], 1)
+	binary.LittleEndian.PutUint64(b[16:], 1)
+	b = appendString(b, "general.type")
+	b = appendType(b, 8)
+	b = appendString(b, "model")
+	b = append(b, buildTensorTable([]tensorEntry{{name: "blk.0.weight", tensorType: 12, shape: []uint64{2, 3, 4}}})...)
+	r := bytes.NewReader(b)
+	scan, err := ScanGGUF(r, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if scan.Metadata["general.type"] != "model" || len(scan.Tensors) != 1 {
+		t.Fatalf("scan=%+v", scan)
+	}
+	if got, _ := tensorElements(scan.Tensors[0]); got != 24 {
+		t.Fatalf("elements=%d", got)
+	}
+}
+
+func TestDominantPhysicalTypeUsesStructuralParameterCount(t *testing.T) {
+	scan := GGUFScan{Tensors: []TensorDescriptor{
+		{Name: "token_embd.weight", Type: 14, Dimensions: []uint64{1_000_000}},
+		{Name: "blk.0.base", Type: 2, Dimensions: []uint64{100}},
+		{Name: "blk.0.exception", Type: 0, Dimensions: []uint64{20}},
+		{Name: "blk.1.exception", Type: 0, Dimensions: []uint64{20}},
+	}}
+	typ, ok, err := DominantPhysicalType(scan)
+	// Tensor count chooses F32 (two tensors) and encoded bytes choose F32
+	// (160 vs roughly 50); scalar parameters correctly choose Q4_0 (100 vs 40).
+	if err != nil || !ok || typ != 2 {
+		t.Fatalf("type=%d ok=%v err=%v", typ, ok, err)
+	}
+}
+
+func TestDominantPhysicalTypeUnavailableWithoutSupportedScope(t *testing.T) {
+	_, ok, err := DominantPhysicalType(GGUFScan{Tensors: []TensorDescriptor{{Name: "token_embd.weight", Type: 12, Dimensions: []uint64{100}}}})
+	if err != nil || ok {
+		t.Fatalf("ok=%v err=%v", ok, err)
 	}
 }
 

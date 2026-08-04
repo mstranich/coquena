@@ -5,7 +5,7 @@ import (
 )
 
 func TestFormatReference(t *testing.T) {
-	fileType := int64(15) // Q8_K
+	fileType := LlamaFileType(15) // Q4_K_M
 	entry := LibraryEntry{
 		Source: Source{
 			Repository: "deepreinforce-ai/Ornith-1.0-9B-GGUF",
@@ -17,14 +17,14 @@ func TestFormatReference(t *testing.T) {
 	}
 
 	got := FormatReference(entry)
-	want := "deepreinforce-ai/Ornith-1.0-9B-GGUF:Q8_K"
+	want := "deepreinforce-ai/Ornith-1.0-9B-GGUF:Q4_K_M"
 	if got != want {
 		t.Errorf("FormatReference() = %q, want %q", got, want)
 	}
 }
 
 func TestFormatReferenceWithQ4K(t *testing.T) {
-	fileType := int64(12) // Q4_K
+	fileType := LlamaFileType(12) // Q3_K_M
 	entry := LibraryEntry{
 		Source: Source{
 			Repository: "user/repo",
@@ -36,14 +36,14 @@ func TestFormatReferenceWithQ4K(t *testing.T) {
 	}
 
 	got := FormatReference(entry)
-	want := "user/repo:Q4_K"
+	want := "user/repo:Q3_K_M"
 	if got != want {
 		t.Errorf("FormatReference() = %q, want %q", got, want)
 	}
 }
 
 func TestFormatReferenceWithDeprecatedType(t *testing.T) {
-	fileType := int64(4) // Q4_2 — deprecated but still functional
+	fileType := LlamaFileType(33) // Q4_0_4_4 — deprecated but still functional
 	entry := LibraryEntry{
 		Source: Source{
 			Repository: "user/repo",
@@ -55,7 +55,7 @@ func TestFormatReferenceWithDeprecatedType(t *testing.T) {
 	}
 
 	got := FormatReference(entry)
-	want := "user/repo:Q4_2"
+	want := "user/repo:Q4_0_4_4"
 	if got != want {
 		t.Errorf("FormatReference() = %q, want %q", got, want)
 	}

@@ -29,7 +29,7 @@ func FormatReference(entry LibraryEntry) string {
 	if entry.Classification == nil || entry.Classification.FileType == nil {
 		return entry.Source.Repository + ":unknown"
 	}
-	return entry.Source.Repository + ":" + FileTypeDisplayName(*entry.Classification.FileType)
+	return entry.Source.Repository + ":" + LlamaFileTypeDisplayName(*entry.Classification.FileType)
 }
 
 // ErrNoInstalledMatch indicates a reference matched no artifact in the library

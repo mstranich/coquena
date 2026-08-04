@@ -546,7 +546,6 @@ Coquena manages GGUF artifacts independently of any installed runtime. Resolve a
 coquena model resolve org/repository
 coquena model discover org/repository
 coquena model discover org/repository:Q4_K_M
-coquena model inspect org/repository:Q4_K_M
 coquena model download org/repository:Q4_K_M
 coquena model download org/repository:Q4_K_M --with-companions
 coquena model download list
@@ -558,17 +557,16 @@ coquena model revision org/repository:Q4_K_M
 coquena model list
 coquena model reconcile <reference> (--online|--accept)
 coquena model verify <reference>
+coquena model verify <reference> --repair-derived
 coquena model check-updates <reference>
 ```
 
-Remote exploration and local inspection are separate commands. `coquena model
-discover <repository-or-url[:selector]>` reaches the network: it lists every
+`coquena model discover <repository-or-url[:selector]>` reaches the network: it lists every
 GGUF candidate in the repository with its classification and marks the candidate
 a selector would resolve to. It does not print the repository model card: its
 length buries the candidate list, which is what discovery exists to present.
-`coquena model inspect <reference>` is local only, issues no network request,
-and renders a `Metadata`/`Value` table for an installed artifact, including its
-declared type.
+Fresh local byte evidence is reported by `coquena model verify <reference>`;
+`model list` remains a cheap sidecar-only catalog view.
 
 An artifact already present in the models directory is always named by its
 logical `user/repo:QUANT` reference — the form Coquena, LM Studio and Hugging

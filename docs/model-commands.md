@@ -22,9 +22,8 @@ that the corresponding flag or behavior is already available.
 | `download list|status|pause|resume|cancel` | Implemented | download manager | no | no | job state only | through an active download |
 | `revision <reference>` | Implemented | installed sidecar | no | no | no | no |
 | `list` | Implemented | local catalog and sidecars | no | no | no | no |
-| `inspect <reference>` | Implemented; removal accepted | local GGUF header | no | header only | no | no |
 | `verify <reference>` | Implemented | local bytes and sidecar baseline | no | full artifact | no | no |
-| `verify <reference> --repair-derived` | Accepted target | local bytes | no | full artifact | derived fields only | no |
+| `verify <reference> --repair-derived` | Implemented | local bytes | no | full artifact | derived fields only | no |
 | `check-updates <reference>` | Implemented read-only; metadata recording is a later target | Hugging Face | yes | no | not currently | no |
 | `reconcile <reference> --online` | Implemented | local artifact and Hugging Face | yes | as required | provenance/attestation | no |
 | `reconcile <reference> --accept` | Implemented | operator | no | as required | accepted identity/ownership | no |
@@ -115,15 +114,13 @@ The accepted GGUF evidence change will add a derivation version to sidecars so
 `list` can identify stale derived evidence by comparing small integers. That
 check must not open or hash the model artifact.
 
-### `inspect`
+### Removed: `inspect`
 
 ```console
-coquena model inspect org/repository:Q4_K_M
+coquena model inspect org/repository:Q4_K_M  # rejected
 ```
 
-The command currently reads the installed GGUF header and renders its metadata
-without using the network. The project owner has accepted removing this CLI
-surface: `verify` will be the operator-facing comparison between bytes-derived
+The CLI surface has been removed. `verify` is the operator-facing comparison between bytes-derived
 facts and the sidecar, while download will retain the internal `Inspection`
 projection to avoid parsing a header twice.
 
@@ -146,13 +143,13 @@ mismatched, or no baseline. It makes no network request and is read-only.
 The command must continue to be read-only by default. A verification result is
 returned to the operator and is not persisted as a `lastVerifiedAt` event.
 
-### `verify --repair-derived` (accepted target)
+### `verify --repair-derived`
 
 ```console
 coquena model verify <reference> --repair-derived
 ```
 
-The planned flag recalculates only evidence derived from the local bytes, such
+The flag recalculates only evidence derived from the local bytes, such
 as GGUF classification, parameter count, and derivation version. Repair is
 per-artifact and opt-in.
 
@@ -232,3 +229,13 @@ The accepted implementation sequence is:
 
 New unresolved architectural questions should be handled by a derived RFC. An
 implementation-ready decision should instead become a bounded OpenSpec change.
+
+## GGUF validation fixtures
+
+The reproducible test suite uses small synthetic GGUF documents that exercise
+metadata traversal, 64-bit tensor dimensions, structural-scope filtering, and
+the overlapping numeric value `15` in both enum domains. The operator's Ornith
+Q4_K_M artifact is not stored in this repository because it is a multi-gigabyte
+model. When that artifact is locally available, `model verify` provides the
+optional end-to-end acceptance check; its absence does not make the synthetic
+parser and contract tests non-reproducible.

@@ -5,379 +5,340 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"strings"
 )
 
 const maxMetadataBytes = int64(64 << 20)
 
-// ggufScalarSizes maps a GGUF value type to its fixed width in bytes. It is
-// shared by the decoding and the skipping reads so both agree on the span an
-// element occupies.
 var ggufScalarSizes = map[uint32]int64{0: 1, 1: 1, 2: 2, 3: 2, 4: 4, 5: 4, 6: 4, 7: 1, 10: 8, 11: 8, 12: 8}
 
-// ggufTypeSize maps GGUF tensor types to their element size in bytes. Used by
-// CountParameters to compute the total parameter count from the tensor table.
-var ggufTypeSize = map[uint32]float64{
-	0: 4,    // F32
-	1: 2,    // F16
-	2: 0.5,  // Q4_0
-	3: 0.625, // Q4_1
-	4: 4,    // U32 (was missing - caused CountParameters to return 0)
-	5: 0.5,  // Q4_3
-	6: 1,    // Q5_0
-	7: 1,    // Q5_1
-	8: 1.125, // Q8_0
-	9: 1,    // Q8_1
-	10: 1.25, // Q2_K
-	11: 1.5, // Q3_K
-	12: 1.59375, // Q4_K
-	13: 2,   // Q5_K
-	14: 2.5, // Q6_K
-	15: 2,   // Q8_K
-	16: 0.5, // IQ2_XXS
-	17: 0.625, // IQ2_XS
-	18: 0.75, // IQ3_XXS
-	19: 0.875, // IQ1_S
-	20: 1,   // IQ4_NL
-	21: 1,   // IQ3_S
-	22: 1,   // IQ2_S
-	23: 1,   // IQ4_XS
-	24: 4,   // I8
-	25: 2,   // I16
-	26: 4,   // I32
-	27: 8,   // I64
-	28: 8,   // F64
-	29: 1,   // IQ1_M
-	30: 2,   // BF16
-	34: 1,   // TQ1_0
-	35: 1,   // TQ2_0
-	39: 1,   // MXFP4
-	40: 1,   // NVFP4
-	41: 0.5, // Q1_0
-	42: 1,   // Q2_0
-}
-
-// SkippedArray stands in the metadata map for an array whose elements were not
-// decoded. It keeps what a caller can still learn cheaply — the element type
-// and the element count — because the count is the only thing classification
-// asks of the vocabulary arrays, while their contents are what make a full read
-// expensive: a real principal declares a quarter of a million tokens and as
-// many merges.
 type SkippedArray struct {
 	ElemType uint32
 	Len      int64
 }
 
-// ReadMetadata decodes every value, arrays included. It stays the read for the
-// paths that genuinely need array contents — the tokenizer vocabulary digest
-// hashes the token, merge and token-type arrays at reconciliation time.
+type TensorDescriptor struct {
+	Name       string
+	Dimensions []uint64
+	Type       GGMLType
+	Offset     uint64
+}
+
+type GGUFScan struct {
+	Metadata map[string]any
+	Tensors  []TensorDescriptor
+}
+
 func ReadMetadata(r RandomAccessReader) (map[string]any, error) {
-	return readMetadata(r, false)
+	meta, _, _, err := readHeaderAndMetadata(r, false)
+	return meta, err
 }
 
-// ReadMetadataSkippingArrays returns the same scalar entries as ReadMetadata
-// but records each array as a SkippedArray instead of materializing it. It
-// exists because classification runs on every library enumeration, where
-// decoding half a million boxed values per artifact is the dominant cost and
-// none of it is used.
 func ReadMetadataSkippingArrays(r RandomAccessReader) (map[string]any, error) {
-	return readMetadata(r, true)
+	meta, _, _, err := readHeaderAndMetadata(r, true)
+	return meta, err
 }
 
-func readMetadata(r RandomAccessReader, skip bool) (map[string]any, error) {
-	if r.Size() < 24 {
-		return nil, fmt.Errorf("GGUF is too small")
+// ScanGGUF is the single validated traversal used by every consumer that needs
+// both metadata and tensor descriptors.
+func ScanGGUF(r RandomAccessReader, skipArrays bool) (GGUFScan, error) {
+	meta, tensorCount, off, err := readHeaderAndMetadata(r, skipArrays)
+	if err != nil {
+		return GGUFScan{}, err
 	}
-	h := make([]byte, 24)
-	if _, err := r.ReadAt(h, 0); err != nil {
-		return nil, err
+	if tensorCount > 1<<20 {
+		return GGUFScan{}, fmt.Errorf("too many GGUF tensors")
+	}
+	tensors := make([]TensorDescriptor, 0, tensorCount)
+	for i := uint64(0); i < tensorCount; i++ {
+		name, next, err := readString(r, off)
+		if err != nil {
+			return GGUFScan{}, err
+		}
+		off = next
+		b, err := readExact(r, off, 4)
+		if err != nil {
+			return GGUFScan{}, err
+		}
+		nDims := binary.LittleEndian.Uint32(b)
+		off += 4
+		if nDims > 16 {
+			return GGUFScan{}, fmt.Errorf("GGUF tensor %q has too many dimensions", name)
+		}
+		dims := make([]uint64, nDims)
+		for j := range dims {
+			b, err = readExact(r, off, 8)
+			if err != nil {
+				return GGUFScan{}, err
+			}
+			dims[j] = binary.LittleEndian.Uint64(b)
+			off += 8
+		}
+		b, err = readExact(r, off, 12)
+		if err != nil {
+			return GGUFScan{}, err
+		}
+		tensors = append(tensors, TensorDescriptor{
+			Name: name, Dimensions: dims,
+			Type:   GGMLType(binary.LittleEndian.Uint32(b[:4])),
+			Offset: binary.LittleEndian.Uint64(b[4:12]),
+		})
+		off += 12
+	}
+	return GGUFScan{Metadata: meta, Tensors: tensors}, nil
+}
+
+func readHeaderAndMetadata(r RandomAccessReader, skipArrays bool) (map[string]any, uint64, int64, error) {
+	if r.Size() < 24 {
+		return nil, 0, 0, fmt.Errorf("GGUF is too small")
+	}
+	h, err := readExact(r, 0, 24)
+	if err != nil {
+		return nil, 0, 0, err
 	}
 	if string(h[:4]) != "GGUF" {
-		return nil, fmt.Errorf("invalid GGUF magic")
+		return nil, 0, 0, fmt.Errorf("invalid GGUF magic")
 	}
-	v := binary.LittleEndian.Uint32(h[4:8])
-	if v < 2 || v > 3 {
-		return nil, fmt.Errorf("unsupported GGUF version %d", v)
+	version := binary.LittleEndian.Uint32(h[4:8])
+	if version < 2 || version > 3 {
+		return nil, 0, 0, fmt.Errorf("unsupported GGUF version %d", version)
 	}
-	n := binary.LittleEndian.Uint64(h[16:24])
-	if n > 1<<20 {
-		return nil, fmt.Errorf("too many GGUF metadata entries")
+	tensorCount := binary.LittleEndian.Uint64(h[8:16])
+	metadataCount := binary.LittleEndian.Uint64(h[16:24])
+	if metadataCount > 1<<20 {
+		return nil, 0, 0, fmt.Errorf("too many GGUF metadata entries")
 	}
 	off := int64(24)
-	values := map[string]any{}
-	for i := uint64(0); i < n; i++ {
+	meta := make(map[string]any, metadataCount)
+	for i := uint64(0); i < metadataCount; i++ {
 		key, next, err := readString(r, off)
 		if err != nil {
-			return nil, err
+			return nil, 0, 0, err
 		}
 		off = next
-		t := make([]byte, 4)
-		if _, err = r.ReadAt(t, off); err != nil {
-			return nil, err
+		b, err := readExact(r, off, 4)
+		if err != nil {
+			return nil, 0, 0, err
 		}
 		off += 4
-		vt := binary.LittleEndian.Uint32(t)
+		valueType := binary.LittleEndian.Uint32(b)
 		var value any
-		if skip && vt == 9 {
-			value, next, err = skipArray(r, off)
+		if skipArrays && valueType == 9 {
+			value, off, err = skipArray(r, off)
 		} else {
-			value, next, err = readValue(r, off, vt)
+			value, off, err = readValue(r, off, valueType)
 		}
 		if err != nil {
-			return nil, err
+			return nil, 0, 0, err
 		}
-		off = next
-		values[key] = value
+		meta[key] = value
 		if off > maxMetadataBytes {
-			return nil, fmt.Errorf("GGUF metadata exceeds limit")
+			return nil, 0, 0, fmt.Errorf("GGUF metadata exceeds limit")
 		}
 	}
-	return values, nil
+	return meta, tensorCount, off, nil
 }
+
+func readExact(r RandomAccessReader, off int64, n int) ([]byte, error) {
+	if off < 0 || int64(n) > r.Size()-off {
+		return nil, io.ErrUnexpectedEOF
+	}
+	b := make([]byte, n)
+	read, err := r.ReadAt(b, off)
+	if err != nil && err != io.EOF {
+		return nil, err
+	}
+	if read != len(b) {
+		return nil, io.ErrUnexpectedEOF
+	}
+	return b, nil
+}
+
 func readString(r RandomAccessReader, off int64) (string, int64, error) {
-	b := make([]byte, 8)
-	if _, e := r.ReadAt(b, off); e != nil {
-		return "", off, e
+	b, err := readExact(r, off, 8)
+	if err != nil {
+		return "", off, err
 	}
 	n := binary.LittleEndian.Uint64(b)
-	if n > 1<<20 {
+	if n > 1<<20 || n > uint64(math.MaxInt64) {
 		return "", off, fmt.Errorf("GGUF string is too large")
 	}
-	b = make([]byte, n)
-	if _, e := r.ReadAt(b, off+8); e != nil && e != io.EOF {
-		return "", off, e
+	b, err = readExact(r, off+8, int(n))
+	if err != nil {
+		return "", off, err
 	}
 	return string(b), off + 8 + int64(n), nil
 }
+
 func readValue(r RandomAccessReader, off int64, t uint32) (any, int64, error) {
-	sizes := ggufScalarSizes
 	if t == 8 {
 		return readString(r, off)
 	}
 	if t == 9 {
-		b := make([]byte, 12)
-		if _, e := r.ReadAt(b, off); e != nil {
-			return nil, off, e
+		b, err := readExact(r, off, 12)
+		if err != nil {
+			return nil, off, err
 		}
 		et, n := binary.LittleEndian.Uint32(b), binary.LittleEndian.Uint64(b[4:])
 		if n > 1<<20 {
 			return nil, off, fmt.Errorf("GGUF array too large")
 		}
-		a := make([]any, 0, n)
-		o := off + 12
+		values := make([]any, 0, n)
+		next := off + 12
 		for i := uint64(0); i < n; i++ {
-			v, no, e := readValue(r, o, et)
-			if e != nil {
-				return nil, off, e
+			v, after, err := readValue(r, next, et)
+			if err != nil {
+				return nil, off, err
 			}
-			a = append(a, v)
-			o = no
+			values, next = append(values, v), after
 		}
-		return a, o, nil
+		return values, next, nil
 	}
-	z, ok := sizes[t]
+	size, ok := ggufScalarSizes[t]
 	if !ok {
 		return nil, off, fmt.Errorf("unsupported GGUF value type %d", t)
 	}
-	b := make([]byte, z)
-	if _, e := r.ReadAt(b, off); e != nil {
-		return nil, off, e
+	b, err := readExact(r, off, int(size))
+	if err != nil {
+		return nil, off, err
 	}
-	var v any
+	var value any
 	switch t {
 	case 0:
-		v = b[0]
+		value = b[0]
 	case 1:
-		v = int8(b[0])
+		value = int8(b[0])
 	case 2:
-		v = binary.LittleEndian.Uint16(b)
+		value = binary.LittleEndian.Uint16(b)
 	case 3:
-		v = int16(binary.LittleEndian.Uint16(b))
+		value = int16(binary.LittleEndian.Uint16(b))
 	case 4:
-		v = binary.LittleEndian.Uint32(b)
+		value = binary.LittleEndian.Uint32(b)
 	case 5:
-		v = int32(binary.LittleEndian.Uint32(b))
+		value = int32(binary.LittleEndian.Uint32(b))
 	case 6:
-		v = math32(b)
+		value = math.Float32frombits(binary.LittleEndian.Uint32(b))
 	case 7:
-		v = b[0] != 0
+		value = b[0] != 0
 	case 10:
-		v = binary.LittleEndian.Uint64(b)
+		value = binary.LittleEndian.Uint64(b)
 	case 11:
-		v = int64(binary.LittleEndian.Uint64(b))
+		value = int64(binary.LittleEndian.Uint64(b))
 	case 12:
-		v = math64(b)
+		value = math.Float64frombits(binary.LittleEndian.Uint64(b))
 	}
-	return v, off + z, nil
+	return value, off + size, nil
 }
 
-// skipArray reads an array's header and advances past its payload without
-// decoding any element. Because the offset is then reached by arithmetic rather
-// than by reads that would fail on their own, every computed end is checked
-// against the file size: a count large enough to run past the end of the file
-// must be an error, never a silent seek beyond it.
 func skipArray(r RandomAccessReader, off int64) (any, int64, error) {
-	b := make([]byte, 12)
-	if _, e := r.ReadAt(b, off); e != nil {
-		return nil, off, e
+	b, err := readExact(r, off, 12)
+	if err != nil {
+		return nil, off, err
 	}
 	et, n := binary.LittleEndian.Uint32(b), binary.LittleEndian.Uint64(b[4:])
 	if n > 1<<20 {
 		return nil, off, fmt.Errorf("GGUF array too large")
 	}
-	o := off + 12
-	switch et {
-	case 9:
-		// A nested array's length is only discoverable by walking its own
-		// header, so no single span covers it. Refuse explicitly rather than
-		// mis-compute an offset and read the rest of the section as garbage.
+	next := off + 12
+	if et == 9 {
 		return nil, off, fmt.Errorf("nested GGUF array is not supported")
-	case 8:
-		// Each string carries its own 8-byte length prefix, so the end of the
-		// payload is only known by walking. Only the prefixes are read: no Go
-		// string and no boxed value is allocated per element.
-		p := make([]byte, 8)
+	}
+	if et == 8 {
 		for i := uint64(0); i < n; i++ {
-			if _, e := r.ReadAt(p, o); e != nil {
-				return nil, off, e
+			_, after, err := readString(r, next)
+			if err != nil {
+				return nil, off, err
 			}
-			m := binary.LittleEndian.Uint64(p)
-			if m > 1<<20 {
-				return nil, off, fmt.Errorf("GGUF string is too large")
-			}
-			o += 8 + int64(m)
-			if o > r.Size() {
-				return nil, off, fmt.Errorf("GGUF array runs past end of file")
-			}
+			next = after
 		}
-	default:
-		z, ok := ggufScalarSizes[et]
+	} else {
+		size, ok := ggufScalarSizes[et]
 		if !ok {
 			return nil, off, fmt.Errorf("unsupported GGUF value type %d", et)
 		}
-		// Fixed-width elements are contiguous, so the whole span is one
-		// multiplication. n is bounded above by 1<<20 and z by 8, so the
-		// product cannot overflow.
-		o += int64(n) * z
-		if o > r.Size() {
+		if n > uint64(math.MaxInt64)/uint64(size) {
+			return nil, off, fmt.Errorf("GGUF array size overflows")
+		}
+		next += int64(n) * size
+		if next > r.Size() {
 			return nil, off, fmt.Errorf("GGUF array runs past end of file")
 		}
 	}
-	return SkippedArray{ElemType: et, Len: int64(n)}, o, nil
+	return SkippedArray{ElemType: et, Len: int64(n)}, next, nil
 }
-func math32(b []byte) float32 { return math.Float32frombits(binary.LittleEndian.Uint32(b)) }
-func math64(b []byte) float64 { return math.Float64frombits(binary.LittleEndian.Uint64(b)) }
 
-// CountParameters reads the tensor table and computes the total parameter count.
-// It sums the number of elements across all tensors, regardless of element width.
+func tensorElements(t TensorDescriptor) (uint64, error) {
+	if len(t.Dimensions) == 0 {
+		return 0, nil
+	}
+	n := uint64(1)
+	for _, dim := range t.Dimensions {
+		if dim != 0 && n > math.MaxUint64/dim {
+			return 0, fmt.Errorf("GGUF tensor %q parameter count overflows", t.Name)
+		}
+		n *= dim
+	}
+	return n, nil
+}
+
 func CountParameters(r RandomAccessReader) (int64, error) {
-	h := make([]byte, 24)
-	if _, err := r.ReadAt(h, 0); err != nil {
+	scan, err := ScanGGUF(r, true)
+	if err != nil {
 		return 0, err
 	}
-	if string(h[:4]) != "GGUF" {
-		return 0, fmt.Errorf("invalid GGUF magic")
+	var total uint64
+	for _, tensor := range scan.Tensors {
+		n, err := tensorElements(tensor)
+		if err != nil || n > math.MaxInt64 || total > uint64(math.MaxInt64)-n {
+			if err != nil {
+				return 0, err
+			}
+			return 0, fmt.Errorf("GGUF parameter count overflows")
+		}
+		total += n
 	}
-	nTensors := binary.LittleEndian.Uint64(h[8:16])
-	totalParams := int64(0)
-	off := int64(24)
-	for i := uint64(0); i < nTensors; i++ {
-		name, next, err := readString(r, off)
-		if err != nil {
-			return 0, err
-		}
-		off = next
-		_ = name
-		typeBytes := make([]byte, 4)
-		if _, err := r.ReadAt(typeBytes, off); err != nil {
-			return 0, err
-		}
-		off += 4
-		shape, nextOff, err := readUint32Array(r, off)
-		if err != nil {
-			return 0, err
-		}
-		off = nextOff
-		_ = shape
-		elements := int64(1)
-		for _, dim := range shape {
-			elements *= int64(dim)
-		}
-		totalParams += elements
-		// Skip the offset field (uint64)
-		off += 8
-	}
-	return totalParams, nil
+	return int64(total), nil
 }
 
-// MostCommonTensorType reads the tensor table and returns the most common tensor type.
-// This is the deterministic way to determine quantization: read actual tensor types,
-// not the legacy general.file_type metadata field which is unreliable.
-func MostCommonTensorType(r RandomAccessReader) (uint32, error) {
-	h := make([]byte, 24)
-	if _, err := r.ReadAt(h, 0); err != nil {
-		return 0, err
-	}
-	if string(h[:4]) != "GGUF" {
-		return 0, fmt.Errorf("invalid GGUF magic")
-	}
-	nTensors := binary.LittleEndian.Uint64(h[8:16])
-	typeCounts := map[uint32]int{}
-	off := int64(24)
-	for i := uint64(0); i < nTensors; i++ {
-		_, next, err := readString(r, off)
-		if err != nil {
-			return 0, err
-		}
-		off = next
-		typeBytes := make([]byte, 4)
-		if _, err := r.ReadAt(typeBytes, off); err != nil {
-			return 0, err
-		}
-		tensorType := binary.LittleEndian.Uint32(typeBytes)
-		off += 4
-		_, nextOff, err := readUint32Array(r, off)
-		if err != nil {
-			return 0, err
-		}
-		off = nextOff
-		off += 8 // skip offset
-		typeCounts[tensorType]++
-	}
-	var mostCommon uint32
-	maxCount := 0
-	for t, c := range typeCounts {
-		if c > maxCount {
-			mostCommon = t
-			maxCount = c
+func isStructuralTensor(name string) bool {
+	for _, prefix := range []string{"blk.", "enc.blk.", "dec.blk.", "v.blk.", "a.blk."} {
+		if strings.HasPrefix(name, prefix) {
+			return true
 		}
 	}
-	return mostCommon, nil
+	return false
 }
 
-// readUint32Array reads an array of uint32 values from the GGUF reader.
-// Returns the shape values and the offset after the array.
-func readUint32Array(r RandomAccessReader, off int64) ([]uint32, int64, error) {
-	// Read array header (12 bytes: 4 for element type, 8 for count)
-	header := make([]byte, 12)
-	if _, err := r.ReadAt(header, off); err != nil {
-		return nil, off, err
-	}
-	et := binary.LittleEndian.Uint32(header[0:4])
-	count := binary.LittleEndian.Uint64(header[4:12])
-	if uint64(et) != 4 || uint64(count) > 1<<20 {
-		return nil, off, fmt.Errorf("GGUF array too large or wrong element type")
-	}
-	off += 12
-
-	shape := make([]uint32, count)
-	for i := uint64(0); i < count; i++ {
-		valBytes := make([]byte, 4)
-		if _, err := r.ReadAt(valBytes, off); err != nil {
-			return nil, off, err
+func PhysicalTensorHistogram(scan GGUFScan) (map[GGMLType]uint64, error) {
+	histogram := make(map[GGMLType]uint64)
+	for _, tensor := range scan.Tensors {
+		if !isStructuralTensor(tensor.Name) {
+			continue
 		}
-		shape[i] = binary.LittleEndian.Uint32(valBytes)
-		off += 4
+		n, err := tensorElements(tensor)
+		if err != nil {
+			return nil, err
+		}
+		if math.MaxUint64-histogram[tensor.Type] < n {
+			return nil, fmt.Errorf("GGUF tensor histogram overflows")
+		}
+		histogram[tensor.Type] += n
 	}
+	return histogram, nil
+}
 
-	return shape, off, nil
+func DominantPhysicalType(scan GGUFScan) (GGMLType, bool, error) {
+	histogram, err := PhysicalTensorHistogram(scan)
+	if err != nil {
+		return 0, false, err
+	}
+	var dominant GGMLType
+	var max uint64
+	found := false
+	for typ, count := range histogram {
+		if !found || count > max || (count == max && typ < dominant) {
+			dominant, max, found = typ, count, true
+		}
+	}
+	return dominant, found, nil
 }

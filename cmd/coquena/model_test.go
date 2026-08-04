@@ -49,10 +49,10 @@ func TestRunModelListInstalled(t *testing.T) {
 	if err := os.WriteFile(partial, []byte("bytes"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	fileType := int64(12) // Q4_K
+	fileType := modelapp.LlamaFileType(15) // Q4_K_M
 	r := modelapp.Record{
-		Source: modelapp.Source{Provider: "huggingface", Repository: "org/repo", RequestedRevision: "main", ResolvedRevision: "abc", Filename: "m-Q4_K_M.gguf", URL: "https://example.test/m-Q4_K_M.gguf"},
-		Artifact: modelapp.Artifact{SizeBytes: 5},
+		Source:         modelapp.Source{Provider: "huggingface", Repository: "org/repo", RequestedRevision: "main", ResolvedRevision: "abc", Filename: "m-Q4_K_M.gguf", URL: "https://example.test/m-Q4_K_M.gguf"},
+		Artifact:       modelapp.Artifact{SizeBytes: 5},
 		Classification: modelapp.Classification{FileType: &fileType},
 	}
 	if _, err := modelapp.Publish(m.ModelsDir, partial, r); err != nil {
@@ -352,6 +352,13 @@ func TestRunModelVerifyOutcomes(t *testing.T) {
 	if !strings.Contains(matched.String(), "verified") {
 		t.Fatalf("out=%s", matched.String())
 	}
+	var repaired bytes.Buffer
+	if err := runModel([]string{"verify", "org/repo:m.gguf", "--repair-derived"}, &repaired); err != nil {
+		t.Fatalf("repair failed: %v out=%s", err, repaired.String())
+	}
+	if !strings.Contains(repaired.String(), "Derived evidence repaired") {
+		t.Fatalf("repair out=%s", repaired.String())
+	}
 
 	if err = os.WriteFile(target, append(body, 'X'), 0600); err != nil {
 		t.Fatal(err)
@@ -360,8 +367,16 @@ func TestRunModelVerifyOutcomes(t *testing.T) {
 	if err = runModel([]string{"verify", "org/repo:m.gguf", "--json"}, &mismatch); err == nil {
 		t.Fatal("expected non-zero exit on mismatch")
 	}
-	if !strings.Contains(mismatch.String(), `"Outcome":"mismatched"`) {
+	if !strings.Contains(mismatch.String(), `"outcome":"mismatched"`) {
 		t.Fatalf("out=%s", mismatch.String())
+	}
+}
+
+func TestRunModelRejectsRemovedInspectAndBulkVerify(t *testing.T) {
+	for _, args := range [][]string{{"inspect", "org/repo"}, {"verify", "--all", "--repair-derived"}} {
+		if err := runModel(args, &bytes.Buffer{}); err == nil || !strings.Contains(err.Error(), "usage:") {
+			t.Fatalf("args=%v err=%v", args, err)
+		}
 	}
 }
 

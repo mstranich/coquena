@@ -4,37 +4,64 @@
 Normalize quantization names in logical model references, making them independent of the physical filename. The logical name `<user>/<repo>:<quant>` serves as the primary key in the library, while the filename visualizes the specific variant (with or without imatrix, with or without calibration, etc.).
 
 ## Requirements
-### Requirement: Persist fileType→nombre legible mapping in Go constant
+### Requirement: Persist domain-correct quantization mappings
 
-Coquena SHALL store the fileType→nombre legible mapping in `internal/model/filetypes.go` as two maps: `FileTypeNames` for types actively supported by llama.cpp, and `DeprecatedFileTypeNames` for types whose support has been removed from active development. `FileTypeNames` SHALL contain only currently supported quantization types with their clean names. `DeprecatedFileTypeNames` SHALL contain types removed from llama.cpp source with their clean names, WITHOUT a "(removed)" suffix. A package-level lookup function SHALL resolve a fileType integer by checking `FileTypeNames` first, then `DeprecatedFileTypeNames`, returning "unknown" if neither map has an entry.
+Coquena SHALL represent GGUF model recipe values and tensor encoding values as
+distinct Go types. The mapping used for `general.file_type` SHALL be indexed by
+the `llama_ftype` recipe domain, while tensor descriptor types SHALL use a
+separate `ggml_type` mapping. Domain-named lookup functions SHALL accept only
+their corresponding type and SHALL return an explicit unknown result for an
+unrecognized value. Deprecated recipe names MAY remain available as clean names
+without a `(removed)` suffix, but a tensor-encoding value SHALL NOT be resolved
+through the model-recipe mapping or vice versa.
 
-#### Scenario: Read fileType from sidecar JSON
+#### Scenario: Decode a declared Q4_K_M recipe
 
-- **WHEN** Coquena reads a sidecar JSON with `"fileType": 15` (integer)
-- **THEN** it looks up the name via the package-level lookup function
-- **AND** it returns `"Q8_K"` as the nombre legible
+- **WHEN** a GGUF declares `general.file_type = 15`
+- **THEN** Coquena resolves the value in the model-recipe domain as `Q4_K_M`
+- **AND** it does not render the overlapping tensor-encoding name `Q8_K`
 
-#### Scenario: Look up deprecated fileType without removed suffix
+#### Scenario: Decode a tensor type independently
 
-- **WHEN** Coquena encounters a fileType that was removed from llama.cpp active development (e.g., fileType 4)
-- **THEN** it returns the clean name `"Q4_2"` via the lookup function
-- **AND** the operator sees the quantization name without "(removed)" suffix
+- **WHEN** a tensor descriptor declares physical type value `15`
+- **THEN** Coquena resolves the value in the tensor-encoding domain
+- **AND** that result does not become the artifact's declared model recipe
 
-### Requirement: Use mapping to build QUANT column in model list table
+#### Scenario: Reject an implicit cross-domain lookup
 
-Coquena SHALL use the package-level lookup function (checking `FileTypeNames` then `DeprecatedFileTypeNames`) to build the QUANT column in the `coquena model list` table. The QUANT column SHALL have the format `<quant>` for model artifacts and `<architecture>:<quant>` for projector companions, where `<quant>` is the nombre legible obtained from the lookup function. The lookup function SHALL return clean names without "(removed)" suffix for deprecated types.
+- **WHEN** code needs to render a recipe or tensor encoding
+- **THEN** it must call the lookup for the corresponding typed domain
+- **AND** no generic integer file-type lookup silently chooses a domain
 
-#### Scenario: Build QUANT column with correct format
+### Requirement: Use declared recipe evidence to build the QUANT column
 
-- **WHEN** Coquena displays the `coquena model list` table
-- **THEN** each row shows a QUANT column with the quantization name
-- **AND** the example is `Q4_K_M` for a model or `gemma4:Q4_0` for a projector
+Coquena SHALL build the model `QUANT` display from the recognized recipe
+declared by `general.file_type` when that declaration is available. Physical
+tensor composition SHALL remain separate diagnostic evidence and SHALL NOT be
+used to invent recipe suffixes such as `_M`, `_S`, or `_L`. A missing or
+unrecognized declaration SHALL produce an explicit unknown or inferred-physical
+presentation rather than asserting a declared recipe.
 
-#### Scenario: Display deprecated quantization without removed suffix
+#### Scenario: Display the declared model recipe
 
-- **WHEN** Coquena displays the `coquena model list` table for an artifact with a deprecated fileType
-- **THEN** the QUANT column shows the clean quantization name (e.g., `Q4_2`)
-- **AND** the operator sees the quantization identity without "(removed)" suffix
+- **WHEN** an installed model's derived evidence records a recognized declared
+  recipe of `Q4_K_M`
+- **THEN** `coquena model list` shows `Q4_K_M` in the model's QUANT column
+- **AND** a physically dominant `Q4_K` tensor encoding does not replace it
+
+#### Scenario: Avoid fabricating a suffix
+
+- **WHEN** a model has no usable recipe declaration and its structural tensors
+  are physically dominated by `Q4_K`
+- **THEN** Coquena may report `Q4_K` as inferred physical evidence
+- **AND** it does not report `Q4_K_M`, `Q4_K_S`, or another recipe suffix
+
+#### Scenario: Display a projector quantization
+
+- **WHEN** a projector has architecture `gemma4` and a recognized declared or
+  explicitly physical quantization of `Q4_0`
+- **THEN** the QUANT presentation remains `gemma4:Q4_0`
+- **AND** the architecture prefix does not change the quantization evidence
 
 ### Requirement: Keep FILENAME column for variant visualization
 

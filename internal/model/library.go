@@ -1,11 +1,11 @@
 package model
 
 import (
-	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"os"
 	"path/filepath"
 	"strings"
@@ -57,7 +57,7 @@ func Publish(modelsDir, partial string, record Record) (string, error) {
 	record.SchemaVersion = RecordSchemaVersion
 	// The classification is derived from the completed file's own header, read
 	// here while the content still sits at partial and before it is staged.
-	record.Classification = classifyFile(partial)
+	record.SetDerivation(deriveFile(partial))
 	record.Artifact.DownloadedAt = time.Now().UTC().Format(time.RFC3339)
 	sidecar := strings.TrimSuffix(target, filepath.Ext(target))
 	jsonPath := sidecar + ".json"
@@ -168,7 +168,7 @@ func PublishInPlace(modelsDir string, record Record) (Record, error) {
 		return Record{}, err
 	}
 	record.SchemaVersion = RecordSchemaVersion
-	record.Classification = classifyFile(target)
+	record.SetDerivation(deriveFile(target))
 	record.Artifact.DownloadedAt = time.Now().UTC().Format(time.RFC3339)
 	sidecar := strings.TrimSuffix(target, filepath.Ext(target))
 	jsonPath := sidecar + ".json"
@@ -204,24 +204,37 @@ func PublishInPlace(modelsDir string, record Record) (Record, error) {
 // failing publication, matching the explicit-unknown rule Classify applies to
 // an unrecognised declared type.
 func classifyFile(path string) Classification {
+	return deriveFile(path).Classification
+}
+
+func deriveFile(path string) Derivation {
+	now := time.Now().UTC().Format(time.RFC3339)
 	r, err := OpenLocal(path)
 	if err != nil {
-		return Classification{Type: TypeUnknown}
+		return Derivation{Version: DerivationVersion, ComputedAt: now, Classification: Classification{Type: TypeUnknown}}
 	}
 	defer r.Close()
-	meta, err := ReadMetadata(r)
+	scan, err := ScanGGUF(r, false)
 	if err != nil {
-		return Classification{Type: TypeUnknown}
+		return Derivation{Version: DerivationVersion, ComputedAt: now, Classification: Classification{Type: TypeUnknown}}
 	}
-	// Count parameters from the tensor table
-	params, err := CountParameters(r)
-	if err != nil {
-		// If counting fails, set to 0 rather than failing classification
-		params = 0
+	var params uint64
+	for _, tensor := range scan.Tensors {
+		n, countErr := tensorElements(tensor)
+		if countErr != nil || n > math.MaxInt64 || params > uint64(math.MaxInt64)-n {
+			params = 0
+			break
+		}
+		params += n
 	}
-	c := Classify(meta)
-	c.CountParameters = params
-	return c
+	c := Classify(scan.Metadata)
+	c.CountParameters = int64(params)
+	d := Derivation{Version: DerivationVersion, ComputedAt: now, Classification: c, CountParameters: int64(params)}
+	if typ, ok, dominantErr := DominantPhysicalType(scan); dominantErr == nil && ok {
+		histogram, _ := PhysicalTensorHistogram(scan)
+		d.PhysicalQuantization = &PhysicalQuantization{Type: typ, Name: GGMLTypeDisplayName(typ), CountParameters: histogram[typ]}
+	}
+	return d
 }
 
 func ReadRecord(target string) (Record, error) {
@@ -231,12 +244,10 @@ func ReadRecord(target string) (Record, error) {
 		return Record{}, err
 	}
 	var r Record
-	d := json.NewDecoder(bytes.NewReader(data))
-	d.DisallowUnknownFields()
-	if err = d.Decode(&r); err != nil {
+	if err = json.Unmarshal(data, &r); err != nil {
 		return Record{}, err
 	}
-	if r.SchemaVersion != RecordSchemaVersion {
+	if r.SchemaVersion != RecordSchemaVersion && r.SchemaVersion != 2 {
 		return Record{}, fmt.Errorf("unsupported model sidecar schemaVersion %d", r.SchemaVersion)
 	}
 	if err = r.Source.Validate(); err != nil {

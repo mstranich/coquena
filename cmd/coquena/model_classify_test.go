@@ -206,51 +206,6 @@ func TestRunModelDiscoverReportsCandidatesWithoutTheModelCard(t *testing.T) {
 	}
 }
 
-// refusingTransport fails any request, proving inspect never issues one.
-type refusingTransport struct{ t *testing.T }
-
-func (r refusingTransport) RoundTrip(*http.Request) (*http.Response, error) {
-	r.t.Fatal("inspect issued a network request")
-	return nil, nil
-}
-
-// inspect operates on a local path and issues no network request; its human
-// output is the Metadata/Value table carrying the declared type.
-func TestRunModelInspectLocalRendersClassifiedTable(t *testing.T) {
-	m := withModelManager(t)
-	old := modelManagerFactory
-	modelManagerFactory = func() (*modelapp.Manager, error) { return m, nil }
-	t.Cleanup(func() { modelManagerFactory = old })
-	m.Client = &http.Client{Transport: refusingTransport{t}}
-
-	partial := filepath.Join(t.TempDir(), "partial")
-	if err := os.WriteFile(partial, cliPrincipalGGUF(), 0600); err != nil {
-		t.Fatal(err)
-	}
-	source := modelapp.Source{Provider: "huggingface", Repository: "org/repo", RequestedRevision: "main", ResolvedRevision: "abc", Filename: "m.gguf", URL: "https://example.test/m.gguf"}
-	if _, err := modelapp.Publish(m.ModelsDir, partial, modelapp.Record{Source: source}); err != nil {
-		t.Fatal(err)
-	}
-	// Named by its logical reference, not by a filesystem path.
-	var human bytes.Buffer
-	if err := runModel([]string{"inspect", "org/repo"}, &human); err != nil {
-		t.Fatal(err)
-	}
-	for _, expected := range []string{"METADATA", "VALUE", "classification.type", "model", "general.architecture", "qwen35"} {
-		if !strings.Contains(human.String(), expected) {
-			t.Fatalf("missing %q in %s", expected, human.String())
-		}
-	}
-	// Deterministic across runs: the same artifact renders identically.
-	var again bytes.Buffer
-	if err := runModel([]string{"inspect", "org/repo"}, &again); err != nil {
-		t.Fatal(err)
-	}
-	if again.String() != human.String() {
-		t.Fatalf("non-deterministic output:\n%s\n%s", human.String(), again.String())
-	}
-}
-
 // A selector matching several artifacts must name them, not only count them.
 func TestRunModelNamesCandidatesOnAmbiguousSelector(t *testing.T) {
 	withRepositoryManager(t, map[string][]byte{
@@ -295,7 +250,7 @@ func TestRunModelListReportsEveryArtifactAtTheSameLevel(t *testing.T) {
 	if err := runModel([]string{"list"}, &human); err != nil {
 		t.Fatal(err)
 	}
-	for _, expected := range []string{"REPOSITORY: org/repo", "model", "mmproj", "Q8_K"} {
+	for _, expected := range []string{"REPOSITORY: org/repo", "model", "mmproj", "Q4_K_M"} {
 		if !strings.Contains(human.String(), expected) {
 			t.Fatalf("missing %q in %s", expected, human.String())
 		}
@@ -331,31 +286,6 @@ func TestRunModelListReportsEveryArtifactAtTheSameLevel(t *testing.T) {
 	// No nesting survives anywhere in the document, key included.
 	if strings.Contains(jsonOut.String(), "companions") {
 		t.Fatalf("companions key still emitted: %s", jsonOut.String())
-	}
-}
-
-// An unreconciled artifact is not addressable by the commands that read the
-// catalog: reconciling it first is what keeps one logical name meaning one
-// coherent thing.
-func TestRunModelInspectRefusesAnUnreconciledArtifact(t *testing.T) {
-	m := withModelManager(t)
-	old := modelManagerFactory
-	modelManagerFactory = func() (*modelapp.Manager, error) { return m, nil }
-	t.Cleanup(func() { modelManagerFactory = old })
-	dir := filepath.Join(m.ModelsDir, "publisher", "repo")
-	if err := os.MkdirAll(dir, 0755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(dir, "foreign.gguf"), cliPrincipalGGUF(), 0600); err != nil {
-		t.Fatal(err)
-	}
-
-	err := runModel([]string{"inspect", "publisher/repo"}, &bytes.Buffer{})
-	if err == nil {
-		t.Fatal("expected a diagnostic for an unreconciled artifact")
-	}
-	if !strings.Contains(err.Error(), "installed") {
-		t.Fatalf("diagnostic does not point at reconciliation: %v", err)
 	}
 }
 

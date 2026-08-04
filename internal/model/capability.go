@@ -52,12 +52,17 @@ type RuntimeCapability struct {
 // architecture constrains nothing any current build lacks.
 func (r RuntimeCapability) Empty() bool { return len(r.Requirements) == 0 }
 
-// ordinaryFileTypeLimit is the exclusive upper edge of the general.file_type
-// range ordinary artifacts occupy. Drawn empirically from the operator's real
-// files: gemma-4 reports 2 and its projector 32, while Ternary-Bonsai-27B
-// reports 40 (ternary) and 41 (1-bit). A value at or above this edge is
-// reported as a capability requirement, never used to refuse anything.
-const ordinaryFileTypeLimit int64 = 40
+// capabilityFileTypes is an explicit recipe-domain set. A numeric range would
+// silently assume llama_ftype values are ordered by novelty and previously hid
+// ternary recipes whose identifiers fall below that threshold.
+var capabilityFileTypes = map[LlamaFileType]struct{}{
+	36: {}, // TQ1_0
+	37: {}, // TQ2_0
+	38: {}, // MXFP4_MOE
+	39: {}, // NVFP4
+	40: {}, // Q1_0
+	41: {}, // Q2_0
+}
 
 // DeriveRuntimeCapability derives the advisory runtime capability a
 // classification implies, from the three independent signals Bonsai-27B proved
@@ -73,12 +78,15 @@ const ordinaryFileTypeLimit int64 = 40
 // The result is advisory: see RuntimeCapability.
 func DeriveRuntimeCapability(c Classification) RuntimeCapability {
 	var out RuntimeCapability
-	if c.FileType != nil && *c.FileType >= ordinaryFileTypeLimit {
-		out.Requirements = append(out.Requirements, CapabilityRequirement{
-			Kind:   CapabilityQuantization,
-			Value:  fmt.Sprintf("%d", *c.FileType),
-			Detail: "the build must support this quantization file type",
-		})
+	if c.FileType != nil {
+		_, requires := capabilityFileTypes[*c.FileType]
+		if requires {
+			out.Requirements = append(out.Requirements, CapabilityRequirement{
+				Kind:   CapabilityQuantization,
+				Value:  fmt.Sprintf("%d", *c.FileType),
+				Detail: "the build must support this quantization file type",
+			})
+		}
 	}
 	if c.SSM {
 		out.Requirements = append(out.Requirements, CapabilityRequirement{

@@ -18,7 +18,7 @@ import (
 	runtimeapp "github.com/mstranich/coquena/internal/runtime"
 )
 
-const modelUsage = "usage: coquena model resolve <repository-or-url> [--json]\n       coquena model discover <repository-or-url[:selector]> [--json]\n       coquena model inspect <reference> [--json]\n       coquena model download <repository-or-url[:selector]> [--with-companions] [--json]\n       coquena model download list|status <job-id>|pause <job-id>|resume <job-id>|cancel <job-id> [--json]\n       coquena model revision <reference> [--json]\n       coquena model list [--json]\n       coquena model reconcile <reference> (--online|--accept)\n       coquena model verify <reference> [--json]\n       coquena model check-updates <reference> [--json]\n       coquena download list|status <job-id>|pause <job-id>|resume <job-id>|cancel <job-id> [--json]"
+const modelUsage = "usage: coquena model resolve <repository-or-url> [--json]\n       coquena model discover <repository-or-url[:selector]> [--json]\n       coquena model download <repository-or-url[:selector]> [--with-companions] [--json]\n       coquena model download list|status <job-id>|pause <job-id>|resume <job-id>|cancel <job-id> [--json]\n       coquena model revision <reference> [--json]\n       coquena model list [--json]\n       coquena model reconcile <reference> (--online|--accept)\n       coquena model verify <reference> [--repair-derived] [--json]\n       coquena model check-updates <reference> [--json]\n       coquena download list|status <job-id>|pause <job-id>|resume <job-id>|cancel <job-id> [--json]"
 
 // companionFlag is the opt-in that additionally enqueues the companions
 // identified for the selected principal. The default stays one artifact per
@@ -39,6 +39,7 @@ type modelListEntry struct {
 	Filename        string `json:"filename"`
 	Type            string `json:"type,omitempty"`
 	CountParameters int64  `json:"countParameters"`
+	DerivationStale bool   `json:"derivationStale,omitempty"`
 	// Usable is the derived usability, flattened into the entry so both output
 	// modes render it without consulting anything else.
 	Usable bool `json:"usable"`
@@ -82,10 +83,11 @@ func runModelCommand(args []string, out io.Writer) error {
 		return runModelReconcile(args[1:], out, jsonOut)
 	}
 	if args[0] == "verify" {
-		if len(args) != 2 {
+		verifyArgs, repairDerived := extractModelFlag(args, "--repair-derived")
+		if len(verifyArgs) != 2 || verifyArgs[1] == "--all" {
 			return errors.New(modelUsage)
 		}
-		return runModelVerify(args[1], out, jsonOut)
+		return runModelVerify(verifyArgs[1], repairDerived, out, jsonOut)
 	}
 	if args[0] == "check-updates" {
 		if len(args) != 2 {
@@ -110,6 +112,11 @@ func runModelCommand(args []string, out io.Writer) error {
 		}
 		return runDownloadWithKind(nested, out, "model")
 	}
+	switch args[0] {
+	case "resolve", "discover", "download", "revision":
+	default:
+		return errors.New(modelUsage)
+	}
 	m, e := modelManagerFactory()
 	if e != nil {
 		return e
@@ -126,18 +133,6 @@ func runModelCommand(args []string, out io.Writer) error {
 			return errors.New(modelUsage)
 		}
 		value, e = m.Discover(args[1])
-	case "inspect":
-		// inspect is local-only: remote exploration is discover's job, so this
-		// reads the artifact's own header from disk and issues no request. An
-		// unreconciled artifact is not addressable here — reconciling it first
-		// is what keeps one logical name meaning one coherent thing.
-		if len(args) != 2 {
-			return errors.New(modelUsage)
-		}
-		var entry modelapp.LibraryEntry
-		if entry, e = m.ResolveInstalled(args[1]); e == nil {
-			value, e = m.InspectLocal(entry.TargetPath)
-		}
 	case "download":
 		if len(args) != 2 {
 			return errors.New(modelUsage)
@@ -168,8 +163,6 @@ func runModelCommand(args []string, out io.Writer) error {
 	switch v := value.(type) {
 	case modelapp.Record:
 		_, e = fmt.Fprintln(out, v.Source.ResolvedRevision)
-	case modelapp.Inspection:
-		e = writeInspectionHuman(out, v)
 	case modelapp.Discovery:
 		e = writeDiscoveryHuman(out, v)
 	case modelapp.Job:
@@ -285,31 +278,6 @@ func runOneDownload(m *modelapp.Manager, candidate modelapp.Candidate) (modelapp
 	return m.Resume(context.Background(), job.ID, nil)
 }
 
-// writeInspectionHuman renders the inspection as the two-column table the
-// specification requires, opening with the declared type so the operator reads
-// what the artifact says it is before its metadata. Keys are sorted so two runs
-// over the same artifact produce identical output.
-func writeInspectionHuman(out io.Writer, inspection modelapp.Inspection) error {
-	writer := tabwriter.NewWriter(out, 0, 4, 2, ' ', 0)
-	_, _ = fmt.Fprintln(writer, "METADATA\tVALUE")
-	_, _ = fmt.Fprintf(writer, "classification.type\t%s\n", inspection.Classification.Type)
-	if inspection.Classification.Architecture != "" {
-		_, _ = fmt.Fprintf(writer, "classification.architecture\t%s\n", inspection.Classification.Architecture)
-	}
-	if inspection.Classification.SizeLabel != "" {
-		_, _ = fmt.Fprintf(writer, "classification.sizeLabel\t%s\n", inspection.Classification.SizeLabel)
-	}
-	keys := make([]string, 0, len(inspection.Metadata))
-	for key := range inspection.Metadata {
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
-	for _, key := range keys {
-		_, _ = fmt.Fprintf(writer, "%s\t%v\n", key, inspection.Metadata[key])
-	}
-	return writer.Flush()
-}
-
 // writeDiscoveryHuman reports every candidate the repository holds with its
 // declared type, marking the one the selector resolves to rather than reducing
 // the list to it. The repository model card is deliberately not printed: on a
@@ -346,17 +314,17 @@ func writeDiscoveryHuman(out io.Writer, discovery modelapp.Discovery) error {
 
 // typePriority maps artifact types to their sort priority. Lower values sort first.
 var typePriority = map[string]int{
-	"model":    0,
-	"mmproj":   1,
-	"lora":     2,
-	"draft":    3,
-	"vocoder":  4,
+	"model":   0,
+	"mmproj":  1,
+	"lora":    2,
+	"draft":   3,
+	"vocoder": 4,
 }
 
 // statePriority maps library states to their sort priority. Lower values sort first.
 var statePriority = map[string]int{
-	"installed":     0,
-	"unreconciled":  1,
+	"installed":    0,
+	"unreconciled": 1,
 }
 
 // computeQuant derives the QUANT value for an entry. For model artifacts it's
@@ -367,21 +335,18 @@ func computeQuant(entry modelapp.LibraryEntry) string {
 	}
 	if entry.Classification.Type == modelapp.TypeProjector && entry.Classification.Architecture != "" {
 		if entry.Classification.FileType != nil {
-			return entry.Classification.Architecture + ":" + modelapp.FileTypeDisplayName(*entry.Classification.FileType)
+			return entry.Classification.Architecture + ":" + modelapp.LlamaFileTypeDisplayName(*entry.Classification.FileType)
 		}
-		return entry.Classification.Architecture + ":BF16"
+		if entry.PhysicalQuantization != nil {
+			return entry.Classification.Architecture + ":" + entry.PhysicalQuantization.Name
+		}
+		return entry.Classification.Architecture + ":unknown"
 	}
 	if entry.Classification.FileType != nil {
-		return modelapp.FileTypeDisplayName(*entry.Classification.FileType)
+		return modelapp.LlamaFileTypeDisplayName(*entry.Classification.FileType)
 	}
-	// Fallback: try to determine from tensor table (deterministic)
-	if entry.TargetPath != "" {
-		if r, err := modelapp.OpenLocal(entry.TargetPath); err == nil {
-			defer r.Close()
-			if t, err := modelapp.MostCommonTensorType(r); err == nil {
-				return modelapp.FileTypeDisplayName(int64(t))
-			}
-		}
+	if entry.PhysicalQuantization != nil {
+		return entry.PhysicalQuantization.Name
 	}
 	return "unknown"
 }
@@ -416,6 +381,7 @@ func runModelList(out io.Writer, jsonOut bool) error {
 			Filename:        entry.Source.Filename,
 			Type:            string(entry.Classification.Type),
 			CountParameters: entry.Classification.CountParameters,
+			DerivationStale: entry.DerivationStale,
 			Usable:          entry.Usability.Usable,
 		}
 		byRepo[repo] = append(byRepo[repo], item)
@@ -440,7 +406,7 @@ func runModelList(out io.Writer, jsonOut bool) error {
 	}
 	if jsonOut {
 		return json.NewEncoder(out).Encode(struct {
-			SchemaVersion int                    `json:"schemaVersion"`
+			SchemaVersion int                         `json:"schemaVersion"`
 			Result        map[string][]modelListEntry `json:"result"`
 		}{1, byRepo})
 	}
@@ -448,13 +414,17 @@ func runModelList(out io.Writer, jsonOut bool) error {
 	writer := tabwriter.NewWriter(out, 0, 4, 2, ' ', 0)
 	for _, repo := range repoOrder {
 		_, _ = fmt.Fprintf(writer, "REPOSITORY: %s\n", repo)
-		_, _ = fmt.Fprintln(writer, "  STATE\tTYPE\tUSABLE\tQUANT\tFILENAME")
+		_, _ = fmt.Fprintln(writer, "  STATE\tDERIVATION\tTYPE\tUSABLE\tQUANT\tFILENAME")
 		for _, entry := range byRepo[repo] {
 			usable := "no"
 			if entry.Usable {
 				usable = "yes"
 			}
-			_, _ = fmt.Fprintf(writer, "  %s\t%s\t%s\t%s\t%s\n", entry.State, entry.Type, usable, entry.Quant, entry.Filename)
+			derivation := "current"
+			if entry.DerivationStale {
+				derivation = "stale"
+			}
+			_, _ = fmt.Fprintf(writer, "  %s\t%s\t%s\t%s\t%s\t%s\n", entry.State, derivation, entry.Type, usable, entry.Quant, entry.Filename)
 		}
 		_, _ = fmt.Fprintln(writer)
 	}
@@ -568,12 +538,12 @@ func runModelReconcileRepository(m *modelapp.Manager, reference string, out io.W
 	return fmt.Errorf("%s was not fully reconciled: %s refused", result.Repository, strings.Join(names, ", "))
 }
 
-func runModelVerify(reference string, out io.Writer, jsonOut bool) error {
+func runModelVerify(reference string, repairDerived bool, out io.Writer, jsonOut bool) error {
 	m, e := modelManagerFactory()
 	if e != nil {
 		return e
 	}
-	result, e := m.Verify(reference)
+	result, e := m.VerifyWithOptions(reference, modelapp.VerifyOptions{RepairDerived: repairDerived})
 	if e != nil {
 		return e
 	}
@@ -596,6 +566,20 @@ func runModelVerify(reference string, out io.Writer, jsonOut bool) error {
 		}
 		if _, e = fmt.Fprintln(out, msg); e != nil {
 			return e
+		}
+		if result.DeclaredRecipe != "" {
+			_, _ = fmt.Fprintf(out, "Declared recipe: %s\n", result.DeclaredRecipe)
+		}
+		if result.PhysicalQuantization != nil {
+			_, _ = fmt.Fprintf(out, "Physical composition: %s (%d structural parameters)\n", result.PhysicalQuantization.Name, result.PhysicalQuantization.CountParameters)
+		}
+		freshness := "current"
+		if result.DerivationStale {
+			freshness = "stale"
+		}
+		_, _ = fmt.Fprintf(out, "Derivation: %s\n", freshness)
+		if result.Repaired {
+			_, _ = fmt.Fprintln(out, "Derived evidence repaired.")
 		}
 	}
 	if result.Outcome == modelapp.VerifyMismatched {
