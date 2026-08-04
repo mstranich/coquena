@@ -568,6 +568,12 @@ length buries the candidate list, which is what discovery exists to present.
 Fresh local byte evidence is reported by `coquena model verify <reference>`;
 `model list` remains a cheap sidecar-only catalog view.
 
+In `model list`, `DERIVATION=current` means the sidecar's calculated GGUF
+evidence uses Coquena's current derivation algorithm. `DERIVATION=stale` means
+that evidence was produced without the current algorithm version; it does not
+mean the model is corrupt or remotely outdated. Refresh it explicitly with
+`coquena model verify <reference> --repair-derived`.
+
 An artifact already present in the models directory is always named by its
 logical `user/repo:QUANT` reference — the form Coquena, LM Studio and Hugging
 Face all share — and never by a filesystem path. The same name identifies it

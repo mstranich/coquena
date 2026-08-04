@@ -110,9 +110,29 @@ Lists local artifacts and their sidecars. It must remain cheap and read-only:
 it performs no Hugging Face request, full-artifact hashing, GGUF rescan, repair,
 or reconciliation.
 
-The accepted GGUF evidence change will add a derivation version to sidecars so
-`list` can identify stale derived evidence by comparing small integers. That
-check must not open or hash the model artifact.
+The `DERIVATION` column reports whether the evidence calculated from each GGUF
+was produced by Coquena's current derivation algorithm:
+
+- `current` means the sidecar's derivation version matches the version used by
+  this Coquena build;
+- `stale` means the sidecar has an older derivation version or no derivation
+  version, as with a supported legacy sidecar.
+
+Derived evidence includes the GGUF classification, parameter count, declared
+quantization recipe, and physical tensor composition. `stale` does **not** mean
+that the model is corrupt or that a remote update exists. It only means those
+calculated fields may not reflect the current derivation rules.
+
+`list` determines this state by comparing the small version values stored in
+the sidecar. It does not open, scan, or hash the model artifact. To refresh a
+stale derivation explicitly, run:
+
+```console
+coquena model verify <reference> --repair-derived
+```
+
+Repair first requires the model bytes to match the sidecar's integrity
+baseline, then recalculates only the derived evidence for that artifact.
 
 ### Removed: `inspect`
 
