@@ -1,0 +1,16 @@
+backlog:
+  attest-partial-model-reconciliation:
+    title: Attest local bytes during partial model reconciliation
+    status: open
+    path: attest-partial-model-reconciliation.md
+    openedAt: 2026-08-04
+    closedAt: null
+    owner: project-owner
+    priority: high
+    relatedRFCs:
+      - gguf-model-artifact-identity
+    candidateChanges:
+      - establish-sidecar-authority
+      - support-model-upgrade
+    outcome: null
+    supersededBy: null
