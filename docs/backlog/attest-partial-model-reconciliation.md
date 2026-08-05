@@ -7,7 +7,7 @@
 - **Owner:** project-owner
 - **Priority:** high
 - **Related RFC:** `gguf-model-artifact-identity`
-- **Candidate changes:** sidecar authority, then model upgrade
+- **Candidate change:** `establish-sidecar-authority`
 
 ## Problem
 

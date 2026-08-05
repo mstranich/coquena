@@ -11,6 +11,21 @@ backlog:
       - gguf-model-artifact-identity
     candidateChanges:
       - establish-sidecar-authority
+    outcome: null
+    supersededBy: null
+  support-model-upgrade:
+    title: Replace installed model bytes through an authoritative upgrade
+    status: blocked
+    path: support-model-upgrade.md
+    openedAt: 2026-08-05
+    closedAt: null
+    owner: project-owner
+    priority: normal
+    relatedRFCs:
+      - gguf-model-artifact-identity
+    blockedBy:
+      - establish-sidecar-authority
+    candidateChanges:
       - support-model-upgrade
     outcome: null
     supersededBy: null

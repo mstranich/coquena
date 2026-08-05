@@ -15,3 +15,6 @@ rfcs:
     derivedChanges:
       - correct-gguf-quantization-evidence
       - stabilize-model-artifact-references
+    relatedBacklog:
+      - attest-partial-model-reconciliation
+      - support-model-upgrade
