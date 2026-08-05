@@ -14,3 +14,4 @@ rfcs:
     supersededBy: null
     derivedChanges:
       - correct-gguf-quantization-evidence
+      - stabilize-model-artifact-references

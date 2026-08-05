@@ -2,6 +2,14 @@
 
 Coquena currently accepts one textual selector slot for both quantization labels and exact GGUF filenames, but its consumers do not consistently preserve the distinction between a logical class and a concrete artifact. When multiple calibration or production variants share one quantization, single-artifact operations can become ambiguous, revision pins can be ignored locally, and durable preset bindings can report ambiguity as staleness.
 
+## Derivation
+
+This change is derived from RFC `gguf-model-artifact-identity`, archived at
+`docs/rfcs/archive/gguf-model-artifact-identity.md`. It implements the RFC's
+artifact-reference work after the evidence foundation delivered by
+`correct-gguf-quantization-evidence`; the RFC registry records both changes in
+`derivedChanges`.
+
 ## What Changes
 
 - Define `user/repo[@revision]:QUANT` as a logical quantization selector with cardinality `0..N` and `user/repo[@revision]:filename.gguf` as the canonical repository artifact name with cardinality `0..1`.
