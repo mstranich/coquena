@@ -38,8 +38,19 @@ tasks:
   verify:
     desc: Verify the complete workspace
     cmds:
+      - task: docs:validate
       - task: web:verify
       - task: backend:verify
+
+  docs:validate:
+    desc: Check that the documentation registries and their references resolve
+    cmds:
+      - node scripts/docs-validate.mjs
+
+  docs:status:
+    desc: Print open RFCs, backlog entries, and changes named but not created
+    cmds:
+      - node scripts/docs-status.mjs
 
   bootstrap:
     desc: Verify tools, restore dependencies, and verify the workspace

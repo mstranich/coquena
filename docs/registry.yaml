@@ -1,0 +1,341 @@
+# Index of every written artifact under docs/.
+#
+# One registry, five kinds. Documents live in a directory per kind; this file is
+# the only place that records what they are and how they relate.
+#
+# kind      state vocabulary                        closes?
+# story     current | superseded                    no — needs change, they do not complete
+# finding   current | superseded | refuted          no — a fact about the world stays findable
+# usecase   current | superseded                    no — it evolves
+# backlog   open | blocked | closed | superseded    yes — closed when a change lands
+# rfc       open | closed | superseded              yes — closed by the project owner
+#
+# Relations are written once, on the artifact they belong to, and never
+# mirrored: a one-way link cannot exist if there is only one place to write it.
+#
+#   motivated-by  why this artifact exists (backlog -> finding, finding -> story)
+#   produces      work this artifact results in (an OpenSpec change)
+#   blocked-by    cannot proceed until the target lands
+#   supersedes    replaces the target, which keeps its document and turns superseded
+#   relates-to    a weaker association worth recording
+#
+# A target may name another artifact here or an OpenSpec change. A closed
+# artifact's `produces` targets must exist; an open one's may still be a plan.
+
+artifacts:
+  model-acquisition-story:
+    kind: story
+    state: current
+    title: Getting a model onto the machine and keeping it
+    path: stories/model-acquisition.md
+    openedAt: 2026-08-05
+    closedAt: null
+    owner: project-owner
+
+  model-acquisition:
+    kind: usecase
+    state: current
+    title: Model acquisition
+    path: usecases/model-acquisition.md
+    openedAt: 2026-08-05
+    closedAt: null
+    owner: project-owner
+    relations:
+      - { type: motivated-by, target: model-acquisition-story }
+      - { type: relates-to, target: general-file-type-is-llama-ftype }
+      - { type: relates-to, target: llama-cpp-guesses-quantization-from-tensor-counts }
+      - { type: relates-to, target: gguf-tensor-names-are-canonical }
+      - { type: relates-to, target: quantizations-can-be-shard-directories }
+      - { type: relates-to, target: hugging-face-publishes-content-hash-under-blobs }
+      - { type: relates-to, target: hugging-face-redirects-renamed-repositories }
+      - { type: relates-to, target: model-reference-convention-uses-one-selector-slot }
+      - { type: relates-to, target: low-bit-recipes-require-an-importance-matrix }
+      - { type: relates-to, target: sibling-quantizations-share-metadata-bytes }
+
+  general-file-type-is-llama-ftype:
+    kind: finding
+    state: current
+    title: general.file_type is llama_ftype, not ggml_type
+    path: findings/general-file-type-is-llama-ftype.md
+    openedAt: 2026-07-30
+    closedAt: null
+    owner: project-owner
+    relations:
+      - { type: motivated-by, target: model-acquisition-story }
+      - { type: relates-to, target: gguf-model-artifact-identity }
+
+  llama-cpp-guesses-quantization-from-tensor-counts:
+    kind: finding
+    state: current
+    title: llama.cpp guesses quantization from tensor counts and invents the _M suffix
+    path: findings/llama-cpp-guesses-quantization-from-tensor-counts.md
+    openedAt: 2026-07-30
+    closedAt: null
+    owner: project-owner
+    relations:
+      - { type: motivated-by, target: model-acquisition-story }
+      - { type: relates-to, target: general-file-type-is-llama-ftype }
+
+  gguf-tensor-names-are-canonical:
+    kind: finding
+    state: current
+    title: GGUF tensor names are canonical, and are not the Hugging Face names
+    path: findings/gguf-tensor-names-are-canonical.md
+    openedAt: 2026-07-30
+    closedAt: null
+    owner: project-owner
+    relations:
+      - { type: motivated-by, target: model-acquisition-story }
+
+  quantizations-can-be-shard-directories:
+    kind: finding
+    state: current
+    title: A quantization can be a directory of shards, not a file
+    path: findings/quantizations-can-be-shard-directories.md
+    openedAt: 2026-08-05
+    closedAt: null
+    owner: project-owner
+    relations:
+      - { type: motivated-by, target: model-acquisition-story }
+
+  hugging-face-publishes-content-hash-under-blobs:
+    kind: finding
+    state: current
+    title: Hugging Face publishes the content hash, but only if you ask for it
+    path: findings/hugging-face-publishes-content-hash-under-blobs.md
+    openedAt: 2026-08-05
+    closedAt: null
+    owner: project-owner
+    relations:
+      - { type: motivated-by, target: model-acquisition-story }
+      - { type: relates-to, target: model-artifact-attestation }
+
+  hugging-face-redirects-renamed-repositories:
+    kind: finding
+    state: current
+    title: Repositories get renamed and the API answers with a redirect
+    path: findings/hugging-face-redirects-renamed-repositories.md
+    openedAt: 2026-08-05
+    closedAt: null
+    owner: project-owner
+    relations:
+      - { type: motivated-by, target: model-acquisition-story }
+      - { type: relates-to, target: model-artifact-attestation }
+
+  model-reference-convention-uses-one-selector-slot:
+    kind: finding
+    state: current
+    title: The ecosystem reference convention has one selector slot
+    path: findings/model-reference-convention-uses-one-selector-slot.md
+    openedAt: 2026-07-30
+    closedAt: null
+    owner: project-owner
+    relations:
+      - { type: motivated-by, target: model-acquisition-story }
+
+  low-bit-recipes-require-an-importance-matrix:
+    kind: finding
+    state: current
+    title: Some recipes cannot be produced without an importance matrix
+    path: findings/low-bit-recipes-require-an-importance-matrix.md
+    openedAt: 2026-07-30
+    closedAt: null
+    owner: project-owner
+    relations:
+      - { type: motivated-by, target: model-acquisition-story }
+
+  sibling-quantizations-share-metadata-bytes:
+    kind: finding
+    state: current
+    title: Two quantizations of one model share their metadata bytes
+    path: findings/sibling-quantizations-share-metadata-bytes.md
+    openedAt: 2026-07-28
+    closedAt: null
+    owner: project-owner
+    relations:
+      - { type: motivated-by, target: model-acquisition-story }
+
+  gguf-model-artifact-identity:
+    kind: rfc
+    state: closed
+    title: GGUF model artifact identity
+    path: rfcs/archive/gguf-model-artifact-identity.md
+    openedAt: 2026-07-30
+    closedAt: 2026-08-03
+    owner: project-owner
+    outcome: >-
+      Closed by the project owner as an umbrella investigation. Accepted the
+      separation of declared GGUF recipe, physical tensor composition, and
+      versioned derived evidence; extracted the implementation-ready work into
+      correct-gguf-quantization-evidence.
+    relations:
+      - { type: produces, target: change:correct-gguf-quantization-evidence }
+      - { type: produces, target: change:stabilize-model-artifact-references }
+
+  model-artifact-attestation:
+    kind: rfc
+    state: open
+    title: Model artifact attestation semantics
+    path: rfcs/model-artifact-attestation.md
+    openedAt: 2026-08-05
+    closedAt: null
+    owner: project-owner
+    relations:
+      - { type: motivated-by, target: gguf-model-artifact-identity }
+
+  address-quantization-bundles:
+    kind: backlog
+    state: open
+    title: Make the quantization, not the file, the addressable unit
+    path: backlog/address-quantization-bundles.md
+    openedAt: 2026-08-05
+    closedAt: null
+    owner: project-owner
+    priority: high
+    relations:
+      - { type: motivated-by, target: model-acquisition }
+      - { type: motivated-by, target: quantizations-can-be-shard-directories }
+      - { type: produces, target: change:address-quantization-bundles }
+
+  align-model-command-surface:
+    kind: backlog
+    state: open
+    title: Align the model command surface with the story
+    path: backlog/align-model-command-surface.md
+    openedAt: 2026-08-05
+    closedAt: null
+    owner: project-owner
+    priority: normal
+    relations:
+      - { type: motivated-by, target: model-acquisition }
+      - { type: relates-to, target: model-reference-convention-uses-one-selector-slot }
+      - { type: produces, target: change:align-model-command-surface }
+
+  correct-model-library-storage-spec:
+    kind: backlog
+    state: open
+    title: Correct the model library storage spec wording
+    path: backlog/correct-model-library-storage-spec.md
+    openedAt: 2026-08-05
+    closedAt: null
+    owner: project-owner
+    priority: normal
+    relations:
+      - { type: motivated-by, target: gguf-model-artifact-identity }
+      - { type: produces, target: change:correct-model-library-storage-spec }
+
+  detect-model-updates:
+    kind: backlog
+    state: blocked
+    title: Detect that an installed quantization has updates available
+    path: backlog/detect-model-updates.md
+    openedAt: 2026-08-05
+    closedAt: null
+    owner: project-owner
+    priority: high
+    relations:
+      - { type: motivated-by, target: model-acquisition-story }
+      - { type: motivated-by, target: hugging-face-redirects-renamed-repositories }
+      - { type: blocked-by, target: change:establish-sidecar-authority }
+      - { type: produces, target: change:establish-sidecar-authority }
+
+  distinguish-unattested-artifacts:
+    kind: backlog
+    state: blocked
+    title: Never present an unattested artifact as an attested one
+    path: backlog/distinguish-unattested-artifacts.md
+    openedAt: 2026-08-04
+    closedAt: null
+    owner: project-owner
+    priority: high
+    relations:
+      - { type: motivated-by, target: model-acquisition-story }
+      - { type: motivated-by, target: hugging-face-publishes-content-hash-under-blobs }
+      - { type: blocked-by, target: model-artifact-attestation }
+      - { type: produces, target: change:establish-sidecar-authority }
+
+  filter-model-list-by-quantization:
+    kind: backlog
+    state: open
+    title: Filter the model list by quantization and artifact facts
+    path: backlog/filter-model-list-by-quantization.md
+    openedAt: 2026-08-05
+    closedAt: null
+    owner: project-owner
+    priority: high
+    relations:
+      - { type: motivated-by, target: model-acquisition-story }
+      - { type: motivated-by, target: general-file-type-is-llama-ftype }
+      - { type: relates-to, target: address-quantization-bundles }
+      - { type: produces, target: change:filter-model-list }
+
+  remove-installed-models:
+    kind: backlog
+    state: blocked
+    title: Delete an installed quantization or companion
+    path: backlog/remove-installed-models.md
+    openedAt: 2026-08-05
+    closedAt: null
+    owner: project-owner
+    priority: high
+    relations:
+      - { type: motivated-by, target: model-acquisition }
+      - { type: blocked-by, target: address-quantization-bundles }
+      - { type: produces, target: change:remove-installed-models }
+
+  report-download-size-in-discover:
+    kind: backlog
+    state: open
+    title: Make discovery answer "what will this cost me?"
+    path: backlog/report-download-size-in-discover.md
+    openedAt: 2026-08-05
+    closedAt: null
+    owner: project-owner
+    priority: high
+    relations:
+      - { type: motivated-by, target: model-acquisition }
+      - { type: motivated-by, target: quantizations-can-be-shard-directories }
+      - { type: relates-to, target: hugging-face-publishes-content-hash-under-blobs }
+      - { type: produces, target: change:report-download-size-in-discover }
+
+  request-remote-content-hash:
+    kind: backlog
+    state: open
+    title: Request the remote content hash Hugging Face actually publishes
+    path: backlog/request-remote-content-hash.md
+    openedAt: 2026-08-05
+    closedAt: null
+    owner: project-owner
+    priority: high
+    relations:
+      - { type: motivated-by, target: hugging-face-publishes-content-hash-under-blobs }
+      - { type: motivated-by, target: model-artifact-attestation }
+      - { type: produces, target: change:request-remote-content-hash }
+
+  resolve-allow-incompatible-flag:
+    kind: backlog
+    state: open
+    title: Stop instructing the operator to pass a flag that does not exist
+    path: backlog/resolve-allow-incompatible-flag.md
+    openedAt: 2026-08-05
+    closedAt: null
+    owner: project-owner
+    priority: normal
+    relations:
+      - { type: relates-to, target: address-quantization-bundles }
+      - { type: produces, target: change:resolve-allow-incompatible-flag }
+
+  support-model-upgrade:
+    kind: backlog
+    state: blocked
+    title: Replace installed model bytes through an authoritative upgrade
+    path: backlog/support-model-upgrade.md
+    openedAt: 2026-08-05
+    closedAt: null
+    owner: project-owner
+    priority: normal
+    relations:
+      - { type: motivated-by, target: model-acquisition-story }
+      - { type: motivated-by, target: model-artifact-attestation }
+      - { type: blocked-by, target: change:establish-sidecar-authority }
+      - { type: produces, target: change:support-model-upgrade }

@@ -6,7 +6,7 @@
 - **Opened:** 2026-08-05
 - **Owner:** project-owner
 - **Priority:** normal
-- **Related RFC:** `gguf-model-artifact-identity`
+- **Related RFCs:** `gguf-model-artifact-identity`, `model-artifact-attestation`
 - **Blocked by:** `establish-sidecar-authority`
 - **Candidate change:** `support-model-upgrade`
 
