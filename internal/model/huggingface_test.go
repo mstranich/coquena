@@ -19,7 +19,10 @@ func TestResolverFiltersPinsAndSelectsGGUF(t *testing.T) {
 		if r.URL.Path != "/api/models/org/repo/revision/main" {
 			t.Fatalf("path=%s", r.URL.Path)
 		}
-		_, _ = w.Write([]byte(`{"sha":"012345","siblings":[{"rfilename":"a.txt","size":1},{"rfilename":"dir/model.Q4.gguf","size":42},{"rfilename":"model.Q8.GGUF","size":84}]}`))
+		if r.URL.Query().Get("blobs") != "true" {
+			t.Fatalf("query=%s", r.URL.RawQuery)
+		}
+		_, _ = w.Write([]byte(`{"sha":"012345","siblings":[{"rfilename":"a.txt","size":1},{"rfilename":"dir/model.Q4.gguf","size":42,"lfs":{"sha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}},{"rfilename":"model.Q8.GGUF","size":84}]}`))
 	}))
 	defer server.Close()
 	resolver := Resolver{Client: server.Client(), BaseURL: server.URL}
@@ -37,6 +40,39 @@ func TestResolverFiltersPinsAndSelectsGGUF(t *testing.T) {
 	if got.Artifact.SizeBytes != 43 || got.Artifact.ETag != `"artifact"` {
 		t.Fatalf("size=%d", got.Artifact.SizeBytes)
 	}
+	if got.ContentSHA256 != strings.Repeat("a", 64) {
+		t.Fatalf("content sha256=%q", got.ContentSHA256)
+	}
+}
+
+func TestResolverDistinguishesAbsentAndMalformedContentSHA256(t *testing.T) {
+	t.Run("absent", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.Method == http.MethodHead {
+				return
+			}
+			_, _ = w.Write([]byte(`{"sha":"abc","siblings":[{"rfilename":"model.gguf"}]}`))
+		}))
+		defer server.Close()
+		candidates, err := (Resolver{Client: server.Client(), BaseURL: server.URL}).Resolve("org/repo", "model.gguf")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(candidates) != 1 || candidates[0].ContentSHA256 != "" {
+			t.Fatalf("candidates=%+v", candidates)
+		}
+	})
+
+	t.Run("malformed", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			_, _ = w.Write([]byte(`{"sha":"abc","siblings":[{"rfilename":"model.gguf","lfs":{"sha256":"not-a-sha256"}}]}`))
+		}))
+		defer server.Close()
+		_, err := (Resolver{Client: server.Client(), BaseURL: server.URL}).Resolve("org/repo", "model.gguf")
+		if err == nil || !strings.Contains(err.Error(), `artifact "model.gguf"`) || !strings.Contains(err.Error(), "invalid lfs.sha256") {
+			t.Fatalf("err=%v", err)
+		}
+	})
 }
 
 func TestResolverRejectsAmbiguousSelector(t *testing.T) {

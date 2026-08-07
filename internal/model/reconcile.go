@@ -10,7 +10,7 @@ import (
 type ReconcileResult struct {
 	Record Record
 	// Partial is true when --online succeeded without a content hash to
-	// compare against (Hugging Face reported no LFS oid for the matched
+	// compare against (Hugging Face reported no content SHA-256 for the matched
 	// sibling, e.g. a small non-LFS-tracked file). It is always false for
 	// ReconcileAccept, which never contacts Hugging Face.
 	Partial bool
@@ -21,8 +21,8 @@ type ReconcileResult struct {
 // mirroring unreconciledSource) as the candidate identity. It resolves that
 // repository's "main" revision, locates the sibling whose filename matches
 // path's base name exactly, hashes the local file, and compares the digest
-// against the LFS content hash (oid) Hugging Face reports for that sibling,
-// when one is available. On agreement — or when no oid is available to
+// against the content SHA-256 Hugging Face reports for that sibling, when one
+// is available. On agreement — or when no content hash is available to
 // compare, which is not treated as a mismatch — it persists the same
 // .json/.revision sidecar pair a normal download produces, with
 // Artifact.SHA256 populated from the just-computed digest. On disagreement it
@@ -68,9 +68,9 @@ func (m *Manager) reconcileAgainst(path string, candidate Candidate) (ReconcileR
 	if err != nil {
 		return ReconcileResult{}, err
 	}
-	partial := candidate.LFSOID == ""
-	if !partial && candidate.LFSOID != digest {
-		return ReconcileResult{}, fmt.Errorf("reconcile refused for %s: the local file's digest %s disagrees with the content hash %s Hugging Face reports at revision %s; the artifact may be from an earlier revision of the repository rather than corrupt, and --accept records it as local if that is what you intend", candidate.Source.Filename, digest, candidate.LFSOID, candidate.Source.ResolvedRevision)
+	partial := candidate.ContentSHA256 == ""
+	if !partial && candidate.ContentSHA256 != digest {
+		return ReconcileResult{}, fmt.Errorf("reconcile refused for %s: the local file's digest %s disagrees with the content hash %s Hugging Face reports at revision %s; the artifact may be from an earlier revision of the repository rather than corrupt, and --accept records it as local if that is what you intend", candidate.Source.Filename, digest, candidate.ContentSHA256, candidate.Source.ResolvedRevision)
 	}
 	record := Record{SchemaVersion: RecordSchemaVersion, Source: candidate.Source, Artifact: candidate.Artifact}
 	record.Artifact.SHA256 = digest

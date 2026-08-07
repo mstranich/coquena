@@ -115,9 +115,11 @@ Future work should:
 
 - Does `?blobs=true` change response size enough to matter for repositories
   with many siblings, and should the parameter be conditional?
-- Do repositories migrated to Xet storage still publish `lfs.sha256`? Every
-  repository sampled here did, but none was confirmed to be Xet-backed, so
-  this remains unverified.
+- Do repositories migrated to Xet storage still publish `lfs.sha256`?
+  **Answered 2026-08-07 for the witness:** Gemma 4 26B resolved through an
+  `xet-bridge-us` URL and still published a matching `lfs.sha256`; online
+  reconciliation completed non-partially. This verifies the common Xet-backed
+  path without claiming that every possible Xet repository behaves identically.
 - Should `blobId` be recorded? It identifies the git blob rather than the
   content and is not comparable to a local file hash.
 - Is the local hash still computed when a remote hash is unavailable, or is
@@ -130,6 +132,19 @@ strength is recorded, or what `upgrade` requires — those belong to
 `model-artifact-attestation` and `establish-sidecar-authority`. It should land
 independently, and preferably first, because it changes which artifacts can
 reach an attested state and therefore narrows what that RFC must decide.
+
+## Post-correction witness
+
+With `COQUENA_HOME` pointed at the project's test `home/`, the corrected client
+reconciled `lmstudio-community/gemma-4-26B-A4B-it-QAT-GGUF:Q4_0` against
+revision `0100791afcfc646ad7243c5443d53870e63f0976` without a partial result.
+The subsequent update check reported the installed artifact up to date.
+
+The operator reported that the publisher had updated this model's weights
+after an earlier download, which motivates later update and upgrade work. That
+historical drift was not reproduced in this run: the local Q4_0 bytes matched
+the current remote digest. The current observation must therefore not be
+recorded as proof of an available update.
 
 ## Relevant implementation areas
 

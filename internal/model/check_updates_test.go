@@ -34,7 +34,7 @@ func setupInstalledCheckUpdatesFixture(t *testing.T, body []byte, resolvedRevisi
 func TestCheckUpdatesReportsUpToDate(t *testing.T) {
 	body := emptyGGUF()
 	digest := sha256.Sum256(body)
-	oid := hex.EncodeToString(digest[:])
+	sha256 := hex.EncodeToString(digest[:])
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodHead {
 			w.Header().Set("Content-Length", "24")
@@ -43,10 +43,10 @@ func TestCheckUpdatesReportsUpToDate(t *testing.T) {
 		if r.URL.Path != "/api/models/org/repo/revision/main" {
 			t.Fatalf("path=%s", r.URL.Path)
 		}
-		_, _ = w.Write([]byte(`{"sha":"deadbeef","siblings":[{"rfilename":"m.gguf","size":24,"lfs":{"oid":"` + oid + `"}}]}`))
+		_, _ = w.Write([]byte(`{"sha":"deadbeef","siblings":[{"rfilename":"m.gguf","size":24,"lfs":{"sha256":"` + sha256 + `"}}]}`))
 	}))
 	defer server.Close()
-	m, _ := setupInstalledCheckUpdatesFixture(t, body, "deadbeef", oid, "huggingface")
+	m, _ := setupInstalledCheckUpdatesFixture(t, body, "deadbeef", sha256, "huggingface")
 	m.Resolver = Resolver{Client: server.Client(), BaseURL: server.URL}
 
 	result, err := m.CheckUpdates("org/repo:m.gguf")
@@ -61,16 +61,16 @@ func TestCheckUpdatesReportsUpToDate(t *testing.T) {
 func TestCheckUpdatesReportsUpdateAvailableOnRevisionChange(t *testing.T) {
 	body := emptyGGUF()
 	digest := sha256.Sum256(body)
-	oid := hex.EncodeToString(digest[:])
+	sha256 := hex.EncodeToString(digest[:])
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodHead {
 			w.Header().Set("Content-Length", "24")
 			return
 		}
-		_, _ = w.Write([]byte(`{"sha":"newsha","siblings":[{"rfilename":"m.gguf","size":24,"lfs":{"oid":"a-different-oid"}}]}`))
+		_, _ = w.Write([]byte(`{"sha":"newsha","siblings":[{"rfilename":"m.gguf","size":24,"lfs":{"sha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}}]}`))
 	}))
 	defer server.Close()
-	m, _ := setupInstalledCheckUpdatesFixture(t, body, "deadbeef", oid, "huggingface")
+	m, _ := setupInstalledCheckUpdatesFixture(t, body, "deadbeef", sha256, "huggingface")
 	m.Resolver = Resolver{Client: server.Client(), BaseURL: server.URL}
 
 	result, err := m.CheckUpdates("org/repo:m.gguf")
@@ -85,10 +85,34 @@ func TestCheckUpdatesReportsUpdateAvailableOnRevisionChange(t *testing.T) {
 	}
 }
 
-func TestCheckUpdatesReportsPartialWhenNoOIDAvailable(t *testing.T) {
+func TestCheckUpdatesReportsUpdateAvailableOnSameRevisionContentChange(t *testing.T) {
 	body := emptyGGUF()
 	digest := sha256.Sum256(body)
-	oid := hex.EncodeToString(digest[:])
+	localSHA256 := hex.EncodeToString(digest[:])
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodHead {
+			w.Header().Set("Content-Length", "24")
+			return
+		}
+		_, _ = w.Write([]byte(`{"sha":"deadbeef","siblings":[{"rfilename":"m.gguf","size":24,"lfs":{"sha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}}]}`))
+	}))
+	defer server.Close()
+	m, _ := setupInstalledCheckUpdatesFixture(t, body, "deadbeef", localSHA256, "huggingface")
+	m.Resolver = Resolver{Client: server.Client(), BaseURL: server.URL}
+
+	result, err := m.CheckUpdates("org/repo:m.gguf")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Outcome != UpdateAvailable || result.RecordedRevision != result.CurrentRevision {
+		t.Fatalf("result=%+v", result)
+	}
+}
+
+func TestCheckUpdatesReportsPartialWhenNoSHA256Available(t *testing.T) {
+	body := emptyGGUF()
+	digest := sha256.Sum256(body)
+	sha256 := hex.EncodeToString(digest[:])
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodHead {
 			w.Header().Set("Content-Length", "24")
@@ -97,7 +121,7 @@ func TestCheckUpdatesReportsPartialWhenNoOIDAvailable(t *testing.T) {
 		_, _ = w.Write([]byte(`{"sha":"deadbeef","siblings":[{"rfilename":"m.gguf","size":24}]}`))
 	}))
 	defer server.Close()
-	m, _ := setupInstalledCheckUpdatesFixture(t, body, "deadbeef", oid, "huggingface")
+	m, _ := setupInstalledCheckUpdatesFixture(t, body, "deadbeef", sha256, "huggingface")
 	m.Resolver = Resolver{Client: server.Client(), BaseURL: server.URL}
 
 	result, err := m.CheckUpdates("org/repo:m.gguf")

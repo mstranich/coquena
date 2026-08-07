@@ -1,6 +1,7 @@
 package model
 
 import (
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -16,11 +17,11 @@ type Resolver struct {
 type Candidate struct {
 	Source   Source   `json:"source"`
 	Artifact Artifact `json:"artifact"`
-	// LFSOID is the LFS content hash (oid) Hugging Face reports for this
+	// ContentSHA256 is the file-content digest Hugging Face reports for this
 	// sibling, when one is available. It is not part of the persisted
 	// sidecar shape, only used transiently to verify content identity during
 	// reconciliation, so it is excluded from JSON output.
-	LFSOID string `json:"-"`
+	ContentSHA256 string `json:"-"`
 }
 type hfInfo struct {
 	SHA      string `json:"sha"`
@@ -28,7 +29,7 @@ type hfInfo struct {
 		RFilename string `json:"rfilename"`
 		Size      int64  `json:"size"`
 		LFS       *struct {
-			OID string `json:"oid"`
+			SHA256 string `json:"sha256"`
 		} `json:"lfs"`
 	} `json:"siblings"`
 }
@@ -93,6 +94,9 @@ func (r Resolver) resolveRepository(repo, requested, filename string) ([]Candida
 	if e != nil {
 		return nil, e
 	}
+	query := q.URL.Query()
+	query.Set("blobs", "true")
+	q.URL.RawQuery = query.Encode()
 	resp, e := client.Do(q)
 	if e != nil {
 		return nil, e
@@ -120,9 +124,15 @@ func (r Resolver) resolveRepository(repo, requested, filename string) ([]Candida
 		}
 		src := Source{Provider: "huggingface", Repository: repo, RequestedRevision: requested, ResolvedRevision: info.SHA, Filename: s.RFilename, URL: base + "/" + repo + "/resolve/" + info.SHA + "/" + pathEscape(s.RFilename)}
 		artifact := Artifact{SizeBytes: s.Size}
-		var lfsOID string
+		var contentSHA256 string
 		if s.LFS != nil {
-			lfsOID = s.LFS.OID
+			contentSHA256 = strings.ToLower(s.LFS.SHA256)
+			if contentSHA256 != "" {
+				decoded, decodeErr := hex.DecodeString(contentSHA256)
+				if decodeErr != nil || len(decoded) != 32 {
+					return nil, fmt.Errorf("resolve Hugging Face artifact %q: invalid lfs.sha256 %q", s.RFilename, s.LFS.SHA256)
+				}
+			}
 		}
 		if head, headErr := http.NewRequest(http.MethodHead, src.URL, nil); headErr == nil {
 			if response, requestErr := client.Do(head); requestErr == nil {
@@ -136,7 +146,7 @@ func (r Resolver) resolveRepository(repo, requested, filename string) ([]Candida
 				_ = response.Body.Close()
 			}
 		}
-		out = append(out, Candidate{src, artifact, lfsOID})
+		out = append(out, Candidate{Source: src, Artifact: artifact, ContentSHA256: contentSHA256})
 	}
 	if filename != "" && len(out) != 1 {
 		matched := make([]string, 0, len(out))

@@ -23,10 +23,10 @@ func writeReconcileFixture(t *testing.T, root string, body []byte) string {
 	return path
 }
 
-func TestReconcileOnlineSucceedsOnMatchingOID(t *testing.T) {
+func TestReconcileOnlineSucceedsOnMatchingSHA256(t *testing.T) {
 	body := emptyGGUF()
 	digest := sha256.Sum256(body)
-	oid := hex.EncodeToString(digest[:])
+	sha256 := hex.EncodeToString(digest[:])
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodHead {
 			w.Header().Set("Content-Length", "24")
@@ -35,7 +35,7 @@ func TestReconcileOnlineSucceedsOnMatchingOID(t *testing.T) {
 		if r.URL.Path != "/api/models/org/repo/revision/main" {
 			t.Fatalf("path=%s", r.URL.Path)
 		}
-		_, _ = w.Write([]byte(`{"sha":"deadbeef","siblings":[{"rfilename":"m.gguf","size":24,"lfs":{"oid":"` + oid + `"}}]}`))
+		_, _ = w.Write([]byte(`{"sha":"deadbeef","siblings":[{"rfilename":"m.gguf","size":24,"lfs":{"sha256":"` + sha256 + `"}}]}`))
 	}))
 	defer server.Close()
 	root := t.TempDir()
@@ -53,14 +53,14 @@ func TestReconcileOnlineSucceedsOnMatchingOID(t *testing.T) {
 	if result.Record.Source.Provider != "huggingface" || result.Record.Source.Repository != "org/repo" || result.Record.Source.ResolvedRevision != "deadbeef" {
 		t.Fatalf("source=%+v", result.Record.Source)
 	}
-	if result.Record.Artifact.SHA256 != oid {
-		t.Fatalf("sha256=%q want=%q", result.Record.Artifact.SHA256, oid)
+	if result.Record.Artifact.SHA256 != sha256 {
+		t.Fatalf("sha256=%q want=%q", result.Record.Artifact.SHA256, sha256)
 	}
 	rec, err := ReadRecord(path)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if rec.Source.Provider != "huggingface" || rec.Artifact.SHA256 != oid {
+	if rec.Source.Provider != "huggingface" || rec.Artifact.SHA256 != sha256 {
 		t.Fatalf("persisted record=%+v", rec)
 	}
 }
@@ -72,7 +72,7 @@ func TestReconcileOnlineRefusesOnHashMismatch(t *testing.T) {
 			w.Header().Set("Content-Length", "24")
 			return
 		}
-		_, _ = w.Write([]byte(`{"sha":"deadbeef","siblings":[{"rfilename":"m.gguf","size":24,"lfs":{"oid":"not-the-real-hash"}}]}`))
+		_, _ = w.Write([]byte(`{"sha":"deadbeef","siblings":[{"rfilename":"m.gguf","size":24,"lfs":{"sha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}}]}`))
 	}))
 	defer server.Close()
 	root := t.TempDir()
@@ -89,7 +89,7 @@ func TestReconcileOnlineRefusesOnHashMismatch(t *testing.T) {
 	}
 }
 
-func TestReconcileOnlineDegradesWhenNoOIDAvailable(t *testing.T) {
+func TestReconcileOnlineDegradesWhenNoSHA256Available(t *testing.T) {
 	body := emptyGGUF()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodHead {
@@ -109,7 +109,7 @@ func TestReconcileOnlineDegradesWhenNoOIDAvailable(t *testing.T) {
 		t.Fatal(err)
 	}
 	if !result.Partial {
-		t.Fatal("expected a partial result when Hugging Face reports no oid")
+		t.Fatal("expected a partial result when Hugging Face reports no content SHA-256")
 	}
 	digest := sha256.Sum256(body)
 	if result.Record.Artifact.SHA256 != hex.EncodeToString(digest[:]) {

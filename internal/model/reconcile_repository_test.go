@@ -15,11 +15,12 @@ import (
 )
 
 // repositoryFixture serves the Hugging Face surface a repository-driven
-// reconciliation reads: the revision listing with each sibling's LFS oid, and
+// reconciliation reads: the revision listing with each sibling's content
+// SHA-256, and
 // each artifact by HEAD and byte range so its header can be classified without
-// the whole file being transferred. oids overrides the reported content hash
+// the whole file being transferred. sha256s overrides the reported content hash
 // for a filename, which is how a digest disagreement is staged.
-func repositoryFixture(t *testing.T, files map[string][]byte, oids map[string]string) *Manager {
+func repositoryFixture(t *testing.T, files map[string][]byte, sha256s map[string]string) *Manager {
 	t.Helper()
 	names := make([]string, 0, len(files))
 	for name := range files {
@@ -30,12 +31,16 @@ func repositoryFixture(t *testing.T, files map[string][]byte, oids map[string]st
 		if r.URL.Path == "/api/models/org/repo/revision/main" {
 			siblings := make([]string, 0, len(names))
 			for _, name := range names {
-				oid, ok := oids[name]
+				contentSHA256, ok := sha256s[name]
 				if !ok {
 					digest := sha256.Sum256(files[name])
-					oid = hex.EncodeToString(digest[:])
+					contentSHA256 = hex.EncodeToString(digest[:])
 				}
-				siblings = append(siblings, fmt.Sprintf(`{"rfilename":%q,"size":%d,"lfs":{"oid":%q}}`, name, len(files[name]), oid))
+				lfs := ""
+				if contentSHA256 != "" {
+					lfs = fmt.Sprintf(`,"lfs":{"sha256":%q}`, contentSHA256)
+				}
+				siblings = append(siblings, fmt.Sprintf(`{"rfilename":%q,"size":%d%s}`, name, len(files[name]), lfs))
 			}
 			_, _ = fmt.Fprintf(w, `{"sha":"abc","siblings":[%s]}`, strings.Join(siblings, ","))
 			return
@@ -222,6 +227,32 @@ func TestReconcileRepositoryRefusesDigestDisagreement(t *testing.T) {
 	}
 	if len(result.Refused()) != 1 {
 		t.Fatalf("refused=%+v", result.Refused())
+	}
+}
+
+func TestReconcileRepositoryIsolatesHashlessSibling(t *testing.T) {
+	files := map[string][]byte{
+		"principal-Q4_K_M.gguf": principalGGUF(),
+		"mmproj-BF16.gguf":      projectorGGUF(),
+	}
+	m := repositoryFixture(t, files, map[string]string{"mmproj-BF16.gguf": ""})
+	principal := writeArtifact(t, m.ModelsDir, "org/repo/principal-Q4_K_M.gguf", files["principal-Q4_K_M.gguf"])
+	projector := writeArtifact(t, m.ModelsDir, "org/repo/mmproj-BF16.gguf", files["mmproj-BF16.gguf"])
+
+	result, err := m.ReconcileRepository("org/repo:Q4_K_M")
+	if err != nil {
+		t.Fatal(err)
+	}
+	principalResult, _ := artifactFor(result, "principal-Q4_K_M.gguf")
+	projectorResult, _ := artifactFor(result, "mmproj-BF16.gguf")
+	if principalResult.Outcome != RepositoryReconciled || principalResult.Partial {
+		t.Fatalf("principal=%+v", principalResult)
+	}
+	if projectorResult.Outcome != RepositoryReconciled || !projectorResult.Partial {
+		t.Fatalf("projector=%+v", projectorResult)
+	}
+	if !sidecarExists(principal) || !sidecarExists(projector) {
+		t.Fatal("both independently reconciled artifacts must publish sidecars")
 	}
 }
 

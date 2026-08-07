@@ -300,11 +300,11 @@ artifacts:
 
   request-remote-content-hash:
     kind: backlog
-    state: open
+    state: closed
     title: Request the remote content hash Hugging Face actually publishes
-    path: backlog/request-remote-content-hash.md
+    path: backlog/archive/request-remote-content-hash.md
     openedAt: 2026-08-05
-    closedAt: null
+    closedAt: 2026-08-07
     owner: project-owner
     priority: high
     relations:

@@ -148,6 +148,14 @@ residue justifies accepting weaker evidence at all. Answer this **after**
 `request-remote-content-hash` lands, not before — the residue is the input, and
 it is currently unknown rather than large.
 
+**Evidence update 2026-08-07.** The corrected client produced no partial result
+for the Xet-backed Gemma 4 26B Q4_0 witness and reported four other installed
+repository witnesses up to date. The Gemma file resolved through an
+`xet-bridge-us` URL while its revision metadata still supplied a matching
+`lfs.sha256`. No weaker evidence was required in this post-fix sample. This
+narrows Q3 but does not close it: absence remains a supported outcome and a
+larger or future sample may expose a genuine residue.
+
 **Q4 — Does drift interact with attestation, and how?**
 `check-updates` will record what it observed remotely. Whether that observation
 can strengthen, weaken, or supersede an attestation — or is strictly parallel

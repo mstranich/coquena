@@ -8,13 +8,13 @@ type UpdateOutcome string
 
 const (
 	// UpdateCurrent indicates the commit SHA Hugging Face currently reports
-	// still matches the sidecar's recorded ResolvedRevision, and, when an LFS
-	// oid was available for comparison, it still matches Artifact.SHA256.
+	// still matches the sidecar's recorded ResolvedRevision, and, when a remote
+	// content SHA-256 was available, it still matches Artifact.SHA256.
 	UpdateCurrent UpdateOutcome = "up-to-date"
-	// UpdateAvailable indicates the commit SHA has changed, or an LFS oid was
+	// UpdateAvailable indicates the commit SHA has changed, or a content hash was
 	// available and disagrees with the sidecar's recorded Artifact.SHA256.
 	UpdateAvailable UpdateOutcome = "update-available"
-	// UpdatePartial indicates Hugging Face reported no LFS oid for the
+	// UpdatePartial indicates Hugging Face reported no content SHA-256 for the
 	// matched sibling, so only the commit-SHA comparison could be performed.
 	UpdatePartial UpdateOutcome = "partial"
 )
@@ -28,18 +28,18 @@ type CheckUpdatesResult struct {
 	RecordedRevision string
 	CurrentRevision  string
 	RecordedSHA256   string
-	RemoteOID        string
+	RemoteSHA256     string `json:"RemoteOID"`
 }
 
 // CheckUpdates resolves reference against the installed model library, then
 // queries Hugging Face's current revision info using only the sidecar's
 // recorded Repository, RequestedRevision, and Filename -- it never opens or
 // hashes the local .gguf file. It compares the current commit SHA, and, when
-// available, the matched sibling's LFS oid, against the sidecar's recorded
+// available, the matched sibling's content SHA-256, against the sidecar's recorded
 // ResolvedRevision and Artifact.SHA256, reporting one of three outcomes:
 // UpdateCurrent (nothing changed), UpdateAvailable (the commit SHA changed,
-// or an oid was available and disagrees with the recorded digest), or
-// UpdatePartial (no oid was available, so only the commit-SHA comparison
+// or a content hash was available and disagrees with the recorded digest), or
+// UpdatePartial (no content hash was available, so only the commit-SHA comparison
 // could be performed). It refuses with a clear diagnostic when reference does
 // not resolve to exactly one installed artifact, or when the resolved entry
 // is a "local"-provider entry, since there is no Hugging Face identity
@@ -71,15 +71,15 @@ func (m *Manager) CheckUpdates(reference string) (CheckUpdatesResult, error) {
 		RecordedRevision: record.Source.ResolvedRevision,
 		CurrentRevision:  candidate.Source.ResolvedRevision,
 		RecordedSHA256:   record.Artifact.SHA256,
-		RemoteOID:        candidate.LFSOID,
+		RemoteSHA256:     candidate.ContentSHA256,
 	}
 	switch {
-	case candidate.LFSOID == "":
+	case candidate.ContentSHA256 == "":
 		// No content hash available from Hugging Face for this sibling; only
 		// the commit-SHA comparison could be performed, so this is reported
 		// as a distinct outcome rather than silently treated as a match.
 		result.Outcome = UpdatePartial
-	case result.RecordedRevision != result.CurrentRevision || candidate.LFSOID != result.RecordedSHA256:
+	case result.RecordedRevision != result.CurrentRevision || candidate.ContentSHA256 != result.RecordedSHA256:
 		result.Outcome = UpdateAvailable
 	default:
 		result.Outcome = UpdateCurrent

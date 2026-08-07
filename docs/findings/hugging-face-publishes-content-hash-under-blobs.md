@@ -42,9 +42,20 @@ Qwen3.6-35B-A3B-GGUF           4    prism-ml/Bonsai-27B-gguf                    
 prism-ml/Ternary-Bonsai-27B-gguf                                                    8
 ```
 
-No repository in this sample required weaker evidence. **Unverified:** whether
-repositories migrated to Xet storage still publish `lfs.sha256`. None in the
-sample was confirmed to be Xet-backed.
+No repository in this sample required weaker evidence.
+
+**Xet verified 2026-08-07.** With the corrected client,
+`lmstudio-community/gemma-4-26B-A4B-it-QAT-GGUF:Q4_0` resolved its bytes through
+an `xet-bridge-us` URL while the revision metadata still published
+`lfs.sha256`. Online reconciliation compared the locally cached file against
+that digest and completed non-partially at revision
+`0100791afcfc646ad7243c5443d53870e63f0976`; an immediate update check reported
+it up to date. Xet transport therefore does not, by itself, remove the content
+hash from the model revision response.
+
+The same corrected client reported the installed Ornith 9B, Ornith 35B, Qwen
+3.6 35B and Gemma 4 12B witnesses up to date rather than partial. No post-fix
+partial residue was observed in this installed sample.
 
 ## Why it matters
 
