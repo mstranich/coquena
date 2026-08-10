@@ -206,8 +206,6 @@ an artifact any standing it did not already have.
 - **THEN** Coquena reports the classification as unknown
 - **AND** it does not infer the type from architecture or filename
 
-## ADDED Requirements
-
 ### Requirement: Distinguish an artifact's type from its assigned role
 Coquena SHALL treat an artifact's intrinsic type and the role it plays as independent. It SHALL derive the `projector` role from an `mmproj` type automatically, and SHALL require the `principal` and `draft` roles to be assigned by the operator, since a draft model is indistinguishable from a principal model by its metadata alone.
 

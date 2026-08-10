@@ -211,6 +211,19 @@ artifacts:
       - { type: relates-to, target: model-reference-convention-uses-one-selector-slot }
       - { type: produces, target: change:align-model-command-surface }
 
+  complete-cli-command-list:
+    kind: backlog
+    state: open
+    title: Show the complete Coquena command list
+    path: backlog/complete-cli-command-list.md
+    openedAt: 2026-08-10
+    closedAt: null
+    owner: project-owner
+    priority: low
+    relations:
+      - { type: relates-to, target: align-model-command-surface }
+      - { type: produces, target: change:complete-cli-command-list }
+
   correct-model-library-storage-spec:
     kind: backlog
     state: open
