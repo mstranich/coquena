@@ -19,6 +19,13 @@ no story to check them against. Mapping the current surface onto
 uses `apt` and `winget` daily, where the pair is `update` and `upgrade`. A
 bespoke verb charges every user the cost of learning it and buys nothing.
 
+**Half a pair.** Restated by the owner on 2026-08-10: today only the observing
+half exists, and that is why the surface reads oddly — `check-updates` learns
+about changes and nothing acts on them. `upgrade` is not merely a nicer name
+for a future operation; it is the missing verb that gives the observing one a
+purpose. Its scope grew accordingly: besides replacing bytes, it now owns
+applying an observed repository rename. See `support-model-upgrade`.
+
 **A flag that contradicts the unit.** `--with-companions` makes the bundle
 optional. The story says the download "must be a complete bundle", so there is
 nothing to opt into.

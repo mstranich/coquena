@@ -97,7 +97,12 @@ Future work should:
 
 - Is a partially downloaded set a quantization in a bad state, or not a
   quantization yet?
-- Does a shard set share one sidecar, or does each file keep one?
+- Does a shard set share one sidecar, or does each file keep one? **Narrowed
+  2026-08-10:** the project owner approved a per-repository index file, so a
+  third option now exists and is the likely answer — each file keeps its own
+  integrity sidecar while the set is described by the index. See
+  `introduce-repository-index-file`; what remains open here is which of the two
+  a given consumer reads.
 - How is a private fine-tune with a single file expressed in the same model?
 - What identifies "the shard that carries the metadata" without opening all of
   them?

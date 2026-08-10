@@ -37,6 +37,38 @@ matching `apt` and `winget`, which the operator already uses daily.
 `check-updates` was an invented verb and charges every user the cost of learning
 it. This entry covers `update`; applying what it finds is `support-model-upgrade`.
 
+**Restated 2026-08-10**, with a second analogy that fixes the boundary more
+precisely than `apt` alone:
+
+```text
+update   consults the provider            git fetch    apt update
+upgrade  downloads and applies changes    git pull     apt upgrade
+```
+
+`update` is a query that leaves a record. `check-updates` is to be renamed to
+`update` and improved to meet the contract below — the rename alone does not
+discharge this entry.
+
+## What "no impact on disk" means here
+
+Stated by the owner on 2026-08-10: `update` must not impact disk, *except* that
+it may write `index.json` or its equivalent.
+
+That distinction is the whole contract, and it is not a technicality. The model
+tree — GGUF bytes, their sidecars, directory layout — is untouched by `update`
+under every circumstance. The repository index is a record of observations, and
+writing an observation into it is what makes `update` more than a transient
+query: without it the finding dies with the process, which is the second defect
+listed above.
+
+`git fetch` behaves the same way. It writes to the repository, but it does not
+touch the working tree.
+
+**This supersedes "the sidecar" as the storage location for a rename.** A
+sidecar describes one file; a rename is a property of the repository, so it
+belongs in the index per `introduce-repository-index-file`. Per-artifact drift
+may still live in the sidecar; repository-level observations may not.
+
 No `--all` flag. `<ref>` stays mandatory. If library-wide action is ever
 warranted, `<ref>` becomes optional across every operation and no flag is
 introduced.
@@ -47,8 +79,11 @@ Future work should:
 
 - report update state for a quantization as a whole, including its companions;
 - persist what was observed, in a field written only by this operation, so
-  `model list` can report a known-stale artifact from the sidecar alone with no
-  network access;
+  `model list` can report a known-stale artifact from local records alone with
+  no network access — per-artifact drift in the sidecar, repository-level
+  observations such as a rename in the repository index;
+- leave the model tree untouched: no bytes moved, renamed or rewritten, the
+  index being the only file this operation may write;
 - define "an update exists" as more than "the revision advanced" — at minimum
   covering a renamed or moved repository;
 - leave model bytes, the integrity baseline, provenance attestation, operator
@@ -62,7 +97,10 @@ Future work should:
 ## Acceptance questions
 
 - Is a renamed repository an update, or a separate condition needing its own
-  report? `apt update` refreshes an index; it does not rename your packages.
+  report? `apt update` refreshes an index; it does not rename your packages —
+  and under the 2026-08-10 division it does not have to, since `upgrade` owns
+  the relocation. What remains open is whether `update` reports a rename in the
+  same channel as "behind by a revision" or as a distinct condition.
 - Does a locally modified file count as behind, or is that strictly the
   integrity axis?
 - Which operation clears the recorded state once the operator has acted?

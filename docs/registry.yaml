@@ -232,7 +232,7 @@ artifacts:
     openedAt: 2026-08-05
     closedAt: null
     owner: project-owner
-    priority: normal
+    priority: high
     relations:
       - { type: motivated-by, target: gguf-model-artifact-identity }
       - { type: produces, target: change:correct-model-library-storage-spec }
@@ -250,6 +250,8 @@ artifacts:
       - { type: motivated-by, target: model-acquisition-story }
       - { type: motivated-by, target: hugging-face-redirects-renamed-repositories }
       - { type: blocked-by, target: change:establish-sidecar-authority }
+      - { type: relates-to, target: introduce-repository-index-file }
+      - { type: relates-to, target: support-model-upgrade }
       - { type: produces, target: change:establish-sidecar-authority }
 
   distinguish-unattested-artifacts:
@@ -266,6 +268,24 @@ artifacts:
       - { type: motivated-by, target: hugging-face-publishes-content-hash-under-blobs }
       - { type: blocked-by, target: model-artifact-attestation }
       - { type: produces, target: change:establish-sidecar-authority }
+
+  introduce-repository-index-file:
+    kind: backlog
+    state: blocked
+    title: Introduce a per-repository index file
+    path: backlog/introduce-repository-index-file.md
+    openedAt: 2026-08-10
+    closedAt: null
+    owner: project-owner
+    priority: high
+    relations:
+      - { type: motivated-by, target: model-acquisition }
+      - { type: motivated-by, target: quantizations-can-be-shard-directories }
+      - { type: motivated-by, target: hugging-face-redirects-renamed-repositories }
+      - { type: blocked-by, target: correct-model-library-storage-spec }
+      - { type: relates-to, target: address-quantization-bundles }
+      - { type: relates-to, target: model-artifact-attestation }
+      - { type: produces, target: change:introduce-repository-index-file }
 
   filter-model-list-by-quantization:
     kind: backlog
@@ -350,5 +370,8 @@ artifacts:
     relations:
       - { type: motivated-by, target: model-acquisition-story }
       - { type: motivated-by, target: model-artifact-attestation }
+      - { type: motivated-by, target: hugging-face-redirects-renamed-repositories }
       - { type: blocked-by, target: change:establish-sidecar-authority }
+      - { type: relates-to, target: introduce-repository-index-file }
+      - { type: relates-to, target: align-model-command-surface }
       - { type: produces, target: change:support-model-upgrade }
