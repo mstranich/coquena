@@ -57,6 +57,21 @@ The same corrected client reported the installed Ornith 9B, Ornith 35B, Qwen
 3.6 35B and Gemma 4 12B witnesses up to date rather than partial. No post-fix
 partial residue was observed in this installed sample.
 
+### Metadata evidence and payload inspection are independent surfaces
+
+On the Gemma 4 26B witness, the model revision API returned `lfs.sha256` and the
+local full-file comparison succeeded, while a separate bounded HTTP Range read
+of the GGUF through `xet-bridge-us` timed out. The hash comparison and remote
+GGUF classification therefore have independent availability: successful
+attestation metadata does not imply that payload inspection will also succeed,
+and a payload inspection failure does not erase the hash the metadata endpoint
+already supplied.
+
+This is an observed separation, not evidence that Xet range reads generally
+fail. The durable constraint is that consumers must not conflate these two
+remote surfaces or discard evidence obtained from one because the other is
+temporarily unavailable.
+
 ## Why it matters
 
 A client that omits the parameter, or reads a differently named field, will

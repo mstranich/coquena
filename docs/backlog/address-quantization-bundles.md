@@ -37,6 +37,27 @@ companion  shared across several quantizations of one repository
   them classify as unusable and one is real.
 - Path handling assumes `<repo>/<filename>`; a nested sibling path misparses.
 
+## Witness: companion omitted by degraded principal inspection
+
+With `COQUENA_HOME` pointed at the project's test `home/`, reconciling
+`lmstudio-community/gemma-4-26B-A4B-it-QAT-GGUF:Q4_0` installed the principal
+but left its local `mmproj-gemma-4-26B-A4B-it-QAT-BF16.gguf` unreconciled.
+
+The content-hash path succeeded. What failed was the independent bounded range
+inspection of the principal through `xet-bridge-us`. Current reconciliation
+degrades a failed remote inspection to type `unknown`; because bundle expansion
+recognises a selected principal by that remote classification, it no longer
+adds the projector to the target set. Filename selection still reconciles the
+principal itself, producing a successful but incomplete result.
+
+This is a bug against the current reconciliation contract, which already says
+principal and companions reconcile together. The project owner chose to carry
+the case into `address-quantization-bundles` rather than open a separate narrow
+fix: once the quantization is the unit, failure to identify or attest one member
+must be represented as an incomplete bundle, never as silent omission. Direct
+reconciliation of the projector by exact filename remains available as a
+workaround, but it is not the intended operator workflow.
+
 ## The sharing and deletion rule
 
 Stated by the project owner and adopted by the use case:
@@ -67,6 +88,10 @@ Future work should:
 - handle repository paths that contain directories;
 - express deletion in terms of the sharing rule above;
 - remove `--with-companions`: a bundle is not optional.
+- preserve bundle membership and report incompleteness when remote
+  classification of one member fails, rather than shrinking the target set;
+- cover the Gemma 4 26B witness where content-hash retrieval succeeds but
+  bounded remote inspection of the principal times out.
 
 ## Acceptance questions
 
@@ -76,6 +101,9 @@ Future work should:
 - How is a private fine-tune with a single file expressed in the same model?
 - What identifies "the shard that carries the metadata" without opening all of
   them?
+- Which repository evidence identifies a principal and its shared companions
+  when bounded GGUF inspection is unavailable, and how is an undecidable bundle
+  reported without guessing?
 
 ## Scope boundary
 

@@ -247,3 +247,34 @@ RFC rather than to the client fix.
 
 Reviewers append below. State standing at the top of each entry. Answer
 questions by number. Do not declare the RFC closed.
+
+### ChatGPT — 2026-08-10
+
+**Standing:** Proposed answer to Q3; deliberately awaiting independent
+verification.
+
+**From:** ChatGPT
+
+**Subject:** Re: Q3 — What remote evidence is acceptable besides a remote
+content hash?
+
+The answer could be that Coquena should accept **no remote evidence weaker than
+a content hash** for byte-level attestation. A resolved commit, filename, size,
+ETag, `blobId`, successful payload inspection, or agreement of GGUF metadata
+might corroborate identity, but none would prove that the complete local bytes
+are the bytes published for that remote revision. If `lfs.sha256` is absent,
+the artifact would therefore remain unattested rather than having one of those
+signals promoted into an attestation.
+
+This answer would be justified by the evidence currently recorded: after
+`request-remote-content-hash`, every installed witness — including the
+Xet-backed Gemma artifact — exposed a comparable SHA-256, and no genuine
+post-fix residue required a fallback. It should be treated as a falsifiable
+proposal rather than an accepted conclusion. An independent reviewer could
+still overturn or narrow it by reproducing a public GGUF artifact for which
+`?blobs=true` supplies no usable `lfs.sha256`, or by showing that one of the
+rejected signals has content-identity semantics equivalent to a full-file
+digest. Without such a counterexample, weaker evidence would appear to add
+ambiguity without solving an observed case.
+
+— ChatGPT
