@@ -2,8 +2,9 @@
 
 ## Status
 
-- **State:** open
+- **State:** closed
 - **Opened:** 2026-08-05
+- **Closed:** 2026-08-10
 - **Owner:** project-owner
 - **Priority:** high
 - **Story step:** *"discover which quantizations are available … so I know how many GB this is going to cost me"*
@@ -60,3 +61,35 @@ change what downloading does.
 - `cmd/coquena/model.go`
 - `internal/model/discover.go`
 - `internal/model/huggingface.go`
+
+## Outcome
+
+Closed by `change:report-download-size-in-discover`. Discovery now preserves
+its artifact-level candidates while adding deterministic quantization and
+companion projections. Directory shards and complete flat split-GGUF series
+are grouped, totals are reported only when every constituent size is known,
+and companions remain separate so their shared bytes are not charged to every
+quantization. The terminal output leads with this comparison, while
+`--model-card` explicitly opts into fetching and rendering the repository card.
+
+The local API receives the same additive grouped projection without losing the
+candidate evidence its existing consumers use. Installation state, filtering,
+and download semantics remain owned by their respective backlog items.
+
+## Ruled out
+
+- **Replacing the candidate response:** rejected because the WebUI and local
+  API still consume artifact-level classification and diagnostics; the grouped
+  view is additive instead.
+- **Grouping by inferred quantization classification:** rejected because remote
+  inspection can fail independently and distinct artifacts may share a recipe
+  label. Publisher paths and complete standard split names provide the grouping
+  evidence used here.
+- **Showing a partial sum when one size is missing:** rejected because it looks
+  like a complete download cost. The entire total is reported as unknown.
+- **Including shared companions in every quantization total:** rejected because
+  companions may serve several quantizations and may already be local.
+- **Fetching the model card by default:** rejected because it adds network work
+  and buries the comparison the command exists to present.
+- **Changing downloads to accept the grouped bundle:** rejected as separate
+  work owned by `address-quantization-bundles`.

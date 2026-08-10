@@ -79,11 +79,19 @@ sidecars, or model bytes.
 ```console
 coquena model discover org/repository
 coquena model discover org/repository:Q4_K_M
+coquena model discover org/repository --model-card
 ```
 
-Lists remote GGUF candidates and shows which candidate a selector would match.
-It is an exploration command: it may query Hugging Face, but it does not
-download artifacts or mutate local state.
+Groups remote GGUF candidates into quantizations, lists every constituent file,
+and reports the total published size of each quantization. Split GGUF shards are
+one row group rather than unrelated candidates. Shared companions are reported
+separately and are not duplicated in quantization totals. A dash means the
+complete total is unknown because at least one constituent size is unavailable.
+
+The default comparison does not request the repository model card. Pass
+`--model-card` to fetch and print it after the quantization summary. Discovery
+may query Hugging Face, but it does not download artifacts or mutate local
+state.
 
 ## Downloading and job management
 

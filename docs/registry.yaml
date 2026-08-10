@@ -285,11 +285,11 @@ artifacts:
 
   report-download-size-in-discover:
     kind: backlog
-    state: open
+    state: closed
     title: Make discovery answer "what will this cost me?"
-    path: backlog/report-download-size-in-discover.md
+    path: backlog/archive/report-download-size-in-discover.md
     openedAt: 2026-08-05
-    closedAt: null
+    closedAt: 2026-08-10
     owner: project-owner
     priority: high
     relations:

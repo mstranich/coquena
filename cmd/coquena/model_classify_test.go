@@ -206,6 +206,56 @@ func TestRunModelDiscoverReportsCandidatesWithoutTheModelCard(t *testing.T) {
 	}
 }
 
+func TestRunModelDiscoverReportsGroupedSizesAndOptInModelCard(t *testing.T) {
+	files := map[string][]byte{
+		"Q4_K_M/model-00001-of-00002.gguf": cliPrincipalGGUF(),
+		"Q4_K_M/model-00002-of-00002.gguf": cliPrincipalGGUF(),
+		"mmproj-BF16.gguf":                 cliProjectorGGUF(),
+	}
+	withRepositoryManager(t, files, "---\nlicense: mit\n---\n# Bonsai\nCard text.\n")
+
+	var human bytes.Buffer
+	if err := runModel([]string{"discover", "org/repo", "--model-card"}, &human); err != nil {
+		t.Fatal(err)
+	}
+	wantTotal := modelapp.HumanBytes(int64(len(files["Q4_K_M/model-00001-of-00002.gguf"]) + len(files["Q4_K_M/model-00002-of-00002.gguf"])))
+	for _, expected := range []string{"Q4_K_M", wantTotal, "model-00001-of-00002.gguf", "model-00002-of-00002.gguf", "COMPANIONS", "mmproj-BF16.gguf", "Model card:", "Card text."} {
+		if !strings.Contains(human.String(), expected) {
+			t.Fatalf("missing %q in %s", expected, human.String())
+		}
+	}
+	if strings.Contains(human.String(), "license: mit") {
+		t.Fatalf("model-card front matter leaked: %s", human.String())
+	}
+
+	var jsonOut bytes.Buffer
+	if err := runModel([]string{"discover", "org/repo", "--json", "--model-card"}, &jsonOut); err != nil {
+		t.Fatal(err)
+	}
+	var envelope struct {
+		SchemaVersion int                `json:"schemaVersion"`
+		Result        modelapp.Discovery `json:"result"`
+	}
+	if err := json.Unmarshal(jsonOut.Bytes(), &envelope); err != nil {
+		t.Fatal(err)
+	}
+	if envelope.SchemaVersion != 1 || len(envelope.Result.Candidates) != 3 || len(envelope.Result.Quantizations) != 1 || len(envelope.Result.Companions) != 1 {
+		t.Fatalf("envelope=%+v", envelope)
+	}
+	if envelope.Result.ModelCard != "# Bonsai\nCard text.\n" || !envelope.Result.Quantizations[0].TotalSizeKnown {
+		t.Fatalf("result=%+v", envelope.Result)
+	}
+}
+
+func TestRunModelRejectsModelCardFlagOutsideDiscover(t *testing.T) {
+	if err := runModel([]string{"resolve", "org/repo", "--model-card"}, &bytes.Buffer{}); err == nil || err.Error() != modelUsage {
+		t.Fatalf("err=%v", err)
+	}
+	if err := runModel([]string{"discover", "org/repo", "unexpected"}, &bytes.Buffer{}); err == nil || err.Error() != modelUsage {
+		t.Fatalf("err=%v", err)
+	}
+}
+
 // A selector matching several artifacts must name them, not only count them.
 func TestRunModelNamesCandidatesOnAmbiguousSelector(t *testing.T) {
 	withRepositoryManager(t, map[string][]byte{

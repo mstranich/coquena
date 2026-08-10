@@ -1,5 +1,14 @@
 package model
 
+import (
+	"math"
+	"path"
+	"regexp"
+	"sort"
+	"strconv"
+	"strings"
+)
+
 // DiscoveredCandidate is one GGUF artifact a repository holds, together with
 // the classification read from its own header. The header is read through
 // bounded range access, so a candidate is classified without any part of its
@@ -20,6 +29,21 @@ type DiscoveredCandidate struct {
 	Diagnostic string `json:"diagnostic,omitempty"`
 }
 
+// DiscoveredQuantization is the comparison unit discovery presents. Files
+// retains the artifact-level evidence while TotalSizeKnown distinguishes an
+// unavailable total from a real byte count.
+type DiscoveredQuantization struct {
+	Label          string                `json:"label"`
+	Files          []DiscoveredCandidate `json:"files"`
+	TotalSizeBytes int64                 `json:"totalSizeBytes"`
+	TotalSizeKnown bool                  `json:"totalSizeKnown"`
+	Selected       bool                  `json:"selected"`
+}
+
+type DiscoverOptions struct {
+	IncludeModelCard bool
+}
+
 // Discovery is the result of exploring a remote repository: every GGUF
 // candidate it contains with its classification.
 type Discovery struct {
@@ -27,8 +51,10 @@ type Discovery struct {
 	Revision   string `json:"revision"`
 	// Selector is the selector carried by the reference, empty when none was
 	// supplied.
-	Selector   string                `json:"selector,omitempty"`
-	Candidates []DiscoveredCandidate `json:"candidates"`
+	Selector      string                   `json:"selector,omitempty"`
+	Candidates    []DiscoveredCandidate    `json:"candidates"`
+	Quantizations []DiscoveredQuantization `json:"quantizations"`
+	Companions    []DiscoveredCandidate    `json:"companions"`
 	// ModelCard is the repository README as plain text. It is deliberately left
 	// unpopulated: reporting the model card was turned off because its length
 	// buries the candidate list discovery exists to present, and a later change
@@ -50,6 +76,10 @@ type Discovery struct {
 // buries the candidate list, so fetching it would spend a request on a result
 // nothing reports; see the comment on Discovery.ModelCard.
 func (m *Manager) Discover(reference string) (Discovery, error) {
+	return m.DiscoverWithOptions(reference, DiscoverOptions{})
+}
+
+func (m *Manager) DiscoverWithOptions(reference string, options DiscoverOptions) (Discovery, error) {
 	repository, revision, selector, err := ParseReference(reference)
 	if err != nil {
 		return Discovery{}, err
@@ -78,8 +108,102 @@ func (m *Manager) Discover(reference string) (Discovery, error) {
 	if len(candidates) > 0 {
 		result.Revision = candidates[0].Source.ResolvedRevision
 	}
+	result.Quantizations, result.Companions = projectDiscovery(result.Candidates)
+	if options.IncludeModelCard {
+		result.ModelCard, err = m.Resolver.ModelCard(repository, result.Revision)
+		if err != nil {
+			return Discovery{}, err
+		}
+	}
 	m.logf("model discover completed repository=%s candidates=%d", repository, len(result.Candidates))
 	return result, nil
+}
+
+var splitGGUFName = regexp.MustCompile(`(?i)^(.*)-(\d{5})-of-(\d{5})\.gguf$`)
+
+type splitPart struct {
+	key, label   string
+	index, total int
+}
+
+func parseSplit(filename string) (splitPart, bool) {
+	normalized := strings.ReplaceAll(filename, `\`, "/")
+	dir, base := path.Split(normalized)
+	m := splitGGUFName.FindStringSubmatch(base)
+	if m == nil {
+		return splitPart{}, false
+	}
+	index, indexErr := strconv.Atoi(m[2])
+	total, totalErr := strconv.Atoi(m[3])
+	if indexErr != nil || totalErr != nil || index < 1 || total < 1 || index > total {
+		return splitPart{}, false
+	}
+	prefix := strings.TrimSuffix(dir, "/") + "/" + m[1]
+	return splitPart{key: "split:" + strings.ToLower(prefix) + ":" + m[3], label: path.Base(m[1]), index: index, total: total}, true
+}
+
+func projectDiscovery(candidates []DiscoveredCandidate) ([]DiscoveredQuantization, []DiscoveredCandidate) {
+	parts := make(map[string][]splitPart)
+	for _, candidate := range candidates {
+		if candidate.Classification.Type == TypeProjector {
+			continue
+		}
+		if part, ok := parseSplit(candidate.Source.Filename); ok {
+			parts[part.key] = append(parts[part.key], part)
+		}
+	}
+	validSplit := make(map[string]bool)
+	for key, group := range parts {
+		seen := make(map[int]bool, len(group))
+		valid := len(group) == group[0].total
+		for _, part := range group {
+			valid = valid && part.total == group[0].total && !seen[part.index]
+			seen[part.index] = true
+		}
+		validSplit[key] = valid
+	}
+
+	groups := make(map[string]*DiscoveredQuantization)
+	order := make([]string, 0, len(candidates))
+	companions := make([]DiscoveredCandidate, 0)
+	for _, candidate := range candidates {
+		if candidate.Classification.Type == TypeProjector {
+			companions = append(companions, candidate)
+			continue
+		}
+		normalized := strings.ReplaceAll(candidate.Source.Filename, `\`, "/")
+		dir, base := path.Split(normalized)
+		key, label := "file:"+strings.ToLower(normalized), strings.TrimSuffix(base, path.Ext(base))
+		if strings.TrimSuffix(dir, "/") != "" {
+			folder := strings.TrimSuffix(dir, "/")
+			key, label = "dir:"+strings.ToLower(folder), path.Base(folder)
+		} else if part, ok := parseSplit(candidate.Source.Filename); ok && validSplit[part.key] {
+			key, label = part.key, part.label
+		}
+		group := groups[key]
+		if group == nil {
+			group = &DiscoveredQuantization{Label: label, TotalSizeKnown: true}
+			groups[key] = group
+			order = append(order, key)
+		}
+		group.Files = append(group.Files, candidate)
+		group.Selected = group.Selected || candidate.Selected
+		if candidate.Artifact.SizeBytes <= 0 || group.TotalSizeBytes > math.MaxInt64-candidate.Artifact.SizeBytes {
+			group.TotalSizeKnown = false
+		} else {
+			group.TotalSizeBytes += candidate.Artifact.SizeBytes
+		}
+	}
+	quantizations := make([]DiscoveredQuantization, 0, len(order))
+	for _, key := range order {
+		group := groups[key]
+		if !group.TotalSizeKnown {
+			group.TotalSizeBytes = 0
+		}
+		sort.SliceStable(group.Files, func(i, j int) bool { return group.Files[i].Source.Filename < group.Files[j].Source.Filename })
+		quantizations = append(quantizations, *group)
+	}
+	return quantizations, companions
 }
 
 // RemoteCompanions reports the artifacts in the principal's own repository that

@@ -546,6 +546,7 @@ Coquena manages GGUF artifacts independently of any installed runtime. Resolve a
 coquena model resolve org/repository
 coquena model discover org/repository
 coquena model discover org/repository:Q4_K_M
+coquena model discover org/repository --model-card
 coquena model download org/repository:Q4_K_M
 coquena model download org/repository:Q4_K_M --with-companions
 coquena model download list
@@ -561,10 +562,14 @@ coquena model verify <reference> --repair-derived
 coquena model check-updates <reference>
 ```
 
-`coquena model discover <repository-or-url[:selector]>` reaches the network: it lists every
-GGUF candidate in the repository with its classification and marks the candidate
-a selector would resolve to. It does not print the repository model card: its
-length buries the candidate list, which is what discovery exists to present.
+`coquena model discover <repository-or-url[:selector]>` reaches the network. Its
+default output groups split GGUFs into quantizations, lists every constituent
+file, sums the published download sizes, and reports shared companions
+separately. A dash means at least one constituent has no trustworthy size, so
+Coquena does not present a partial sum as the total. The command marks the
+quantization a selector would resolve to. Add `--model-card` to fetch and print
+the repository card after this compact comparison; discovery does not request
+the card by default.
 Fresh local byte evidence is reported by `coquena model verify <reference>`;
 `model list` remains a cheap sidecar-only catalog view.
 

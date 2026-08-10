@@ -235,8 +235,11 @@ func TestModelAPIDiscoverReportsCandidateClassification(t *testing.T) {
 
 	rec := httptest.NewRecorder()
 	api.serve(rec, httptest.NewRequest(http.MethodPost, "/api/models/discover", bytes.NewBufferString(`{"reference":"org/repo"}`)))
-	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), `"type":"model"`) || !strings.Contains(rec.Body.String(), `"architecture":"gemma4"`) {
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), `"type":"model"`) || !strings.Contains(rec.Body.String(), `"architecture":"gemma4"`) || !strings.Contains(rec.Body.String(), `"candidates"`) || !strings.Contains(rec.Body.String(), `"quantizations":[{"label":"m"`) || !strings.Contains(rec.Body.String(), `"totalSizeKnown":true`) {
 		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
+	}
+	if strings.Contains(rec.Body.String(), `"modelCard"`) {
+		t.Fatalf("API discovery fetched a model card by default: %s", rec.Body.String())
 	}
 	bad := httptest.NewRecorder()
 	api.serve(bad, httptest.NewRequest(http.MethodPost, "/api/models/discover", bytes.NewBufferString(`{"reference":"org/repo","includeRaw":true}`)))

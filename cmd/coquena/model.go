@@ -18,13 +18,14 @@ import (
 	runtimeapp "github.com/mstranich/coquena/internal/runtime"
 )
 
-const modelUsage = "usage: coquena model resolve <repository-or-url> [--json]\n       coquena model discover <repository-or-url[:selector]> [--json]\n       coquena model download <repository-or-url[:selector]> [--with-companions] [--json]\n       coquena model download list|status <job-id>|pause <job-id>|resume <job-id>|cancel <job-id> [--json]\n       coquena model revision <reference> [--json]\n       coquena model list [--json]\n       coquena model reconcile <reference> (--online|--accept)\n       coquena model verify <reference> [--repair-derived] [--json]\n       coquena model check-updates <reference> [--json]\n       coquena download list|status <job-id>|pause <job-id>|resume <job-id>|cancel <job-id> [--json]"
+const modelUsage = "usage: coquena model resolve <repository-or-url> [--json]\n       coquena model discover <repository-or-url[:selector]> [--model-card] [--json]\n       coquena model download <repository-or-url[:selector]> [--with-companions] [--json]\n       coquena model download list|status <job-id>|pause <job-id>|resume <job-id>|cancel <job-id> [--json]\n       coquena model revision <reference> [--json]\n       coquena model list [--json]\n       coquena model reconcile <reference> (--online|--accept)\n       coquena model verify <reference> [--repair-derived] [--json]\n       coquena model check-updates <reference> [--json]\n       coquena download list|status <job-id>|pause <job-id>|resume <job-id>|cancel <job-id> [--json]"
 
 // companionFlag is the opt-in that additionally enqueues the companions
 // identified for the selected principal. The default stays one artifact per
 // invocation, so downloading a companion is always something the operator
 // asked for by name.
 const companionFlag = "--with-companions"
+const modelCardFlag = "--model-card"
 
 // modelListEntry is the JSON-friendly, deterministic projection of a
 // library entry reported by `coquena model list`. Every artifact is reported at
@@ -99,8 +100,14 @@ func runModelCommand(args []string, out io.Writer) error {
 		return runModelCheckUpdates(args[1], out, jsonOut)
 	}
 	withCompanions := false
+	includeModelCard := false
 	if args[0] == "download" {
 		args, withCompanions = extractModelFlag(args, companionFlag)
+	}
+	if args[0] == "discover" {
+		args, includeModelCard = extractModelFlag(args, modelCardFlag)
+	} else if _, found := extractModelFlag(args, modelCardFlag); found {
+		return errors.New(modelUsage)
 	}
 	if len(args) < 2 {
 		return errors.New(modelUsage)
@@ -120,6 +127,9 @@ func runModelCommand(args []string, out io.Writer) error {
 	default:
 		return errors.New(modelUsage)
 	}
+	if len(args) != 2 {
+		return errors.New(modelUsage)
+	}
 	m, e := modelManagerFactory()
 	if e != nil {
 		return e
@@ -135,7 +145,7 @@ func runModelCommand(args []string, out io.Writer) error {
 		if len(args) != 2 {
 			return errors.New(modelUsage)
 		}
-		value, e = m.Discover(args[1])
+		value, e = m.DiscoverWithOptions(args[1], modelapp.DiscoverOptions{IncludeModelCard: includeModelCard})
 	case "download":
 		if len(args) != 2 {
 			return errors.New(modelUsage)
@@ -284,34 +294,66 @@ func runOneDownload(m *modelapp.Manager, candidate modelapp.Candidate) (modelapp
 	return m.Resume(context.Background(), job.ID, nil)
 }
 
-// writeDiscoveryHuman reports every candidate the repository holds with its
-// declared type, marking the one the selector resolves to rather than reducing
-// the list to it. The repository model card is deliberately not printed: on a
-// real repository it runs to hundreds of lines and buries the candidate list,
-// which is the whole point of the command. A later change reintroduces it
-// behind an explicit option.
+// writeDiscoveryHuman leads with the quantization comparison discovery exists
+// to answer. Artifact-level diagnostics remain attached to filenames, while
+// shared companions are shown separately so their bytes are never charged to
+// every quantization.
 func writeDiscoveryHuman(out io.Writer, discovery modelapp.Discovery) error {
 	if _, err := fmt.Fprintf(out, "%s @ %s\n", discovery.Repository, discovery.Revision); err != nil {
 		return err
 	}
 	writer := tabwriter.NewWriter(out, 0, 4, 2, ' ', 0)
-	_, _ = fmt.Fprintln(writer, "\tTYPE\tARCHITECTURE\tSIZE\tFILENAME")
-	for _, candidate := range discovery.Candidates {
+	_, _ = fmt.Fprintln(writer, "\tTYPE\tQUANTIZATION\tTOTAL\tFILE")
+	for _, quantization := range discovery.Quantizations {
 		mark := " "
-		if candidate.Selected {
+		if quantization.Selected {
 			mark = "*"
 		}
-		size := "—"
-		if candidate.Artifact.SizeBytes > 0 {
-			size = modelapp.HumanBytes(candidate.Artifact.SizeBytes)
+		total := "—"
+		if quantization.TotalSizeKnown {
+			total = modelapp.HumanBytes(quantization.TotalSizeBytes)
 		}
-		_, _ = fmt.Fprintf(writer, "%s\t%s\t%s\t%s\t%s\n", mark, candidate.Classification.Type, candidate.Classification.Architecture, size, candidate.Source.Filename)
+		for i, candidate := range quantization.Files {
+			label, displayedTotal := "", ""
+			if i == 0 {
+				label, displayedTotal = quantization.Label, total
+			}
+			filename := candidate.Source.Filename
+			if candidate.Diagnostic != "" {
+				filename += " (diagnostic: " + candidate.Diagnostic + ")"
+			}
+			typeName := ""
+			if i == 0 {
+				typeName = string(modelapp.TypeModel)
+			}
+			_, _ = fmt.Fprintf(writer, "%s\t%s\t%s\t%s\t%s\n", mark, typeName, label, displayedTotal, filename)
+			mark = " "
+		}
+	}
+	if len(discovery.Companions) > 0 {
+		_, _ = fmt.Fprintln(writer, "\nCOMPANIONS\tTYPE\tSIZE\tFILE")
+		for _, companion := range discovery.Companions {
+			size := "—"
+			if companion.Artifact.SizeBytes > 0 {
+				size = modelapp.HumanBytes(companion.Artifact.SizeBytes)
+			}
+			filename := companion.Source.Filename
+			if companion.Diagnostic != "" {
+				filename += " (diagnostic: " + companion.Diagnostic + ")"
+			}
+			_, _ = fmt.Fprintf(writer, "\t%s\t%s\t%s\n", companion.Classification.Type, size, filename)
+		}
 	}
 	if err := writer.Flush(); err != nil {
 		return err
 	}
 	if discovery.Selector != "" {
 		if _, err := fmt.Fprintf(out, "* selector %q resolves here\n", discovery.Selector); err != nil {
+			return err
+		}
+	}
+	if discovery.ModelCard != "" {
+		if _, err := fmt.Fprintf(out, "\nModel card:\n%s\n", strings.TrimRight(discovery.ModelCard, "\r\n")); err != nil {
 			return err
 		}
 	}
