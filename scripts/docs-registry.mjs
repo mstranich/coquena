@@ -127,8 +127,16 @@ export function parseRegistry(source, file) {
 
 const asList = (value) => (Array.isArray(value) ? value : value == null ? [] : [value]);
 
-/** Every markdown file beneath directory, as paths relative to it, posix-style. */
-async function markdownBeneath(directory) {
+/**
+ * File extensions a kind directory may hold. A diagram is an artifact like any
+ * other: registering it means a rename or a deletion fails validation instead
+ * of leaving a document pointing at nothing. PlantUML earns its place here by
+ * being text — it diffs, it reviews, and it needs no rendering step to read.
+ */
+const INDEXED_EXTENSIONS = ['.md', '.puml'];
+
+/** Every indexed document beneath directory, as paths relative to it, posix-style. */
+async function documentsBeneath(directory) {
   const found = [];
   const walk = async (current) => {
     let entries;
@@ -140,7 +148,8 @@ async function markdownBeneath(directory) {
     for (const entry of entries) {
       const path = join(current, entry.name);
       if (entry.isDirectory()) await walk(path);
-      else if (entry.name.endsWith('.md')) found.push(relative(directory, path).split(sep).join('/'));
+      else if (INDEXED_EXTENSIONS.some((extension) => entry.name.endsWith(extension)))
+        found.push(relative(directory, path).split(sep).join('/'));
     }
   };
   await walk(directory);
@@ -175,6 +184,12 @@ export const KINDS = {
   story: { dir: 'stories', states: ['current', 'superseded'], closes: false },
   finding: { dir: 'findings', states: ['current', 'superseded', 'refuted'], closes: false },
   usecase: { dir: 'usecases', states: ['current', 'superseded'], closes: false },
+  // A decision records what was settled and is binding until something replaces
+  // it. It does not close: a closed artifact is finished work, while a decision
+  // stays in force. It is superseded, never archived, for the same reason a
+  // refuted finding stays put — the record exists to stop the question being
+  // reopened from scratch.
+  decision: { dir: 'decisions', states: ['current', 'superseded'], closes: false },
   backlog: { dir: 'backlog', states: ['open', 'blocked', 'closed', 'superseded'], closes: true },
   rfc: { dir: 'rfcs', states: ['open', 'closed', 'superseded'], closes: true },
 };
@@ -207,7 +222,8 @@ export function inboundOf(artifacts, id) {
 
 /**
  * Loads the single documentation registry: artifacts keyed by identifier, plus
- * every markdown file present beneath docs/ so unregistered ones can be found.
+ * every indexed document present beneath docs/ so unregistered ones can be
+ * found.
  */
 export async function loadArtifacts() {
   const file = join(documentationRoot, 'registry.yaml');
@@ -221,9 +237,9 @@ export async function loadArtifacts() {
   // elsewhere under docs/ is not indexed and is not an orphan.
   const files = [];
   for (const { dir } of Object.values(KINDS))
-    for (const found of await markdownBeneath(join(documentationRoot, dir)))
+    for (const found of await documentsBeneath(join(documentationRoot, dir)))
       files.push(`${dir}/${found}`);
   return { file, where, artifacts, files: files.sort() };
 }
 
-export { asList, markdownBeneath };
+export { asList, documentsBeneath, INDEXED_EXTENSIONS };

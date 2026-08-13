@@ -1,0 +1,84 @@
+' Derivation of an artifact's STATE from the independent evidence axes.
+'
+' STATE is a presentation over evidence, not a stored field: every box below is
+' computed at display time from what the sidecar persists. The diagram is the
+' normative picture for `model-artifact-states`; the table there restates it in
+' words. If the two ever disagree, they are both wrong until reconciled.
+'
+' Kept as PlantUML rather than an exported image so it diffs, reviews and reads
+' as text.
+
+@startuml model-artifact-states
+skinparam shadowing false
+skinparam defaultFontName monospaced
+title Coquena — derivation of an artifact's STATE
+
+[*] --> q_sidecar
+
+' ---------------- management ----------------
+state q_sidecar <<choice>>
+q_sidecar --> untracked : no hay sidecar
+q_sidecar --> q_verify  : hay sidecar\n(el digest de integridad existe siempre)
+
+' ---------------- local integrity ----------------
+state q_verify <<choice>>
+q_verify --> altered  : `verify` anotó que los bytes cambiaron
+q_verify --> q_pieces : sin daño anotado
+
+' ---------------- composition ----------------
+state q_pieces <<choice>>
+q_pieces --> incomplete : faltan shards del modelo principal
+q_pieces --> q_remote   : principal completo, o monolítico
+
+' ---------------- attestation ----------------
+state q_remote <<choice>>
+q_remote --> local   : nunca se consultó un repositorio
+q_remote --> q_match : se consultó un repositorio
+
+state q_match <<choice>>
+q_match --> synced     : empata con la revisión actual
+q_match --> upgradable : empata con una anterior;\nel repo avanzó o se mudó
+q_match --> detached   : no se estableció el empate
+
+state untracked  : usable = no
+state altered    : usable = no
+state incomplete : usable = no
+state local      : usable = sí
+state detached   : usable = sí
+state synced     : usable = sí
+state upgradable : usable = sí
+
+note right of detached
+  Tres causas indistinguibles y
+  deliberadamente no nombradas:
+  no se pudo consultar el repo ·
+  los bytes son de una revisión
+  destruida · los bytes no son de
+  ese repositorio. La causa es un
+  diagnóstico, no un estado.
+end note
+
+note bottom of altered
+  `verify` **persiste** su resultado.
+  Derivarlo exigiría hashear cada
+  modelo en cada listado.
+end note
+
+legend right
+  **Digests, por rol**
+  ----
+  integridad  local, autocalculado, siempre presente
+              ¿cambiaron los bytes desde que se anotaron?
+  empate      contra el repositorio; el algoritmo depende
+              de cómo esté guardado allá
+              ¿son los bytes que el repositorio publica?
+  ----
+  En LFS ambos roles valen lo mismo (sha256).
+  En Git directo difieren (sha256 vs git-blob-sha1).
+  ----
+  **Persistido**  los digests · resultado de `verify` y cuándo
+                  última observación remota · atestación y cuándo
+  **Derivado**    únicamente el nombre del estado
+end legend
+
+@enduml

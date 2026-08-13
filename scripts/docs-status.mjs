@@ -26,7 +26,7 @@ const table = (rows) => {
 };
 
 // Durable kinds first: they are the context, not the worklist.
-for (const kind of ['story', 'usecase', 'finding']) {
+for (const kind of ['story', 'usecase', 'finding', 'decision']) {
   const rows = of(kind).filter(([, entry]) => entry.state !== 'superseded');
   if (rows.length === 0) continue;
   const { dir } = KINDS[kind];

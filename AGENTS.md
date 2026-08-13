@@ -42,6 +42,7 @@ directory:
 | `story` | `stories/` | A user need, in the operator's words | No — it changes, it does not finish |
 | `finding` | `findings/` | A verified fact about the world | No — a fact stays true |
 | `usecase` | `usecases/` | A story plus the findings that constrain it | No — it evolves |
+| `decision` | `decisions/` | What was settled, and what it rules out | No — it stays in force until superseded |
 | `backlog` | `backlog/` | A known gap, not yet scheduled | Yes, when a change lands |
 | `rfc` | `rfcs/` | An open architectural question | Yes, by the project owner |
 
@@ -74,8 +75,11 @@ Rules:
   resolves to the artifact itself.
 - **A closed artifact's `produces` targets must exist.** An open artifact may
   still be describing a plan, which is reported as a note.
-- **Every `.md` in a kind directory must be registered.** Loose files elsewhere
-  under `docs/` are not indexed and are not orphans.
+- **Every `.md` and `.puml` in a kind directory must be registered.** Loose files
+  elsewhere under `docs/` are not indexed and are not orphans. A diagram is an
+  artifact like any other: PlantUML is registered and validated because it is
+  text that diffs and reviews, and because a document pointing at a renamed
+  diagram should fail the build rather than rot quietly.
 
 The YAML reader accepts a deliberately small subset: nested mappings, lists of
 scalars, folded block scalars, one-line flow mappings for relations, and empty

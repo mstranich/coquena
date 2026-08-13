@@ -1,7 +1,8 @@
 // Validates docs/registry.yaml and every reference it declares.
 //
 // The registry is the single source of truth for how stories, findings, use
-// cases, backlog entries and RFCs relate to each other and to OpenSpec changes.
+// cases, decisions, backlog entries and RFCs relate to each other and to
+// OpenSpec changes.
 // Nothing else stores those links, so nothing else can contradict them — but
 // only if something checks that they resolve. That is this script's whole job,
 // and it is why it exits non-zero: a dangling reference should fail a

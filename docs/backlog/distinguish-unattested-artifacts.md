@@ -2,12 +2,11 @@
 
 ## Status
 
-- **State:** blocked
+- **State:** open
 - **Opened:** 2026-08-04
 - **Owner:** project-owner
 - **Priority:** high
 - **Story step:** *"import files obtained elsewhere"*
-- **Blocked by:** `model-artifact-attestation`
 - **Candidate change:** `establish-sidecar-authority`
 
 ## Problem
@@ -81,6 +80,16 @@ Future work should:
 Representation only. Do not define attestation semantics here; consume what
 `model-artifact-attestation` decides. Do not absorb the client defect tracked in
 `request-remote-content-hash`.
+
+## RFC resolution consumed
+
+`model-artifact-attestation` closed on 2026-08-11. The implementation contract
+is now settled: local, remote-observation, attestation, ownership and drift
+evidence remain independent; accepted attestation is SHA-256-only with an
+algorithm/domain-bearing identifier; `STATE` is derived and distinguishes
+`local`, `diverged`, `current`, `upgradable`, `modified`, `incomplete` and
+`unreconciled`. This entry is therefore open and ready to be incorporated into
+`establish-sidecar-authority` rather than blocked on further architecture.
 
 ## Relevant implementation areas
 

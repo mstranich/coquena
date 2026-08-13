@@ -47,17 +47,23 @@ Future work should:
 - rename `check-updates` to `update`, pairing with `upgrade`;
 - remove `--with-companions`;
 - remove or internalise `resolve` and `revision`;
-- rename `reconcile` to `import`, preserving the explicit-intent requirement;
+- split `reconcile` into two verbs of one responsibility each, per the owner
+  decision of 2026-08-11: **`import` is local only** and **`reconcile` is online
+  only**, replacing today's `--accept` and `--online` modes. This supersedes the
+  earlier plan to rename `reconcile` to `import` wholesale. Explicit intent is
+  preserved by construction rather than by a flag: the operator names the act,
+  and neither command can silently choose the other;
 - keep `<ref>` mandatory everywhere. No `--all` flag is introduced. If
   library-wide action is ever warranted, `<ref>` becomes optional across every
   operation, which retires the question permanently.
 
 ## Acceptance questions
 
-- What are the flag names under `import`? `--reconcile` and `--local-only` were
-  proposed; both still carry the old vocabulary the rename is meant to shed.
-- What is `import` with no flag: a refusal, as `reconcile` is today, or an
-  attempt that falls back?
+- ~~What are the flag names under `import`?~~ Answered by the split: there are
+  no mode flags, because the mode is the command.
+- ~~What is `import` with no flag?~~ Answered likewise. Neither command falls
+  back to the other; a `reconcile` that establishes no match leaves the artifact
+  `detached` rather than silently importing it as local.
 - Do the removed subcommands warrant a transitional error naming the
   replacement, given there is no release yet and therefore no users to migrate?
 - Does `verify` keep its name? It serves no story step explicitly, but it is the

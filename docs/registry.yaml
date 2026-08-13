@@ -7,6 +7,7 @@
 # story     current | superseded                    no — needs change, they do not complete
 # finding   current | superseded | refuted          no — a fact about the world stays findable
 # usecase   current | superseded                    no — it evolves
+# decision  current | superseded                    no — it stays in force until replaced
 # backlog   open | blocked | closed | superseded    yes — closed when a change lands
 # rfc       open | closed | superseded              yes — closed by the project owner
 #
@@ -110,6 +111,78 @@ artifacts:
       - { type: motivated-by, target: model-acquisition-story }
       - { type: relates-to, target: model-artifact-attestation }
 
+  hugging-face-blob-id-identifies-git-tracked-content:
+    kind: finding
+    state: current
+    title: Hugging Face blobId identifies the complete content of Git-tracked files
+    path: findings/hugging-face-blob-id-identifies-git-tracked-content.md
+    openedAt: 2026-08-10
+    closedAt: null
+    owner: project-owner
+    relations:
+      - { type: motivated-by, target: hugging-face-publishes-content-hash-under-blobs }
+      - { type: relates-to, target: model-artifact-attestation }
+
+  hub-storage-boundary-guarantees-a-content-hash:
+    kind: finding
+    state: current
+    title: The Hub currently rejects Git-stored files above 10 MiB
+    path: findings/hub-storage-boundary-guarantees-a-content-hash.md
+    openedAt: 2026-08-10
+    closedAt: null
+    owner: project-owner
+    relations:
+      - { type: motivated-by, target: hugging-face-blob-id-of-lfs-files-hashes-the-pointer }
+      - { type: relates-to, target: model-artifact-attestation }
+
+  hugging-face-blob-id-of-lfs-files-hashes-the-pointer:
+    kind: finding
+    state: current
+    title: Hugging Face blobId hashes the LFS pointer, not the model bytes
+    path: findings/hugging-face-blob-id-of-lfs-files-hashes-the-pointer.md
+    openedAt: 2026-08-10
+    closedAt: null
+    owner: project-owner
+    relations:
+      - { type: motivated-by, target: hugging-face-blob-id-identifies-git-tracked-content }
+      - { type: relates-to, target: model-artifact-attestation }
+
+  hugging-face-etag-carries-the-content-identifier:
+    kind: finding
+    state: current
+    title: Hugging Face ETags carry content identifiers, in two different domains
+    path: findings/hugging-face-etag-carries-the-content-identifier.md
+    openedAt: 2026-08-10
+    closedAt: null
+    owner: project-owner
+    relations:
+      - { type: motivated-by, target: hugging-face-publishes-content-hash-under-blobs }
+      - { type: relates-to, target: model-artifact-attestation }
+
+  xet-file-id-is-a-reproducible-full-content-hash:
+    kind: finding
+    state: current
+    title: The Xet file ID is a reproducible full-content hash
+    path: findings/xet-file-id-is-a-reproducible-full-content-hash.md
+    openedAt: 2026-08-10
+    closedAt: null
+    owner: project-owner
+    relations:
+      - { type: motivated-by, target: hugging-face-etag-carries-the-content-identifier }
+      - { type: relates-to, target: model-artifact-attestation }
+
+  hugging-face-publishers-can-destroy-history:
+    kind: finding
+    state: current
+    title: A publisher can permanently destroy the history an attestation referred to
+    path: findings/hugging-face-publishers-can-destroy-history.md
+    openedAt: 2026-08-11
+    closedAt: null
+    owner: project-owner
+    relations:
+      - { type: motivated-by, target: model-acquisition-story }
+      - { type: relates-to, target: distinguish-unattested-artifacts }
+
   hugging-face-redirects-renamed-repositories:
     kind: finding
     state: current
@@ -155,6 +228,32 @@ artifacts:
     relations:
       - { type: motivated-by, target: model-acquisition-story }
 
+  model-artifact-states:
+    kind: decision
+    state: current
+    title: The states of a model artifact
+    path: decisions/model-artifact-states.md
+    openedAt: 2026-08-11
+    closedAt: null
+    owner: project-owner
+    relations:
+      - { type: motivated-by, target: model-artifact-attestation }
+      - { type: relates-to, target: model-artifact-state-diagram }
+      - { type: relates-to, target: hugging-face-publishers-can-destroy-history }
+      - { type: relates-to, target: hugging-face-etag-carries-the-content-identifier }
+      - { type: relates-to, target: hub-storage-boundary-guarantees-a-content-hash }
+
+  model-artifact-state-diagram:
+    kind: decision
+    state: current
+    title: Derivation of an artifact's STATE, as a diagram
+    path: decisions/model-artifact-state-diagram.puml
+    openedAt: 2026-08-11
+    closedAt: null
+    owner: project-owner
+    relations:
+      - { type: motivated-by, target: model-artifact-states }
+
   gguf-model-artifact-identity:
     kind: rfc
     state: closed
@@ -174,11 +273,11 @@ artifacts:
 
   model-artifact-attestation:
     kind: rfc
-    state: open
+    state: closed
     title: Model artifact attestation semantics
-    path: rfcs/model-artifact-attestation.md
+    path: rfcs/archive/model-artifact-attestation.md
     openedAt: 2026-08-05
-    closedAt: null
+    closedAt: 2026-08-11
     owner: project-owner
     relations:
       - { type: motivated-by, target: gguf-model-artifact-identity }
@@ -197,6 +296,19 @@ artifacts:
       - { type: motivated-by, target: quantizations-can-be-shard-directories }
       - { type: produces, target: change:address-quantization-bundles }
 
+  adopt-artifact-state-vocabulary:
+    kind: backlog
+    state: open
+    title: Adopt the settled artifact state vocabulary
+    path: backlog/adopt-artifact-state-vocabulary.md
+    openedAt: 2026-08-11
+    closedAt: null
+    owner: project-owner
+    priority: high
+    relations:
+      - { type: motivated-by, target: model-artifact-states }
+      - { type: produces, target: change:establish-sidecar-authority }
+
   align-model-command-surface:
     kind: backlog
     state: open
@@ -207,6 +319,7 @@ artifacts:
     owner: project-owner
     priority: normal
     relations:
+      - { type: relates-to, target: model-artifact-states }
       - { type: motivated-by, target: model-acquisition }
       - { type: relates-to, target: model-reference-convention-uses-one-selector-slot }
       - { type: produces, target: change:align-model-command-surface }
@@ -256,7 +369,7 @@ artifacts:
 
   distinguish-unattested-artifacts:
     kind: backlog
-    state: blocked
+    state: open
     title: Never present an unattested artifact as an attested one
     path: backlog/distinguish-unattested-artifacts.md
     openedAt: 2026-08-04
@@ -266,7 +379,7 @@ artifacts:
     relations:
       - { type: motivated-by, target: model-acquisition-story }
       - { type: motivated-by, target: hugging-face-publishes-content-hash-under-blobs }
-      - { type: blocked-by, target: model-artifact-attestation }
+      - { type: motivated-by, target: model-artifact-states }
       - { type: produces, target: change:establish-sidecar-authority }
 
   introduce-repository-index-file:
@@ -301,6 +414,46 @@ artifacts:
       - { type: motivated-by, target: general-file-type-is-llama-ftype }
       - { type: relates-to, target: address-quantization-bundles }
       - { type: produces, target: change:filter-model-list }
+
+  record-canonical-repository-name:
+    kind: backlog
+    state: open
+    title: Decide which repository name a renamed repository is recorded under
+    path: backlog/record-canonical-repository-name.md
+    openedAt: 2026-08-11
+    closedAt: null
+    owner: project-owner
+    priority: normal
+    relations:
+      - { type: motivated-by, target: hugging-face-redirects-renamed-repositories }
+      - { type: relates-to, target: model-artifact-attestation }
+      - { type: produces, target: change:establish-sidecar-authority }
+
+  record-verify-outcome-in-sidecar:
+    kind: backlog
+    state: open
+    title: Record what verify found, so the listing does not have to re-hash
+    path: backlog/record-verify-outcome-in-sidecar.md
+    openedAt: 2026-08-11
+    closedAt: null
+    owner: project-owner
+    priority: high
+    relations:
+      - { type: motivated-by, target: model-artifact-states }
+      - { type: produces, target: change:establish-sidecar-authority }
+
+  remove-etag-from-sidecar:
+    kind: backlog
+    state: open
+    title: Stop storing an ETag whose meaning changes between hops
+    path: backlog/remove-etag-from-sidecar.md
+    openedAt: 2026-08-11
+    closedAt: null
+    owner: project-owner
+    priority: normal
+    relations:
+      - { type: motivated-by, target: hugging-face-etag-carries-the-content-identifier }
+      - { type: produces, target: change:establish-sidecar-authority }
 
   remove-installed-models:
     kind: backlog
@@ -375,3 +528,30 @@ artifacts:
       - { type: relates-to, target: introduce-repository-index-file }
       - { type: relates-to, target: align-model-command-surface }
       - { type: produces, target: change:support-model-upgrade }
+
+  treat-orphaned-companion-as-usable:
+    kind: backlog
+    state: open
+    title: A companion without an installed principal is still usable
+    path: backlog/treat-orphaned-companion-as-usable.md
+    openedAt: 2026-08-11
+    closedAt: null
+    owner: project-owner
+    priority: normal
+    relations:
+      - { type: motivated-by, target: model-artifact-states }
+      - { type: produces, target: change:adopt-artifact-state-vocabulary }
+
+  verify-download-against-remote-digest:
+    kind: backlog
+    state: open
+    title: Verify a download against the digest the provider already gave us
+    path: backlog/verify-download-against-remote-digest.md
+    openedAt: 2026-08-11
+    closedAt: null
+    owner: project-owner
+    priority: high
+    relations:
+      - { type: motivated-by, target: hugging-face-publishes-content-hash-under-blobs }
+      - { type: relates-to, target: model-artifact-states }
+      - { type: produces, target: change:verify-download-against-remote-digest }
