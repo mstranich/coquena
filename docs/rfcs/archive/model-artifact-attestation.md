@@ -1029,6 +1029,14 @@ Q6 and satisfy the exit criterion.
 
 ### Q1 — SHA-256-only policy, multi-algorithm-capable shape
 
+> **Superseded by [`model-artifact-states`](../../decisions/model-artifact-states.md)**
+> — amendment [A1](#a1--multiple-digests-distinguished-by-role-amends-q1) replaced
+> the policy below with acceptance by reproducibility: an identifier is evidence
+> when Coquena can reproduce it from the complete local bytes, which admits SHA-1
+> over `git-blob` for artifacts Git stores directly. Under the rule as written
+> here those artifacts could never be matched, because the policy refused the only
+> evidence there was.
+
 Coquena initially accepts only a raw full-file SHA-256 as remote byte
 attestation evidence. The persisted content identifier is nevertheless
 self-describing and carries both algorithm and domain:

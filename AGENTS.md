@@ -86,6 +86,62 @@ scalars, folded block scalars, one-line flow mappings for relations, and empty
 inline collections. It fails with a file and line on anything else. Keep the
 registry inside that subset so it stays editable by hand.
 
+## Claims: addressing a statement, not a document
+
+A document-level graph cannot say that one paragraph replaced another, which is
+exactly how a superseded ruling keeps being read as current. A **claim** is the
+finer key.
+
+A claim is a heading whose text opens with an identifier and an em dash:
+
+```markdown
+### A1 — Multiple digests, distinguished by role. Amends Q1.
+```
+
+Only headings count. The same identifiers routinely appear in bold at the head
+of paragraphs — one per reviewer answering that question — so a bold match is
+ambiguous by construction and is deliberately not an anchor. A claim's block
+runs to the next heading of the same or higher level, and an identifier may be
+declared only once per document.
+
+A relation may then target a claim:
+
+```yaml
+- { type: supersedes, target: "model-artifact-attestation#Q1" }
+```
+
+An artifact may point at one of its own claims — that is how an amendment
+records which ruling it replaced — but pointing at itself wholesale is still an
+error.
+
+### A superseded claim must say so, in its own document
+
+`docs:validate` refuses a `supersedes` that names a claim unless the claim's own
+block carries a marker:
+
+```markdown
+> **Superseded by [`model-artifact-states`](../../decisions/model-artifact-states.md)**
+> — what replaced it, and why in one or two sentences.
+```
+
+The marker must name either the superseding artifact or one of its claims. This
+is the rule that earns its keep: the registry knowing about a supersession does
+nothing for someone who arrived at the claim by reading the document, which is
+how the most expensive mistake in this repository's history happened. Nothing
+generates the marker — a script editing prose it does not understand is how
+documents acquire text nobody owns — so validation names the line to add and
+fails until a person writes it.
+
+```bash
+task docs:map
+```
+
+prints the graph: what is in force, what each decision governs, every superseded
+claim with what replaced it, findings ordered by how much depends on them, and
+the open work. It is mostly links on purpose. A map that restates its documents
+becomes a second place to keep them correct, which is how two of them start
+disagreeing.
+
 ## Archiving
 
 Follow OpenSpec where it applies: a kind that closes is archived by **moving**
@@ -148,5 +204,6 @@ kebab-case filenames, no build step and no TypeScript.
 | Script | Task | Purpose |
 |---|---|---|
 | `docs-status.mjs` | `task docs:status` | Print artifact state from the registries |
-| `docs-validate.mjs` | `task docs:validate` | Validate registries and their references |
+| `docs-validate.mjs` | `task docs:validate` | Validate registries, references and claim markers |
+| `docs-map.mjs` | `task docs:map` | Print the graph: what governs, what was superseded, what is open |
 | `docs-registry.mjs` | — | Shared reader; not run directly |

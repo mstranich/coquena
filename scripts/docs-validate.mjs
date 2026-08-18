@@ -10,15 +10,23 @@
 //
 // Run with `task docs:validate`.
 
+import { readFile } from 'node:fs/promises';
+import { join } from 'node:path';
+
 import {
   CHANGE_PREFIX,
   KINDS,
   RELATIONS,
+  carriesSupersededMarker,
   changeName,
+  documentationRoot,
   isChangeTarget,
   loadArtifacts,
   loadChanges,
+  parseClaims,
   relationsOf,
+  splitTarget,
+  supersededMarkerFor,
 } from './docs-registry.mjs';
 
 const problems = [];
@@ -33,6 +41,40 @@ const changes = await loadChanges();
 const changeExists = (id) => changes.active.has(id) || changes.archived.has(id);
 
 const declared = new Set();
+
+// Claims are read lazily and cached: validation only opens a document when a
+// relation actually names a claim inside it.
+const claimCache = new Map();
+async function claimsOf(artifactId) {
+  if (claimCache.has(artifactId)) return claimCache.get(artifactId);
+  const path = artifacts[artifactId]?.path;
+  let result = null;
+  if (typeof path === 'string') {
+    try {
+      const source = await readFile(join(documentationRoot, path), 'utf8');
+      result = new Map();
+      for (const claim of parseClaims(source)) {
+        if (result.has(claim.id))
+          report(`${registryFile} → ${artifactId}`, `claim "${claim.id}" is declared twice (lines ${result.get(claim.id).line} and ${claim.line}); a claim anchor must be unique within its document`);
+        else result.set(claim.id, claim);
+      }
+    } catch {
+      result = null;
+    }
+  }
+  claimCache.set(artifactId, result);
+  return result;
+}
+
+// A marker satisfies the check when it names the artifact that superseded the
+// claim, or one of that artifact's own claims — an amendment inside the same
+// document is named by its claim id, not by the document's.
+function markerNames(body, sourceId, sourceClaims) {
+  if (carriesSupersededMarker(body, sourceId)) return true;
+  for (const claimId of sourceClaims?.keys() ?? [])
+    if (carriesSupersededMarker(body, claimId)) return true;
+  return false;
+}
 
 for (const [id, entry] of Object.entries(artifacts)) {
   const at = `${registryFile} → ${id}`;
@@ -83,14 +125,43 @@ for (const [id, entry] of Object.entries(artifacts)) {
       continue;
     }
     if (type === 'blocked-by') blockers += 1;
-    if (target === id) {
+
+    const { artifact: targetArtifact, claim: targetClaim } = splitTarget(target);
+    // An artifact may point at one of its own claims — that is how an amendment
+    // records which ruling it replaced — but pointing at itself wholesale says
+    // nothing.
+    if (targetArtifact === id && targetClaim == null) {
       report(at, `relation "${type}" points at itself`);
       continue;
     }
 
     if (!isChangeTarget(target)) {
-      if (target in artifacts) continue;
-      report(at, `${type} "${target}" is not a known artifact (prefix "${CHANGE_PREFIX}" for an OpenSpec change)`);
+      if (!(targetArtifact in artifacts)) {
+        report(at, `${type} "${target}" is not a known artifact (prefix "${CHANGE_PREFIX}" for an OpenSpec change)`);
+        continue;
+      }
+      if (targetClaim == null) continue;
+      const claims = await claimsOf(targetArtifact);
+      if (claims == null) {
+        report(at, `${type} "${target}" names a claim, but ${targetArtifact} has no readable document`);
+        continue;
+      }
+      const claim = claims.get(targetClaim);
+      if (claim == null) {
+        const known = [...claims.keys()].join(', ') || 'none';
+        report(at, `${type} "${target}" names no claim in ${targetArtifact} (declared: ${known})`);
+        continue;
+      }
+      // The registry knowing about a supersession does not reach a reader who
+      // arrives at the claim itself, which is exactly how a replaced ruling
+      // keeps being read as current. The marker is what reaches that reader.
+      if (type === 'supersedes' && !markerNames(claim.body, id, await claimsOf(id))) {
+        report(
+          at,
+          `supersedes "${target}" but that claim carries no supersession marker. ` +
+            `Add a line inside it naming what replaced it, e.g. ${supersededMarkerFor(id)}`,
+        );
+      }
       continue;
     }
 

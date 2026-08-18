@@ -22,6 +22,11 @@
 #
 # A target may name another artifact here or an OpenSpec change. A closed
 # artifact's `produces` targets must exist; an open one's may still be a plan.
+#
+# A target may also name a claim inside an artifact, as `artifact#CLAIM`, where
+# CLAIM is the identifier opening a heading (`### A1 — …`). A `supersedes` that
+# names a claim requires that claim to carry a marker in its own document, so a
+# reader who arrives there is told it was replaced. See AGENTS.md.
 
 artifacts:
   model-acquisition-story:
@@ -238,6 +243,7 @@ artifacts:
     owner: project-owner
     relations:
       - { type: motivated-by, target: model-artifact-attestation }
+      - { type: supersedes, target: "model-artifact-attestation#Q1" }
       - { type: relates-to, target: model-artifact-state-diagram }
       - { type: relates-to, target: hugging-face-publishers-can-destroy-history }
       - { type: relates-to, target: hugging-face-etag-carries-the-content-identifier }

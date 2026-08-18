@@ -47,6 +47,11 @@ tasks:
     cmds:
       - node scripts/docs-validate.mjs
 
+  docs:map:
+    desc: Print the documentation graph — what governs, what was superseded, what is open
+    cmds:
+      - node scripts/docs-map.mjs
+
   docs:status:
     desc: Print open RFCs, backlog entries, and changes named but not created
     cmds:

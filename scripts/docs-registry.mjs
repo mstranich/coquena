@@ -243,3 +243,86 @@ export async function loadArtifacts() {
 }
 
 export { asList, documentsBeneath, INDEXED_EXTENSIONS };
+
+// ---------------------------------------------------------------------------
+// Claims: addressable statements inside an artifact.
+//
+// A document-level graph cannot say that one paragraph replaced another, which
+// is how a superseded ruling keeps being read as current. A claim is the finer
+// key: a heading whose text opens with an identifier and an em dash, which is
+// the convention the attestation RFC already used for Q1..Q6, F1..F3 and
+// A1..A7.
+//
+// Only headings count. The same identifiers also appear in bold at the head of
+// paragraphs — one per reviewer answering that question — so a bold match is
+// ambiguous by construction and is deliberately not an anchor.
+
+/** Matches a claim heading: `### A1 — Multiple digests, distinguished by role.` */
+const CLAIM_HEADING = /^(#{2,6})\s+([A-Z][A-Z0-9]*)\s+—\s+(.+?)\s*$/;
+
+/**
+ * Every claim declared in markdown source, in document order, each with the
+ * line it starts on and the source of its block (up to the next heading of the
+ * same or higher level). The block is what a marker has to live inside.
+ */
+export function parseClaims(source) {
+  const lines = source.split(/\r?\n/);
+  const claims = [];
+  // A heading inside a fenced block is an example, not a heading. Documenting
+  // the convention must not declare a claim.
+  let fenced = false;
+  for (const [index, line] of lines.entries()) {
+    if (/^\s*(```|~~~)/.test(line)) fenced = !fenced;
+    if (fenced) continue;
+    const match = CLAIM_HEADING.exec(line);
+    if (match == null) continue;
+    const [, hashes, id, title] = match;
+    claims.push({ id, title, level: hashes.length, line: index + 1, endLine: lines.length });
+  }
+  // A claim's block ends at the next heading of the same or higher level, not
+  // merely at the next claim: a plain heading in between is not part of it.
+  for (const claim of claims) {
+    let inFence = false;
+    for (let i = claim.line; i < lines.length; i += 1) {
+      if (/^\s*(```|~~~)/.test(lines[i])) inFence = !inFence;
+      if (inFence) continue;
+      const heading = /^(#{1,6})\s/.exec(lines[i]);
+      if (heading != null && heading[1].length <= claim.level) {
+        claim.endLine = i;
+        break;
+      }
+    }
+    claim.body = lines.slice(claim.line, claim.endLine).join('\n');
+  }
+  return claims;
+}
+
+/** Splits `artifact#CLAIM` into its parts; `claim` is null when absent. */
+export function splitTarget(target) {
+  if (typeof target !== 'string') return { artifact: target, claim: null };
+  const hash = target.indexOf('#');
+  if (hash === -1) return { artifact: target, claim: null };
+  return { artifact: target.slice(0, hash), claim: target.slice(hash + 1) };
+}
+
+/**
+ * The marker a superseded claim must carry, so a reader who lands on the claim
+ * itself — rather than arriving through the registry — is told it was replaced.
+ * Validation checks for it; nothing writes it, because a generator editing
+ * prose it does not understand is how documents acquire text nobody owns.
+ */
+export const SUPERSEDED_MARKER = '> **Superseded by ';
+export const supersededMarkerFor = (id) => `${SUPERSEDED_MARKER}[\`${id}\`](…)** — …`;
+
+/**
+ * Reports whether a claim body carries a supersession marker naming id.
+ *
+ * The marker line and the name it carries may sit on different lines: prose
+ * here wraps like everything else, and a check that forced them onto one long
+ * line would be a formatting rule pretending to be a correctness rule.
+ */
+export function carriesSupersededMarker(body, id) {
+  const lines = body.split(/\r?\n/);
+  const marked = lines.some((line) => line.trimStart().startsWith(SUPERSEDED_MARKER));
+  return marked && body.includes(id);
+}
