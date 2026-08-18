@@ -65,7 +65,7 @@ func (m *Manager) InspectRemote(c Candidate) (Inspection, error) {
 		return Inspection{}, e
 	}
 	c.Artifact.SizeBytes = r.Size()
-	c.Artifact.ETag = r.ETag()
+	c.ETag = r.ETag()
 	c.Artifact.LastModified = r.LastModified()
 	m.logf("model inspect completed filename=%s metadataKeys=%d sizeBytes=%d", c.Source.Filename, len(meta), c.Artifact.SizeBytes)
 	return NewInspection(c.Source, c.Artifact, meta), nil
@@ -105,7 +105,11 @@ func (m *Manager) Create(c Candidate) (Job, error) {
 	if err := os.MkdirAll(filepath.Dir(target), 0755); err != nil {
 		return Job{}, err
 	}
-	j := Job{SchemaVersion: 1, ID: id, Source: c.Source, PartialPath: target + ".partial", TargetPath: target, ExpectedSizeBytes: c.Artifact.SizeBytes, ETag: c.Artifact.ETag, LastModified: c.Artifact.LastModified, Status: Pending}
+	j := Job{SchemaVersion: 1, ID: id, Source: c.Source, PartialPath: target + ".partial", TargetPath: target, ExpectedSizeBytes: c.Artifact.SizeBytes, ETag: c.ETag, LastModified: c.Artifact.LastModified, Status: Pending}
+	if c.ContentSHA256 != "" {
+		published := PublishedDigest(AlgorithmSHA256, DomainRawFile, c.ContentSHA256)
+		j.PublishedDigest = &published
+	}
 	if _, err := os.Stat(j.PartialPath); err == nil {
 		return Job{}, fmt.Errorf("model download already exists: %s", j.PartialPath)
 	} else if !errors.Is(err, os.ErrNotExist) {
@@ -162,6 +166,29 @@ func (m *Manager) ForgetTerminal(id string) {
 	defer m.mu.Unlock()
 	delete(m.terminals, id)
 }
+
+// modifiedAfter reports whether the file was touched more recently than the
+// verification that examined it.
+//
+// It only ever weakens a claim. A modification time is trivially forged and
+// unreliable across filesystems, so it is fit to say "this result may be old"
+// and unfit to establish anything: a stale record still reports the outcome it
+// recorded, and is never upgraded to matched or downgraded to altered on this
+// evidence.
+//
+// The comparison is made at the recorded resolution. CheckedAt is RFC3339 and
+// therefore second-granular, so a file written in the same second as the check
+// must not read as stale on sub-second precision alone. An unparseable
+// timestamp reports not stale, since a bad clock should not manufacture doubt
+// either.
+func modifiedAfter(modified time.Time, checkedAt string) bool {
+	checked, err := time.Parse(time.RFC3339, checkedAt)
+	if err != nil {
+		return false
+	}
+	return modified.Truncate(time.Second).After(checked)
+}
+
 func (m *Manager) Library() ([]LibraryEntry, error) {
 	entries := []LibraryEntry{}
 	jobs, err := m.List()
@@ -184,11 +211,24 @@ func (m *Manager) Library() ([]LibraryEntry, error) {
 		record, readErr := ReadRecord(path)
 		if readErr != nil {
 			classification := classifyUnreconciled(path)
-			entries = append(entries, LibraryEntry{Source: unreconciledSource(m.ModelsDir, path), TargetPath: path, State: "unreconciled", Classification: &classification})
+			entries = append(entries, LibraryEntry{Source: unreconciledSource(m.ModelsDir, path), TargetPath: path, State: "unreconciled", Classification: &classification, Standing: StandingUnattested})
 			return nil
 		}
 		classification := record.Classification
-		entries = append(entries, LibraryEntry{Source: record.Source, TargetPath: path, State: "installed", Classification: &classification, DerivationStale: record.DerivationStale(), PhysicalQuantization: record.Derivation.PhysicalQuantization})
+		libraryEntry := LibraryEntry{Source: record.Source, TargetPath: path, State: "installed", Classification: &classification, DerivationStale: record.DerivationStale(), PhysicalQuantization: record.Derivation.PhysicalQuantization, Standing: record.Standing()}
+		if attestation, applies := record.AppliedAttestation(); applies {
+			libraryEntry.AttestationMethod = attestation.Method
+		}
+		if verification, applies := record.AppliedVerification(); applies {
+			libraryEntry.Verification = &verification
+			// The walk already carries this artifact's directory information,
+			// so comparing modification time against the verification costs
+			// nothing beyond what enumeration read anyway.
+			if info, infoErr := entry.Info(); infoErr == nil {
+				libraryEntry.VerificationStale = modifiedAfter(info.ModTime(), verification.CheckedAt)
+			}
+		}
+		entries = append(entries, libraryEntry)
 		return nil
 	})
 	if errors.Is(err, os.ErrNotExist) {
@@ -481,7 +521,35 @@ func (m *Manager) Resume(parent context.Context, id string, progress func(Job)) 
 		return m.fail(j, e)
 	}
 	rec := inspection.Record()
-	rec.Artifact.SHA256 = digest
+	now := time.Now().UTC().Format(time.RFC3339)
+	rec.SetIntegrity(digest, now)
+	// A managed download is attested by construction. The bytes came from a
+	// revision-pinned URL, so where they came from follows from the transfer
+	// rather than from any comparison; only an artifact adopted from an
+	// existing local cache needs a published hash to establish after the fact
+	// that it belongs to a revision. Recording this as unattested would
+	// understate what Coquena actually knows.
+	rec.Attestation = &Attestation{
+		Repository:     j.Source.Repository,
+		ResolvedCommit: j.Source.ResolvedRevision,
+		ArtifactPath:   j.Source.Filename,
+		Digest:         LocalDigest(digest, now),
+		Method:         MethodDownload,
+		VerifiedAt:     now,
+	}
+	// The observation records what the repository said while resolving, on its
+	// own axis. The published digest sits here and not in the attestation
+	// because nothing compared it: comparing it is a separate improvement, and
+	// asserting a comparison that did not happen is the defect this record
+	// exists to prevent.
+	rec.Observation = &Observation{
+		Repository:        j.Source.Repository,
+		RequestedRevision: j.Source.RequestedRevision,
+		ResolvedCommit:    j.Source.ResolvedRevision,
+		ArtifactPath:      j.Source.Filename,
+		PublishedDigest:   j.PublishedDigest,
+		ObservedAt:        now,
+	}
 	_, e = Publish(m.ModelsDir, j.PartialPath, rec)
 	if e != nil {
 		return m.fail(j, e)

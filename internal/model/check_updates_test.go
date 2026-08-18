@@ -24,7 +24,8 @@ func setupInstalledCheckUpdatesFixture(t *testing.T, body []byte, resolvedRevisi
 	if provider == "huggingface" {
 		source.URL = "https://huggingface.co/org/repo/resolve/" + resolvedRevision + "/m.gguf"
 	}
-	record := Record{SchemaVersion: RecordSchemaVersion, Source: source, Artifact: Artifact{SizeBytes: int64(len(body)), SHA256: sha256Hex}}
+	record := Record{SchemaVersion: RecordSchemaVersion, Source: source, Artifact: Artifact{SizeBytes: int64(len(body))}}
+	record.SetIntegrity(sha256Hex, "2026-01-01T00:00:00Z")
 	if _, err := PublishInPlace(m.ModelsDir, record); err != nil {
 		t.Fatal(err)
 	}

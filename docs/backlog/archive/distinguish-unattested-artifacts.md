@@ -2,8 +2,9 @@
 
 ## Status
 
-- **State:** open
+- **State:** closed
 - **Opened:** 2026-08-04
+- **Closed:** 2026-08-15
 - **Owner:** project-owner
 - **Priority:** high
 - **Story step:** *"import files obtained elsewhere"*
@@ -83,13 +84,43 @@ Representation only. Do not define attestation semantics here; consume what
 
 ## RFC resolution consumed
 
-`model-artifact-attestation` closed on 2026-08-11. The implementation contract
-is now settled: local, remote-observation, attestation, ownership and drift
-evidence remain independent; accepted attestation is SHA-256-only with an
-algorithm/domain-bearing identifier; `STATE` is derived and distinguishes
-`local`, `diverged`, `current`, `upgradable`, `modified`, `incomplete` and
-`unreconciled`. This entry is therefore open and ready to be incorporated into
-`establish-sidecar-authority` rather than blocked on further architecture.
+`model-artifact-attestation` closed on 2026-08-11, and its post-closure
+amendments changed two things this entry originally recorded.
+
+The evidence axes are settled and independent: local, observation, attestation,
+ownership and verification. `STATE` is derived, never persisted.
+
+Two corrections to the ruling as first written, both from the amendments:
+
+- **Acceptance is by reproducibility, not by algorithm.** A1 supersedes Q1's
+  SHA-256-only policy. A published identifier is accepted when Coquena can
+  reproduce it from the complete local bytes — SHA-256 over `raw-file` and
+  SHA-1 over `git-blob`. Under SHA-256-only, an artifact stored directly in Git
+  could never be matched, because the policy refused the only evidence there
+  was.
+- **The state names changed.** A5 retires `unreconciled`, `modified`, `current`
+  and `diverged` in favour of `untracked`, `altered`, `synced` and `detached`.
+  The names this entry first recorded are the pre-amendment ones.
+
+## Outcome
+
+Closed by `establish-sidecar-authority`. What it delivered:
+
+- an attestation axis that records the binding *and* the `method` that
+  established it — `download` for bytes fetched from a revision-pinned URL,
+  `remote-comparison` for bytes reconstructed by comparing after the fact;
+- `verified` / `partial` / `unattested`, derived from the axes and carried in
+  both human and structured output, so an artifact that was never compared can
+  no longer look like one that was;
+- the answer to this entry's own acceptance question: **an unattested artifact
+  is usable.** A privately obtained model has no repository to be attested
+  against and is not deficient for it. Eligibility answers "may a preset
+  reference this", which attestation does not bear on.
+
+Rejected while closing it: adding a listing column for the standing. Most
+artifacts sit at one value, and the column would be noise; the distinction
+surfaces where a single artifact is inspected. Rendering the standing in the
+listing belongs to `adopt-artifact-state-vocabulary`.
 
 ## Relevant implementation areas
 

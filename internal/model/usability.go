@@ -22,10 +22,11 @@ const (
 	// unrecognised. Coquena refuses to infer one from architecture or filename,
 	// so such an artifact is reported unusable rather than listed untyped.
 	ReasonUnclassifiable UnusableReason = "unclassifiable"
-	// ReasonOrphanedProjector reports a projector compatible with no installed
-	// principal. A projector is never independently usable: it contributes a
-	// capability to a principal and has no meaning on its own.
-	ReasonOrphanedProjector UnusableReason = "orphaned-projector"
+	// ReasonAltered reports an artifact whose recorded verification found its
+	// bytes disagreeing with the digest recorded for them. Its remedy differs
+	// from every other reason here: the sidecar is valid and the type is known,
+	// but the bytes are no longer the ones Coquena recorded.
+	ReasonAltered UnusableReason = "altered"
 )
 
 // Usability is whether an artifact can take part in a runtime invocation, with
@@ -41,6 +42,10 @@ type Usability struct {
 	Usable bool           `json:"usable"`
 	Reason UnusableReason `json:"reason,omitempty"`
 	Detail string         `json:"detail,omitempty"`
+	// Advice is a note that does not bear on eligibility. A companion with no
+	// compatible principal installed gets one: the fact is worth telling an
+	// operator, and it is not a reason the artifact cannot be referenced.
+	Advice string `json:"advice,omitempty"`
 }
 
 // usable is the sole usable outcome. It carries no reason, since a reason
@@ -83,22 +88,27 @@ func installedPrincipals(entries []LibraryEntry) []LibraryEntry {
 	return principals
 }
 
-// usabilityOf decides one artifact's usability against the installed
-// principals.
+// usabilityOf decides whether one artifact is eligible to be referenced by a
+// preset, which is the only thing usability means.
 //
-// The order the cases are tested in is load-bearing. An unreconciled projector
-// satisfies both the unreconciled and the orphaned test, and reconciliation is
-// the reason that governs: it is what the operator must do first, and until it
-// is done the artifact would be unusable whatever principals were present.
+// A companion is eligible whatever principals the library holds. It cannot
+// perform inference alone, but neither can any companion, and which principal
+// it accompanies is decided by the preset that binds them rather than by what
+// happens to sit beside it at the moment the library is read. Gating on that
+// pre-empted the preset's decision using an accident of ordering: an operator
+// who imported a projector first, meaning to fetch its principal next, was told
+// the artifact they had just imported was unusable. The compatibility answer is
+// still computed and still useful — it is reported as advice.
 //
-// A principal with no installed projector stays usable, which is why no case
-// below examines a principal's companions. A projector adds a capability —
-// vision — to a model that already performs inference without it, so a
-// text-only model is perfectly usable alone. Refusing it would report the
-// overwhelmingly common library as broken.
+// The remaining cases are ordered by remedy. Altered bytes are tested before
+// the sidecar check because an artifact with a recorded mismatch has a
+// perfectly valid sidecar; the thing that is wrong is the file.
 func usabilityOf(entry LibraryEntry, principals []LibraryEntry) Usability {
 	if entry.Classification == nil {
 		return unusable(ReasonIncomplete, "the artifact is not yet on disk; its download has not completed")
+	}
+	if entry.Altered() {
+		return unusable(ReasonAltered, "the last verification found the artifact's bytes disagreeing with the digest recorded for them; re-download it, or reconcile it again if the change was intended")
 	}
 	if entry.State != "installed" {
 		return unusable(ReasonUnreconciled, "the artifact has no valid sidecar and must be reconciled before it can be used")
@@ -107,7 +117,9 @@ func usabilityOf(entry LibraryEntry, principals []LibraryEntry) Usability {
 		return unusable(ReasonUnclassifiable, "the artifact declares no type Coquena recognises, so it cannot be used")
 	}
 	if entry.Classification.Type == TypeProjector && !hasCompatiblePrincipal(*entry.Classification, principals) {
-		return unusable(ReasonOrphanedProjector, "no installed principal model is compatible with this projector; install one it can accompany")
+		result := usable()
+		result.Advice = "no installed principal model is currently compatible with this projector; a preset that binds it will need one"
+		return result
 	}
 	return usable()
 }

@@ -26,7 +26,12 @@ func validDerivedGGUF() []byte {
 	return b
 }
 
-func TestVerifyRepairsLegacyDerivationAndPreservesOtherAuthorities(t *testing.T) {
+// TestVerifyRepairsStaleDerivationAndPreservesOtherAuthorities builds a stale
+// record at the current schema rather than at an earlier one. An earlier schema
+// is no longer readable at all, so the only way derivation can be stale is a
+// record whose derivation algorithm version has fallen behind — which is what
+// repair exists for.
+func TestVerifyRepairsStaleDerivationAndPreservesOtherAuthorities(t *testing.T) {
 	root := t.TempDir()
 	m := NewManager(filepath.Join(root, "models"))
 	body := validDerivedGGUF()
@@ -39,14 +44,14 @@ func TestVerifyRepairsLegacyDerivationAndPreservesOtherAuthorities(t *testing.T)
 		t.Fatal(err)
 	}
 	base := strings.TrimSuffix(path, filepath.Ext(path))
-	legacy := map[string]any{
-		"schemaVersion": 2, "source": record.Source, "artifact": record.Artifact,
-		"classification": record.Classification,
-		"drift":          map[string]any{"outcome": "current", "lastCheckedAt": "2026-08-04T00:00:00Z"},
+	stale := map[string]any{
+		"schemaVersion": RecordSchemaVersion, "source": record.Source, "artifact": record.Artifact,
+		"derivation": map[string]any{"version": 0, "classification": record.Classification},
+		"drift":      map[string]any{"outcome": "current", "lastCheckedAt": "2026-08-04T00:00:00Z"},
 	}
-	legacyBytes, _ := json.MarshalIndent(legacy, "", "  ")
-	legacyBytes = append(legacyBytes, '\n')
-	if err = os.WriteFile(base+".json", legacyBytes, 0600); err != nil {
+	staleBytes, _ := json.MarshalIndent(stale, "", "  ")
+	staleBytes = append(staleBytes, '\n')
+	if err = os.WriteFile(base+".json", staleBytes, 0600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -58,9 +63,21 @@ func TestVerifyRepairsLegacyDerivationAndPreservesOtherAuthorities(t *testing.T)
 	if !plain.DerivationStale || plain.Repaired {
 		t.Fatalf("plain=%+v", plain)
 	}
+	// A plain verify writes its own axis and only that: it must not repair the
+	// derivation it just reported as stale.
 	afterPlain, _ := os.ReadFile(base + ".json")
-	if !bytes.Equal(before, afterPlain) {
-		t.Fatal("plain verify rewrote legacy sidecar")
+	if bytes.Equal(before, afterPlain) {
+		t.Fatal("verify did not record what it found")
+	}
+	recorded, err := ReadRecord(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if recorded.Verification == nil || recorded.Verification.Outcome != VerifyMatched {
+		t.Fatalf("verification=%+v", recorded.Verification)
+	}
+	if !recorded.DerivationStale() {
+		t.Fatal("a plain verify repaired the derivation it only had licence to report")
 	}
 
 	repaired, err := m.VerifyWithOptions("org/repo", VerifyOptions{RepairDerived: true})
@@ -74,10 +91,12 @@ func TestVerifyRepairsLegacyDerivationAndPreservesOtherAuthorities(t *testing.T)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if current.SchemaVersion != 3 || current.Derivation.Version != 1 || current.Derivation.CountParameters != 6 {
+	if current.SchemaVersion != RecordSchemaVersion || current.Derivation.Version != DerivationVersion || current.Derivation.CountParameters != 6 {
 		t.Fatalf("record=%+v", current)
 	}
-	if current.Source != record.Source || current.Artifact != record.Artifact {
+	currentIntegrity, currentOK := current.Artifact.Integrity()
+	recordIntegrity, recordOK := record.Artifact.Integrity()
+	if current.Source != record.Source || currentOK != recordOK || currentIntegrity != recordIntegrity {
 		t.Fatal("repair changed source or artifact evidence")
 	}
 	raw, _ := os.ReadFile(base + ".json")
@@ -101,14 +120,29 @@ func TestVerifyRefusesDerivedRepairOnMismatch(t *testing.T) {
 	if err := os.WriteFile(path, append(body, 0), 0600); err != nil {
 		t.Fatal(err)
 	}
-	base := strings.TrimSuffix(path, filepath.Ext(path))
-	before, _ := os.ReadFile(base + ".json")
-	if _, err := m.VerifyWithOptions("org/repo", VerifyOptions{RepairDerived: true}); err == nil {
+	before, err := ReadRecord(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = m.VerifyWithOptions("org/repo", VerifyOptions{RepairDerived: true}); err == nil {
 		t.Fatal("mismatched repair succeeded")
 	}
-	after, _ := os.ReadFile(base + ".json")
-	if !bytes.Equal(before, after) {
-		t.Fatal("refused repair changed sidecar")
+	after, err := ReadRecord(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The repair is refused, and the mismatch is still recorded: a refusal to
+	// re-derive evidence is not a reason to forget what the hash just showed.
+	if after.Verification == nil || after.Verification.Outcome != VerifyMismatched {
+		t.Fatalf("verification=%+v; a refused repair must not discard the mismatch", after.Verification)
+	}
+	if after.Derivation.Version != before.Derivation.Version || after.Derivation.ComputedAt != before.Derivation.ComputedAt {
+		t.Fatal("refused repair re-derived the artifact anyway")
+	}
+	beforeIntegrity, _ := before.Artifact.Integrity()
+	afterIntegrity, _ := after.Artifact.Integrity()
+	if afterIntegrity != beforeIntegrity {
+		t.Fatal("verify replaced the integrity digest it was only meant to check against")
 	}
 }
 
@@ -159,35 +193,6 @@ func TestVerifyMismatchedOnCorruptedFile(t *testing.T) {
 	}
 }
 
-func TestVerifyNoBaselineWhenSidecarHasEmptySHA256(t *testing.T) {
-	root := t.TempDir()
-	m := NewManager(filepath.Join(root, "models"))
-	body := emptyGGUF()
-	path := writeReconcileFixture(t, root, body)
-	if _, err := m.ReconcileAccept(path); err != nil {
-		t.Fatal(err)
-	}
-	record, err := ReadRecord(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	record.Artifact.SHA256 = ""
-	if _, err := PublishInPlace(m.ModelsDir, record); err != nil {
-		t.Fatal(err)
-	}
-
-	result, err := m.Verify("org/repo")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if result.Outcome != VerifyNoBaseline {
-		t.Fatalf("outcome=%q want=%q result=%+v", result.Outcome, VerifyNoBaseline, result)
-	}
-	if result.RecordedSHA256 != "" {
-		t.Fatalf("expected empty recorded sha256, got %q", result.RecordedSHA256)
-	}
-}
-
 func TestVerifyUnresolvableReference(t *testing.T) {
 	root := t.TempDir()
 	m := NewManager(filepath.Join(root, "models"))
@@ -227,5 +232,71 @@ func TestVerifyUnresolvableReference(t *testing.T) {
 		t.Fatal("expected ambiguous match error")
 	} else if _, ok := err.(*ErrAmbiguousInstalledMatch); !ok {
 		t.Fatalf("err type=%T want *ErrAmbiguousInstalledMatch: %v", err, err)
+	}
+}
+
+// TestReconcileLeavesTheVerificationAxisAlone pins the authority partition from
+// the other side: reconciliation hashes the file and therefore knows the
+// answer, and still must not write down a verdict it does not own.
+func TestReconcileLeavesTheVerificationAxisAlone(t *testing.T) {
+	root := t.TempDir()
+	m := NewManager(filepath.Join(root, "models"))
+	body := emptyGGUF()
+	path := writeReconcileFixture(t, root, body)
+	if _, err := m.ReconcileAccept(path); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := m.Verify("org/repo"); err != nil {
+		t.Fatal(err)
+	}
+	recorded, err := ReadRecord(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if recorded.Verification == nil {
+		t.Fatal("verify recorded nothing")
+	}
+
+	if _, err = m.ReconcileAccept(path); err != nil {
+		t.Fatal(err)
+	}
+	after, err := ReadRecord(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if after.Verification == nil || *after.Verification != *recorded.Verification {
+		t.Fatalf("reconciliation disturbed the verification axis: %+v want %+v", after.Verification, recorded.Verification)
+	}
+}
+
+// TestReplacingTheIntegrityDigestRetiresTheVerification is the mechanism that
+// makes the single-writer rule affordable: nobody has to clear this axis,
+// because a record about bytes that are no longer the recorded ones stops
+// applying on its own.
+func TestReplacingTheIntegrityDigestRetiresTheVerification(t *testing.T) {
+	root := t.TempDir()
+	m := NewManager(filepath.Join(root, "models"))
+	body := emptyGGUF()
+	path := writeReconcileFixture(t, root, body)
+	if _, err := m.ReconcileAccept(path); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := m.Verify("org/repo"); err != nil {
+		t.Fatal(err)
+	}
+	record, err := ReadRecord(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !record.Altered() && record.Verification.Outcome != VerifyMatched {
+		t.Fatalf("verification=%+v", record.Verification)
+	}
+
+	record.SetIntegrity("0000000000000000000000000000000000000000000000000000000000000000", "2026-01-01T00:00:00Z")
+	if _, applies := record.AppliedVerification(); applies {
+		t.Fatal("a verification naming a digest the artifact no longer carries must not apply")
+	}
+	if record.Altered() {
+		t.Fatal("a retired verification must read as unverified, not as a verdict about the new digest")
 	}
 }

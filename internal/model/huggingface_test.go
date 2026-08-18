@@ -37,8 +37,8 @@ func TestResolverFiltersPinsAndSelectsGGUF(t *testing.T) {
 	if got.Source.RequestedRevision != "main" || got.Source.ResolvedRevision != "012345" || !strings.Contains(got.Source.URL, "/resolve/012345/dir/model.Q4.gguf") {
 		t.Fatalf("source=%+v", got.Source)
 	}
-	if got.Artifact.SizeBytes != 43 || got.Artifact.ETag != `"artifact"` {
-		t.Fatalf("size=%d", got.Artifact.SizeBytes)
+	if got.Artifact.SizeBytes != 43 || got.ETag != `"artifact"` {
+		t.Fatalf("size=%d etag=%q", got.Artifact.SizeBytes, got.ETag)
 	}
 	if got.ContentSHA256 != strings.Repeat("a", 64) {
 		t.Fatalf("content sha256=%q", got.ContentSHA256)

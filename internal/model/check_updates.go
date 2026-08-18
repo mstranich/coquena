@@ -65,12 +65,13 @@ func (m *Manager) CheckUpdates(reference string) (CheckUpdatesResult, error) {
 		return CheckUpdatesResult{}, fmt.Errorf("check-updates: expected exactly one Hugging Face artifact matching %q in %s, got %d", source.Filename, source.Repository, len(candidates))
 	}
 	candidate := candidates[0]
+	recordedIntegrity, _ := record.Artifact.Integrity()
 	result := CheckUpdatesResult{
 		Repository:       source.Repository,
 		Filename:         source.Filename,
 		RecordedRevision: record.Source.ResolvedRevision,
 		CurrentRevision:  candidate.Source.ResolvedRevision,
-		RecordedSHA256:   record.Artifact.SHA256,
+		RecordedSHA256:   recordedIntegrity.Value,
 		RemoteSHA256:     candidate.ContentSHA256,
 	}
 	switch {

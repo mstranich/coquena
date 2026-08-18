@@ -307,7 +307,7 @@ artifacts:
     priority: high
     relations:
       - { type: motivated-by, target: model-artifact-states }
-      - { type: produces, target: change:establish-sidecar-authority }
+      - { type: produces, target: change:adopt-artifact-state-vocabulary }
 
   align-model-command-surface:
     kind: backlog
@@ -369,11 +369,11 @@ artifacts:
 
   distinguish-unattested-artifacts:
     kind: backlog
-    state: open
+    state: closed
     title: Never present an unattested artifact as an attested one
-    path: backlog/distinguish-unattested-artifacts.md
+    path: backlog/archive/distinguish-unattested-artifacts.md
     openedAt: 2026-08-04
-    closedAt: null
+    closedAt: 2026-08-15
     owner: project-owner
     priority: high
     relations:
@@ -427,15 +427,15 @@ artifacts:
     relations:
       - { type: motivated-by, target: hugging-face-redirects-renamed-repositories }
       - { type: relates-to, target: model-artifact-attestation }
-      - { type: produces, target: change:establish-sidecar-authority }
+      - { type: produces, target: change:record-canonical-repository-name }
 
   record-verify-outcome-in-sidecar:
     kind: backlog
-    state: open
+    state: closed
     title: Record what verify found, so the listing does not have to re-hash
-    path: backlog/record-verify-outcome-in-sidecar.md
+    path: backlog/archive/record-verify-outcome-in-sidecar.md
     openedAt: 2026-08-11
-    closedAt: null
+    closedAt: 2026-08-15
     owner: project-owner
     priority: high
     relations:
@@ -444,11 +444,11 @@ artifacts:
 
   remove-etag-from-sidecar:
     kind: backlog
-    state: open
+    state: closed
     title: Stop storing an ETag whose meaning changes between hops
-    path: backlog/remove-etag-from-sidecar.md
+    path: backlog/archive/remove-etag-from-sidecar.md
     openedAt: 2026-08-11
-    closedAt: null
+    closedAt: 2026-08-15
     owner: project-owner
     priority: normal
     relations:
@@ -531,16 +531,16 @@ artifacts:
 
   treat-orphaned-companion-as-usable:
     kind: backlog
-    state: open
+    state: closed
     title: A companion without an installed principal is still usable
-    path: backlog/treat-orphaned-companion-as-usable.md
+    path: backlog/archive/treat-orphaned-companion-as-usable.md
     openedAt: 2026-08-11
-    closedAt: null
+    closedAt: 2026-08-15
     owner: project-owner
     priority: normal
     relations:
       - { type: motivated-by, target: model-artifact-states }
-      - { type: produces, target: change:adopt-artifact-state-vocabulary }
+      - { type: produces, target: change:establish-sidecar-authority }
 
   verify-download-against-remote-digest:
     kind: backlog

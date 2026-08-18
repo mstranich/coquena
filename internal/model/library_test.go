@@ -178,7 +178,7 @@ func TestLibraryUsesSidecarClassificationForInstalled(t *testing.T) {
 	models := t.TempDir()
 	target := writeArtifact(t, models, "org/repo/m.gguf", classifiableGGUF())
 	base := strings.TrimSuffix(target, ".gguf")
-	if err := os.WriteFile(base+".json", []byte(`{"schemaVersion":2,"source":{"provider":"huggingface","repository":"org/repo","requestedRevision":"main","resolvedRevision":"abc","filename":"m.gguf","url":"u"},"artifact":{"sizeBytes":1},"classification":{"type":"mmproj","architecture":"recorded-by-sidecar"}}`), 0600); err != nil {
+	if err := os.WriteFile(base+".json", []byte(`{"schemaVersion":4,"source":{"provider":"huggingface","repository":"org/repo","requestedRevision":"main","resolvedRevision":"abc","filename":"m.gguf","url":"u"},"artifact":{"sizeBytes":1,"digests":[{"role":"integrity","algorithm":"sha256","domain":"raw-file","value":"recorded"}]},"derivation":{"version":0,"classification":{"type":"mmproj","architecture":"recorded-by-sidecar"}}}`), 0600); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(base+".revision", []byte("abc\n"), 0600); err != nil {
@@ -195,11 +195,11 @@ func TestLibraryUsesSidecarClassificationForInstalled(t *testing.T) {
 		t.Fatalf("classification=%#v was re-read from the artifact", entries[0].Classification)
 	}
 	if !entries[0].DerivationStale {
-		t.Fatal("schema-2 sidecar was not reported as derivation-stale")
+		t.Fatal("a sidecar whose derivation algorithm version has fallen behind was not reported as stale")
 	}
 	after, err := os.ReadFile(base + ".json")
-	if err != nil || !bytes.Contains(after, []byte(`"schemaVersion":2`)) {
-		t.Fatalf("library read rewrote legacy sidecar: %s err=%v", after, err)
+	if err != nil || !bytes.Contains(after, []byte(`"version":0`)) {
+		t.Fatalf("library read rewrote the sidecar rather than reporting it stale: %s err=%v", after, err)
 	}
 }
 
@@ -284,7 +284,7 @@ func TestPublishWritesRevisionUnit(t *testing.T) {
 func TestReadRecordRejectsMismatchedRevision(t *testing.T) {
 	root := t.TempDir()
 	target := filepath.Join(root, "m.gguf")
-	_ = os.WriteFile(strings.TrimSuffix(target, ".gguf")+".json", []byte(`{"schemaVersion":2,"source":{"provider":"huggingface","repository":"o/r","requestedRevision":"main","resolvedRevision":"one","filename":"m.gguf","url":"u"},"artifact":{"sizeBytes":1},"classification":{"type":"model"}}`), 0600)
+	_ = os.WriteFile(strings.TrimSuffix(target, ".gguf")+".json", []byte(`{"schemaVersion":4,"source":{"provider":"huggingface","repository":"o/r","requestedRevision":"main","resolvedRevision":"one","filename":"m.gguf","url":"u"},"artifact":{"sizeBytes":1,"digests":[{"role":"integrity","algorithm":"sha256","domain":"raw-file","value":"recorded"}]},"derivation":{"version":1,"classification":{"type":"model"}}}`), 0600)
 	_ = os.WriteFile(strings.TrimSuffix(target, ".gguf")+".revision", []byte("two\n"), 0600)
 	if _, err := ReadRecord(target); err != ErrInconsistentRevision {
 		t.Fatalf("err=%v", err)

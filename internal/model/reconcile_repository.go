@@ -172,7 +172,7 @@ func (m *Manager) reconcileOne(entry LibraryEntry, sibling repositorySibling) Re
 		return artifact
 	}
 	artifact.Outcome = RepositoryReconciled
-	artifact.Partial = reconciled.Partial
+	artifact.Partial = reconciled.Partial()
 	artifact.Classification = reconciled.Record.Classification
 	return artifact
 }

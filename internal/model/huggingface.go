@@ -22,6 +22,13 @@ type Candidate struct {
 	// sidecar shape, only used transiently to verify content identity during
 	// reconciliation, so it is excluded from JSON output.
 	ContentSHA256 string `json:"-"`
+	// ETag is whatever the final HTTP response carried. It is transport state
+	// and never evidence: the value's domain changes across redirect hops, so
+	// for a Hugging Face artifact it is the Xet CAS hash rather than anything
+	// Coquena can reproduce or compare. It lives here, and on Job, because a
+	// resumable download needs an opaque validator for If-Range — and it is
+	// excluded from JSON so it can never reach a sidecar.
+	ETag string `json:"-"`
 }
 type hfInfo struct {
 	SHA      string `json:"sha"`
@@ -134,19 +141,20 @@ func (r Resolver) resolveRepository(repo, requested, filename string) ([]Candida
 				}
 			}
 		}
+		var etag string
 		if head, headErr := http.NewRequest(http.MethodHead, src.URL, nil); headErr == nil {
 			if response, requestErr := client.Do(head); requestErr == nil {
 				if response.StatusCode >= 200 && response.StatusCode < 300 {
 					if response.ContentLength > 0 {
 						artifact.SizeBytes = response.ContentLength
 					}
-					artifact.ETag = response.Header.Get("ETag")
+					etag = response.Header.Get("ETag")
 					artifact.LastModified = response.Header.Get("Last-Modified")
 				}
 				_ = response.Body.Close()
 			}
 		}
-		out = append(out, Candidate{Source: src, Artifact: artifact, ContentSHA256: contentSHA256})
+		out = append(out, Candidate{Source: src, Artifact: artifact, ContentSHA256: contentSHA256, ETag: etag})
 	}
 	if filename != "" && len(out) != 1 {
 		matched := make([]string, 0, len(out))

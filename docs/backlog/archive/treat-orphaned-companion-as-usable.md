@@ -2,8 +2,9 @@
 
 ## Status
 
-- **State:** open
+- **State:** closed
 - **Opened:** 2026-08-11
+- **Closed:** 2026-08-15
 - **Owner:** project-owner
 - **Priority:** normal
 - **Story step:** *"import files obtained elsewhere"*
@@ -67,3 +68,23 @@ bundle completeness, which stay with `address-quantization-bundles`.
 ## Relevant implementation areas
 
 - `internal/model/usability.go`
+
+## Outcome
+
+Closed by `establish-sidecar-authority` rather than by
+`adopt-artifact-state-vocabulary`, because that change rewrote the usability
+requirement anyway and leaving the companion rule behind would have meant
+shipping a requirement everyone already knew to be wrong.
+
+`ReasonOrphanedProjector` is retired. Usability now answers one question — is
+this artifact eligible to be referenced by a preset — and a companion is
+eligible whatever the library holds beside it. The asymmetry the old code
+documented without justifying (a principal without a projector stayed usable, a
+projector without a principal did not) disappears once the question is stated
+properly: neither can be *run* alone, and that is not what eligibility asks.
+
+The compatibility computation survives; only its consequence changed. "No
+compatible principal is currently installed" is reported as **advice**, not as a
+reason for ineligibility, so an operator who imports a companion first — meaning
+to fetch its principal next — is no longer told the artifact they just imported
+is unusable.

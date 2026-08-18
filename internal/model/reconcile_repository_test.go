@@ -199,11 +199,12 @@ func TestReconcileRepositoryReportsAbsentCompanion(t *testing.T) {
 	}
 }
 
-// A digest disagreement is refused with no sidecar written, and the diagnostic
-// says the artifact may be from an earlier revision: reconciliation compares
-// against the repository's current revision, so an intact older file fails this
-// comparison and must not be called corrupt.
-func TestReconcileRepositoryRefusesDigestDisagreement(t *testing.T) {
+// A digest disagreement reconciles to a partial result with a sidecar written:
+// reconciliation compares against the repository's current revision, so an
+// intact older file fails this comparison while being perfectly usable, and
+// discarding what was learned would leave the operator an error instead of a
+// model.
+func TestReconcileRepositoryRecordsDigestDisagreement(t *testing.T) {
 	files := map[string][]byte{"principal-Q4_K_M.gguf": principalGGUF()}
 	m := repositoryFixture(t, files, map[string]string{"principal-Q4_K_M.gguf": strings.Repeat("a", 64)})
 	principal := writeArtifact(t, m.ModelsDir, "org/repo/principal-Q4_K_M.gguf", files["principal-Q4_K_M.gguf"])
@@ -213,20 +214,24 @@ func TestReconcileRepositoryRefusesDigestDisagreement(t *testing.T) {
 		t.Fatal(err)
 	}
 	artifact, ok := artifactFor(result, "principal-Q4_K_M.gguf")
-	if !ok || artifact.Outcome != RepositoryRefused {
-		t.Fatalf("artifact=%+v ok=%v want refused", artifact, ok)
+	if !ok || !artifact.Partial {
+		t.Fatalf("artifact=%+v ok=%v want a partial result", artifact, ok)
 	}
-	if !strings.Contains(artifact.Diagnostic, "earlier revision") {
-		t.Fatalf("diagnostic must not assert corruption: %q", artifact.Diagnostic)
+	if !sidecarExists(principal) {
+		t.Fatal("a disagreement still writes a sidecar; the artifact is usable")
 	}
-	if strings.Contains(strings.ToLower(artifact.Diagnostic), "corrupt file") {
-		t.Fatalf("diagnostic asserts corruption: %q", artifact.Diagnostic)
+	record, err := ReadRecord(principal)
+	if err != nil {
+		t.Fatal(err)
 	}
-	if sidecarExists(principal) {
-		t.Fatal("a refused artifact must have no sidecar")
+	if record.Attestation != nil {
+		t.Fatalf("a disagreement establishes no attestation: %+v", record.Attestation)
 	}
-	if len(result.Refused()) != 1 {
-		t.Fatalf("refused=%+v", result.Refused())
+	if record.Observation == nil || record.Observation.PublishedDigest == nil {
+		t.Fatalf("the identifier that disagreed should be on the observation: %+v", record.Observation)
+	}
+	if len(result.Refused()) != 0 {
+		t.Fatalf("a disagreement is no longer a refusal: %+v", result.Refused())
 	}
 }
 

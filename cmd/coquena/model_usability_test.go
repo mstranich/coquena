@@ -33,8 +33,9 @@ func listedEntries(t *testing.T) map[string]modelListEntry {
 	return byName
 }
 
-// The listing reports usability in both modes, and the reason distinguishes an
-// unreconciled artifact from an orphaned projector.
+// The listing reports usability in both modes. A companion whose principal is
+// absent is eligible like any other artifact; what makes an artifact ineligible
+// is having no valid sidecar.
 func TestRunModelListReportsUsabilityAndItsReason(t *testing.T) {
 	m := withModelManager(t)
 	old := modelManagerFactory
@@ -42,7 +43,8 @@ func TestRunModelListReportsUsabilityAndItsReason(t *testing.T) {
 	t.Cleanup(func() { modelManagerFactory = old })
 	publishArtifact(t, m, "principal.gguf", cliPrincipalGGUF())
 	// Its projection dimension matches no installed principal's embedding
-	// length, so it is orphaned even though a principal is present.
+	// length. It stays eligible: which principal a companion accompanies is
+	// decided by the preset that binds them, not by the listing.
 	publishArtifact(t, m, "orphan.gguf", cliGGUF("general.type", "mmproj", "general.architecture", "clip", "clip.vision.projection_dim", uint32(3840)))
 	// A foreign file with no sidecar, so the third outcome is present too.
 	foreign := filepath.Join(m.ModelsDir, "other", "repo", "foreign.gguf")
@@ -57,9 +59,9 @@ func TestRunModelListReportsUsabilityAndItsReason(t *testing.T) {
 	if principal := entries["principal.gguf"]; !principal.Usable {
 		t.Fatalf("principal=%+v", principal)
 	}
-	orphan := entries["orphan.gguf"]
-	if orphan.Usable {
-		t.Fatalf("orphan=%+v", orphan)
+	companion := entries["orphan.gguf"]
+	if !companion.Usable {
+		t.Fatalf("a companion with no compatible principal is still eligible: %+v", companion)
 	}
 	unreconciled := entries["foreign.gguf"]
 	if unreconciled.Usable {
@@ -77,16 +79,16 @@ func TestRunModelListReportsUsabilityAndItsReason(t *testing.T) {
 	}
 }
 
-// The same projector the listing reported unusable is reported usable once a
-// compatible principal is installed, with nothing rewritten in between.
+// A companion is usable from the moment it is installed and stays usable when
+// its principal arrives, with nothing rewritten in between.
 func TestRunModelListReflectsANewPrincipalWithoutRewritingSidecars(t *testing.T) {
 	m := withModelManager(t)
 	old := modelManagerFactory
 	modelManagerFactory = func() (*modelapp.Manager, error) { return m, nil }
 	t.Cleanup(func() { modelManagerFactory = old })
 	publishArtifact(t, m, "mmproj.gguf", cliProjectorGGUF())
-	if entry := listedEntries(t)["mmproj.gguf"]; entry.Usable {
-		t.Fatalf("an orphaned projector listed as usable: %+v", entry)
+	if entry := listedEntries(t)["mmproj.gguf"]; !entry.Usable {
+		t.Fatalf("a companion is ineligible before its principal arrives: %+v", entry)
 	}
 	sidecar := filepath.Join(m.ModelsDir, "org", "repo", "mmproj.json")
 	before, err := os.ReadFile(sidecar)

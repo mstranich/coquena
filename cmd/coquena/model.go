@@ -47,6 +47,25 @@ type modelListEntry struct {
 	// Usable is the derived usability, flattened into the entry so both output
 	// modes render it without consulting anything else.
 	Usable bool `json:"usable"`
+	// UnusableReason lets a caller branch on *why* an artifact is ineligible.
+	// Altered bytes and an absent sidecar have different remedies, and a caller
+	// that can only see `usable: false` cannot tell them apart.
+	UnusableReason string `json:"unusableReason,omitempty"`
+	// Advice is a note that does not bear on eligibility, such as a companion
+	// having no compatible principal installed yet.
+	Advice string `json:"advice,omitempty"`
+	// Standing and AttestationMethod carry the attestation distinction in
+	// structured output. They deliberately get no column in the human listing:
+	// most artifacts sit at one value, and the state vocabulary that will
+	// render them is `adopt-artifact-state-vocabulary`.
+	Standing          string `json:"standing"`
+	AttestationMethod string `json:"attestationMethod,omitempty"`
+	// Verification reports what the last integrity check found and when, read
+	// from the record rather than by hashing. Stale means the file was touched
+	// after the check, which weakens the result without changing it.
+	VerificationOutcome   string `json:"verificationOutcome,omitempty"`
+	VerificationCheckedAt string `json:"verificationCheckedAt,omitempty"`
+	VerificationStale     bool   `json:"verificationStale,omitempty"`
 }
 
 func newModelManager() (*modelapp.Manager, error) {
@@ -399,6 +418,26 @@ func computeQuant(entry modelapp.LibraryEntry) string {
 	return "unknown"
 }
 
+// verifyStandingSentence renders an artifact's attestation standing for a human.
+//
+// Each phrasing states what is known, never what is missing. An artifact
+// obtained privately will sit at `unattested` forever and is not deficient for
+// it; one whose repository published nothing Coquena can reproduce is `partial`
+// and is not failing either.
+func verifyStandingSentence(result modelapp.VerifyResult) string {
+	switch result.Standing {
+	case modelapp.StandingVerified:
+		if result.AttestationMethod == modelapp.MethodDownload {
+			return "verified (established during the download, from a revision-pinned URL)"
+		}
+		return "verified (established by comparing the local bytes against the repository)"
+	case modelapp.StandingPartial:
+		return "partial (a repository was consulted; no match could be established)"
+	default:
+		return "unattested (no repository has been consulted for this artifact)"
+	}
+}
+
 // runModelList renders the library grouped by repository, with a QUANT column
 // instead of REFERENCE. Entries within each repository are sorted by type
 // priority, then state, then parameter count.
@@ -423,15 +462,24 @@ func runModelList(out io.Writer, jsonOut bool) error {
 			repoOrder = append(repoOrder, repo)
 		}
 		item := modelListEntry{
-			State:            entry.State,
-			Repository:       repo,
-			Reference:        modelapp.CanonicalReference(entry.Source),
-			LogicalSelector:  modelapp.LogicalReference(entry),
-			ResolvedRevision: entry.Source.ResolvedRevision,
-			Quant:            computeQuant(entry),
-			Filename:         entry.Source.Filename,
-			DerivationStale:  entry.DerivationStale,
-			Usable:           entry.Usability.Usable,
+			State:             entry.State,
+			Repository:        repo,
+			Reference:         modelapp.CanonicalReference(entry.Source),
+			LogicalSelector:   modelapp.LogicalReference(entry),
+			ResolvedRevision:  entry.Source.ResolvedRevision,
+			Quant:             computeQuant(entry),
+			Filename:          entry.Source.Filename,
+			DerivationStale:   entry.DerivationStale,
+			Usable:            entry.Usability.Usable,
+			UnusableReason:    string(entry.Usability.Reason),
+			Advice:            entry.Usability.Advice,
+			Standing:          string(entry.Standing),
+			AttestationMethod: string(entry.AttestationMethod),
+		}
+		if entry.Verification != nil {
+			item.VerificationOutcome = string(entry.Verification.Outcome)
+			item.VerificationCheckedAt = entry.Verification.CheckedAt
+			item.VerificationStale = entry.VerificationStale
 		}
 		if entry.Classification != nil {
 			item.Type = string(entry.Classification.Type)
@@ -545,7 +593,7 @@ func runModelReconcile(args []string, out io.Writer, jsonOut bool) error {
 		return e
 	}
 	msg := fmt.Sprintf("Reconciled %s:%s.", result.Record.Source.Repository, result.Record.Source.Filename)
-	if result.Partial {
+	if result.Partial() {
 		msg += " (partial: Hugging Face reported no content hash to compare against)"
 	}
 	_, e = fmt.Fprintln(out, msg)
@@ -611,15 +659,23 @@ func runModelVerify(reference string, repairDerived bool, out io.Writer, jsonOut
 		var msg string
 		switch result.Outcome {
 		case modelapp.VerifyMatched:
-			msg = fmt.Sprintf("%s:%s verified: content hash matches the recorded baseline.", result.Repository, result.Filename)
+			msg = fmt.Sprintf("%s:%s verified: the bytes still match the digest recorded for them.", result.Repository, result.Filename)
 		case modelapp.VerifyMismatched:
-			msg = fmt.Sprintf("%s:%s FAILED verification: content hash mismatch. The model is unusable until it is re-downloaded or reconciled again.", result.Repository, result.Filename)
-		case modelapp.VerifyNoBaseline:
-			msg = fmt.Sprintf("%s:%s: no baseline content hash recorded to verify against.", result.Repository, result.Filename)
+			msg = fmt.Sprintf("%s:%s FAILED verification: the bytes no longer match the digest recorded for them. The model is unusable until it is re-downloaded or reconciled again.", result.Repository, result.Filename)
 		}
 		if _, e = fmt.Fprintln(out, msg); e != nil {
 			return e
 		}
+		if result.CheckedAt != "" {
+			_, _ = fmt.Fprintf(out, "Recorded at: %s\n", result.CheckedAt)
+		}
+		if result.Stale {
+			_, _ = fmt.Fprintln(out, "The artifact was modified after this check ran, so the result may already be out of date.")
+		}
+		// The standing answers a different question from the outcome: not
+		// whether the bytes changed, but what is known about where they came
+		// from. None of the three values is a failure.
+		_, _ = fmt.Fprintf(out, "Attestation: %s\n", verifyStandingSentence(result))
 		if result.DeclaredRecipe != "" {
 			_, _ = fmt.Fprintf(out, "Declared recipe: %s\n", result.DeclaredRecipe)
 		}

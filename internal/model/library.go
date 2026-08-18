@@ -58,6 +58,9 @@ func Publish(modelsDir, partial string, record Record) (string, error) {
 	// The classification is derived from the completed file's own header, read
 	// here while the content still sits at partial and before it is staged.
 	record.SetDerivation(deriveFile(partial))
+	if err = ensureIntegrity(&record, partial); err != nil {
+		return "", err
+	}
 	record.Artifact.DownloadedAt = time.Now().UTC().Format(time.RFC3339)
 	sidecar := strings.TrimSuffix(target, filepath.Ext(target))
 	jsonPath := sidecar + ".json"
@@ -169,6 +172,10 @@ func PublishInPlace(modelsDir string, record Record) (Record, error) {
 	}
 	record.SchemaVersion = RecordSchemaVersion
 	record.SetDerivation(deriveFile(target))
+	if err = ensureIntegrity(&record, target); err != nil {
+		return Record{}, err
+	}
+	preserveUnownedAxes(target, &record)
 	record.Artifact.DownloadedAt = time.Now().UTC().Format(time.RFC3339)
 	sidecar := strings.TrimSuffix(target, filepath.Ext(target))
 	jsonPath := sidecar + ".json"
@@ -237,6 +244,77 @@ func deriveFile(path string) Derivation {
 	return d
 }
 
+// preserveUnownedAxes carries forward every axis the writing command did not
+// set itself.
+//
+// A command that republishes an artifact's sidecar builds the record it is
+// responsible for, not the whole document. Without this, reconciling an
+// artifact would silently discard the operator's acceptance, an established
+// attestation, and whatever the last verification found — none of which the
+// reconciling command has any standing to retract. Each axis is left to the
+// command that owns it, and that only works if a writer cannot drop an axis by
+// simply not knowing about it.
+//
+// An unreadable existing sidecar carries nothing forward, which is correct: an
+// invalid document is not evidence.
+func preserveUnownedAxes(target string, record *Record) {
+	existing, err := ReadRecord(target)
+	if err != nil {
+		return
+	}
+	if record.Verification == nil {
+		record.Verification = existing.Verification
+	}
+	if record.Observation == nil {
+		record.Observation = existing.Observation
+	}
+	if record.Attestation == nil {
+		record.Attestation = existing.Attestation
+	}
+	if record.Ownership == nil {
+		record.Ownership = existing.Ownership
+	}
+}
+
+// writeRecordInPlace persists record over the artifact's existing sidecar and
+// changes nothing else about it.
+//
+// It is deliberately not PublishInPlace: that function re-derives the GGUF
+// evidence and stamps a fresh download time, which is correct when publishing
+// an artifact and wrong when a single axis was written. A command that owns one
+// axis must be able to write it without disturbing what other commands own.
+func writeRecordInPlace(target string, record Record) error {
+	data, err := json.MarshalIndent(record, "", "  ")
+	if err != nil {
+		return err
+	}
+	data = append(data, '\n')
+	base := strings.TrimSuffix(target, filepath.Ext(target))
+	return writeAtomic(base+".json", data)
+}
+
+// ensureIntegrity guarantees that every sidecar Coquena writes carries the
+// digest needed to detect a later change to the artifact's bytes. The invariant
+// lives on the write path rather than in each caller, so "managed artifact with
+// no integrity digest" is a state the schema cannot reach rather than one every
+// caller has to remember not to create.
+//
+// A caller that already hashed the file keeps its digest: the download path
+// hashes the completed content once, in the same pass that finishes the
+// transfer, and re-reading a multi-gigabyte artifact here to learn what it
+// already knows would be the extra pass the sidecar requirement forbids.
+func ensureIntegrity(record *Record, path string) error {
+	if _, ok := record.Artifact.Integrity(); ok {
+		return nil
+	}
+	digest, err := hashFile(path)
+	if err != nil {
+		return err
+	}
+	record.SetIntegrity(digest, time.Now().UTC().Format(time.RFC3339))
+	return nil
+}
+
 func ReadRecord(target string) (Record, error) {
 	base := strings.TrimSuffix(target, filepath.Ext(target))
 	data, err := os.ReadFile(base + ".json")
@@ -247,11 +325,26 @@ func ReadRecord(target string) (Record, error) {
 	if err = json.Unmarshal(data, &r); err != nil {
 		return Record{}, err
 	}
-	if r.SchemaVersion != RecordSchemaVersion && r.SchemaVersion != 2 {
-		return Record{}, fmt.Errorf("unsupported model sidecar schemaVersion %d", r.SchemaVersion)
+	// Only the current schema is read. An earlier version is not translated or
+	// partially admitted: its document cannot say what the evidence axes say,
+	// so admitting it would mean inventing them. The artifact takes the same
+	// recovery path as a GGUF with no sidecar at all, which costs a local hash
+	// and one metadata request and never touches the model file.
+	if r.SchemaVersion != RecordSchemaVersion {
+		return Record{}, fmt.Errorf("unsupported model sidecar schemaVersion %d; only %d is read", r.SchemaVersion, RecordSchemaVersion)
 	}
 	if err = r.Source.Validate(); err != nil {
 		return Record{}, fmt.Errorf("invalid model source sidecar: %w", err)
+	}
+	if err = r.Artifact.Validate(); err != nil {
+		return Record{}, fmt.Errorf("invalid model sidecar: %w", err)
+	}
+	// Writing a sidecar requires computing an integrity digest, so one is
+	// always present in a record Coquena wrote. Its absence means the document
+	// is not one of ours, rather than that this artifact's integrity happens to
+	// be unknown — a state the schema deliberately cannot express.
+	if _, ok := r.Artifact.Integrity(); !ok {
+		return Record{}, fmt.Errorf("model sidecar records no integrity digest")
 	}
 	revision, err := os.ReadFile(base + ".revision")
 	if err != nil {

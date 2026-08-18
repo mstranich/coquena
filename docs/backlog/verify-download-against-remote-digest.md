@@ -66,3 +66,27 @@ roles settled in `model-artifact-states`.
 
 - `internal/model/manager.go`
 - `internal/model/huggingface.go`
+
+## What `establish-sidecar-authority` already did, and what is left
+
+That change landed the schema this entry consumes, and moved two of its bullets
+out of scope:
+
+- **The digest already reaches the job.** `Job.PublishedDigest` carries the
+  provider's identifier with its domain, from the candidate through to
+  completion, and the completed download records it on the observation axis.
+  What is still missing is the comparison, not the value.
+- **The attestation already exists.** A managed download is attested by
+  construction, with `method: download`: the bytes came from a revision-pinned
+  URL, so their provenance follows from the transfer rather than from any
+  comparison. This entry therefore **strengthens** that attestation into a
+  compared one — plausibly a third method, or a flag on the existing one — and
+  does not create it. Recording a download as unattested until the comparison
+  lands was considered and rejected: it would understate what Coquena knows and
+  re-derive a conclusion RFC F2 already refuted.
+
+The acceptance question about what an uncheckable download produces is answered
+by the same rule: it is `verified` by construction either way, and the open
+question is only how a *failed* comparison should be reported, given the bytes
+demonstrably came from that URL. That is the interesting case and this entry
+still owns it.

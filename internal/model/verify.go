@@ -1,39 +1,48 @@
 package model
 
 import (
-	"encoding/json"
 	"fmt"
-	"path/filepath"
-	"strings"
+	"os"
+	"time"
 )
 
-// VerifyOutcome distinguishes the three possible results of verifying an
-// installed model's local integrity against its sidecar's recorded digest.
+// VerifyOutcome is what a verification found. There are two: a valid sidecar
+// always carries an integrity digest, because writing one requires computing
+// one, so "nothing to compare against" is not a state an artifact under
+// Coquena's management can be in. The sidecar that would express it is invalid,
+// and its artifact is not managed at all.
 type VerifyOutcome string
 
 const (
-	// VerifyMatched indicates the computed digest agrees with the sidecar's
-	// recorded Artifact.SHA256.
+	// VerifyMatched indicates the computed digest agrees with the integrity
+	// digest recorded for the artifact.
 	VerifyMatched VerifyOutcome = "matched"
-	// VerifyMismatched indicates the computed digest disagrees with the
-	// sidecar's recorded Artifact.SHA256; the model should be considered
-	// unusable until it is re-downloaded or reconciled again.
+	// VerifyMismatched indicates the computed digest disagrees with it. The
+	// bytes changed since they were recorded; verify cannot tell damage from
+	// an edit, and does not claim to.
 	VerifyMismatched VerifyOutcome = "mismatched"
-	// VerifyNoBaseline indicates the sidecar has no recorded Artifact.SHA256
-	// to compare against (an artifact installed, or reconciled, before
-	// content hashing existed).
-	VerifyNoBaseline VerifyOutcome = "no-baseline"
 )
 
 // VerifyResult reports the outcome of verifying an installed model's local
 // file integrity against its sidecar's persisted content hash.
 type VerifyResult struct {
-	Outcome              VerifyOutcome         `json:"outcome"`
-	Repository           string                `json:"repository"`
-	Filename             string                `json:"filename"`
-	TargetPath           string                `json:"targetPath"`
-	RecordedSHA256       string                `json:"recordedSHA256,omitempty"`
-	ComputedSHA256       string                `json:"computedSHA256"`
+	Outcome        VerifyOutcome `json:"outcome"`
+	Repository     string        `json:"repository"`
+	Filename       string        `json:"filename"`
+	TargetPath     string        `json:"targetPath"`
+	RecordedSHA256 string        `json:"recordedSHA256,omitempty"`
+	ComputedSHA256 string        `json:"computedSHA256"`
+	CheckedAt      string        `json:"checkedAt,omitempty"`
+	// Stale reports that the file was modified after this check ran, which can
+	// only happen if something wrote to it between the hash and the record. It
+	// is rare and worth saying: the result describes bytes that may already be
+	// gone.
+	Stale bool `json:"stale,omitempty"`
+	// Standing and AttestationMethod carry the artifact's attestation standing
+	// so an operator inspecting one artifact sees what is known about its
+	// origin, not only about its integrity. Neither is a failure.
+	Standing             Standing              `json:"standing"`
+	AttestationMethod    AttestationMethod     `json:"attestationMethod,omitempty"`
 	DeclaredRecipe       string                `json:"declaredRecipe,omitempty"`
 	PhysicalQuantization *PhysicalQuantization `json:"physicalQuantization,omitempty"`
 	DerivationStale      bool                  `json:"derivationStale"`
@@ -42,15 +51,19 @@ type VerifyResult struct {
 
 type VerifyOptions struct{ RepairDerived bool }
 
-// Verify resolves reference against the installed model library, re-hashes
-// the resolved artifact's file on disk, and compares it against the
-// sidecar's persisted Artifact.SHA256. It distinguishes three outcomes: a
-// hash match (VerifyMatched), a hash mismatch (VerifyMismatched, meaning the
-// model should be treated as unusable until re-downloaded or reconciled
-// again), and the absence of any recorded baseline digest (VerifyNoBaseline,
-// for artifacts installed or reconciled before content hashing existed).
-// It refuses with whatever error ResolveInstalled reports when reference
-// does not resolve to exactly one installed artifact.
+// Verify resolves reference against the installed model library, re-hashes the
+// resolved artifact's file on disk, compares it against the recorded integrity
+// digest, and **writes down what it found**.
+//
+// Recording the outcome is the point, not a side effect. hashFile runs only
+// here, at download and at reconciliation, and the listing never hashes — so if
+// verify discarded its answer, reporting a damaged artifact would mean
+// re-reading every model in the library on every listing. It records what it
+// found the way chkdsk records that it found errors, and later readers consult
+// the record instead of the disk.
+//
+// It refuses with whatever error ResolveInstalled reports when reference does
+// not resolve to exactly one installed artifact.
 func (m *Manager) Verify(reference string) (VerifyResult, error) {
 	return m.VerifyWithOptions(reference, VerifyOptions{})
 }
@@ -68,7 +81,10 @@ func (m *Manager) VerifyWithOptions(reference string, options VerifyOptions) (Ve
 	if err != nil {
 		return VerifyResult{}, err
 	}
-	recorded := record.Artifact.SHA256
+	// ReadRecord rejects a sidecar carrying no integrity digest, so reaching
+	// here means there is one to compare against.
+	integrity, _ := record.Artifact.Integrity()
+	recorded := integrity.Value
 	result := VerifyResult{
 		Repository:     entry.Source.Repository,
 		Filename:       entry.Source.Filename,
@@ -81,13 +97,30 @@ func (m *Manager) VerifyWithOptions(reference string, options VerifyOptions) (Ve
 	}
 	result.PhysicalQuantization = record.Derivation.PhysicalQuantization
 	result.DerivationStale = record.DerivationStale()
-	switch {
-	case recorded == "":
-		result.Outcome = VerifyNoBaseline
-	case recorded == digest:
+	if recorded == digest {
 		result.Outcome = VerifyMatched
-	default:
+	} else {
 		result.Outcome = VerifyMismatched
+	}
+	// The verification axis is written here and nowhere else. Binding the
+	// record to the digest it checked is what lets that hold: an operation
+	// that later replaces the artifact's evidence retires this reading by
+	// identity, so no other command ever needs to reach in and clear it.
+	record.Verification = &Verification{
+		Outcome:       result.Outcome,
+		CheckedAt:     time.Now().UTC().Format(time.RFC3339),
+		AgainstDigest: recorded,
+	}
+	result.CheckedAt = record.Verification.CheckedAt
+	if info, statErr := os.Stat(entry.TargetPath); statErr == nil {
+		result.Stale = modifiedAfter(info.ModTime(), record.Verification.CheckedAt)
+	}
+	result.Standing = record.Standing()
+	if attestation, applies := record.AppliedAttestation(); applies {
+		result.AttestationMethod = attestation.Method
+	}
+	if err = writeRecordInPlace(entry.TargetPath, record); err != nil {
+		return result, err
 	}
 	if options.RepairDerived {
 		if result.Outcome != VerifyMatched {
@@ -96,13 +129,7 @@ func (m *Manager) VerifyWithOptions(reference string, options VerifyOptions) (Ve
 		derivation := deriveFile(entry.TargetPath)
 		record.SchemaVersion = RecordSchemaVersion
 		record.SetDerivation(derivation)
-		data, marshalErr := json.MarshalIndent(record, "", "  ")
-		if marshalErr != nil {
-			return result, marshalErr
-		}
-		data = append(data, '\n')
-		base := strings.TrimSuffix(entry.TargetPath, filepath.Ext(entry.TargetPath))
-		if err = writeAtomic(base+".json", data); err != nil {
+		if err = writeRecordInPlace(entry.TargetPath, record); err != nil {
 			return result, err
 		}
 		result.DeclaredRecipe = ""

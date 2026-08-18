@@ -88,7 +88,7 @@ func TestManagerResumeRejectsChangedValidator(t *testing.T) {
 	defer server.Close()
 	root := t.TempDir()
 	m := NewManager(filepath.Join(root, "models"))
-	c := Candidate{Source: Source{Provider: "huggingface", Repository: "org/repo", RequestedRevision: "main", ResolvedRevision: "abc", Filename: "m.gguf", URL: server.URL}, Artifact: Artifact{SizeBytes: 24, ETag: "old"}}
+	c := Candidate{Source: Source{Provider: "huggingface", Repository: "org/repo", RequestedRevision: "main", ResolvedRevision: "abc", Filename: "m.gguf", URL: server.URL}, Artifact: Artifact{SizeBytes: 24}, ETag: "old"}
 	j, err := m.Create(c)
 	if err != nil {
 		t.Fatal(err)
@@ -404,8 +404,8 @@ func TestManagerPersistsContentDigestOnDownload(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	if rec.Artifact.SHA256 != hex.EncodeToString(want[:]) {
-		t.Fatalf("sha256=%q want=%q", rec.Artifact.SHA256, hex.EncodeToString(want[:]))
+	if integrity, ok := rec.Artifact.Integrity(); !ok || integrity.Value != hex.EncodeToString(want[:]) {
+		t.Fatalf("integrity=%+v want=%q", integrity, hex.EncodeToString(want[:]))
 	}
 }
 
@@ -444,8 +444,8 @@ func TestManagerResumedDownloadPersistsWholeFileDigest(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if rec.Artifact.SHA256 != hex.EncodeToString(want[:]) {
-		t.Fatalf("sha256=%q want=%q", rec.Artifact.SHA256, hex.EncodeToString(want[:]))
+	if integrity, ok := rec.Artifact.Integrity(); !ok || integrity.Value != hex.EncodeToString(want[:]) {
+		t.Fatalf("integrity=%+v want=%q", integrity, hex.EncodeToString(want[:]))
 	}
 }
 

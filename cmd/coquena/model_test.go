@@ -378,7 +378,9 @@ func TestRunModelVerifyOutcomes(t *testing.T) {
 		t.Fatal(err)
 	}
 	digest := sha256.Sum256(body)
-	target, err := modelapp.Publish(filepath.Join(root, "models"), partial, modelapp.Record{Source: source, Artifact: modelapp.Artifact{SizeBytes: int64(len(body)), SHA256: hex.EncodeToString(digest[:])}})
+	record := modelapp.Record{Source: source, Artifact: modelapp.Artifact{SizeBytes: int64(len(body))}}
+	record.SetIntegrity(hex.EncodeToString(digest[:]), "2026-01-01T00:00:00Z")
+	target, err := modelapp.Publish(filepath.Join(root, "models"), partial, record)
 	if err != nil {
 		t.Fatal(err)
 	}

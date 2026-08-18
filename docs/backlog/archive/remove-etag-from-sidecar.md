@@ -2,8 +2,9 @@
 
 ## Status
 
-- **State:** open
+- **State:** closed
 - **Opened:** 2026-08-11
+- **Closed:** 2026-08-15
 - **Owner:** project-owner
 - **Priority:** normal
 - **Story step:** *"get the model onto the machine"*
@@ -60,3 +61,27 @@ The `ETag` field only. The digest roles themselves are settled in
 
 - `internal/model/types.go`
 - `internal/model/huggingface.go`
+
+## Outcome
+
+Closed by `establish-sidecar-authority`. `Artifact.ETag` is gone from the
+record. The field moved to `Candidate.ETag` as `json:"-"` transport state, and
+`Job.ETag` is untouched, because `If-Range` resume needs precisely the opaque
+last-hop value the sidecar must not keep.
+
+Answers to this entry's acceptance questions:
+
+- **Nothing read `ETag` from a sidecar.** Its only consumer took it off the
+  freshly resolved candidate, before any sidecar existed, so dropping it from
+  the persisted shape regressed nothing.
+- **No migration was needed** — and none was written. The schema bump to 4
+  removed the preceding-version reader entirely, so the field simply stops
+  existing rather than being translated away.
+
+Rejected: reading `X-Linked-ETag` from the first response to recover the
+comparable `lfs.sha256`. Reviewers proposed correcting the ETag rather than
+isolating it, and the ruling chose removal; Coquena already gets `lfs.sha256`
+from the repository API, so a second path to the same value would be work
+justified by a header rather than by a need. The prohibition is worded against
+*opaque* tags rather than against headers as a class, so a published identifier
+carried in a header with an unambiguous domain stays admissible.
