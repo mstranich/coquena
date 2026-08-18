@@ -352,7 +352,7 @@ artifacts:
 
   detect-model-updates:
     kind: backlog
-    state: blocked
+    state: open
     title: Detect that an installed quantization has updates available
     path: backlog/detect-model-updates.md
     openedAt: 2026-08-05
@@ -362,10 +362,9 @@ artifacts:
     relations:
       - { type: motivated-by, target: model-acquisition-story }
       - { type: motivated-by, target: hugging-face-redirects-renamed-repositories }
-      - { type: blocked-by, target: change:establish-sidecar-authority }
       - { type: relates-to, target: introduce-repository-index-file }
       - { type: relates-to, target: support-model-upgrade }
-      - { type: produces, target: change:establish-sidecar-authority }
+      - { type: produces, target: change:detect-model-updates }
 
   distinguish-unattested-artifacts:
     kind: backlog
@@ -513,7 +512,7 @@ artifacts:
 
   support-model-upgrade:
     kind: backlog
-    state: blocked
+    state: open
     title: Replace installed model bytes through an authoritative upgrade
     path: backlog/support-model-upgrade.md
     openedAt: 2026-08-05
@@ -524,7 +523,6 @@ artifacts:
       - { type: motivated-by, target: model-acquisition-story }
       - { type: motivated-by, target: model-artifact-attestation }
       - { type: motivated-by, target: hugging-face-redirects-renamed-repositories }
-      - { type: blocked-by, target: change:establish-sidecar-authority }
       - { type: relates-to, target: introduce-repository-index-file }
       - { type: relates-to, target: align-model-command-surface }
       - { type: produces, target: change:support-model-upgrade }

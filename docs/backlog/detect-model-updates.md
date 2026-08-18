@@ -2,13 +2,12 @@
 
 ## Status
 
-- **State:** blocked
+- **State:** open
 - **Opened:** 2026-08-05
 - **Owner:** project-owner
 - **Priority:** high
 - **Story step:** *"check for updates to a quantization or its companions"*
-- **Blocked by:** `establish-sidecar-authority`
-- **Candidate change:** `establish-sidecar-authority`
+- **Candidate change:** `detect-model-updates`
 
 ## Problem
 

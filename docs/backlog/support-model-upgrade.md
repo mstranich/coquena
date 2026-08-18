@@ -2,12 +2,11 @@
 
 ## Status
 
-- **State:** blocked
+- **State:** open
 - **Opened:** 2026-08-05
 - **Owner:** project-owner
 - **Priority:** normal
 - **Related RFCs:** `gguf-model-artifact-identity`, `model-artifact-attestation`
-- **Blocked by:** `establish-sidecar-authority`
 - **Candidate change:** `support-model-upgrade`
 
 ## Problem
@@ -46,20 +45,32 @@ rejected: adopting local bytes and applying an observed remote change are
 different acts, and `align-model-command-surface` requires that the command not
 choose between them silently.
 
-## Not every change it applies has the same prerequisite
+## Not every change it applies had the same prerequisite
 
-Byte replacement is blocked by `establish-sidecar-authority` for the reason
-stated above. **Relocation is not.** It replaces no bytes, so no attestation
+Byte replacement waited on `establish-sidecar-authority` for the reason stated
+above. **Relocation did not.** It replaces no bytes, so no attestation
 precondition applies: the 307 from the provider API is itself the identity
 evidence, and there is nothing to compare digests against because the content
 does not change. Q6 of `model-artifact-attestation` — what precondition byte
-replacement must enforce — does not arise.
+replacement must enforce — does not arise for it.
 
-The recommended handling is to stage the change: `upgrade` lands with
-relocation first and gains byte replacement once `establish-sidecar-authority`
-exists. That keeps one verb with one owner while the reported blocking stays
-accurate. Splitting relocation into its own entry is the alternative if the
-`blocked` state must be literal rather than approximate.
+That prerequisite landed on 2026-08-15, so the staging it recommended is no
+longer needed and this entry is open in full. What it supplies:
+
+- an attestation axis binding repository, resolved revision, artifact path and
+  digest, with the `method` that established it, which is the evidence Q6's
+  precondition is stated over;
+- the rule that an attestation naming a digest the artifact no longer carries
+  does not apply — so replaced bytes cannot inherit the provenance of the bytes
+  they replaced, without `upgrade` having to clear anything;
+- an ownership axis, which is what `--force` authorizes overriding.
+
+One limitation `upgrade` will meet, recorded in that change's design: the helper
+that carries axes forward copies an axis only when the writing command left it
+unset, so **no writer can deliberately clear one**. `upgrade` will want exactly
+that for the attestation it must not inherit. The digest guard already
+neutralises the stale claim; retiring the record itself needs a way to say
+"clear this" that the current shape cannot express.
 
 ## Required outcome
 
@@ -125,10 +136,11 @@ not an afterthought.
 
 ## Scope boundary
 
-Do not implement upgrade semantics until `establish-sidecar-authority` defines
-the required evidence and sidecar writers. Do not fold replacement into
-`check-updates`, `verify`, reconciliation, or an automatic bulk operation.
-WebUI work remains postponed until the project owner explicitly resumes it.
+Do not re-define the evidence or the sidecar writers:
+`establish-sidecar-authority` settled them and this entry consumes them. Do
+not fold replacement into `check-updates`, `verify`, reconciliation, or an
+automatic bulk operation. WebUI work remains postponed until the project owner
+explicitly resumes it.
 
 ## Relevant implementation areas
 
