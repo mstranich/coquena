@@ -198,7 +198,7 @@ func (m *Manager) Library() ([]LibraryEntry, error) {
 	partialTargets := map[string]bool{}
 	for i := range jobs {
 		job := jobs[i]
-		entries = append(entries, LibraryEntry{Source: job.Source, TargetPath: job.TargetPath, State: string(job.Status), Job: &job})
+		entries = append(entries, LibraryEntry{Source: job.Source, TargetPath: job.TargetPath, JobStatus: job.Status, Job: &job})
 		partialTargets[filepath.Clean(job.TargetPath)] = true
 	}
 	err = filepath.WalkDir(m.ModelsDir, func(path string, entry os.DirEntry, walkErr error) error {
@@ -210,12 +210,16 @@ func (m *Manager) Library() ([]LibraryEntry, error) {
 		}
 		record, readErr := ReadRecord(path)
 		if readErr != nil {
+			// No sidecar, so the cascade stops at its first gate. The
+			// classification read here is an observation for the operator's
+			// benefit and is recorded nowhere: an artifact Coquena could not
+			// classify is refused a sidecar, never given one saying unknown.
 			classification := classifyUnreconciled(path)
-			entries = append(entries, LibraryEntry{Source: unreconciledSource(m.ModelsDir, path), TargetPath: path, State: "unreconciled", Classification: &classification, Standing: StandingUnattested})
+			entries = append(entries, LibraryEntry{Source: untrackedSource(m.ModelsDir, path), TargetPath: path, State: stateOf(nil), Classification: &classification, Standing: StandingUnattested})
 			return nil
 		}
 		classification := record.Classification
-		libraryEntry := LibraryEntry{Source: record.Source, TargetPath: path, State: "installed", Classification: &classification, DerivationStale: record.DerivationStale(), PhysicalQuantization: record.Derivation.PhysicalQuantization, Standing: record.Standing()}
+		libraryEntry := LibraryEntry{Source: record.Source, TargetPath: path, State: stateOf(&record), Classification: &classification, DerivationStale: record.DerivationStale(), PhysicalQuantization: record.Derivation.PhysicalQuantization, Standing: record.Standing()}
 		if attestation, applies := record.AppliedAttestation(); applies {
 			libraryEntry.AttestationMethod = attestation.Method
 		}
@@ -269,14 +273,14 @@ func classifyUnreconciled(path string) Classification {
 	return Classify(meta)
 }
 
-// unreconciledSource derives a best-effort Source for a .gguf file that has
+// untrackedSource derives a best-effort Source for a .gguf file that has
 // no valid Coquena sidecar, using only its path relative to modelsDir. It
 // mirrors the <publisher>/<repo>/<file>.gguf shape both Coquena and LM Studio
 // use: the two path segments immediately above the file become Repository,
 // and the base name becomes Filename. When the path does not have at least
 // two parent segments beneath modelsDir, whatever partial information is
 // available is still returned rather than failing.
-func unreconciledSource(modelsDir, path string) Source {
+func untrackedSource(modelsDir, path string) Source {
 	filename := filepath.Base(path)
 	rel, err := filepath.Rel(modelsDir, path)
 	if err != nil {
@@ -304,7 +308,7 @@ func (m *Manager) InstalledMetadata(repository, filename string) (Inspection, er
 		return Inspection{}, err
 	}
 	for _, entry := range entries {
-		if entry.State == "installed" && entry.Source.Repository == repository && entry.Source.Filename == filename {
+		if entry.State != StateUntracked && entry.Source.Repository == repository && entry.Source.Filename == filename {
 			// Read through InspectLocal rather than ReadRecord alone: the
 			// sidecar no longer caches the raw GGUF map, so the metadata comes
 			// from the artifact itself on demand.

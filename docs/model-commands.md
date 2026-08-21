@@ -1,33 +1,37 @@
 # `coquena model` command contracts
 
 This document defines the operator-facing boundaries of the `coquena model`
-namespace. It distinguishes the behavior implemented today from behavior that
-has been accepted for a planned change. A planned contract is not documentation
-that the corresponding flag or behavior is already available.
+namespace: what each command may read, what it may write, and what it refuses.
 
-## Status vocabulary
+It does not define the artifact states the listing reports. Those are settled in
+[`model-artifact-states`](decisions/model-artifact-states.md) and derived from
+the diagram beside it; restating them here would be a second place to keep the
+same answer correct.
 
-- **Implemented**: available in the current CLI.
-- **Accepted target**: approved by the project owner, but still requires an
-  OpenSpec change and implementation.
-- **Candidate**: a possible later capability whose contract is not yet settled.
+## Reading and acting
 
-## Command matrix
+The REST API was deferred, and the CLI stands in for it. Each command is the
+endpoint it would be, and `--json` follows that correspondence: a command that
+**reads** state returns a representation of it and accepts `--json`; a command
+that **acts** on state reports an outcome and does not.
 
-| Command | Status | Primary authority | Network | Reads model bytes | May write metadata | May write model bytes |
-|---|---|---|---:|---:|---:|---:|
-| `resolve <repository-or-url>` | Implemented | Hugging Face | yes | no | no | no |
-| `discover <repository-or-url[:selector]>` | Implemented | Hugging Face | yes | no | no | no |
-| `download <repository-or-url[:selector]>` | Implemented | Hugging Face | yes | yes | yes | yes |
-| `download list|status|pause|resume|cancel` | Implemented | download manager | no | no | job state only | through an active download |
-| `revision <reference>` | Implemented | installed sidecar | no | no | no | no |
-| `list` | Implemented | local catalog and sidecars | no | no | no | no |
-| `verify <reference>` | Implemented | local bytes and sidecar baseline | no | full artifact | no | no |
-| `verify <reference> --repair-derived` | Implemented | local bytes | no | full artifact | derived fields only | no |
-| `check-updates <reference>` | Implemented read-only; metadata recording is a later target | Hugging Face | yes | no | not currently | no |
-| `reconcile <reference> --online` | Implemented | local artifact and Hugging Face | yes | as required | provenance/attestation | no |
-| `reconcile <reference> --accept` | Implemented | operator | no | as required | accepted identity/ownership | no |
-| `upgrade <reference>` | Candidate | remote attestation plus operator request | yes | yes | yes | yes |
+Passing `--json` to a command that acts is a usage error, never a silently
+ignored option, and the command does not act before refusing.
+
+| Command | Reads or acts | Network | Reads model bytes | Writes sidecar | Writes model bytes |
+|---|---|---:|---:|---:|---:|
+| `discover <repository-or-url[:selector]>` | reads | yes | no | no | no |
+| `list` | reads | no | no | no | no |
+| `update <reference>` | reads | yes | no | no | no |
+| `download list\|status <job-id>` | reads | no | no | no | no |
+| `download <repository-or-url[:selector]>` | acts | yes | yes | yes | yes |
+| `download pause\|resume\|cancel <job-id>` | acts | as required | as required | job state only | through an active download |
+| `import <reference>` | acts | no | header only | yes | no |
+| `reconcile <reference>` | acts | yes | as required | yes | no |
+| `verify <reference> [--repair-derived]` | acts | no | full artifact | yes | no |
+
+`upgrade <reference>` does not exist. It is tracked in
+[`support-model-upgrade`](backlog/support-model-upgrade.md).
 
 ## References and cardinality
 
@@ -40,16 +44,16 @@ user/repository[@revision]:filename.gguf
 
 `:QUANT` is a logical quantization class with cardinality `0..N`.
 `:filename.gguf` is the canonical exact-artifact selector with cardinality
-`0..1`. They are alternatives in the same colon slot; Coquena does not accept
-a slash filename form, nested selectors, or an invented calibration-variant
+`0..1`. They are alternatives in the same colon slot; Coquena does not accept a
+slash filename form, nested selectors, or an invented calibration-variant
 suffix.
 
-Commands that require one artifact refuse an ambiguous logical selector and
-name every matching canonical filename reference. An explicit `@revision` is
-enforced against installed sidecar provenance; omission leaves the installed
-revision unconstrained and does not imply `main`.
+Commands that require one artifact refuse an ambiguous logical selector and name
+every matching canonical filename reference. An explicit `@revision` is enforced
+against the recorded sidecar provenance; omission leaves the recorded revision
+unconstrained and does not imply `main`.
 
-For example, if two installed files share Q4_K_M, a singleton operation on
+For example, when two managed files share Q4_K_M, a singleton operation on
 `org/repository:Q4_K_M` refuses and offers references such as:
 
 ```text
@@ -57,22 +61,27 @@ org/repository@abc123:model-Q4_K_M.gguf
 org/repository@def456:model-Q4_K_M-imatrix.gguf
 ```
 
-Preset bindings retain the authored selector and separately record the
-canonical artifact and resolved revision chosen at bind time. Installing a
-sibling in the same quantization class makes the authored selector ambiguous;
-it does not make the already-bound canonical artifact stale or rebind it.
+Preset bindings retain the authored selector and separately record the canonical
+artifact and resolved revision chosen at bind time. Installing a sibling in the
+same quantization class makes the authored selector ambiguous; it does not make
+the already-bound canonical artifact stale or rebind it.
+
+## Classification is a precondition, not a fallback
+
+No command writes a sidecar for an artifact it could not classify. When a file
+cannot be opened, cannot be parsed as GGUF, declares a type Coquena does not
+recognise, or could not be classified because a required remote inspection
+failed, the operation fails and leaves no sidecar behind.
+
+Such an artifact therefore has none, and the listing reports it as `untracked`:
+present on disk, outside Coquena's management, and adoptable once the operator
+resolves whatever made it unclassifiable.
+
+Enumeration is the one place that still tolerates an undetermined type, because
+it records nothing. A foreign file in the models directory is listed rather than
+hidden, and does not fail the walk.
 
 ## Remote exploration
-
-### `resolve`
-
-```console
-coquena model resolve org/repository
-```
-
-Resolves a Hugging Face repository or URL into Coquena's remote repository
-representation. It may use the network and does not modify the local catalog,
-sidecars, or model bytes.
 
 ### `discover`
 
@@ -89,9 +98,9 @@ separately and are not duplicated in quantization totals. A dash means the
 complete total is unknown because at least one constituent size is unavailable.
 
 The default comparison does not request the repository model card. Pass
-`--model-card` to fetch and print it after the quantization summary. Discovery
-may query Hugging Face, but it does not download artifacts or mutate local
-state.
+`--model-card` to fetch and print it after the quantization summary.
+
+Discovery queries Hugging Face and mutates nothing.
 
 ## Downloading and job management
 
@@ -99,34 +108,140 @@ state.
 
 ```console
 coquena model download org/repository:Q4_K_M
-coquena model download org/repository:Q4_K_M --with-companions
 ```
 
-Downloads the selected artifact through the shared durable download manager.
-`--with-companions` may enqueue additional compatible artifacts, with one job
-per artifact. Download completion writes the artifact and its local record.
+Downloads the selected quantization as a complete bundle: the principal and
+every companion identified for it, one durable job per artifact. There is no
+opt-in flag, because the operator asks for a quantization and a quantization is
+not usable in pieces.
+
+Every created job identity is printed on its own line. The jobs are durable and
+remain addressable through the query subcommands afterwards, which is why
+`download` needs no machine-readable option of its own.
+
+Publication is refused when the completed bytes cannot be classified; the
+partial file is left in place and no sidecar claims it.
 
 The nested job commands operate on model download jobs:
 
 ```console
-coquena model download list
-coquena model download status <job-id>
+coquena model download list [--json]
+coquena model download status <job-id> [--json]
 coquena model download pause <job-id>
 coquena model download resume <job-id>
 coquena model download cancel <job-id>
 ```
 
-## Local catalog queries
+## Adopting and reconciling
 
-### `revision`
+`import` and `reconcile` are two verbs with one responsibility each. Adopting
+local bytes and establishing a repository match are different acts, so the
+operator names which one they mean by choosing the command. Neither has a mode
+flag, and neither falls back to the other.
+
+### `import`
 
 ```console
-coquena model revision org/repository:Q4_K_M
+coquena model import org/repository:Q4_K_M
 ```
 
-Prints the resolved revision recorded in an installed artifact's sidecar. It is
-local-only and does not establish that the remote repository is still at that
-revision.
+Adopts an artifact already on disk from its path-derived identity alone. It
+issues no network request and leaves the artifact `local`.
+
+It stays one artifact per invocation: it asserts an identity with nothing to
+corroborate it against, so it is never applied to a set the operator did not name
+one by one. There is no `--all`.
+
+### `reconcile`
+
+```console
+coquena model reconcile org/repository:Q4_K_M
+```
+
+Reconciles the artifacts of one repository against that repository. A principal
+and its companions are parts of one logical unit, so a reference naming a
+repository reconciles all of them; a reference matching more than one principal
+is refused as ambiguous, since choosing among quantizations is the operator's
+decision.
+
+An artifact whose locally computed digest agrees with the content hash the
+repository publishes gains a full attestation. One whose digest disagrees is
+refused. One the repository could not be consulted about, or for which no match
+could be established, is left `detached` — usable, visible, and never silently
+adopted as `local`.
+
+A candidate whose remote inspection fails is reported and refused rather than
+reclassified as unknown, and it stays in the reconciliation's target set so its
+failure is visible instead of appearing as a silent omission.
+
+Reconciliation prompts, so it emits no machine-readable document. It has no
+`--all` mode.
+
+## Verification and repair
+
+### `verify`
+
+```console
+coquena model verify org/repository:Q4_K_M
+```
+
+Re-hashes the complete local artifact, compares it with the `integrity` digest
+recorded for it, and **records the outcome and the time it ran**. It makes no
+network request.
+
+Verification writes by design: it repairs the coherence between an artifact's
+bytes and the evidence recorded about them, and the record it leaves is what
+lets a later `list` report `altered` without hashing anything. `verify` is the
+only writer of that axis.
+
+A valid sidecar always carries an `integrity` digest, so there is no
+baseline-absence outcome: the comparison either matches or it does not.
+
+### `verify --repair-derived`
+
+```console
+coquena model verify org/repository:Q4_K_M --repair-derived
+```
+
+Recalculates only evidence derived from the local bytes — GGUF classification,
+parameter count, declared recipe, physical tensor composition, and the
+derivation version.
+
+The operation:
+
+- proceeds only after a digest match, and refuses after a mismatch;
+- preserves source, attestation, observation, ownership and the recorded
+  digests;
+- never queries Hugging Face and never modifies model bytes;
+- fails without changing the derived evidence when the artifact can no longer be
+  classified.
+
+A failed repair does not retract the verification that ran before it. The hash
+comparison happened, and discarding its outcome would lose an observation
+Coquena actually made.
+
+There is no `verify --all`.
+
+## Checking for updates
+
+### `update`
+
+```console
+coquena model update org/repository:Q4_K_M
+coquena model update org/repository:Q4_K_M --json
+```
+
+Queries Hugging Face using only the artifact's recorded repository, requested
+revision and filename, without reading or hashing the local file. It reports
+whether the repository's current content for that path differs from what is
+recorded locally, degrading to a revision-only comparison when the repository
+publishes no content hash. It never runs as a side effect of a listing.
+
+The verb pairs with `upgrade`, matching the tools the operator already uses
+daily. What `update` should persist, and how a rename is detected, are
+[`detect-model-updates`](backlog/detect-model-updates.md).
+
+## Listing
 
 ### `list`
 
@@ -135,156 +250,55 @@ coquena model list
 coquena model list --json
 ```
 
-Lists local artifacts and their sidecars. It must remain cheap and read-only:
-it performs no Hugging Face request, full-artifact hashing, GGUF rescan, repair,
-or reconciliation.
+Lists every artifact in the configured models directory with its state, declared
+type, and whether it is usable. It performs no network request, no hashing, no
+GGUF rescan, and no repair, and reports an empty list rather than an error when
+no model is present.
+
+Usability is derived wholly from the state, so no separate reason is reported:
+the state is the reason. A companion with no compatible principal alongside it is
+usable, and the absent principal is reported as advice rather than as a refusal.
+
+A download still in flight reports its job status in its own field and carries no
+artifact state. They are two vocabularies, and a transfer that has not finished
+has produced no artifact to derive one from.
 
 The `DERIVATION` column reports whether the evidence calculated from each GGUF
 was produced by Coquena's current derivation algorithm:
 
-- `current` means the sidecar's derivation version matches the version used by
-  this Coquena build;
-- `stale` means the sidecar has an older derivation version or no derivation
-  version, as with a supported legacy sidecar.
+- `current` — the sidecar's derivation version matches this build;
+- `stale` — the sidecar carries an older derivation version.
 
-Derived evidence includes the GGUF classification, parameter count, declared
-quantization recipe, and physical tensor composition. `stale` does **not** mean
-that the model is corrupt or that a remote update exists. It only means those
-calculated fields may not reflect the current derivation rules.
+`stale` does **not** mean the model is corrupt or that a remote update exists. It
+means those calculated fields may not reflect the current derivation rules.
+`list` determines it by comparing small version values in the sidecar; it does
+not open, scan, or hash the artifact. To refresh one explicitly, run
+`verify <reference> --repair-derived`.
 
-`list` determines this state by comparing the small version values stored in
-the sidecar. It does not open, scan, or hash the model artifact. To refresh a
-stale derivation explicitly, run:
+## Removed commands
 
-```console
-coquena model verify <reference> --repair-derived
-```
+Coquena has no release, so a removed spelling is deleted rather than redirected.
+Nothing forwards these, and the usage text names no replacement — it is the only
+record of what the surface is.
 
-Repair first requires the model bytes to match the sidecar's integrity
-baseline, then recalculates only the derived evidence for that artifact.
-
-### Removed: `inspect`
-
-```console
-coquena model inspect org/repository:Q4_K_M  # rejected
-```
-
-The CLI surface has been removed. `verify` is the operator-facing comparison between bytes-derived
-facts and the sidecar, while download will retain the internal `Inspection`
-projection to avoid parsing a header twice.
-
-Removing the command does **not** mean deleting the internal inspection type or
-denying that the GGUF header is primary evidence.
-
-## Local verification and repair
-
-### `verify`
-
-```console
-coquena model verify <reference>
-coquena model verify <reference> --json
-```
-
-The implemented command hashes the complete local artifact and compares it with
-the SHA-256 baseline recorded in the sidecar. Its outcomes are matched,
-mismatched, or no baseline. It makes no network request and is read-only.
-
-The command must continue to be read-only by default. A verification result is
-returned to the operator and is not persisted as a `lastVerifiedAt` event.
-
-### `verify --repair-derived`
-
-```console
-coquena model verify <reference> --repair-derived
-```
-
-The flag recalculates only evidence derived from the local bytes, such
-as GGUF classification, parameter count, and derivation version. Repair is
-per-artifact and opt-in.
-
-The operation must:
-
-- require the current bytes to match the stored integrity baseline;
-- preserve source, remote revision, provenance, attestation, drift, ownership,
-  and the baseline digest;
-- never query Hugging Face;
-- never modify model bytes;
-- tolerate the older sidecar version it is intended to repair;
-- report declared GGUF recipe and physical tensor composition as distinct
-  evidence rather than collapsing them into one outcome.
-
-No `verify --all` form is part of the accepted contract.
-
-## Remote drift and reconciliation
-
-### `check-updates`
-
-```console
-coquena model check-updates <reference>
-coquena model check-updates <reference> --json
-```
-
-The implemented command queries Hugging Face and reports whether the installed
-artifact appears current, has an update, or can only be compared partially. It
-does not change model bytes and currently does not persist the observation.
-
-A later authority-model change may allow it to record remote drift metadata,
-like a bounded `git fetch`, without changing derivation, provenance, ownership,
-or model bytes. That persistence contract is not part of the GGUF evidence
-change.
-
-### `reconcile --online`
-
-```console
-coquena model reconcile <reference> --online
-```
-
-Consults Hugging Face and reconciles local artifacts with remote provenance and
-content evidence. It may update sidecars but must not replace or modify the
-model bytes. Refused or ambiguous artifacts remain operator-visible.
-
-### `reconcile --accept`
-
-```console
-coquena model reconcile <reference> --accept
-```
-
-Records an explicit operator acceptance for one local artifact. It must not be
-silently applied to a set. It modifies sidecar identity or ownership evidence,
-not model bytes.
-
-`reconcile` intentionally has no `--all` mode and rejects `--json` because the
-current workflow may prompt for an operator decision.
-
-## Future `upgrade` command
-
-`model upgrade <reference>` is a candidate derived from the distinction between
-observing remote drift and changing local bytes. It does not exist today. Its
-download, replacement, rollback, and operator-confirmation semantics require a
-separate RFC or change before implementation.
-
-## Change ownership
-
-The accepted implementation sequence is:
-
-1. `correct-gguf-quantization-evidence`: trustworthy local GGUF evidence,
-   derivation versioning, tolerant sidecar reading, and
-   `verify --repair-derived`.
-2. A later artifact-reference change: canonical physical addresses and
-   ambiguity handling.
-3. A later sidecar-authority change: bounded drift, attestation, and ownership
-   axes with explicit writers.
-4. A later upgrade change, if approved.
-
-New unresolved architectural questions should be handled by a derived RFC. An
-implementation-ready decision should instead become a bounded OpenSpec change.
+| Removed | Why |
+|---|---|
+| `inspect` | An internal projection exposed as a subcommand. `verify` is the operator-facing comparison; download still uses the projection internally rather than parsing a header twice. |
+| `resolve` | An internal projection of `discover`. |
+| `revision` | An internal projection of `verify`. `list` already reports each artifact's resolved revision. |
+| `check-updates` | An invented verb. Renamed `update`, which pairs with `upgrade`. |
+| `reconcile --accept` / `--online` | A flag chose between two different acts. Split into `import` and `reconcile`. |
+| `download --with-companions` | Made the bundle optional, contradicting the unit the operator asks for. |
 
 ## GGUF validation fixtures
 
 The reproducible test suite uses small synthetic GGUF documents that exercise
-metadata traversal, 64-bit tensor dimensions, structural-scope filtering, and
-the overlapping numeric value `15` in both enum domains. The operator's Ornith
-Q4_K_M artifact is not stored in this repository because it is a multi-gigabyte
-model. When that artifact is locally available, `model verify` provides the
-optional end-to-end acceptance check; its absence does not make the synthetic
-parser and contract tests non-reproducible.
+metadata traversal, 64-bit tensor dimensions, structural-scope filtering, and the
+overlapping numeric value `15` in both enum domains. A fixture that is to be
+published must declare `general.type`, because publication now refuses an
+artifact it cannot classify.
+
+The operator's Ornith Q4_K_M artifact is not stored in this repository because it
+is a multi-gigabyte model. When that artifact is locally available, `model
+verify` provides the optional end-to-end acceptance check; its absence does not
+make the synthetic parser and contract tests non-reproducible.

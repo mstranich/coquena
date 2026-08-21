@@ -2,12 +2,49 @@
 
 ## Status
 
-- **State:** open
+- **State:** closed
 - **Opened:** 2026-08-05
+- **Closed:** 2026-08-20
 - **Owner:** project-owner
 - **Priority:** normal
 - **Story step:** the whole story, as a check on what exists
-- **Candidate change:** `align-model-command-surface`
+- **Candidate change:** `adopt-artifact-state-vocabulary`
+
+## Outcome
+
+Closed by `adopt-artifact-state-vocabulary` rather than by a change of its own.
+
+The state diagram in `model-artifact-states` derives `local` from `import` and
+`synced` from `reconcile` — two commands that did not exist. Shipping the state
+vocabulary while the CLI still spelled them `reconcile --accept` and `reconcile
+--online` would have left the listing explaining itself in words its own command
+surface contradicted. The two entries were one resolution, settled the same day,
+split across two documents.
+
+What landed: `reconcile` split into `import` (local only) and `reconcile`
+(online only) with no mode flags; `check-updates` renamed `update`;
+`--with-companions`, `resolve` and `revision` removed.
+
+### What was ruled out
+
+- **Renaming `reconcile` to `import` wholesale.** Superseded before
+  implementation by the owner's 2026-08-11 decision to split the verb. One name
+  cannot carry two acts without a flag deciding between them, which is the
+  defect the entry opened against.
+- **Keeping a transitional error that names the replacement.** Rejected: there
+  is no release and therefore no user to migrate. An alias is a second surface to
+  maintain and a second thing for a reader to discover.
+- **Justifying `--json` by interactivity.** The prior rule was that `reconcile`
+  refuses `--json` because it prompts. True but incidental — it explains one
+  command rather than the surface, and it would have admitted `--json` on
+  `import` and `download`, which prompt nothing. Replaced by the read/act
+  division: each command is the endpoint it would be were the REST API built.
+- **Keeping `--json` on `verify`.** Considered on the grounds that verify answers
+  a question. Rejected by the project owner: verify exists to repair coherence
+  and must write, so it acts.
+- **Introducing `--all`.** Not adopted. If library-wide action is ever
+  warranted, `<ref>` becomes optional across every operation, which retires the
+  question permanently instead of adding one flag per command.
 
 ## Problem
 

@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -16,11 +17,11 @@ import (
 // kept on the wire rather than deleted outright: a resumable download needs an
 // opaque validator, and If-Range is where it is used.
 func TestResumeStillSendsIfRangeFromTheJobsETag(t *testing.T) {
-	body := emptyGGUF()
+	body := principalGGUF()
 	var sentIfRange string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodHead {
-			w.Header().Set("Content-Length", "24")
+			w.Header().Set("Content-Length", strconv.Itoa(len(principalGGUF())))
 			w.Header().Set("ETag", `"transport-only"`)
 			return
 		}
@@ -36,7 +37,7 @@ func TestResumeStillSendsIfRangeFromTheJobsETag(t *testing.T) {
 	m := NewManager(filepath.Join(root, "models"))
 	c := Candidate{
 		Source:   Source{Provider: "huggingface", Repository: "org/repo", RequestedRevision: "main", ResolvedRevision: "abc", Filename: "m.gguf", URL: server.URL},
-		Artifact: Artifact{SizeBytes: 24},
+		Artifact: Artifact{SizeBytes: int64(len(principalGGUF()))},
 		ETag:     `"transport-only"`,
 	}
 	j, err := m.Create(c)
@@ -66,7 +67,7 @@ func TestResumeStillSendsIfRangeFromTheJobsETag(t *testing.T) {
 // field: an entity tag's meaning depends on which hop answered, so it must not
 // reach a document that records what is known about an artifact's bytes.
 func TestNoSidecarCarriesATransportEntityTag(t *testing.T) {
-	body := emptyGGUF()
+	body := principalGGUF()
 	digest := sha256.Sum256(body)
 	// A Hugging Face artifact's final-hop ETag is the Xet CAS hash: a SHA-256
 	// over chunked content, which looks exactly like a digest Coquena could
@@ -75,7 +76,7 @@ func TestNoSidecarCarriesATransportEntityTag(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("ETag", xetLookalike)
 		if r.Method == http.MethodHead {
-			w.Header().Set("Content-Length", "24")
+			w.Header().Set("Content-Length", strconv.Itoa(len(principalGGUF())))
 			return
 		}
 		_, _ = w.Write(body)
@@ -86,7 +87,7 @@ func TestNoSidecarCarriesATransportEntityTag(t *testing.T) {
 	m := NewManager(filepath.Join(root, "models"))
 	c := Candidate{
 		Source:   Source{Provider: "huggingface", Repository: "org/repo", RequestedRevision: "main", ResolvedRevision: "abc", Filename: "m.gguf", URL: server.URL},
-		Artifact: Artifact{SizeBytes: 24},
+		Artifact: Artifact{SizeBytes: int64(len(principalGGUF()))},
 		ETag:     xetLookalike,
 	}
 	j, err := m.Create(c)
@@ -128,11 +129,11 @@ func TestNoSidecarCarriesATransportEntityTag(t *testing.T) {
 // comparison. Recording such a download as unattested would understate what
 // Coquena knows.
 func TestDownloadIsAttestedByConstruction(t *testing.T) {
-	body := emptyGGUF()
+	body := principalGGUF()
 	published := strings.Repeat("b", 64)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodHead {
-			w.Header().Set("Content-Length", "24")
+			w.Header().Set("Content-Length", strconv.Itoa(len(principalGGUF())))
 			return
 		}
 		_, _ = w.Write(body)
@@ -143,7 +144,7 @@ func TestDownloadIsAttestedByConstruction(t *testing.T) {
 	m := NewManager(filepath.Join(root, "models"))
 	c := Candidate{
 		Source:        Source{Provider: "huggingface", Repository: "org/repo", RequestedRevision: "main", ResolvedRevision: "abc", Filename: "m.gguf", URL: server.URL},
-		Artifact:      Artifact{SizeBytes: 24},
+		Artifact:      Artifact{SizeBytes: int64(len(principalGGUF()))},
 		ContentSHA256: published,
 	}
 	j, err := m.Create(c)

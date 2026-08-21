@@ -16,9 +16,9 @@ const (
 	// RepositoryReconciled reports that a full Hugging Face-provenance sidecar
 	// was persisted for the artifact.
 	RepositoryReconciled RepositoryOutcome = "reconciled"
-	// RepositoryAlreadyInstalled reports an artifact that already carried a
+	// RepositoryAlreadyManaged reports an artifact that already carried a
 	// valid sidecar. Nothing is rewritten for it.
-	RepositoryAlreadyInstalled RepositoryOutcome = "installed"
+	RepositoryAlreadyManaged RepositoryOutcome = "already-managed"
 	// RepositoryRefused reports an artifact whose reconciliation was refused,
 	// above all one whose digest disagrees with the reported content hash. No
 	// sidecar is written for it.
@@ -98,7 +98,7 @@ func (m *Manager) ReconcileRepository(reference string) (RepositoryReconciliatio
 		return RepositoryReconciliation{}, err
 	}
 	if len(local) == 0 {
-		return RepositoryReconciliation{}, &ErrNoInstalledMatch{Reference: reference, State: "unreconciled", Available: nil}
+		return RepositoryReconciliation{}, &ErrNoInstalledMatch{Reference: reference, State: string(StateUntracked), Available: nil}
 	}
 	siblings, revision, err := m.repositorySiblings(repository, requested)
 	if err != nil {
@@ -110,7 +110,7 @@ func (m *Manager) ReconcileRepository(reference string) (RepositoryReconciliatio
 	}
 	targets := reconciliationTargets(siblings, local, selector, len(principals) == 1)
 	if len(targets) == 0 {
-		return RepositoryReconciliation{}, &ErrNoInstalledMatch{Reference: reference, State: "unreconciled", Available: localNames}
+		return RepositoryReconciliation{}, &ErrNoInstalledMatch{Reference: reference, State: string(StateUntracked), Available: localNames}
 	}
 	result := RepositoryReconciliation{Repository: repository, Revision: revision, Selector: selector, Artifacts: []RepositoryArtifact{}}
 	remote := make(map[string]bool, len(siblings))
@@ -151,8 +151,18 @@ func (m *Manager) ReconcileRepository(reference string) (RepositoryReconciliatio
 func (m *Manager) reconcileOne(entry LibraryEntry, sibling repositorySibling) RepositoryArtifact {
 	name := sibling.candidate.Source.Filename
 	artifact := RepositoryArtifact{Filename: name, Classification: sibling.classification}
-	if entry.State == "installed" {
-		artifact.Outcome = RepositoryAlreadyInstalled
+	// A candidate Coquena could not inspect is refused before anything else. It
+	// cannot be matched against local bytes without knowing what it is, and
+	// writing a sidecar from an undetermined classification is exactly what the
+	// state vocabulary forbids.
+	if sibling.inspectErr != nil {
+		artifact.Outcome = RepositoryRefused
+		artifact.Diagnostic = fmt.Sprintf("could not inspect %s in the repository, so it was not reconciled: %v", name, sibling.inspectErr)
+		m.logf("model reconcile repository refused filename=%s: remote inspection failed: %v", name, sibling.inspectErr)
+		return artifact
+	}
+	if entry.State != StateUntracked {
+		artifact.Outcome = RepositoryAlreadyManaged
 		artifact.Classification = entryClassification(entry)
 		return artifact
 	}
@@ -183,14 +193,20 @@ func (m *Manager) reconcileOne(entry LibraryEntry, sibling repositorySibling) Re
 type repositorySibling struct {
 	candidate      Candidate
 	classification Classification
-	diagnostic     string
+	// inspectErr records that the candidate's remote inspection failed. It
+	// replaces a diagnostic string that was set here and read nowhere, which is
+	// precisely why a failed inspection used to be silent: the classification
+	// degraded to unknown, the artifact stopped matching as a principal or a
+	// companion, and it left the target set without anyone being told.
+	inspectErr error
 }
 
 // repositorySiblings enumerates a repository's GGUF candidates with their
-// classification, the same bounded range read Discover performs. An artifact
-// that cannot be inspected degrades to an explicit unknown classification
-// rather than failing the whole reconciliation, so one unreadable file does not
-// hide the repository.
+// classification, the same bounded range read Discover performs. A candidate
+// whose inspection fails carries the failure rather than an unknown
+// classification: it is reported and refused, never quietly reclassified. The
+// enumeration itself still succeeds, so one unreadable candidate does not hide
+// the repository.
 func (m *Manager) repositorySiblings(repository, requested string) ([]repositorySibling, string, error) {
 	candidates, err := m.ResolveRevision(repository, requested, "")
 	if err != nil {
@@ -205,7 +221,7 @@ func (m *Manager) repositorySiblings(repository, requested string) ([]repository
 		sibling := repositorySibling{candidate: candidate, classification: Classification{Type: TypeUnknown}}
 		inspection, inspectErr := m.InspectRemote(candidate)
 		if inspectErr != nil {
-			sibling.diagnostic = inspectErr.Error()
+			sibling.inspectErr = inspectErr
 		} else {
 			sibling.classification = inspection.Classification
 		}
@@ -227,9 +243,6 @@ func (m *Manager) repositoryArtifacts(repository string) (map[string]LibraryEntr
 	var names []string
 	for _, entry := range entries {
 		if entry.Job != nil || entry.Source.Repository != repository {
-			continue
-		}
-		if entry.State != "installed" && entry.State != "unreconciled" {
 			continue
 		}
 		local[entry.Source.Filename] = entry
@@ -272,7 +285,12 @@ func reconciliationTargets(siblings []repositorySibling, local map[string]Librar
 		if _, present := local[name]; !present {
 			continue
 		}
-		if SelectorMatches(selector, name) || (hasPrincipal && sibling.classification.Type == TypeProjector) {
+		// A candidate whose inspection failed is a target even though nothing is
+		// known about it. Its classification is undetermined, so neither the
+		// selector nor the companion rule can decide it belongs — and leaving it
+		// out on that basis is the silent omission this set exists to prevent.
+		// Included, it reaches reconcileOne and is reported as refused.
+		if sibling.inspectErr != nil || SelectorMatches(selector, name) || (hasPrincipal && sibling.classification.Type == TypeProjector) {
 			targets[name] = true
 		}
 	}

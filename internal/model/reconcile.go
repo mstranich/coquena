@@ -23,7 +23,7 @@ func (r ReconcileResult) Partial() bool { return r.Record.Standing() != Standing
 
 // ReconcileOnline reconciles the .gguf at path against Hugging Face, treating
 // its path-derived repository (the two path segments above the file,
-// mirroring unreconciledSource) as the candidate identity. It resolves that
+// mirroring untrackedSource) as the candidate identity. It resolves that
 // repository's "main" revision, locates the sibling whose filename matches
 // path's base name exactly, hashes the local file, and compares the digest
 // against the content SHA-256 Hugging Face reports for that sibling, when one
@@ -34,7 +34,7 @@ func (r ReconcileResult) Partial() bool { return r.Record.Standing() != Standing
 // an attestation.
 func (m *Manager) ReconcileOnline(path string) (ReconcileResult, error) {
 	path = filepath.Clean(path)
-	source := unreconciledSource(m.ModelsDir, path)
+	source := untrackedSource(m.ModelsDir, path)
 	if source.Repository == "" || source.Filename == "" {
 		return ReconcileResult{}, fmt.Errorf("cannot derive a Hugging Face repository and filename from path %q", path)
 	}
@@ -172,7 +172,7 @@ func publishedDigestOf(candidate Candidate) *Digest {
 // "local" with only Repository and Filename required.
 func (m *Manager) ReconcileAccept(path string) (ReconcileResult, error) {
 	path = filepath.Clean(path)
-	source := unreconciledSource(m.ModelsDir, path)
+	source := untrackedSource(m.ModelsDir, path)
 	source.Provider = "local"
 	if source.Repository == "" || source.Filename == "" {
 		return ReconcileResult{}, fmt.Errorf("cannot derive a repository and filename from path %q", path)
@@ -301,8 +301,10 @@ func (m *Manager) ReconcileAll(mode ReconcileMode) (BulkReconcileResult, error) 
 		}
 		path := filepath.Clean(entry.TargetPath)
 		out := BulkReconcileEntry{Path: path, Repository: entry.Source.Repository, Filename: entry.Source.Filename}
-		switch entry.State {
-		case "installed":
+		switch {
+		// An artifact that already has a sidecar is managed; the bulk pass exists
+		// to adopt the ones that do not.
+		case entry.State != StateUntracked:
 			out.Outcome = OutcomeSkipped
 			record, readErr := ReadRecord(path)
 			if readErr != nil {

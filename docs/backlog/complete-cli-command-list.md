@@ -13,15 +13,45 @@
 
 When Coquena rejects a top-level invocation, the usage text presents itself as
 the list of available commands, but that list is incomplete. The dispatcher
-accepts command families and forms that the top-level `commandUsage` string
-does not name accurately: for example `preset` and `config` are absent, while
-the model summary collapses or omits supported operations such as `discover`,
-`list`, `reconcile`, `verify`, `check-updates`, and their relevant flags.
+accepts command families the top-level `commandUsage` string does not name:
+`preset` and `config` are both absent, and nothing prevents the next family from
+being absent too.
 
 An operator cannot treat the program's own help as an authoritative answer to
 "what can Coquena do?" and must instead consult source code or separate docs.
-Because the command surface is still expected to change, fixing this before
-those changes land would create churn without unblocking model acquisition.
+
+**Updated 2026-08-20.** Two things changed.
+
+The scheduling condition this entry set for itself is satisfied.
+`align-model-command-surface` closed with `adopt-artifact-state-vocabulary`, so
+the vocabulary a complete listing would document is now the intended one rather
+than a transitional one. The reason this entry was filed at low priority — that
+fixing it before the surface changed would create churn — no longer holds.
+
+The defect also got worse, in a way that is worth stating exactly because it is
+the concrete case for the general complaint.
+
+`cmd/coquena/runtime.go:23` reads:
+
+```text
+	   coquena model resolve|download|revision <reference> [--json]
+```
+
+`resolve` and `revision` were withdrawn by `adopt-artifact-state-vocabulary`, so
+the program's own help now names two commands that do not exist and claims
+`--json` applies to a family where it is refused by three of the verbs. The line
+also indents with a tab where every other line uses spaces, so it renders
+misaligned.
+
+This was deliberately **not** fixed inside that change: the change's scope was
+the state vocabulary and the model command surface, and correcting the top-level
+listing belongs here. It is recorded rather than repaired so that the first
+concrete thing this entry does is close a defect that already exists, instead of
+starting from a general complaint.
+
+The general complaint is unchanged and is the reason a one-line patch is not the
+answer: the top level enumerates some families by hand and omits others, and
+nothing fails when the next one is forgotten.
 
 ## Required outcome
 
@@ -34,9 +64,8 @@ Future work should:
 - keep the presented command surface consistent with `docs/model-commands.md`
   and executable parsing tests;
 - prevent a newly added command from silently remaining absent from the list;
-- schedule this after command-surface changes such as
-  `align-model-command-surface`, so the result documents the intended final
-  vocabulary rather than today's transitional one.
+- ~~schedule this after command-surface changes such as
+  `align-model-command-surface`~~ — satisfied on 2026-08-20.
 
 ## Acceptance questions
 

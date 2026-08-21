@@ -47,7 +47,7 @@ func companionEntry(repository, filename string, classification *model.Classific
 	return model.LibraryEntry{
 		Source:         model.Source{Repository: repository, Filename: filename, ResolvedRevision: "rev-" + filename},
 		TargetPath:     "/models/" + filename,
-		State:          "installed",
+		State:          model.StateSynced,
 		Classification: classification,
 	}
 }

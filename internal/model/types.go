@@ -360,9 +360,20 @@ type Job struct {
 // persisted, since a projector's usability changes when a principal beside it
 // is installed or removed.
 type LibraryEntry struct {
-	Source               Source                `json:"source"`
-	TargetPath           string                `json:"targetPath"`
-	State                string                `json:"state"`
+	Source     Source `json:"source"`
+	TargetPath string `json:"targetPath"`
+	// State is the artifact's derived state. It is empty for an entry that
+	// represents a download still in flight: the cascade begins at an artifact
+	// on disk, and a transfer that has not finished has produced none.
+	State ArtifactState `json:"state,omitempty"`
+	// JobStatus is the transfer's status, carried only by an entry that
+	// represents a download in flight.
+	//
+	// It has its own field because these are two vocabularies, not one. They
+	// shared `State` until this change, which is why every consumer began by
+	// discriminating which of the two it was holding, and why the listing had to
+	// filter entries out by naming the artifact states it recognised.
+	JobStatus            Status                `json:"jobStatus,omitempty"`
 	Classification       *Classification       `json:"classification,omitempty"`
 	DerivationStale      bool                  `json:"derivationStale,omitempty"`
 	PhysicalQuantization *PhysicalQuantization `json:"physicalQuantization,omitempty"`

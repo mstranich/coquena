@@ -52,11 +52,11 @@ func TestLibraryDerivesAlteredWithoutHashing(t *testing.T) {
 	if !entry.Altered() {
 		t.Fatalf("the recorded mismatch was not read back: %+v", entry.Verification)
 	}
-	if entry.Usability.Usable || entry.Usability.Reason != ReasonAltered {
-		t.Fatalf("usability=%+v want unusable with reason %q", entry.Usability, ReasonAltered)
+	if entry.State != StateAltered {
+		t.Fatalf("state=%q want altered", entry.State)
 	}
-	if entry.Usability.Reason == ReasonUnreconciled {
-		t.Fatal("altered bytes and an absent sidecar need different remedies and must not share a reason")
+	if entry.Usability.Usable {
+		t.Fatalf("an altered artifact was reported usable: %+v", entry.Usability)
 	}
 }
 

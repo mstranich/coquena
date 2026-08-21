@@ -16,10 +16,11 @@ import (
 	modelapp "github.com/mstranich/coquena/internal/model"
 )
 
-// namedGGUF builds a minimal valid GGUF header carrying a single
-// general.name string value.
+// namedGGUF builds a publishable artifact carrying general.name. It declares
+// general.type because publication refuses an artifact it cannot classify, so a
+// fixture that only carries a name is no longer a model Coquena will record.
 func namedGGUF(name string) []byte {
-	return stringGGUF("general.name", name)
+	return stringGGUF("general.type", "model", "general.name", name)
 }
 
 // stringGGUF builds a minimal valid GGUF header carrying the given string
@@ -105,9 +106,9 @@ func TestModelAPISendsImmediateTerminalSSE(t *testing.T) {
 }
 
 func TestModelAPISendsCompletedSSEAfterJobRecordIsRemoved(t *testing.T) {
-	body := append([]byte{'G', 'G', 'U', 'F', 3, 0, 0, 0}, make([]byte, 16)...)
+	body := stringGGUF("general.type", "model")
 	download := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Content-Length", "24")
+		w.Header().Set("Content-Length", strconv.Itoa(len(body)))
 		_, _ = w.Write(body)
 	}))
 	defer download.Close()
@@ -116,7 +117,7 @@ func TestModelAPISendsCompletedSSEAfterJobRecordIsRemoved(t *testing.T) {
 	m, _ := api.manager()
 	job, err := m.Create(modelapp.Candidate{
 		Source:   modelapp.Source{Provider: "huggingface", Repository: "org/repo", RequestedRevision: "main", ResolvedRevision: "abc", Filename: "m.gguf", URL: download.URL},
-		Artifact: modelapp.Artifact{SizeBytes: 24},
+		Artifact: modelapp.Artifact{SizeBytes: int64(len(body))},
 	})
 	if err != nil {
 		t.Fatal(err)

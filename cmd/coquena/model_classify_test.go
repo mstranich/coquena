@@ -248,7 +248,7 @@ func TestRunModelDiscoverReportsGroupedSizesAndOptInModelCard(t *testing.T) {
 }
 
 func TestRunModelRejectsModelCardFlagOutsideDiscover(t *testing.T) {
-	if err := runModel([]string{"resolve", "org/repo", "--model-card"}, &bytes.Buffer{}); err == nil || err.Error() != modelUsage {
+	if err := runModel([]string{"list", "--model-card"}, &bytes.Buffer{}); err == nil || err.Error() != modelUsage {
 		t.Fatalf("err=%v", err)
 	}
 	if err := runModel([]string{"discover", "org/repo", "unexpected"}, &bytes.Buffer{}); err == nil || err.Error() != modelUsage {
@@ -262,7 +262,7 @@ func TestRunModelNamesCandidatesOnAmbiguousSelector(t *testing.T) {
 		"model-Q4_K_M.gguf": cliPrincipalGGUF(),
 		"model-Q4_K_S.gguf": cliPrincipalGGUF(),
 	}, "")
-	err := runModel([]string{"resolve", "org/repo:Q4"}, &bytes.Buffer{})
+	err := runModel([]string{"download", "org/repo:Q4"}, &bytes.Buffer{})
 	if err == nil {
 		t.Fatal("ambiguous selector accepted")
 	}
@@ -356,7 +356,7 @@ func TestRunModelReconcileAcceptsAReference(t *testing.T) {
 	}
 
 	var out bytes.Buffer
-	if err := runModel([]string{"reconcile", "publisher/repo", "--accept"}, &out); err != nil {
+	if err := runModel([]string{"import", "publisher/repo"}, &out); err != nil {
 		t.Fatalf("reconcile by reference: %v", err)
 	}
 
@@ -366,12 +366,12 @@ func TestRunModelReconcileAcceptsAReference(t *testing.T) {
 	if err != nil {
 		t.Fatalf("reconciled artifact is not resolvable: %v", err)
 	}
-	if entry.State != "installed" {
+	if entry.State != modelapp.StateLocal {
 		t.Fatalf("state=%q", entry.State)
 	}
 }
 
-// A reference naming no unreconciled artifact reports that state rather than
+// A reference naming no untracked artifact reports that state rather than
 // claiming the artifact is not installed, which would invert the subject.
 func TestRunModelReconcileReportsUnreconciledState(t *testing.T) {
 	m := withModelManager(t)
@@ -379,11 +379,11 @@ func TestRunModelReconcileReportsUnreconciledState(t *testing.T) {
 	modelManagerFactory = func() (*modelapp.Manager, error) { return m, nil }
 	t.Cleanup(func() { modelManagerFactory = old })
 
-	err := runModel([]string{"reconcile", "publisher/repo", "--accept"}, &bytes.Buffer{})
+	err := runModel([]string{"import", "publisher/repo"}, &bytes.Buffer{})
 	if err == nil {
 		t.Fatal("expected a diagnostic")
 	}
-	if !strings.Contains(err.Error(), "unreconciled") {
+	if !strings.Contains(err.Error(), "untracked") {
 		t.Fatalf("diagnostic does not name the state: %v", err)
 	}
 }
@@ -501,7 +501,7 @@ func TestRunModelDownloadWithCompanionsReportsEveryJobID(t *testing.T) {
 	}, "")
 
 	var out bytes.Buffer
-	if err := runModel([]string{"download", "org/repo:principal.gguf", "--with-companions"}, &out); err != nil {
+	if err := runModel([]string{"download", "org/repo:principal.gguf"}, &out); err != nil {
 		t.Fatal(err)
 	}
 	ids := strings.Fields(strings.TrimSpace(out.String()))
@@ -510,7 +510,10 @@ func TestRunModelDownloadWithCompanionsReportsEveryJobID(t *testing.T) {
 	}
 }
 
-func TestRunModelDownloadWithoutFlagCreatesOneJob(t *testing.T) {
+// The bundle is not optional and its job identities reach the operator without
+// a machine-readable option: every created job is reported on its own line, and
+// each stays addressable through the download-job queries afterwards.
+func TestRunModelDownloadReportsEveryJobIdentityOnItsOwnLine(t *testing.T) {
 	withRepositoryManager(t, map[string][]byte{
 		"principal.gguf": cliPrincipalGGUF(),
 		"mmproj.gguf":    cliProjectorGGUF(),
@@ -519,8 +522,31 @@ func TestRunModelDownloadWithoutFlagCreatesOneJob(t *testing.T) {
 	if err := runModel([]string{"download", "org/repo:principal.gguf"}, &out); err != nil {
 		t.Fatal(err)
 	}
-	if len(strings.Fields(strings.TrimSpace(out.String()))) != 1 {
-		t.Fatalf("expected exactly one job ID, out=%q", out.String())
+	lines := strings.Split(strings.TrimSpace(out.String()), "\n")
+	if len(lines) != 2 {
+		t.Fatalf("the companion was not enqueued with its principal, out=%q", out.String())
+	}
+	for _, id := range lines {
+		if strings.TrimSpace(id) != id || id == "" {
+			t.Fatalf("a job identity is not alone on its line: %q", out.String())
+		}
+	}
+	if lines[0] == lines[1] {
+		t.Fatalf("two jobs share an identity: %q", out.String())
+	}
+}
+
+// Passing the retired companion opt-in is a usage error, never a silently
+// ignored option.
+func TestRunModelDownloadRejectsTheRetiredCompanionFlag(t *testing.T) {
+	withRepositoryManager(t, map[string][]byte{"principal.gguf": cliPrincipalGGUF()}, "")
+	var out bytes.Buffer
+	err := runModel([]string{"download", "org/repo:principal.gguf", "--with-companions"}, &out)
+	if err == nil {
+		t.Fatal("the retired flag was accepted")
+	}
+	if strings.TrimSpace(out.String()) != "" {
+		t.Fatalf("a refused download still created jobs: %q", out.String())
 	}
 }
 

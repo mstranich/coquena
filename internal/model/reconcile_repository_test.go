@@ -121,7 +121,7 @@ func TestReconcileRepositoryReconcilesPrincipalWithCompanion(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, entry := range entries {
-		if entry.State != "installed" {
+		if entry.State == StateUntracked {
 			t.Fatalf("entry %s left in state %q", entry.Source.Filename, entry.State)
 		}
 	}
@@ -295,7 +295,7 @@ func TestReconcileAcceptStaysSingleArtifact(t *testing.T) {
 	principal := writeArtifact(t, m.ModelsDir, "org/repo/principal-Q4_K_M.gguf", principalGGUF())
 	projector := writeArtifact(t, m.ModelsDir, "org/repo/mmproj-BF16.gguf", projectorGGUF())
 
-	entry, err := m.ResolveUnreconciled("org/repo:Q4_K_M")
+	entry, err := m.ResolveUntracked("org/repo:Q4_K_M")
 	if err != nil {
 		t.Fatal(err)
 	}

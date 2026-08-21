@@ -25,7 +25,7 @@ func writeReconcileFixture(t *testing.T, root string, body []byte) string {
 }
 
 func TestReconcileOnlineSucceedsOnMatchingSHA256(t *testing.T) {
-	body := emptyGGUF()
+	body := principalGGUF()
 	digest := sha256.Sum256(body)
 	sha256 := hex.EncodeToString(digest[:])
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -73,7 +73,7 @@ func TestReconcileOnlineSucceedsOnMatchingSHA256(t *testing.T) {
 // the publisher has since destroyed, which is routine housekeeping rather than
 // evidence that anything is wrong.
 func TestReconcileOnlineRecordsAHashDisagreement(t *testing.T) {
-	body := emptyGGUF()
+	body := principalGGUF()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodHead {
 			w.Header().Set("Content-Length", "24")
@@ -119,7 +119,7 @@ func TestReconcileOnlineRecordsAHashDisagreement(t *testing.T) {
 // An artifact that already carries evidence keeps it: a disagreement is not a
 // licence to overwrite what an operator or an earlier comparison established.
 func TestReconcileDisagreementLeavesEarlierEvidenceIntact(t *testing.T) {
-	body := emptyGGUF()
+	body := principalGGUF()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodHead {
 			w.Header().Set("Content-Length", "24")
@@ -161,7 +161,7 @@ func TestReconcileDisagreementLeavesEarlierEvidenceIntact(t *testing.T) {
 }
 
 func TestReconcileOnlineDegradesWhenNoSHA256Available(t *testing.T) {
-	body := emptyGGUF()
+	body := principalGGUF()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodHead {
 			w.Header().Set("Content-Length", "24")
@@ -192,7 +192,7 @@ func TestReconcileOnlineDegradesWhenNoSHA256Available(t *testing.T) {
 }
 
 func TestReconcileAcceptWritesLocalProviderSidecar(t *testing.T) {
-	body := emptyGGUF()
+	body := principalGGUF()
 	root := t.TempDir()
 	m := NewManager(filepath.Join(root, "models"))
 	path := writeReconcileFixture(t, root, body)
@@ -226,8 +226,8 @@ func TestReconcileAcceptWritesLocalProviderSidecar(t *testing.T) {
 	for _, entry := range entries {
 		if entry.TargetPath == path {
 			found = true
-			if entry.State != "installed" {
-				t.Fatalf("state=%s want installed", entry.State)
+			if entry.State != StateLocal {
+				t.Fatalf("state=%s want local", entry.State)
 			}
 		}
 	}
@@ -246,7 +246,7 @@ func TestReconcileAcceptWritesLocalProviderSidecar(t *testing.T) {
 func TestReconcileFunctionsAreMutuallyExclusiveByDesign(t *testing.T) {
 	root := t.TempDir()
 	m := NewManager(filepath.Join(root, "models"))
-	body := emptyGGUF()
+	body := principalGGUF()
 	path := writeReconcileFixture(t, root, body)
 
 	// Accept first: writes a local sidecar with no network access.
@@ -271,7 +271,7 @@ func TestReconcileFunctionsAreMutuallyExclusiveByDesign(t *testing.T) {
 // still hold an attestation established against bytes that are gone. What it
 // must not do is be believed.
 func TestReconcileDisagreementOnChangedBytesRetiresTheAttestation(t *testing.T) {
-	body := emptyGGUF()
+	body := principalGGUF()
 	matching := sha256.Sum256(body)
 	serveDigest := hex.EncodeToString(matching[:])
 	first := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -347,7 +347,7 @@ func TestReconcileDisagreementOnChangedBytesRetiresTheAttestation(t *testing.T) 
 // digest with a freshly computed one, on a run that established nothing, erases
 // the only record that the bytes ever changed.
 func TestReconcileKeepsTheRecordedDigestOnAnUnprovenChange(t *testing.T) {
-	body := emptyGGUF()
+	body := principalGGUF()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodHead {
 			w.Header().Set("Content-Length", "25")
@@ -402,7 +402,7 @@ func TestReconcileKeepsTheRecordedDigestOnAnUnprovenChange(t *testing.T) {
 // old verification retires itself, because it names a digest the artifact no
 // longer carries.
 func TestReconcileRebaselinesOnAProvenChange(t *testing.T) {
-	body := emptyGGUF()
+	body := principalGGUF()
 	updated := append(append([]byte{}, body...), 0)
 	updatedDigest := sha256.Sum256(updated)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

@@ -209,7 +209,7 @@ func CompanionOptions(resolver ModelResolver, library InstalledLibrary, preset P
 	byName := map[string]model.LibraryEntry{}
 	candidates := make([]model.Companion, 0, len(entries))
 	for _, entry := range entries {
-		if entry.State != "installed" || entry.Classification == nil {
+		if !entry.State.Usable() || entry.Classification == nil {
 			continue
 		}
 		if entry.TargetPath == principal.TargetPath {

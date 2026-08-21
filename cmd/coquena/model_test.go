@@ -46,7 +46,7 @@ func TestRunModelListEmpty(t *testing.T) {
 func TestRunModelListInstalled(t *testing.T) {
 	m := withModelManager(t)
 	partial := filepath.Join(t.TempDir(), "partial")
-	if err := os.WriteFile(partial, []byte("bytes"), 0600); err != nil {
+	if err := os.WriteFile(partial, cliPrincipalGGUF(), 0600); err != nil {
 		t.Fatal(err)
 	}
 	fileType := modelapp.LlamaFileType(15) // Q4_K_M
@@ -70,19 +70,32 @@ func TestRunModelListInstalled(t *testing.T) {
 	}
 }
 
-func TestRunModelResolveJSON(t *testing.T) {
+// resolve and revision are gone from the operator surface. Both were internal
+// projections — of discovery and of verify — that ended up exposed as
+// subcommands, and neither serves a step of the acquisition story.
+//
+// There is no release, so nothing forwards them and the usage text names no
+// replacement: it is the only record of what the surface is.
+func TestRunModelRejectsTheRemovedResolveAndRevisionCommands(t *testing.T) {
 	m := withModelManager(t)
 	old := modelManagerFactory
 	modelManagerFactory = func() (*modelapp.Manager, error) { return m, nil }
 	t.Cleanup(func() { modelManagerFactory = old })
-	var out bytes.Buffer
-	if err := runModel([]string{"resolve", "org/repo", "--json"}, &out); err != nil {
-		t.Fatal(err)
-	}
-	if !strings.Contains(out.String(), `"schemaVersion":1`) || !strings.Contains(out.String(), `"resolvedRevision":"abc"`) {
-		t.Fatalf("out=%s", out.String())
+	for _, args := range [][]string{{"resolve", "org/repo"}, {"revision", "org/repo"}, {"check-updates", "org/repo:m.gguf"}} {
+		var out bytes.Buffer
+		err := runModel(args, &out)
+		if err == nil || err.Error() != modelUsage {
+			t.Fatalf("%v: err=%v", args, err)
+		}
+		if strings.Contains(err.Error(), args[0]) {
+			t.Fatalf("the usage text still advertises %q", args[0])
+		}
+		if out.Len() != 0 {
+			t.Fatalf("%v produced output: %q", args, out.String())
+		}
 	}
 }
+
 func TestRunModelRejectsInvalidDownloadReference(t *testing.T) {
 	m := withModelManager(t)
 	old := modelManagerFactory
@@ -95,29 +108,6 @@ func TestRunModelRejectsInvalidDownloadReference(t *testing.T) {
 func TestRunDownloadRejectsMalformedInput(t *testing.T) {
 	if err := runDownload([]string{"status"}, &bytes.Buffer{}); err == nil {
 		t.Fatal("input accepted")
-	}
-}
-func TestRunModelRevisionJSON(t *testing.T) {
-	root := t.TempDir()
-	source := modelapp.Source{Provider: "huggingface", Repository: "org/repo", RequestedRevision: "main", ResolvedRevision: "abc", Filename: "m.gguf", URL: "https://example.test"}
-	partial := filepath.Join(root, "partial")
-	if err := os.WriteFile(partial, []byte("data"), 0600); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := modelapp.Publish(filepath.Join(root, "models"), partial, modelapp.Record{Source: source, Artifact: modelapp.Artifact{SizeBytes: 4}}); err != nil {
-		t.Fatal(err)
-	}
-	m := modelapp.NewManager(filepath.Join(root, "models"))
-	old := modelManagerFactory
-	modelManagerFactory = func() (*modelapp.Manager, error) { return m, nil }
-	t.Cleanup(func() { modelManagerFactory = old })
-	var out bytes.Buffer
-	// Named by its logical reference, not by a filesystem path.
-	if err := runModel([]string{"revision", "org/repo", "--json"}, &out); err != nil {
-		t.Fatal(err)
-	}
-	if !strings.Contains(out.String(), `"resolvedRevision":"abc"`) {
-		t.Fatalf("out=%s", out.String())
 	}
 }
 func TestRunDownloadListJSON(t *testing.T) {
@@ -230,18 +220,18 @@ func TestRunModelNestedDownloadStatusLists(t *testing.T) {
 func TestRunModelListReportsUnreconciledAndInstalled(t *testing.T) {
 	m := withModelManager(t)
 	partial := filepath.Join(t.TempDir(), "partial")
-	if err := os.WriteFile(partial, []byte("bytes"), 0600); err != nil {
+	if err := os.WriteFile(partial, cliPrincipalGGUF(), 0600); err != nil {
 		t.Fatal(err)
 	}
 	r := modelapp.Record{Source: modelapp.Source{Provider: "huggingface", Repository: "org/repo", RequestedRevision: "main", ResolvedRevision: "abc", Filename: "m-Q4_K_M.gguf", URL: "https://example.test/m.gguf"}, Artifact: modelapp.Artifact{SizeBytes: 5}}
 	if _, err := modelapp.Publish(m.ModelsDir, partial, r); err != nil {
 		t.Fatal(err)
 	}
-	unreconciledDir := filepath.Join(m.ModelsDir, "other", "repo")
-	if err := os.MkdirAll(unreconciledDir, 0755); err != nil {
+	untrackedDir := filepath.Join(m.ModelsDir, "other", "repo")
+	if err := os.MkdirAll(untrackedDir, 0755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(unreconciledDir, "u.gguf"), []byte("data"), 0600); err != nil {
+	if err := os.WriteFile(filepath.Join(untrackedDir, "u.gguf"), cliPrincipalGGUF(), 0600); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := m.Create(modelapp.Candidate{Source: modelapp.Source{Provider: "huggingface", Repository: "org/repo2", RequestedRevision: "main", ResolvedRevision: "abc", Filename: "job.gguf", URL: "https://example.test"}}); err != nil {
@@ -255,7 +245,7 @@ func TestRunModelListReportsUnreconciledAndInstalled(t *testing.T) {
 	if err := runModel([]string{"list"}, &human); err != nil {
 		t.Fatal(err)
 	}
-	for _, expected := range []string{"installed", "REPOSITORY: org/repo", "org/repo@abc:m-Q4_K_M.gguf", "unreconciled", "REPOSITORY: other/repo"} {
+	for _, expected := range []string{"local", "REPOSITORY: org/repo", "org/repo@abc:m-Q4_K_M.gguf", "untracked", "REPOSITORY: other/repo"} {
 		if !strings.Contains(human.String(), expected) {
 			t.Fatalf("missing %q in %s", expected, human.String())
 		}
@@ -268,7 +258,7 @@ func TestRunModelListReportsUnreconciledAndInstalled(t *testing.T) {
 	if err := runModel([]string{"list", "--json"}, &jsonOut); err != nil {
 		t.Fatal(err)
 	}
-	for _, expected := range []string{`"state":"installed"`, `"reference":"org/repo@abc:m-Q4_K_M.gguf"`, `"resolvedRevision":"abc"`, `"state":"unreconciled"`, `"repository":"other/repo"`} {
+	for _, expected := range []string{`"state":"local"`, `"reference":"org/repo@abc:m-Q4_K_M.gguf"`, `"resolvedRevision":"abc"`, `"state":"untracked"`, `"repository":"other/repo"`} {
 		if !strings.Contains(jsonOut.String(), expected) {
 			t.Fatalf("missing %q in %s", expected, jsonOut.String())
 		}
@@ -282,7 +272,7 @@ func TestSingletonCLIRefusesLogicalAmbiguityAndAcceptsCanonicalFilename(t *testi
 	m := withModelManager(t)
 	for _, filename := range []string{"model-Q4_K_M.gguf", "model-Q4_K_M-imatrix.gguf"} {
 		partial := filepath.Join(t.TempDir(), "partial")
-		if err := os.WriteFile(partial, []byte("bytes"), 0o600); err != nil {
+		if err := os.WriteFile(partial, cliPrincipalGGUF(), 0o600); err != nil {
 			t.Fatal(err)
 		}
 		record := modelapp.Record{
@@ -304,19 +294,22 @@ func TestSingletonCLIRefusesLogicalAmbiguityAndAcceptsCanonicalFilename(t *testi
 	modelManagerFactory = func() (*modelapp.Manager, error) { return m, nil }
 	t.Cleanup(func() { modelManagerFactory = old })
 
+	// The grammar is exercised through verify, which is now the command that
+	// addresses one managed artifact by reference. `revision` used to serve here
+	// and has been withdrawn.
 	var out bytes.Buffer
-	err := runModel([]string{"revision", "org/repo:Q4_K_M"}, &out)
+	err := runModel([]string{"verify", "org/repo:Q4_K_M"}, &out)
 	if err == nil || !strings.Contains(err.Error(), "org/repo@abc:model-Q4_K_M.gguf") ||
 		!strings.Contains(err.Error(), "org/repo@abc:model-Q4_K_M-imatrix.gguf") {
 		t.Fatalf("ambiguous err=%v", err)
 	}
 
 	out.Reset()
-	if err := runModel([]string{"revision", "org/repo@abc:model-Q4_K_M-imatrix.gguf"}, &out); err != nil {
-		t.Fatal(err)
+	if err := runModel([]string{"verify", "org/repo@abc:model-Q4_K_M-imatrix.gguf"}, &out); err != nil {
+		t.Fatalf("canonical filename refused: %v out=%s", err, out.String())
 	}
-	if strings.TrimSpace(out.String()) != "abc" {
-		t.Fatalf("revision=%q", out.String())
+	if !strings.Contains(out.String(), "model-Q4_K_M-imatrix.gguf") {
+		t.Fatalf("out=%q", out.String())
 	}
 }
 
@@ -336,7 +329,7 @@ func TestRunModelReconcileRequiresExactlyOneMode(t *testing.T) {
 
 func TestRunModelReconcileAccept(t *testing.T) {
 	m := withModelManager(t)
-	// Two artifacts, because reconciling one moves it out of the unreconciled
+	// Two artifacts, because reconciling one moves it out of the untracked
 	// state the reference resolves against: the second run needs its own
 	// subject rather than re-reconciling the first.
 	for _, repo := range []string{"one", "two"} {
@@ -344,7 +337,7 @@ func TestRunModelReconcileAccept(t *testing.T) {
 		if err := os.MkdirAll(dir, 0755); err != nil {
 			t.Fatal(err)
 		}
-		if err := os.WriteFile(filepath.Join(dir, "m.gguf"), []byte("bytes"), 0600); err != nil {
+		if err := os.WriteFile(filepath.Join(dir, "m.gguf"), cliPrincipalGGUF(), 0600); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -353,15 +346,15 @@ func TestRunModelReconcileAccept(t *testing.T) {
 	t.Cleanup(func() { modelManagerFactory = old })
 
 	var out bytes.Buffer
-	if err := runModel([]string{"reconcile", "org/one", "--accept"}, &out); err != nil {
+	if err := runModel([]string{"import", "org/one"}, &out); err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(out.String(), "Reconciled org/one") {
+	if !strings.Contains(out.String(), "Imported org/one") {
 		t.Fatalf("out=%s", out.String())
 	}
 
 	var human bytes.Buffer
-	if err := runModel([]string{"reconcile", "org/two", "--accept"}, &human); err != nil {
+	if err := runModel([]string{"import", "org/two"}, &human); err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(human.String(), "org/two") || !strings.Contains(human.String(), "m.gguf") {
@@ -373,7 +366,7 @@ func TestRunModelVerifyOutcomes(t *testing.T) {
 	root := t.TempDir()
 	source := modelapp.Source{Provider: "huggingface", Repository: "org/repo", RequestedRevision: "main", ResolvedRevision: "abc", Filename: "m.gguf", URL: "https://example.test"}
 	partial := filepath.Join(root, "partial")
-	body := []byte("gguf-bytes")
+	body := cliPrincipalGGUF()
 	if err := os.WriteFile(partial, body, 0600); err != nil {
 		t.Fatal(err)
 	}
@@ -407,12 +400,17 @@ func TestRunModelVerifyOutcomes(t *testing.T) {
 	if err = os.WriteFile(target, append(body, 'X'), 0600); err != nil {
 		t.Fatal(err)
 	}
+	// verify acts rather than reads, so it no longer offers `--json`. The
+	// mismatch it recorded is read back from the listing instead.
 	var mismatch bytes.Buffer
-	if err = runModel([]string{"verify", "org/repo:m.gguf", "--json"}, &mismatch); err == nil {
+	if err = runModel([]string{"verify", "org/repo:m.gguf"}, &mismatch); err == nil {
 		t.Fatal("expected non-zero exit on mismatch")
 	}
-	if !strings.Contains(mismatch.String(), `"outcome":"mismatched"`) {
+	if !strings.Contains(mismatch.String(), "FAILED verification") {
 		t.Fatalf("out=%s", mismatch.String())
+	}
+	if err = runModel([]string{"verify", "org/repo:m.gguf", "--json"}, &bytes.Buffer{}); err == nil {
+		t.Fatal("verify accepted --json")
 	}
 }
 
@@ -428,7 +426,7 @@ func TestRunModelCheckUpdatesOutcomes(t *testing.T) {
 	m := withModelManager(t)
 	source := modelapp.Source{Provider: "huggingface", Repository: "org/repo", RequestedRevision: "main", ResolvedRevision: "abc", Filename: "m.gguf", URL: "https://example.test"}
 	partial := filepath.Join(t.TempDir(), "partial")
-	if err := os.WriteFile(partial, []byte("bytes"), 0600); err != nil {
+	if err := os.WriteFile(partial, cliPrincipalGGUF(), 0600); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := modelapp.Publish(m.ModelsDir, partial, modelapp.Record{Source: source, Artifact: modelapp.Artifact{SizeBytes: 5}}); err != nil {
@@ -439,7 +437,7 @@ func TestRunModelCheckUpdatesOutcomes(t *testing.T) {
 	t.Cleanup(func() { modelManagerFactory = old })
 
 	var out bytes.Buffer
-	if err := runModel([]string{"check-updates", "org/repo:m.gguf"}, &out); err != nil {
+	if err := runModel([]string{"update", "org/repo:m.gguf"}, &out); err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(out.String(), "partial comparison") {
@@ -447,7 +445,7 @@ func TestRunModelCheckUpdatesOutcomes(t *testing.T) {
 	}
 
 	localPath := filepath.Join(t.TempDir(), "local")
-	if err := os.WriteFile(localPath, []byte("bytes"), 0600); err != nil {
+	if err := os.WriteFile(localPath, cliPrincipalGGUF(), 0600); err != nil {
 		t.Fatal(err)
 	}
 	localDir := filepath.Join(m.ModelsDir, "local", "repo")
@@ -455,13 +453,13 @@ func TestRunModelCheckUpdatesOutcomes(t *testing.T) {
 		t.Fatal(err)
 	}
 	localTarget := filepath.Join(localDir, "l.gguf")
-	if err := os.WriteFile(localTarget, []byte("bytes"), 0600); err != nil {
+	if err := os.WriteFile(localTarget, cliPrincipalGGUF(), 0600); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := m.ReconcileAccept(localTarget); err != nil {
 		t.Fatal(err)
 	}
-	if err := runModel([]string{"check-updates", "local/repo:l.gguf"}, &bytes.Buffer{}); err == nil {
+	if err := runModel([]string{"update", "local/repo:l.gguf"}, &bytes.Buffer{}); err == nil {
 		t.Fatal("expected refusal for local-provider entry")
 	}
 }

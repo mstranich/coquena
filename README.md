@@ -543,23 +543,21 @@ A license has not been selected yet. No provisional license is implied by the cu
 Coquena manages GGUF artifacts independently of any installed runtime. Resolve and explore public Hugging Face repositories, then download a selected GGUF through the shared backend:
 
 ```console
-coquena model resolve org/repository
 coquena model discover org/repository
 coquena model discover org/repository:Q4_K_M
 coquena model discover org/repository --model-card
 coquena model download org/repository:Q4_K_M
-coquena model download org/repository:Q4_K_M --with-companions
 coquena model download list
 coquena model download status <job-id>
 coquena model download pause <job-id>
 coquena model download resume <job-id>
 coquena model download cancel <job-id>
-coquena model revision org/repository:Q4_K_M
 coquena model list
-coquena model reconcile <reference> (--online|--accept)
+coquena model import <reference>
+coquena model reconcile <reference>
 coquena model verify <reference>
 coquena model verify <reference> --repair-derived
-coquena model check-updates <reference>
+coquena model update <reference>
 ```
 
 `coquena model discover <repository-or-url[:selector]>` reaches the network. Its
@@ -586,35 +584,43 @@ that may contain several calibration or production variants;
 artifact. Commands that need one artifact refuse an ambiguous quantization
 selector and list the exact filename references the operator can choose.
 Explicit revisions are enforced locally rather than silently discarded.
-Reconciliation remains mandatory: until an artifact has a sidecar, Coquena
-cannot establish its canonical repository provenance, so it is reported as
-`unreconciled`.
+Adoption remains mandatory: until an artifact has a sidecar, Coquena cannot
+establish its canonical repository provenance, so it is reported as `untracked`.
+
+`model list` reports one of seven derived states — `untracked`, `altered`,
+`incomplete`, `local`, `detached`, `synced` or `upgradable`. The state is read
+from the evidence in the sidecar every time the library is listed and is never
+stored, and whether an artifact is usable follows from it alone: `local`,
+`detached`, `synced` and `upgradable` may be bound by a preset, and the other
+three may not. The vocabulary and its derivation are settled in
+[`model-artifact-states`](docs/decisions/model-artifact-states.md).
 
 Every artifact is classified by its own `general.type` — `model` for a
 principal and `mmproj` for a multimodal projector — read from the first bytes of
 the GGUF header, over an HTTP range request for a remote candidate and directly
-for an installed file. A missing or unrecognised value is reported as `unknown`
-and is never inferred from the architecture or the filename. Companion
+for an installed file. It is never inferred from the architecture or the
+filename, and an artifact whose type Coquena cannot determine is refused a
+sidecar rather than recorded as unknown: the operation fails, nothing is
+written, and the file stays `untracked`. Companion
 compatibility is a computed criterion rather than a pin to a file: a projector
 matches a principal when its projection dimension equals that principal's
 architecture-specific embedding length.
 
-`coquena model download ... --with-companions` enqueues the principal together
-with the companions identified for it, creating one durable job per artifact and
-reporting every job ID. Without the flag, one invocation downloads exactly one
-artifact.
+`coquena model download` enqueues the principal together with every companion
+identified for it, creating one durable job per artifact and reporting every job
+ID on its own line. The complete set is not optional: the operator asks for a
+quantization, and a quantization is not usable in pieces.
 
 `coquena model list` reports every artifact at the same level, with its declared
 type and whether it is usable. It does not nest a companion beneath a principal:
 a projector is compatible with every quantization of its principal, because the
 criterion is embedding length and that does not change between quants, so
 nesting it under one of them would assert a relation that does not exist. An
-artifact is usable once it is reconciled and classified; a projector is usable
-only while a compatible principal is installed, and an unusable artifact carries
-the reason. Usability is derived on every read rather than stored, since it
-depends on which other artifacts are present. Every artifact is classified here
-even before it is reconciled, read from its own header, so the listing can tell
-a principal from a projector without anything being written first.
+projector is usable whatever principals sit beside it, since which one it
+accompanies is the preset's decision; when none is compatible, that is reported
+as advice rather than as a refusal. Every artifact is classified here even before
+it is adopted, read from its own header, so the listing can tell a principal from
+a projector without anything being written first.
 
 `coquena model reconcile` names its subject with the same
 `user/repo[@revision]:selector` grammar every other model command accepts, and
@@ -628,12 +634,21 @@ as ambiguous — choosing among quantizations is the operator's decision. A
 candidate present remotely and absent locally is reported, so an incomplete
 model is visible before an invocation fails, and an artifact whose content
 disagrees with Hugging Face is refused with a diagnostic saying it may be from
-an earlier revision rather than asserting corruption. `--accept` operates on one
-artifact, keeping the reference form even where there is no Hugging Face
-identity to update against. Reconciliation is always an explicit operator
-action: no listing command triggers it, it never runs over the whole library,
-and it takes no `--json`, because it prompts and a command that prompts cannot
-emit exactly one document.
+an earlier revision rather than asserting corruption. An artifact for which no
+match can be established is left `detached` — usable and visible — rather than
+adopted on the operator's behalf.
+
+`coquena model import` is the other half of that pair, and adopts one artifact
+already on disk from its path alone with no network request. The two verbs have
+one responsibility each and no mode flags, so neither can silently choose the
+other: adopting local bytes and establishing a repository match are different
+acts, and the operator names which one they mean.
+
+Both are explicit operator actions: no listing command triggers them, neither
+runs over the whole library, and neither takes `--json`. `--json` is offered by
+the commands that read state and return a representation of it — `discover`,
+`list`, `update` and the download-job queries — and not by the ones that act on
+it.
 
 Runtime storage can be configured independently from model storage:
 

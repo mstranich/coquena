@@ -33,7 +33,7 @@ func setupInstalledCheckUpdatesFixture(t *testing.T, body []byte, resolvedRevisi
 }
 
 func TestCheckUpdatesReportsUpToDate(t *testing.T) {
-	body := emptyGGUF()
+	body := principalGGUF()
 	digest := sha256.Sum256(body)
 	sha256 := hex.EncodeToString(digest[:])
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -60,7 +60,7 @@ func TestCheckUpdatesReportsUpToDate(t *testing.T) {
 }
 
 func TestCheckUpdatesReportsUpdateAvailableOnRevisionChange(t *testing.T) {
-	body := emptyGGUF()
+	body := principalGGUF()
 	digest := sha256.Sum256(body)
 	sha256 := hex.EncodeToString(digest[:])
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -87,7 +87,7 @@ func TestCheckUpdatesReportsUpdateAvailableOnRevisionChange(t *testing.T) {
 }
 
 func TestCheckUpdatesReportsUpdateAvailableOnSameRevisionContentChange(t *testing.T) {
-	body := emptyGGUF()
+	body := principalGGUF()
 	digest := sha256.Sum256(body)
 	localSHA256 := hex.EncodeToString(digest[:])
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -111,7 +111,7 @@ func TestCheckUpdatesReportsUpdateAvailableOnSameRevisionContentChange(t *testin
 }
 
 func TestCheckUpdatesReportsPartialWhenNoSHA256Available(t *testing.T) {
-	body := emptyGGUF()
+	body := principalGGUF()
 	digest := sha256.Sum256(body)
 	sha256 := hex.EncodeToString(digest[:])
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -135,7 +135,7 @@ func TestCheckUpdatesReportsPartialWhenNoSHA256Available(t *testing.T) {
 }
 
 func TestCheckUpdatesRefusesLocalProviderWithoutNetworkAccess(t *testing.T) {
-	body := emptyGGUF()
+	body := principalGGUF()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Fatal("check-updates must not make any HTTP request for a local-provider entry")
 	}))

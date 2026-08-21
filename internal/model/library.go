@@ -56,8 +56,14 @@ func Publish(modelsDir, partial string, record Record) (string, error) {
 	}
 	record.SchemaVersion = RecordSchemaVersion
 	// The classification is derived from the completed file's own header, read
-	// here while the content still sits at partial and before it is staged.
-	record.SetDerivation(deriveFile(partial))
+	// here while the content still sits at partial and before it is staged. A
+	// download whose result cannot be classified publishes nothing: the bytes
+	// stay at partial and no sidecar claims them.
+	derivation, err := deriveFile(partial)
+	if err != nil {
+		return "", err
+	}
+	record.SetDerivation(derivation)
 	if err = ensureIntegrity(&record, partial); err != nil {
 		return "", err
 	}
@@ -171,7 +177,11 @@ func PublishInPlace(modelsDir string, record Record) (Record, error) {
 		return Record{}, err
 	}
 	record.SchemaVersion = RecordSchemaVersion
-	record.SetDerivation(deriveFile(target))
+	derivation, err := deriveFile(target)
+	if err != nil {
+		return Record{}, err
+	}
+	record.SetDerivation(derivation)
 	if err = ensureIntegrity(&record, target); err != nil {
 		return Record{}, err
 	}
@@ -206,24 +216,35 @@ func PublishInPlace(modelsDir string, record Record) (Record, error) {
 }
 
 // classifyFile derives the classification digest from an artifact's own GGUF
-// header. A file whose header cannot be read — a foreign, truncated, or
-// deliberately accepted non-GGUF artifact — classifies as unknown rather than
-// failing publication, matching the explicit-unknown rule Classify applies to
-// an unrecognised declared type.
-func classifyFile(path string) Classification {
-	return deriveFile(path).Classification
+// header, failing when it cannot be determined.
+func classifyFile(path string) (Classification, error) {
+	d, err := deriveFile(path)
+	return d.Classification, err
 }
 
-func deriveFile(path string) Derivation {
+// deriveFile derives an artifact's evidence from its own GGUF header, and fails
+// rather than reporting an undetermined type.
+//
+// Every caller of this function writes a sidecar with what it returns, and a
+// sidecar records what Coquena manages. Degrading to TypeUnknown wrote an
+// artifact into the library that nothing could classify, which the state
+// vocabulary cannot represent: an artifact Coquena cannot classify has no
+// sidecar and reads as untracked. The three failures are distinct on purpose —
+// an unreadable file, a file that is not GGUF, and a valid GGUF declaring a type
+// Coquena does not recognise are different things to tell an operator.
+//
+// Enumeration is the one place that still tolerates an undetermined type, and it
+// does not call this: see classifyUnreconciled, which records nothing.
+func deriveFile(path string) (Derivation, error) {
 	now := time.Now().UTC().Format(time.RFC3339)
 	r, err := OpenLocal(path)
 	if err != nil {
-		return Derivation{Version: DerivationVersion, ComputedAt: now, Classification: Classification{Type: TypeUnknown}}
+		return Derivation{}, fmt.Errorf("cannot classify %s: %w", filepath.Base(path), err)
 	}
 	defer r.Close()
 	scan, err := ScanGGUF(r, false)
 	if err != nil {
-		return Derivation{Version: DerivationVersion, ComputedAt: now, Classification: Classification{Type: TypeUnknown}}
+		return Derivation{}, fmt.Errorf("cannot classify %s: its header is not readable GGUF: %w", filepath.Base(path), err)
 	}
 	var params uint64
 	for _, tensor := range scan.Tensors {
@@ -235,13 +256,16 @@ func deriveFile(path string) Derivation {
 		params += n
 	}
 	c := Classify(scan.Metadata)
+	if c.Type == TypeUnknown {
+		return Derivation{}, fmt.Errorf("cannot classify %s: it declares no artifact type Coquena recognises", filepath.Base(path))
+	}
 	c.CountParameters = int64(params)
 	d := Derivation{Version: DerivationVersion, ComputedAt: now, Classification: c, CountParameters: int64(params)}
 	if typ, ok, dominantErr := DominantPhysicalType(scan); dominantErr == nil && ok {
 		histogram, _ := PhysicalTensorHistogram(scan)
 		d.PhysicalQuantization = &PhysicalQuantization{Type: typ, Name: GGMLTypeDisplayName(typ), CountParameters: histogram[typ]}
 	}
-	return d
+	return d, nil
 }
 
 // preserveUnownedAxes carries forward every axis the writing command did not

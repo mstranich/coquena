@@ -47,10 +47,10 @@ type ErrNoInstalledMatch struct {
 }
 
 // state reports the library state to name in a diagnostic, defaulting to
-// installed for a zero value written before the field existed.
+// managed for a zero value.
 func (e *ErrNoInstalledMatch) state() string {
 	if e.State == "" {
-		return "installed"
+		return "managed"
 	}
 	return e.State
 }
@@ -76,7 +76,7 @@ func (e *ErrAmbiguousInstalledMatch) Count() int { return len(e.Matches) }
 func (e *ErrAmbiguousInstalledMatch) Error() string {
 	state := e.State
 	if state == "" {
-		state = "installed"
+		state = "managed"
 	}
 	return fmt.Sprintf("reference %q matches %d %s models: %s", e.Reference, len(e.Matches), state, formatCandidates(e.Matches))
 }
@@ -113,10 +113,13 @@ func SplitReference(reference string) (repository, quant string, err error) {
 // ResolveInstalled resolves the user/repo:QUANT reference grammar against the
 // installed model library, without issuing any network request.
 func (m *Manager) ResolveInstalled(reference string) (LibraryEntry, error) {
-	return m.resolveLibrary(reference, "installed")
+	// Every state but untracked is a managed artifact: it has a sidecar, so
+	// Coquena knows what it is. Whether it is usable is a separate question the
+	// state answers on its own.
+	return m.resolveLibrary(reference, func(s ArtifactState) bool { return s != StateUntracked && s != "" }, "managed")
 }
 
-// ResolveUnreconciled resolves the same user/repo:QUANT reference grammar
+// ResolveUntracked resolves the same user/repo:QUANT reference grammar
 // against the artifacts that have no valid sidecar yet.
 //
 // Reconciliation is the one operation whose subject is by definition not
@@ -124,14 +127,14 @@ func (m *Manager) ResolveInstalled(reference string) (LibraryEntry, error) {
 // subject the way every other model command does: the reference is the
 // catalog's identity, and an operator never has to switch to a filesystem path
 // to name an artifact Coquena just listed.
-func (m *Manager) ResolveUnreconciled(reference string) (LibraryEntry, error) {
-	return m.resolveLibrary(reference, "unreconciled")
+func (m *Manager) ResolveUntracked(reference string) (LibraryEntry, error) {
+	return m.resolveLibrary(reference, func(s ArtifactState) bool { return s == StateUntracked }, string(StateUntracked))
 }
 
 // resolveLibrary matches reference against the library entries in one state,
 // so the reference grammar is written once and every caller applies it
 // identically.
-func (m *Manager) resolveLibrary(reference, state string) (LibraryEntry, error) {
+func (m *Manager) resolveLibrary(reference string, wanted func(ArtifactState) bool, state string) (LibraryEntry, error) {
 	ref, err := ParseModelReference(reference)
 	if err != nil {
 		return LibraryEntry{}, err
@@ -143,7 +146,7 @@ func (m *Manager) resolveLibrary(reference, state string) (LibraryEntry, error) 
 	var matches []LibraryEntry
 	var available []string
 	for _, entry := range entries {
-		if entry.State != state || entry.Source.Repository != ref.Repository {
+		if !wanted(entry.State) || entry.Source.Repository != ref.Repository {
 			continue
 		}
 		available = append(available, CanonicalReference(entry.Source))

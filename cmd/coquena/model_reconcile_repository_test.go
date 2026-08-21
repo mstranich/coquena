@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	modelapp "github.com/mstranich/coquena/internal/model"
 )
 
 // writeCLIArtifact places body beneath the manager's models directory, the way
@@ -36,7 +38,7 @@ func TestRunModelReconcileReconcilesTheWholeRepository(t *testing.T) {
 	writeCLIArtifact(t, m.ModelsDir, "org/repo/mmproj-BF16.gguf", files["mmproj-BF16.gguf"])
 
 	var out bytes.Buffer
-	if err := runModel([]string{"reconcile", "org/repo:Q4_K_M", "--online"}, &out); err != nil {
+	if err := runModel([]string{"reconcile", "org/repo:Q4_K_M"}, &out); err != nil {
 		t.Fatal(err)
 	}
 	rendered := out.String()
@@ -55,7 +57,11 @@ func TestRunModelReconcileReconcilesTheWholeRepository(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, entry := range entries {
-		if entry.State != "installed" {
+		// The fixture publishes no content hash, so no attestation can be
+		// established and the artifacts land detached rather than synced. What
+		// matters here is that reconciliation adopted them at all: none is left
+		// outside Coquena's management.
+		if entry.State == modelapp.StateUntracked {
 			t.Fatalf("entry %s left in state %q after a repository reconciliation", entry.Source.Filename, entry.State)
 		}
 	}
@@ -73,7 +79,7 @@ func TestRunModelReconcileRefusesAmbiguousPrincipals(t *testing.T) {
 	writeCLIArtifact(t, m.ModelsDir, "org/repo/principal-Q8_0.gguf", files["principal-Q8_0.gguf"])
 
 	var out bytes.Buffer
-	err := runModel([]string{"reconcile", "org/repo", "--online"}, &out)
+	err := runModel([]string{"reconcile", "org/repo"}, &out)
 	if err == nil {
 		t.Fatal("expected an ambiguity refusal")
 	}

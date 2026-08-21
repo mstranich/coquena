@@ -103,7 +103,7 @@ func TestLibraryReportsPreviousSchemaVersionAsUnreconciled(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(entries) != 1 || entries[0].State != "unreconciled" {
+	if len(entries) != 1 || entries[0].State != StateUntracked {
 		t.Fatalf("entries=%+v", entries)
 	}
 }
@@ -127,7 +127,7 @@ func TestLibraryClassifiesUnreconciledArtifactFromItsHeader(t *testing.T) {
 		byName[entry.Source.Filename] = entry
 	}
 	principal, ok := byName["m.gguf"]
-	if !ok || principal.State != "unreconciled" || principal.Classification == nil {
+	if !ok || principal.State != StateUntracked || principal.Classification == nil {
 		t.Fatalf("principal=%+v", principal)
 	}
 	if principal.Classification.Type != TypeModel || principal.Classification.Architecture != "gemma4" {
@@ -188,7 +188,7 @@ func TestLibraryUsesSidecarClassificationForInstalled(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(entries) != 1 || entries[0].State != "installed" || entries[0].Classification == nil {
+	if len(entries) != 1 || entries[0].State != StateLocal || entries[0].Classification == nil {
 		t.Fatalf("entries=%+v", entries)
 	}
 	if entries[0].Classification.Type != TypeProjector || entries[0].Classification.Architecture != "recorded-by-sidecar" {
@@ -262,10 +262,10 @@ func treeSnapshot(t *testing.T, root string) map[string]int64 {
 func TestPublishWritesRevisionUnit(t *testing.T) {
 	root := t.TempDir()
 	partial := filepath.Join(root, "partial")
-	if err := os.WriteFile(partial, []byte("bytes"), 0600); err != nil {
+	if err := os.WriteFile(partial, principalGGUF(), 0600); err != nil {
 		t.Fatal(err)
 	}
-	r := Record{Source: Source{Provider: "huggingface", Repository: "org/repo", RequestedRevision: "main", ResolvedRevision: "abc", Filename: "m.gguf", URL: "https://example.test/abc/m.gguf"}, Artifact: Artifact{SizeBytes: 5}}
+	r := Record{Source: Source{Provider: "huggingface", Repository: "org/repo", RequestedRevision: "main", ResolvedRevision: "abc", Filename: "m.gguf", URL: "https://example.test/abc/m.gguf"}, Artifact: Artifact{SizeBytes: int64(len(principalGGUF()))}}
 	target, err := Publish(filepath.Join(root, "models"), partial, r)
 	if err != nil {
 		t.Fatal(err)
@@ -300,14 +300,14 @@ func TestPublishIsIdempotentOnlyForMatchingUnit(t *testing.T) {
 	root := t.TempDir()
 	source := Source{Provider: "huggingface", Repository: "org/repo", RequestedRevision: "main", ResolvedRevision: "sha", Filename: "m.gguf", URL: "https://example.test"}
 	partial := filepath.Join(root, "one")
-	_ = os.WriteFile(partial, []byte("data"), 0600)
-	target, err := Publish(filepath.Join(root, "models"), partial, Record{Source: source, Artifact: Artifact{SizeBytes: 4}})
+	_ = os.WriteFile(partial, principalGGUF(), 0600)
+	target, err := Publish(filepath.Join(root, "models"), partial, Record{Source: source, Artifact: Artifact{SizeBytes: int64(len(principalGGUF()))}})
 	if err != nil {
 		t.Fatal(err)
 	}
 	partial = filepath.Join(root, "two")
-	_ = os.WriteFile(partial, []byte("other"), 0600)
-	got, err := Publish(filepath.Join(root, "models"), partial, Record{Source: source, Artifact: Artifact{SizeBytes: 4}})
+	_ = os.WriteFile(partial, projectorGGUF(), 0600)
+	got, err := Publish(filepath.Join(root, "models"), partial, Record{Source: source, Artifact: Artifact{SizeBytes: int64(len(principalGGUF()))}})
 	if err != nil || got != target {
 		t.Fatalf("got=%q err=%v", got, err)
 	}

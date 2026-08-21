@@ -46,8 +46,8 @@ func TestRunModelListDistinguishesAlteredFromUnreconciled(t *testing.T) {
 	if altered.Usable {
 		t.Fatalf("an artifact whose verification found altered bytes is not eligible: %+v", altered)
 	}
-	if altered.UnusableReason != string(modelapp.ReasonAltered) {
-		t.Fatalf("reason=%q want=%q", altered.UnusableReason, modelapp.ReasonAltered)
+	if altered.State != string(modelapp.StateAltered) {
+		t.Fatalf("state=%q want=%q", altered.State, modelapp.StateAltered)
 	}
 	if altered.VerificationOutcome != string(modelapp.VerifyMismatched) {
 		t.Fatalf("the listing should carry what verify recorded: %+v", altered)
@@ -56,12 +56,14 @@ func TestRunModelListDistinguishesAlteredFromUnreconciled(t *testing.T) {
 		t.Fatal("the listing should carry when the check ran")
 	}
 
-	unreconciled := entries["foreign.gguf"]
-	if unreconciled.Usable {
-		t.Fatalf("foreign=%+v", unreconciled)
+	untracked := entries["foreign.gguf"]
+	if untracked.Usable {
+		t.Fatalf("foreign=%+v", untracked)
 	}
-	if unreconciled.UnusableReason == altered.UnusableReason {
-		t.Fatalf("altered bytes and an absent sidecar share a reason: %q", unreconciled.UnusableReason)
+	// The two are ineligible for different reasons, and the state is what says
+	// so: altered bytes and an absent sidecar have different remedies.
+	if untracked.State != string(modelapp.StateUntracked) {
+		t.Fatalf("state=%q want=%q", untracked.State, modelapp.StateUntracked)
 	}
 }
 

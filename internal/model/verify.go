@@ -126,7 +126,14 @@ func (m *Manager) VerifyWithOptions(reference string, options VerifyOptions) (Ve
 		if result.Outcome != VerifyMatched {
 			return result, fmt.Errorf("cannot repair derived evidence unless integrity matches the recorded baseline")
 		}
-		derivation := deriveFile(entry.TargetPath)
+		// A repair that cannot recompute the derivation leaves the existing
+		// sidecar exactly as it was. The verification axis written above has
+		// already been persisted, which is correct: the hash comparison did
+		// happen and its outcome is what the listing reads.
+		derivation, deriveErr := deriveFile(entry.TargetPath)
+		if deriveErr != nil {
+			return result, deriveErr
+		}
 		record.SchemaVersion = RecordSchemaVersion
 		record.SetDerivation(derivation)
 		if err = writeRecordInPlace(entry.TargetPath, record); err != nil {

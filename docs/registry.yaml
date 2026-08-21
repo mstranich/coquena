@@ -304,11 +304,11 @@ artifacts:
 
   adopt-artifact-state-vocabulary:
     kind: backlog
-    state: open
+    state: closed
     title: Adopt the settled artifact state vocabulary
-    path: backlog/adopt-artifact-state-vocabulary.md
+    path: backlog/archive/adopt-artifact-state-vocabulary.md
     openedAt: 2026-08-11
-    closedAt: null
+    closedAt: 2026-08-20
     owner: project-owner
     priority: high
     relations:
@@ -317,18 +317,18 @@ artifacts:
 
   align-model-command-surface:
     kind: backlog
-    state: open
+    state: closed
     title: Align the model command surface with the story
-    path: backlog/align-model-command-surface.md
+    path: backlog/archive/align-model-command-surface.md
     openedAt: 2026-08-05
-    closedAt: null
+    closedAt: 2026-08-20
     owner: project-owner
     priority: normal
     relations:
       - { type: relates-to, target: model-artifact-states }
       - { type: motivated-by, target: model-acquisition }
       - { type: relates-to, target: model-reference-convention-uses-one-selector-slot }
-      - { type: produces, target: change:align-model-command-surface }
+      - { type: produces, target: change:adopt-artifact-state-vocabulary }
 
   complete-cli-command-list:
     kind: backlog

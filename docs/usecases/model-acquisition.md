@@ -80,17 +80,18 @@ absent, no canonical blocks          →  unknown
 | Step in the story | Operation | Status |
 |---|---|---|
 | discover quantizations, files and size | `discover` | exists; shows the model card by default, which is noise for choosing |
-| download the quantization | `download` | exists; `--with-companions` contradicts "complete bundle" |
+| download the quantization | `download` | exists; the bundle is mandatory since `adopt-artifact-state-vocabulary` |
 | see what I have | `list` | exists |
 | bind a quantization to a preset | `preset` | exists, outside `model` |
-| check for updates | `update` | exists as `check-updates`; the verb should match `apt`/`winget` |
+| check for updates | `update` | exists; renamed from `check-updates` and still persists nothing |
 | download those updates | `upgrade` | **missing** |
 | delete a quantization or companion | *(none)* | **missing** — `preset`, `field` and `runtime` all have `remove`; models do not |
-| import files obtained elsewhere | `import` | exists as `reconcile`; must keep requiring an explicit intent flag |
+| import files obtained elsewhere | `import` | exists as its own verb; `reconcile` no longer decides between the two acts |
 | keep a private fine-tune | — | must not be treated as awaiting reconciliation with a repository that does not exist |
 
-`resolve` and `revision` serve no step. Both look like internal helpers — of
-`discover` and `verify` respectively — that ended up exposed.
+`resolve` and `revision` served no step. Both were internal helpers — of
+`discover` and `verify` respectively — that ended up exposed, and both have been
+withdrawn.
 
 Bulk forms are deliberately absent. `<ref>` stays mandatory; if library-wide
 action is ever needed, `<ref>` becomes optional and no flag is introduced.
@@ -133,5 +134,6 @@ Recorded here rather than silently added to the backlog:
 3. **`upgrade`.** Named in the story, tracked only as a blocked backlog entry.
 4. **`discover` output.** Reporting size and effective files rather than the
    model card.
-5. **Command surface cleanup.** `--with-companions`, `resolve`, `revision`, and
-   the `check-updates` → `update` rename.
+5. ~~**Command surface cleanup.**~~ Landed with `adopt-artifact-state-vocabulary`:
+   `--with-companions`, `resolve` and `revision` withdrawn, `check-updates`
+   renamed `update`, and `reconcile` split into `import` and `reconcile`.

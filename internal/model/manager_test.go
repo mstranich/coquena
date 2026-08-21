@@ -11,11 +11,15 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
 )
 
+// emptyGGUF is a bare GGUF header with no metadata. It is the base other test
+// fixtures append to, and it is not publishable on its own: an artifact that
+// declares no general.type is refused rather than recorded as unknown.
 func emptyGGUF() []byte {
 	b := make([]byte, 24)
 	copy(b, "GGUF")
@@ -25,7 +29,7 @@ func emptyGGUF() []byte {
 func TestManagerCreatesAndRecoversJob(t *testing.T) {
 	root := t.TempDir()
 	m := NewManager(filepath.Join(root, "models"))
-	c := Candidate{Source: Source{Provider: "huggingface", Repository: "org/repo", RequestedRevision: "main", ResolvedRevision: "abc", Filename: "m.gguf", URL: "https://example.test/abc/m.gguf"}, Artifact: Artifact{SizeBytes: 24}}
+	c := Candidate{Source: Source{Provider: "huggingface", Repository: "org/repo", RequestedRevision: "main", ResolvedRevision: "abc", Filename: "m.gguf", URL: "https://example.test/abc/m.gguf"}, Artifact: Artifact{SizeBytes: int64(len(principalGGUF()))}}
 	j, e := m.Create(c)
 	if e != nil {
 		t.Fatal(e)
@@ -41,10 +45,10 @@ func TestManagerCreatesAndRecoversJob(t *testing.T) {
 	}
 }
 func TestManagerDownloadsAndPublishes(t *testing.T) {
-	body := emptyGGUF()
+	body := principalGGUF()
 	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodHead {
-			w.Header().Set("Content-Length", "24")
+			w.Header().Set("Content-Length", strconv.Itoa(len(principalGGUF())))
 			return
 		}
 		w.Write(body)
@@ -52,7 +56,7 @@ func TestManagerDownloadsAndPublishes(t *testing.T) {
 	defer s.Close()
 	root := t.TempDir()
 	m := NewManager(filepath.Join(root, "models"))
-	c := Candidate{Source: Source{Provider: "huggingface", Repository: "org/repo", RequestedRevision: "main", ResolvedRevision: "abc", Filename: "m.gguf", URL: s.URL}, Artifact: Artifact{SizeBytes: 24}}
+	c := Candidate{Source: Source{Provider: "huggingface", Repository: "org/repo", RequestedRevision: "main", ResolvedRevision: "abc", Filename: "m.gguf", URL: s.URL}, Artifact: Artifact{SizeBytes: int64(len(principalGGUF()))}}
 	j, e := m.Create(c)
 	if e != nil {
 		t.Fatal(e)
@@ -73,7 +77,7 @@ func TestManagerDownloadsAndPublishes(t *testing.T) {
 	}
 }
 func TestManagerResumeRejectsChangedValidator(t *testing.T) {
-	body := emptyGGUF()
+	body := principalGGUF()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("Range") == "bytes=4-" {
 			w.Header().Set("ETag", "new")
@@ -88,7 +92,7 @@ func TestManagerResumeRejectsChangedValidator(t *testing.T) {
 	defer server.Close()
 	root := t.TempDir()
 	m := NewManager(filepath.Join(root, "models"))
-	c := Candidate{Source: Source{Provider: "huggingface", Repository: "org/repo", RequestedRevision: "main", ResolvedRevision: "abc", Filename: "m.gguf", URL: server.URL}, Artifact: Artifact{SizeBytes: 24}, ETag: "old"}
+	c := Candidate{Source: Source{Provider: "huggingface", Repository: "org/repo", RequestedRevision: "main", ResolvedRevision: "abc", Filename: "m.gguf", URL: server.URL}, Artifact: Artifact{SizeBytes: int64(len(principalGGUF()))}, ETag: "old"}
 	j, err := m.Create(c)
 	if err != nil {
 		t.Fatal(err)
@@ -107,11 +111,11 @@ func TestManagerResumeRejectsChangedValidator(t *testing.T) {
 	}
 }
 func TestManagerResumeRejectsUnsupportedRange(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write(emptyGGUF()) }))
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write(principalGGUF()) }))
 	defer server.Close()
 	root := t.TempDir()
 	m := NewManager(filepath.Join(root, "models"))
-	c := Candidate{Source: Source{Provider: "huggingface", Repository: "org/repo", RequestedRevision: "main", ResolvedRevision: "abc", Filename: "m.gguf", URL: server.URL}, Artifact: Artifact{SizeBytes: 24}}
+	c := Candidate{Source: Source{Provider: "huggingface", Repository: "org/repo", RequestedRevision: "main", ResolvedRevision: "abc", Filename: "m.gguf", URL: server.URL}, Artifact: Artifact{SizeBytes: int64(len(principalGGUF()))}}
 	j, err := m.Create(c)
 	if err != nil {
 		t.Fatal(err)
@@ -130,7 +134,7 @@ func TestManagerResumeRejectsUnsupportedRange(t *testing.T) {
 	}
 }
 func TestManagerRetriesTransientResponse(t *testing.T) {
-	body := emptyGGUF()
+	body := principalGGUF()
 	attempts := 0
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		attempts++
@@ -156,7 +160,7 @@ func TestManagerRetriesTransientResponse(t *testing.T) {
 func TestManagerRejectsPartialSizeMismatch(t *testing.T) {
 	root := t.TempDir()
 	m := NewManager(filepath.Join(root, "models"))
-	c := Candidate{Source: Source{Provider: "huggingface", Repository: "org/repo", RequestedRevision: "main", ResolvedRevision: "abc", Filename: "m.gguf", URL: "https://example.test"}, Artifact: Artifact{SizeBytes: 24}}
+	c := Candidate{Source: Source{Provider: "huggingface", Repository: "org/repo", RequestedRevision: "main", ResolvedRevision: "abc", Filename: "m.gguf", URL: "https://example.test"}, Artifact: Artifact{SizeBytes: int64(len(principalGGUF()))}}
 	j, err := m.Create(c)
 	if err != nil {
 		t.Fatal(err)
@@ -192,7 +196,7 @@ func TestManagerPauseAndCancel(t *testing.T) {
 	}
 }
 func TestManagerPersistsProgressWithoutCallback(t *testing.T) {
-	body := append(emptyGGUF(), make([]byte, 1024)...)
+	body := append(principalGGUF(), make([]byte, 1024)...)
 	second := make(chan struct{})
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Length", fmt.Sprint(len(body)))
@@ -232,7 +236,7 @@ func TestManagerPersistsProgressWithoutCallback(t *testing.T) {
 	<-done
 }
 func TestManagerDiscoversMissingExpectedSize(t *testing.T) {
-	body := emptyGGUF()
+	body := principalGGUF()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write(body) }))
 	defer server.Close()
 	root := t.TempDir()
@@ -277,7 +281,7 @@ func TestManagerStoresAndRecoversDownloadBesideModel(t *testing.T) {
 	root := t.TempDir()
 	models := filepath.Join(root, "models")
 	m := NewManager(models)
-	candidate := Candidate{Source: Source{Provider: "huggingface", Repository: "org/repo", RequestedRevision: "main", ResolvedRevision: "abc", Filename: "m.gguf", URL: "https://example.test"}, Artifact: Artifact{SizeBytes: 24}}
+	candidate := Candidate{Source: Source{Provider: "huggingface", Repository: "org/repo", RequestedRevision: "main", ResolvedRevision: "abc", Filename: "m.gguf", URL: "https://example.test"}, Artifact: Artifact{SizeBytes: int64(len(principalGGUF()))}}
 	job, err := m.Create(candidate)
 	if err != nil {
 		t.Fatal(err)
@@ -295,7 +299,7 @@ func TestManagerStoresAndRecoversDownloadBesideModel(t *testing.T) {
 	}
 	restarted := NewManager(models)
 	entries, err := restarted.Library()
-	if err != nil || len(entries) != 1 || entries[0].State != string(Paused) || entries[0].Job == nil {
+	if err != nil || len(entries) != 1 || entries[0].JobStatus != Paused || entries[0].State != "" || entries[0].Job == nil {
 		t.Fatalf("entries=%+v err=%v", entries, err)
 	}
 }
@@ -344,7 +348,7 @@ func TestManagerActiveCancelWaitsAndDoesNotRecreateJob(t *testing.T) {
 	}
 }
 func TestManagerResumeReconcilesPartialAheadOfCheckpoint(t *testing.T) {
-	body := emptyGGUF()
+	body := principalGGUF()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("Range") != "bytes=8-" {
 			t.Fatalf("range=%q", r.Header.Get("Range"))
@@ -356,7 +360,7 @@ func TestManagerResumeReconcilesPartialAheadOfCheckpoint(t *testing.T) {
 	defer server.Close()
 	root := t.TempDir()
 	m := NewManager(filepath.Join(root, "models"))
-	job, err := m.Create(Candidate{Source: Source{Provider: "huggingface", Repository: "org/repo", RequestedRevision: "main", ResolvedRevision: "abc", Filename: "m.gguf", URL: server.URL}, Artifact: Artifact{SizeBytes: 24}})
+	job, err := m.Create(Candidate{Source: Source{Provider: "huggingface", Repository: "org/repo", RequestedRevision: "main", ResolvedRevision: "abc", Filename: "m.gguf", URL: server.URL}, Artifact: Artifact{SizeBytes: int64(len(principalGGUF()))}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -375,11 +379,11 @@ func TestManagerResumeReconcilesPartialAheadOfCheckpoint(t *testing.T) {
 }
 
 func TestManagerPersistsContentDigestOnDownload(t *testing.T) {
-	body := emptyGGUF()
+	body := principalGGUF()
 	want := sha256.Sum256(body)
 	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodHead {
-			w.Header().Set("Content-Length", "24")
+			w.Header().Set("Content-Length", strconv.Itoa(len(principalGGUF())))
 			return
 		}
 		w.Write(body)
@@ -387,7 +391,7 @@ func TestManagerPersistsContentDigestOnDownload(t *testing.T) {
 	defer s.Close()
 	root := t.TempDir()
 	m := NewManager(filepath.Join(root, "models"))
-	c := Candidate{Source: Source{Provider: "huggingface", Repository: "org/repo", RequestedRevision: "main", ResolvedRevision: "abc", Filename: "m.gguf", URL: s.URL}, Artifact: Artifact{SizeBytes: 24}}
+	c := Candidate{Source: Source{Provider: "huggingface", Repository: "org/repo", RequestedRevision: "main", ResolvedRevision: "abc", Filename: "m.gguf", URL: s.URL}, Artifact: Artifact{SizeBytes: int64(len(principalGGUF()))}}
 	j, e := m.Create(c)
 	if e != nil {
 		t.Fatal(e)
@@ -410,7 +414,7 @@ func TestManagerPersistsContentDigestOnDownload(t *testing.T) {
 }
 
 func TestManagerResumedDownloadPersistsWholeFileDigest(t *testing.T) {
-	body := emptyGGUF()
+	body := principalGGUF()
 	want := sha256.Sum256(body)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("Range") != "bytes=8-" {
@@ -423,7 +427,7 @@ func TestManagerResumedDownloadPersistsWholeFileDigest(t *testing.T) {
 	defer server.Close()
 	root := t.TempDir()
 	m := NewManager(filepath.Join(root, "models"))
-	job, err := m.Create(Candidate{Source: Source{Provider: "huggingface", Repository: "org/repo", RequestedRevision: "main", ResolvedRevision: "abc", Filename: "m.gguf", URL: server.URL}, Artifact: Artifact{SizeBytes: 24}})
+	job, err := m.Create(Candidate{Source: Source{Provider: "huggingface", Repository: "org/repo", RequestedRevision: "main", ResolvedRevision: "abc", Filename: "m.gguf", URL: server.URL}, Artifact: Artifact{SizeBytes: int64(len(principalGGUF()))}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -467,7 +471,7 @@ func TestLibraryReportsSidecarLessModelAsUnreconciled(t *testing.T) {
 		t.Fatalf("entries=%+v", entries)
 	}
 	e := entries[0]
-	if e.State != "unreconciled" {
+	if e.State != StateUntracked {
 		t.Fatalf("state=%q", e.State)
 	}
 	if e.Source.Repository != "publisher/repo" {
@@ -499,7 +503,7 @@ func TestLibraryReportsPartialIdentityForOddlyPlacedGGUF(t *testing.T) {
 		t.Fatalf("entries=%+v", entries)
 	}
 	e := entries[0]
-	if e.State != "unreconciled" {
+	if e.State != StateUntracked {
 		t.Fatalf("state=%q", e.State)
 	}
 	if e.Source.Filename != "model.gguf" {

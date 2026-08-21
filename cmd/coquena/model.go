@@ -18,13 +18,8 @@ import (
 	runtimeapp "github.com/mstranich/coquena/internal/runtime"
 )
 
-const modelUsage = "usage: coquena model resolve <repository-or-url> [--json]\n       coquena model discover <repository-or-url[:selector]> [--model-card] [--json]\n       coquena model download <repository-or-url[:selector]> [--with-companions] [--json]\n       coquena model download list|status <job-id>|pause <job-id>|resume <job-id>|cancel <job-id> [--json]\n       coquena model revision <reference> [--json]\n       coquena model list [--json]\n       coquena model reconcile <reference> (--online|--accept)\n       coquena model verify <reference> [--repair-derived] [--json]\n       coquena model check-updates <reference> [--json]\n       coquena download list|status <job-id>|pause <job-id>|resume <job-id>|cancel <job-id> [--json]"
+const modelUsage = "usage: coquena model discover <repository-or-url[:selector]> [--model-card] [--json]\n       coquena model download <repository-or-url[:selector]>\n       coquena model download list|status <job-id>|pause <job-id>|resume <job-id>|cancel <job-id> [--json]\n       coquena model list [--json]\n       coquena model import <reference>\n       coquena model reconcile <reference>\n       coquena model verify <reference> [--repair-derived]\n       coquena model update <reference> [--json]\n       coquena download list|status <job-id>|pause <job-id>|resume <job-id>|cancel <job-id> [--json]\n\n--json is offered by the commands that read state and return a representation of\nit; the commands that act on state do not accept it."
 
-// companionFlag is the opt-in that additionally enqueues the companions
-// identified for the selected principal. The default stays one artifact per
-// invocation, so downloading a companion is always something the operator
-// asked for by name.
-const companionFlag = "--with-companions"
 const modelCardFlag = "--model-card"
 
 // modelListEntry is the JSON-friendly, deterministic projection of a
@@ -34,7 +29,11 @@ const modelCardFlag = "--model-card"
 // between quants, so nesting one beneath another would assert a relation the
 // domain does not have.
 type modelListEntry struct {
-	State            string `json:"state"`
+	State string `json:"state"`
+	// JobStatus reports a transfer still in flight. It is a different vocabulary
+	// from State and therefore a different field: an artifact being downloaded
+	// has no state yet, because there is nothing on disk to derive one from.
+	JobStatus        string `json:"jobStatus,omitempty"`
 	Repository       string `json:"repository"`
 	Reference        string `json:"reference"`
 	LogicalSelector  string `json:"logicalSelector,omitempty"`
@@ -47,10 +46,6 @@ type modelListEntry struct {
 	// Usable is the derived usability, flattened into the entry so both output
 	// modes render it without consulting anything else.
 	Usable bool `json:"usable"`
-	// UnusableReason lets a caller branch on *why* an artifact is ineligible.
-	// Altered bytes and an absent sidecar have different remedies, and a caller
-	// that can only see `usable: false` cannot tell them apart.
-	UnusableReason string `json:"unusableReason,omitempty"`
 	// Advice is a note that does not bear on eligibility, such as a companion
 	// having no compatible principal installed yet.
 	Advice string `json:"advice,omitempty"`
@@ -96,14 +91,20 @@ func runModelCommand(args []string, out io.Writer) error {
 	if e != nil || len(args) < 1 {
 		return errors.New(modelUsage)
 	}
+	if name, acts := actingCommand(args); acts && jsonOut {
+		return fmt.Errorf("coquena model %s: --json does not apply to this command. It acts on state rather than reading it, so it reports an outcome rather than a document. Read the result back with 'coquena model list --json'.", name)
+	}
 	if args[0] == "list" {
 		if len(args) != 1 {
 			return errors.New(modelUsage)
 		}
 		return runModelList(out, jsonOut)
 	}
+	if args[0] == "import" {
+		return runModelImport(args[1:], out)
+	}
 	if args[0] == "reconcile" {
-		return runModelReconcile(args[1:], out, jsonOut)
+		return runModelReconcile(args[1:], out)
 	}
 	if args[0] == "verify" {
 		verifyArgs, repairDerived := extractModelFlag(args, "--repair-derived")
@@ -112,17 +113,13 @@ func runModelCommand(args []string, out io.Writer) error {
 		}
 		return runModelVerify(verifyArgs[1], repairDerived, out, jsonOut)
 	}
-	if args[0] == "check-updates" {
+	if args[0] == "update" {
 		if len(args) != 2 {
 			return errors.New(modelUsage)
 		}
-		return runModelCheckUpdates(args[1], out, jsonOut)
+		return runModelUpdate(args[1], out, jsonOut)
 	}
-	withCompanions := false
 	includeModelCard := false
-	if args[0] == "download" {
-		args, withCompanions = extractModelFlag(args, companionFlag)
-	}
 	if args[0] == "discover" {
 		args, includeModelCard = extractModelFlag(args, modelCardFlag)
 	} else if _, found := extractModelFlag(args, modelCardFlag); found {
@@ -132,9 +129,6 @@ func runModelCommand(args []string, out io.Writer) error {
 		return errors.New(modelUsage)
 	}
 	if args[0] == "download" && isDownloadAction(args[1]) {
-		if withCompanions {
-			return errors.New(modelUsage)
-		}
 		nested := append([]string(nil), args[1:]...)
 		if jsonOut {
 			nested = append(nested, "--json")
@@ -142,7 +136,7 @@ func runModelCommand(args []string, out io.Writer) error {
 		return runDownloadWithKind(nested, out, "model")
 	}
 	switch args[0] {
-	case "resolve", "discover", "download", "revision":
+	case "discover", "download":
 	default:
 		return errors.New(modelUsage)
 	}
@@ -155,11 +149,6 @@ func runModelCommand(args []string, out io.Writer) error {
 	}
 	var value any
 	switch args[0] {
-	case "resolve":
-		if len(args) != 2 {
-			return errors.New(modelUsage)
-		}
-		value, e = m.Resolve(args[1], "")
 	case "discover":
 		if len(args) != 2 {
 			return errors.New(modelUsage)
@@ -169,17 +158,7 @@ func runModelCommand(args []string, out io.Writer) error {
 		if len(args) != 2 {
 			return errors.New(modelUsage)
 		}
-		value, e = runModelDownload(m, args[1], withCompanions)
-	case "revision":
-		// A revision is recorded in the sidecar, so only an installed artifact
-		// has one to report.
-		if len(args) != 2 {
-			return errors.New(modelUsage)
-		}
-		var entry modelapp.LibraryEntry
-		if entry, e = m.ResolveInstalled(args[1]); e == nil {
-			value, e = modelapp.ReadRecord(entry.TargetPath)
-		}
+		value, e = runModelDownload(m, args[1])
 	default:
 		return errors.New(modelUsage)
 	}
@@ -269,11 +248,13 @@ func appendCandidateNames(err error, candidates []string) error {
 	return errors.New(b.String())
 }
 
-// runModelDownload creates and runs the job for the selected artifact, plus one
-// independent job per identified companion when the operator opted in. Each job
-// is created through the same path a lone download uses, so every one of them
-// stays independently pausable, resumable, and cancellable.
-func runModelDownload(m *modelapp.Manager, reference string, withCompanions bool) (any, error) {
+// runModelDownload creates and runs one job for the selected artifact and one
+// for every companion identified for it. Each is created through the same path,
+// so every job stays independently pausable, resumable, and cancellable.
+//
+// The complete set is not optional. The operator asks for a quantization, and a
+// quantization is not usable in pieces, so there is nothing to opt into.
+func runModelDownload(m *modelapp.Manager, reference string) (any, error) {
 	candidates, err := m.Resolve(reference, "")
 	if err != nil {
 		return nil, err
@@ -282,16 +263,11 @@ func runModelDownload(m *modelapp.Manager, reference string, withCompanions bool
 		return nil, errors.New("download requires one GGUF selection")
 	}
 	principal := candidates[0]
-	if !withCompanions {
-		return runOneDownload(m, principal)
-	}
 	companions, err := m.RemoteCompanions(principal)
 	if err != nil {
 		return nil, err
 	}
 	if len(companions) == 0 {
-		// Reported on stderr so a --json invocation still emits exactly one
-		// document on stdout.
 		_, _ = fmt.Fprintf(os.Stderr, "no companion identified for %s:%s\n", principal.Source.Repository, principal.Source.Filename)
 	}
 	jobs := make([]modelapp.Job, 0, len(companions)+1)
@@ -388,10 +364,18 @@ var typePriority = map[string]int{
 	"vocoder": 4,
 }
 
-// statePriority maps library states to their sort priority. Lower values sort first.
-var statePriority = map[string]int{
-	"installed":    0,
-	"unreconciled": 1,
+// statePriority orders the derived states in the listing. Managed artifacts
+// come first, most settled first, and what Coquena does not manage comes last:
+// an operator scanning a repository wants what is ready before what needs
+// attention.
+var statePriority = map[modelapp.ArtifactState]int{
+	modelapp.StateSynced:     0,
+	modelapp.StateUpgradable: 1,
+	modelapp.StateLocal:      2,
+	modelapp.StateDetached:   3,
+	modelapp.StateIncomplete: 4,
+	modelapp.StateAltered:    5,
+	modelapp.StateUntracked:  6,
 }
 
 // computeQuant derives the QUANT value for an entry. For model artifacts it's
@@ -454,7 +438,8 @@ func runModelList(out io.Writer, jsonOut bool) error {
 	byRepo := map[string][]modelListEntry{}
 	var repoOrder []string
 	for _, entry := range entries {
-		if entry.State != "installed" && entry.State != "unreconciled" {
+		// A download in flight carries no artifact state and is not listed as one.
+		if entry.State == "" {
 			continue
 		}
 		repo := entry.Source.Repository
@@ -462,7 +447,7 @@ func runModelList(out io.Writer, jsonOut bool) error {
 			repoOrder = append(repoOrder, repo)
 		}
 		item := modelListEntry{
-			State:             entry.State,
+			State:             string(entry.State),
 			Repository:        repo,
 			Reference:         modelapp.CanonicalReference(entry.Source),
 			LogicalSelector:   modelapp.LogicalReference(entry),
@@ -471,7 +456,6 @@ func runModelList(out io.Writer, jsonOut bool) error {
 			Filename:          entry.Source.Filename,
 			DerivationStale:   entry.DerivationStale,
 			Usable:            entry.Usability.Usable,
-			UnusableReason:    string(entry.Usability.Reason),
 			Advice:            entry.Usability.Advice,
 			Standing:          string(entry.Standing),
 			AttestationMethod: string(entry.AttestationMethod),
@@ -495,9 +479,8 @@ func runModelList(out io.Writer, jsonOut bool) error {
 			if pi != pj {
 				return pi < pj
 			}
-			// State: installed before unreconciled
-			si := statePriority[items[i].State]
-			sj := statePriority[items[j].State]
+			si := statePriority[modelapp.ArtifactState(items[i].State)]
+			sj := statePriority[modelapp.ArtifactState(items[j].State)]
 			if si != sj {
 				return si < sj
 			}
@@ -532,72 +515,107 @@ func runModelList(out io.Writer, jsonOut bool) error {
 	return writer.Flush()
 }
 
-// runModelReconcile parses one reconciliation invocation and refuses the two
-// options this command no longer accepts, rather than ignoring them: an option
-// that is silently dropped looks to the operator like it worked.
+// actingCommand names the model command in args when it is one that acts on
+// state rather than reading it, which is the division that decides whether
+// --json is offered.
 //
-// --all is refused because reconciling the whole library conflates artifacts
-// that need an operator decision with artifacts that do not. The behaviour is
-// turned off here and reconsidered in a later change; see Manager.ReconcileAll.
+// Each command is the HTTP endpoint it would be were the REST API built, and
+// --json is where a representation of a resource is returned. A download-job
+// query is a read even though it sits beneath 'download', which is why the
+// subcommand is inspected rather than the verb alone.
+func actingCommand(args []string) (string, bool) {
+	switch args[0] {
+	case "import", "reconcile", "verify":
+		return args[0], true
+	case "download":
+		// 'download list' and 'download status' ask questions; creating a
+		// download acts.
+		if len(args) > 1 && isDownloadAction(args[1]) {
+			return "", false
+		}
+		return "download", true
+	}
+	return "", false
+}
+
+// runModelImport adopts an artifact already on disk from its path-derived
+// identity alone.
 //
-// --json is refused because reconciliation prompts, and a command that prompts
-// cannot emit exactly one clean JSON document. The rule is about interactivity,
-// not about mutation. The flag is extracted globally before dispatch, so this
-// is a refusal of something already parsed rather than an unrecognized option.
-func runModelReconcile(args []string, out io.Writer, jsonOut bool) error {
+// It stays one artifact per invocation: it asserts an identity from the path
+// with nothing to corroborate it against, so it is never applied to a set the
+// operator did not name one by one. The artifact is by definition not managed
+// yet, so the reference resolves against the untracked entries the listing
+// reports.
+//
+// It has no mode flag and never consults a repository. Adopting local bytes and
+// establishing a repository match are different acts, and the operator names
+// which one they mean by choosing the command.
+func runModelImport(args []string, out io.Writer) error {
+	reference, err := oneReference("import", args)
+	if err != nil {
+		return err
+	}
+	m, err := modelManagerFactory()
+	if err != nil {
+		return err
+	}
+	entry, err := m.ResolveUntracked(reference)
+	if err != nil {
+		return err
+	}
+	result, err := m.ReconcileAccept(entry.TargetPath)
+	if err != nil {
+		return err
+	}
+	_, err = fmt.Fprintln(out, "Imported "+result.Record.Source.Repository+":"+result.Record.Source.Filename+".")
+	return err
+}
+
+// runModelReconcile establishes a repository match for the artifacts of one
+// repository.
+//
+// It reconciles the whole repository the reference names: a principal and its
+// projector are parts of one logical unit, and reconciling them one at a time is
+// what produces the half-reconciled library this command exists to prevent.
+//
+// It never falls back to adopting local bytes. An artifact for which no match
+// can be established is left detached, which is a state the operator can see and
+// act on, rather than silently imported as though a person had chosen to.
+func runModelReconcile(args []string, out io.Writer) error {
+	reference, err := oneReference("reconcile", args)
+	if err != nil {
+		return err
+	}
+	m, err := modelManagerFactory()
+	if err != nil {
+		return err
+	}
+	return runModelReconcileRepository(m, reference, out)
+}
+
+// oneReference extracts the single reference these commands take, refusing the
+// options they no longer accept rather than ignoring them: an option that is
+// silently dropped looks to the operator like it worked.
+//
+// --all is refused because operating on the whole library conflates artifacts
+// that need an operator decision with artifacts that do not.
+func oneReference(command string, args []string) (string, error) {
 	var reference string
-	var online, accept bool
 	for _, a := range args {
 		switch a {
-		case "--online":
-			online = true
-		case "--accept":
-			accept = true
 		case "--all":
-			return errors.New("coquena model reconcile: --all is not accepted: reconciliation operates on one repository named by reference, never on the whole library. Reconcile each repository by name.")
+			return "", fmt.Errorf("coquena model %s: --all is not accepted. It operates on one reference at a time, never on the whole library.", command)
 		default:
 			if reference != "" || strings.HasPrefix(a, "--") {
-				return errors.New(modelUsage)
+				return "", errors.New(modelUsage)
 			}
 			reference = a
 		}
 	}
-	if jsonOut {
-		return errors.New("coquena model reconcile: --json does not apply to this command: reconciliation prompts, and a command that prompts cannot emit exactly one JSON document.")
+	if reference == "" {
+		return "", errors.New(modelUsage)
 	}
-	if online == accept || reference == "" {
-		return errors.New(modelUsage)
-	}
-	m, e := modelManagerFactory()
-	if e != nil {
-		return e
-	}
-	// --online reconciles the whole repository the reference names: a principal
-	// and its projector are parts of one logical unit, and reconciling them one
-	// at a time is what produces the half-reconciled library this command exists
-	// to prevent.
-	if online {
-		return runModelReconcileRepository(m, reference, out)
-	}
-	// --accept stays one artifact per invocation: it asserts an identity from
-	// the path alone with nothing to corroborate it against, so it is never
-	// applied to a set the operator did not name one by one. The artifact is by
-	// definition not yet installed, so the reference resolves against the
-	// unreconciled entries the listing reports.
-	entry, e := m.ResolveUnreconciled(reference)
-	if e != nil {
-		return e
-	}
-	result, e := m.ReconcileAccept(entry.TargetPath)
-	if e != nil {
-		return e
-	}
-	msg := fmt.Sprintf("Reconciled %s:%s.", result.Record.Source.Repository, result.Record.Source.Filename)
-	if result.Partial() {
-		msg += " (partial: Hugging Face reported no content hash to compare against)"
-	}
-	_, e = fmt.Fprintln(out, msg)
-	return e
+	return reference, nil
 }
 
 // runModelReconcileRepository renders one repository-driven reconciliation:
@@ -697,7 +715,7 @@ func runModelVerify(reference string, repairDerived bool, out io.Writer, jsonOut
 	return nil
 }
 
-func runModelCheckUpdates(reference string, out io.Writer, jsonOut bool) error {
+func runModelUpdate(reference string, out io.Writer, jsonOut bool) error {
 	m, e := modelManagerFactory()
 	if e != nil {
 		return e

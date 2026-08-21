@@ -200,7 +200,7 @@ func TestListingDoesNotTriggerReconciliation(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if len(entries) != 1 || entries[0].State != "unreconciled" {
+		if len(entries) != 1 || entries[0].State != StateUntracked {
 			t.Fatalf("entries=%+v", entries)
 		}
 	}

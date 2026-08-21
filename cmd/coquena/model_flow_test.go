@@ -68,8 +68,10 @@ func TestOperatorFlowDiscoverDownloadListBind(t *testing.T) {
 	if err := runModel([]string{"download", "org/repo:Q4_K_M"}, &downloaded); err != nil {
 		t.Fatalf("download org/repo:Q4_K_M: %v", err)
 	}
-	if len(strings.Fields(strings.TrimSpace(downloaded.String()))) != 1 {
-		t.Fatalf("expected exactly one job, out=%q", downloaded.String())
+	// The quantization arrives as a complete bundle: the principal and the
+	// projector the repository publishes beside it.
+	if len(strings.Fields(strings.TrimSpace(downloaded.String()))) != 2 {
+		t.Fatalf("expected the bundle's jobs, out=%q", downloaded.String())
 	}
 
 	// Step 3: the listing reports the downloaded artifact with its declared type.
@@ -86,13 +88,22 @@ func TestOperatorFlowDiscoverDownloadListBind(t *testing.T) {
 	if len(envelope.Result) != 1 {
 		t.Fatalf("expected the one downloaded artifact, result=%+v", envelope.Result)
 	}
+	// The bundle arrived whole: the principal and the projector that accompanies
+	// it, each an independent entry at the same level.
 	repoEntries := envelope.Result["org/repo"]
-	if len(repoEntries) != 1 {
-		t.Fatalf("expected the one downloaded artifact, result=%+v", repoEntries)
+	if len(repoEntries) != 2 {
+		t.Fatalf("expected the downloaded bundle, result=%+v", repoEntries)
 	}
-	entry := repoEntries[0]
-	if entry.Filename != "bonsai-Q4_K_M.gguf" || entry.State != "installed" || entry.Type != "model" {
-		t.Fatalf("entry=%+v", entry)
+	byFilename := map[string]modelListEntry{}
+	for _, listed := range repoEntries {
+		byFilename[listed.Filename] = listed
+	}
+	entry, ok := byFilename["bonsai-Q4_K_M.gguf"]
+	if !ok || entry.State != string(modelapp.StateSynced) || entry.Type != "model" {
+		t.Fatalf("principal entry=%+v ok=%v", entry, ok)
+	}
+	if companion, present := byFilename["mmproj-BF16.gguf"]; !present || companion.Type != "mmproj" {
+		t.Fatalf("companion entry=%+v present=%v", companion, present)
 	}
 
 	// Step 4: bind a preset by the same reference the operator downloaded with.

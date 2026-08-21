@@ -29,6 +29,13 @@ rules:
   specs:
     - Express requirements as testable behavior with concrete scenarios.
     - Cover failure behavior when it is part of the proposed outcome.
+    - State each fact in one capability only. A command surface owns its verbs,
+      flags, refusals and output; a storage capability owns what is persisted
+      and which operation may write it. Restating the other's fact is how two
+      specs come to disagree about the same command.
+    - Declare every capability whose requirements the change contradicts, not
+      only the one it mainly edits. A capability left undeclared is left
+      untouched, and keeps asserting what it asserted before.
   design:
     - Introduce only the architecture needed by the current change.
     - Record tradeoffs and defer speculative abstractions.

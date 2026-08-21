@@ -149,7 +149,7 @@ func TestVerifyRefusesDerivedRepairOnMismatch(t *testing.T) {
 func TestVerifyMatchedOnIntactFile(t *testing.T) {
 	root := t.TempDir()
 	m := NewManager(filepath.Join(root, "models"))
-	body := emptyGGUF()
+	body := principalGGUF()
 	path := writeReconcileFixture(t, root, body)
 	if _, err := m.ReconcileAccept(path); err != nil {
 		t.Fatal(err)
@@ -170,7 +170,7 @@ func TestVerifyMatchedOnIntactFile(t *testing.T) {
 func TestVerifyMismatchedOnCorruptedFile(t *testing.T) {
 	root := t.TempDir()
 	m := NewManager(filepath.Join(root, "models"))
-	body := emptyGGUF()
+	body := principalGGUF()
 	path := writeReconcileFixture(t, root, body)
 	if _, err := m.ReconcileAccept(path); err != nil {
 		t.Fatal(err)
@@ -203,7 +203,7 @@ func TestVerifyUnresolvableReference(t *testing.T) {
 		t.Fatalf("err type=%T want *ErrNoInstalledMatch: %v", err, err)
 	}
 
-	body := emptyGGUF()
+	body := principalGGUF()
 	dir := filepath.Join(root, "models", "org", "repo")
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		t.Fatal(err)
@@ -217,9 +217,9 @@ func TestVerifyUnresolvableReference(t *testing.T) {
 		t.Fatal(err)
 	}
 	m2 := NewManager(filepath.Join(root, "models"))
-	sourceA := unreconciledSource(m2.ModelsDir, pathA)
+	sourceA := untrackedSource(m2.ModelsDir, pathA)
 	sourceA.Provider = "local"
-	sourceB := unreconciledSource(m2.ModelsDir, pathB)
+	sourceB := untrackedSource(m2.ModelsDir, pathB)
 	sourceB.Provider = "local"
 	if _, err := PublishInPlace(m2.ModelsDir, Record{SchemaVersion: RecordSchemaVersion, Source: sourceA, Artifact: Artifact{SizeBytes: int64(len(body))}}); err != nil {
 		t.Fatal(err)
@@ -241,7 +241,7 @@ func TestVerifyUnresolvableReference(t *testing.T) {
 func TestReconcileLeavesTheVerificationAxisAlone(t *testing.T) {
 	root := t.TempDir()
 	m := NewManager(filepath.Join(root, "models"))
-	body := emptyGGUF()
+	body := principalGGUF()
 	path := writeReconcileFixture(t, root, body)
 	if _, err := m.ReconcileAccept(path); err != nil {
 		t.Fatal(err)
@@ -276,7 +276,7 @@ func TestReconcileLeavesTheVerificationAxisAlone(t *testing.T) {
 func TestReplacingTheIntegrityDigestRetiresTheVerification(t *testing.T) {
 	root := t.TempDir()
 	m := NewManager(filepath.Join(root, "models"))
-	body := emptyGGUF()
+	body := principalGGUF()
 	path := writeReconcileFixture(t, root, body)
 	if _, err := m.ReconcileAccept(path); err != nil {
 		t.Fatal(err)

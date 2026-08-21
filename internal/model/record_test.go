@@ -109,7 +109,7 @@ func TestSetDigestReplacesRatherThanAccumulates(t *testing.T) {
 func TestReadRecordRejectsAnyOtherSchemaVersion(t *testing.T) {
 	root := t.TempDir()
 	m := NewManager(filepath.Join(root, "models"))
-	body := emptyGGUF()
+	body := principalGGUF()
 	path := writeReconcileFixture(t, root, body)
 	if _, err := m.ReconcileAccept(path); err != nil {
 		t.Fatal(err)
@@ -143,7 +143,7 @@ func TestReadRecordRejectsAnyOtherSchemaVersion(t *testing.T) {
 func TestReadRecordRejectsASidecarWithNoIntegrityDigest(t *testing.T) {
 	root := t.TempDir()
 	m := NewManager(filepath.Join(root, "models"))
-	body := emptyGGUF()
+	body := principalGGUF()
 	path := writeReconcileFixture(t, root, body)
 	if _, err := m.ReconcileAccept(path); err != nil {
 		t.Fatal(err)
@@ -217,7 +217,7 @@ func assertRecoversWithoutTouchingBytes(t *testing.T, m *Manager, path string, b
 func TestObservationDoesNotDisturbAttestationOrOwnership(t *testing.T) {
 	root := t.TempDir()
 	m := NewManager(filepath.Join(root, "models"))
-	body := emptyGGUF()
+	body := principalGGUF()
 	path := writeReconcileFixture(t, root, body)
 	if _, err := m.ReconcileAccept(path); err != nil {
 		t.Fatal(err)
@@ -269,7 +269,7 @@ func TestObservationDoesNotDisturbAttestationOrOwnership(t *testing.T) {
 func TestExtraSurvivesARewrite(t *testing.T) {
 	root := t.TempDir()
 	m := NewManager(filepath.Join(root, "models"))
-	body := emptyGGUF()
+	body := principalGGUF()
 	path := writeReconcileFixture(t, root, body)
 	if _, err := m.ReconcileAccept(path); err != nil {
 		t.Fatal(err)
@@ -314,7 +314,7 @@ func TestExtraSurvivesARewrite(t *testing.T) {
 func TestReplacingTheIntegrityDigestRetiresTheAttestation(t *testing.T) {
 	root := t.TempDir()
 	m := NewManager(filepath.Join(root, "models"))
-	body := emptyGGUF()
+	body := principalGGUF()
 	path := writeReconcileFixture(t, root, body)
 	if _, err := m.ReconcileAccept(path); err != nil {
 		t.Fatal(err)

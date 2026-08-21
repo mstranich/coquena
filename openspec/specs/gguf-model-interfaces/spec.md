@@ -2,21 +2,41 @@
 
 Define CLI and local WebUI interfaces for shared GGUF model management.
 ## Requirements
-### Requirement: Expose shared model management through the CLI
 
-Coquena SHALL expose `coquena model resolve <repository-or-url>`, `coquena model
-discover <repository-or-url[:selector]>`, `coquena model download
-<repository-or-url[:selector]>`, `coquena model revision <reference>`,
-`coquena model list`, `coquena model verify <reference>`, `coquena model
-check-updates <reference>`, and the accepted reconciliation and download-job
-subcommands. The CLI SHALL NOT expose `coquena model inspect`; local byte
-evidence and recorded evidence SHALL be compared through `verify`, while the
-internal inspection projection remains available to non-CLI workflows.
+### Requirement: Expose the model command surface through the CLI
 
-Non-interactive commands SHALL support one `--json` option that emits exactly
-one schema-versioned JSON document on standard output. Commands addressing one
-installed artifact SHALL use the currently supported model reference grammar,
+Coquena SHALL expose `coquena model discover <repository-or-url[:selector]>`,
+`coquena model download <repository-or-url[:selector]>`, `coquena model list`,
+`coquena model import <reference>`, `coquena model reconcile <reference>`,
+`coquena model verify <reference>`, `coquena model update <reference>`, and the
+download-job subcommands. The CLI SHALL NOT expose `coquena model inspect`,
+`coquena model resolve`, or `coquena model revision`; local byte evidence and
+recorded evidence SHALL be compared through `verify`, while the internal
+resolution, revision and inspection projections remain available to non-CLI
+workflows.
+
+Each command SHALL correspond to the HTTP endpoint it would be were the REST API
+built, and `--json` SHALL follow that correspondence: a command that reads state
+and returns a representation of it accepts `--json`; a command that acts on state
+does not. `discover`, `list`, `update` and the download-job query subcommands
+SHALL accept `--json`. `download`, `import`, `reconcile` and `verify` SHALL NOT:
+each exists to change what is recorded, and reports an outcome rather than a
+resource.
+
+`verify` belongs with the acting commands. It repairs the coherence between an
+artifact's bytes and the evidence recorded about them, and writing that repair is
+its purpose rather than a side effect. What it establishes is read back through
+`list`, which reports each artifact's verification outcome.
+
+Where a command accepts `--json` it SHALL emit exactly one schema-versioned JSON
+document on standard output. Where a command does not, passing `--json` SHALL be
+a usage error rather than a silently ignored option. Commands addressing one
+managed artifact SHALL use the currently supported model reference grammar,
 shall refuse ambiguity safely, and SHALL NOT require a filesystem path.
+
+Coquena has no released version, so a removed or renamed command SHALL NOT be
+retained as an alias, a deprecation shim, or a transitional error naming its
+replacement. The usage text SHALL be the sole record of the surface.
 
 #### Scenario: Reject the removed inspect command
 
@@ -24,20 +44,44 @@ shall refuse ambiguity safely, and SHALL NOT require a filesystem path.
 - **THEN** the CLI reports usage that does not advertise the removed command
 - **AND** no local or remote state changes
 
+#### Scenario: Reject the removed resolve and revision commands
+
+- **WHEN** an operator invokes `coquena model resolve` or `coquena model revision`
+- **THEN** the CLI reports usage that does not advertise either command
+- **AND** the usage text does not name a replacement for them
+
+#### Scenario: Reject the removed check-updates command
+
+- **WHEN** an operator invokes `coquena model check-updates`
+- **THEN** the CLI reports usage that does not advertise the removed command
+- **AND** no alias forwards it to `coquena model update`
+
 #### Scenario: Preserve internal inspection for download
 
 - **WHEN** a managed download completes after its GGUF header has been inspected
 - **THEN** the download workflow may use the internal inspection projection to
-  construct the sidecar
-- **AND** removing the CLI command does not require parsing the header twice
+  classify the artifact without a second read
 
-#### Scenario: Automate a supported model command
+#### Scenario: Automate a reading model command
 
-- **WHEN** an operator invokes a supported non-interactive model command with
-  `--json`
+- **WHEN** an operator invokes `discover`, `list` or `update` with `--json`
 - **THEN** standard output contains only one newline-terminated,
   schema-versioned JSON document
 - **AND** diagnostics do not contaminate that document
+
+#### Scenario: Reject machine-readable output from an acting command
+
+- **WHEN** an operator passes `--json` to `download`, `import`, `reconcile` or
+  `verify`
+- **THEN** Coquena reports that the option does not apply to that command
+- **AND** it does not silently ignore the option
+- **AND** it creates no job and writes no sidecar
+
+#### Scenario: Report created job identities without a machine-readable option
+
+- **WHEN** an operator downloads a quantization whose bundle holds several artifacts
+- **THEN** standard output carries every created job identity, one per line
+- **AND** each job remains addressable afterwards through the download-job query subcommands
 
 #### Scenario: Reject invalid model command input
 
@@ -46,10 +90,9 @@ shall refuse ambiguity safely, and SHALL NOT require a filesystem path.
 - **THEN** the CLI exits unsuccessfully with usage or a safe diagnostic
 - **AND** it creates no job or model artifact
 
-#### Scenario: Address an installed artifact by its logical name
+#### Scenario: Address a managed artifact by its logical name
 
-- **WHEN** an operator reads the revision, verifies, or checks updates for an
-  installed artifact
+- **WHEN** an operator verifies or queries updates for a managed artifact
 - **THEN** Coquena accepts the same currently supported reference family
 - **AND** it does not require a filesystem path
 
@@ -113,14 +156,6 @@ Discovery entries SHOULD display the publisher avatar from Hugging Face when ava
 - **THEN** the workspace displays metadata as a reference
 - **AND** it does not automatically create, change, or select a preset value
 
-### Requirement: Query installed revision through the CLI
-Coquena SHALL expose `coquena model revision <model-reference>` using the shared model service. The revision command SHALL emit the installed resolved SHA in human output and repository, filename, requested revision, and resolved revision in schema-version-1 JSON output.
-
-#### Scenario: Read an installed model revision
-- **WHEN** an operator invokes `coquena model revision` for a consistent installed model
-- **THEN** human output contains its resolved commit SHA
-- **AND** `--json` includes its repository, filename, requested revision, and resolved revision
-
 ### Requirement: Delegate model download management to the global lifecycle
 The model CLI SHALL keep `coquena model download` as a model-specific creation
 and convenience entry point. Its `list`, `status`, `pause`, `resume`, and
@@ -133,18 +168,36 @@ to `TYPE=model`.
 - **THEN** both commands address the same job and report equivalent state
 - **AND** resume preserves the model's existing adjacent partial-file and sidecar safety guarantees
 
-### Requirement: List installed models through the CLI
-Coquena SHALL provide a CLI command that lists every model present in the configured model directory at the artifact level. For each installed artifact it SHALL report its canonical `user/repo[@revision]:filename.gguf` reference, exact filename, resolved revision, and any logical `user/repo[@revision]:QUANT` selector that describes its quantization class. The logical selector SHALL be presented as a potentially non-unique class and SHALL NOT replace the canonical artifact reference.
+### Requirement: List the model library through the CLI
 
-The listing SHALL report each unreconciled `.gguf` separately with its path-derived identity and a status distinguishing it from an installed model. It SHALL NOT nest companions beneath principals, because doing so asserts a relation that does not hold across all quantizations. Each entry SHALL report the artifact's declared type and whether it is usable, with a reason when it is not. The command SHALL issue no network request and SHALL report an empty list rather than an error when no model is present.
+Coquena SHALL provide a CLI command that lists every model present in the
+configured model directory at the artifact level. For each artifact it SHALL
+report its canonical `user/repo[@revision]:filename.gguf` reference, exact
+filename, resolved revision where one is recorded, and any logical
+`user/repo[@revision]:QUANT` selector that describes its quantization class. The
+logical selector SHALL be presented as a potentially non-unique class and SHALL
+NOT replace the canonical artifact reference.
+
+Each entry SHALL report its state using the seven-state vocabulary, its declared
+type, and whether it is usable. The listing SHALL NOT report a usability reason,
+because the state is the reason. It SHALL report an `untracked` artifact with its
+path-derived identity, distinctly from a canonical managed identity, and SHALL
+NOT fabricate revision provenance for it.
+
+The listing SHALL NOT nest companions beneath principals, because doing so
+asserts a relation that does not hold across all quantizations. It SHALL issue no
+network request and SHALL report an empty list rather than an error when no model
+is present.
+
+Human-readable and JSON output SHALL use the same state vocabulary.
 
 #### Scenario: List canonical and logical references
-- **WHEN** an operator lists installed artifacts
-- **THEN** each installed entry reports its canonical exact-filename reference
+- **WHEN** an operator lists the library
+- **THEN** each managed entry reports its canonical exact-filename reference
 - **AND** it may additionally report the logical quantization selector without claiming that selector is unique
 
 #### Scenario: List two variants in one quantization class
-- **WHEN** two installed filenames share the same declared quantization
+- **WHEN** two managed filenames share the same declared quantization
 - **THEN** the listing reports two different canonical artifact references and the shared logical selector
 - **AND** neither artifact is hidden or selected as the preferred variant
 
@@ -153,25 +206,21 @@ The listing SHALL report each unreconciled `.gguf` separately with its path-deri
 - **THEN** the listing reports both as independent entries with canonical references and declared types
 - **AND** it does not nest either beneath the other
 
-#### Scenario: Nest a companion beneath its principal
-- **WHEN** the library holds a principal model and a projector compatible with it
-- **THEN** the listing does not nest the projector beneath that principal
-- **AND** the nesting this scenario previously required remains withdrawn
-
-#### Scenario: List an unmatched companion
-- **WHEN** the library holds a projector compatible with no installed principal
-- **THEN** the listing reports it with its canonical reference and type
-- **AND** it reports the projector as unusable, naming the absent compatible principal as the reason
-
-#### Scenario: Report an unreconciled artifact
+#### Scenario: Report an untracked artifact
 - **WHEN** the configured models directory contains a `.gguf` without a valid matching sidecar
-- **THEN** the listing reports its path-derived repository and filename distinctly from a canonical installed identity
+- **THEN** the listing reports it in state `untracked` with its path-derived repository and filename
 - **AND** it does not fabricate revision provenance
 
-#### Scenario: Report the type and reason for an unusable artifact
-- **WHEN** the listing reports a sidecar-less artifact or an orphaned projector
-- **THEN** it reports the artifact's declared type read from its own header
-- **AND** it names a usability reason distinguishing unreconciled from orphaned
+#### Scenario: Report an unmatched companion as usable
+- **WHEN** the library holds a projector in a usable state compatible with no installed principal
+- **THEN** the listing reports it with its canonical reference and type
+- **AND** it reports the projector as usable
+- **AND** it may report the absent compatible principal as advice
+
+#### Scenario: Report usability without a separate reason
+- **WHEN** the listing reports an artifact that is not usable
+- **THEN** it reports the artifact's state and that the artifact is not usable
+- **AND** it reports no usability reason distinct from the state
 
 #### Scenario: List an empty library
 - **WHEN** the configured models directory contains no model artifacts
@@ -180,24 +229,85 @@ The listing SHALL report each unreconciled `.gguf` separately with its path-deri
 
 #### Scenario: List models as JSON
 - **WHEN** an operator requests JSON output
-- **THEN** it reports the same canonical references, logical selectors, types, revisions, and usability as machine-readable fields
-### Requirement: Reconcile a model without a valid sidecar
-Coquena SHALL provide `coquena model reconcile <reference> --online`, which reconciles the artifacts of one repository in a single action. It SHALL resolve the repository named by the `user/repo[@revision]:QUANT` reference grammar, enumerate that repository's remote candidates with their classification without downloading any complete artifact, and match them against the artifacts present on disk by filename, corroborated by metadata. A reference naming a repository that holds a principal and its companions SHALL reconcile all of them, since they are parts of one logical unit; a reference matching more than one principal SHALL be refused as ambiguous, naming the candidates, since choosing among quantizations is the operator's decision. Reconciliation SHALL persist a full Hugging Face-provenance sidecar for each artifact whose locally computed SHA-256 digest agrees with the content hash Hugging Face reports, SHALL refuse any artifact whose digest disagrees, and SHALL report a remote candidate that is absent locally rather than omitting it. Coquena SHALL provide `coquena model reconcile <reference> --accept` for a single artifact, persisting a `local`-provider sidecar from path-derived identity alone without any network request. Reconciliation SHALL operate on one artifact or one repository per invocation and SHALL NOT accept an option reconciling the whole configured models directory. Reconciliation SHALL remain an explicit operator action, SHALL NOT run as a side effect of any listing command, and SHALL NOT accept `--json`, since it prompts and therefore cannot emit exactly one document.
+- **THEN** it reports the same canonical references, logical selectors, types, revisions, states and usability as machine-readable fields
+- **AND** the state values are the same seven names the human output uses
+
+### Requirement: Import a model without consulting a repository
+
+Coquena SHALL provide `coquena model import <reference>`, which adopts an
+artifact already on disk from its path-derived identity alone. It SHALL issue no
+network request, SHALL persist a `local`-provider sidecar, and SHALL leave the
+artifact in state `local`.
+
+`import` SHALL accept no mode flag, SHALL NOT fall back to consulting a
+repository, and SHALL NOT accept an option importing the whole configured models
+directory. It SHALL refuse to import an artifact it cannot classify, writing no
+sidecar. It SHALL NOT accept `--json`: it writes rather than answers, and what an
+operator would want to read back afterwards is available from `list`.
+
+#### Scenario: Import an artifact offline
+- **WHEN** an operator imports a single referenced `.gguf`
+- **THEN** Coquena persists a `local`-provider sidecar from the derived repository and filename
+- **AND** it issues no network request
+- **AND** the artifact is subsequently reported in state `local`
+
+#### Scenario: Reject importing the whole library
+- **WHEN** an operator asks to import every artifact beneath the configured models directory in one invocation
+- **THEN** Coquena reports that the option is not accepted
+- **AND** it writes no sidecar
+
+#### Scenario: Refuse to import an unclassifiable artifact
+- **WHEN** an operator imports a file Coquena cannot classify
+- **THEN** Coquena reports the failure and writes no sidecar
+- **AND** the artifact remains in state `untracked`
+
+### Requirement: Reconcile a model against its repository
+
+Coquena SHALL provide `coquena model reconcile <reference>`, which reconciles the
+artifacts of one repository against that repository in a single action. It SHALL
+resolve the repository named by the `user/repo[@revision]:QUANT` reference
+grammar, enumerate that repository's remote candidates with their classification
+without downloading any complete artifact, and match them against the artifacts
+present on disk by filename, corroborated by metadata.
+
+A reference naming a repository that holds a principal and its companions SHALL
+reconcile all of them, since they are parts of one logical unit; a reference
+matching more than one principal SHALL be refused as ambiguous, naming the
+candidates, since choosing among quantizations is the operator's decision.
+
+Reconciliation SHALL persist a full Hugging Face-provenance sidecar for each
+artifact whose locally computed SHA-256 digest agrees with the content hash
+Hugging Face reports, SHALL refuse any artifact whose digest disagrees, and SHALL
+report a remote candidate that is absent locally rather than omitting it. An
+artifact for which a repository was consulted and no match was established SHALL
+be left in state `detached` rather than silently adopted as `local`.
+
+`reconcile` SHALL accept no mode flag and SHALL NOT fall back to adopting local
+bytes. It SHALL operate on one repository per invocation, SHALL NOT accept an
+option reconciling the whole configured models directory, SHALL remain an
+explicit operator action, and SHALL NOT run as a side effect of any listing
+command. It SHALL NOT accept `--json`: it writes rather than answers, and it
+prompts, so it could not emit exactly one document even if it did.
 
 #### Scenario: Reconcile a listed artifact by its reference
 - **WHEN** an operator reconciles an artifact using the reference form the listing reports for it
 - **THEN** Coquena resolves the repository that reference names and reconciles the artifacts it holds
 - **AND** the operator does not have to supply a filesystem path
 
-#### Scenario: Report an unmatched reconciliation reference
-- **WHEN** a reference names no artifact awaiting reconciliation
-- **THEN** the diagnostic reports that no such artifact matched
-- **AND** it does not report the artifact as not installed, which would invert the subject of the command
+#### Scenario: Reconcile online against Hugging Face
+- **WHEN** an operator reconciles a referenced repository and its artifacts match the corresponding Hugging Face artifacts
+- **THEN** Coquena persists a full sidecar for each as if they had been downloaded by Coquena
+- **AND** the artifacts are subsequently reported in state `synced`
+
+#### Scenario: Leave an unmatched artifact detached rather than local
+- **WHEN** a repository is consulted for an artifact and no match can be established
+- **THEN** Coquena reports the artifact in state `detached`
+- **AND** it does not adopt the artifact as `local` on the operator's behalf
 
 #### Scenario: Reconcile a repository holding a principal and its companion
 - **WHEN** an operator reconciles a reference naming a repository that holds a principal model and a compatible projector
 - **THEN** Coquena reconciles both artifacts in one action
-- **AND** neither is left unreconciled
+- **AND** neither is left untracked
 
 #### Scenario: Refuse a reference matching several principals
 - **WHEN** a reference matches more than one principal model in the repository
@@ -209,35 +319,15 @@ Coquena SHALL provide `coquena model reconcile <reference> --online`, which reco
 - **THEN** Coquena reports the companion as available remotely and absent locally
 - **AND** it reconciles the artifacts that are present
 
-#### Scenario: Reconcile online against Hugging Face
-- **WHEN** an operator reconciles a referenced repository with `--online` and its artifacts match the corresponding Hugging Face artifacts
-- **THEN** Coquena persists a full sidecar for each as if they had been downloaded by Coquena
-- **AND** the models become resolvable and bindable afterward under the same references
-
-#### Scenario: Refuse an online reconciliation on content mismatch
+#### Scenario: Refuse a reconciliation on content mismatch
 - **WHEN** a local artifact's computed digest disagrees with the content hash Hugging Face reports for the matched sibling
 - **THEN** Coquena refuses that artifact and writes no sidecar for it
 - **AND** the diagnostic reports that the artifact may be from an earlier revision rather than asserting corruption
 
-#### Scenario: Accept a model offline without network access
-- **WHEN** an operator reconciles a single referenced `.gguf` with `--accept`
-- **THEN** Coquena persists a `local`-provider sidecar from the derived repository and filename
-- **AND** it issues no network request
-
-#### Scenario: Reconcile a whole directory in one pass
-- **WHEN** an operator asks to reconcile every artifact beneath the configured models directory in one invocation
-- **THEN** Coquena reports that the option is not accepted
-- **AND** the whole-directory pass this scenario previously required is withdrawn, because it conflated cases needing an operator decision with cases that do not
-
-#### Scenario: Continue a bulk reconciliation past one failure
-- **WHEN** one artifact of a reconciled repository cannot be reconciled
-- **THEN** Coquena reports that artifact's diagnostic and reconciles the remaining ones
-- **AND** it does not abandon the repository
-
-#### Scenario: Reject reconciling with neither or both modes
-- **WHEN** an operator invokes `reconcile` without `--online`/`--accept` or with both
-- **THEN** Coquena reports a usage error
-- **AND** it writes no sidecar
+#### Scenario: Fail when a candidate's remote inspection fails
+- **WHEN** the remote inspection of one of the repository's candidates fails
+- **THEN** Coquena reports the failure for that artifact and writes no sidecar for it
+- **AND** it does not drop that artifact from the reconciliation target set
 
 #### Scenario: Reject reconciling the whole library
 - **WHEN** an operator asks to reconcile every artifact beneath the configured models directory in one invocation
@@ -249,76 +339,75 @@ Coquena SHALL provide `coquena model reconcile <reference> --online`, which reco
 - **THEN** Coquena reports that the option does not apply to this command
 - **AND** it does not silently ignore the option
 
-### Requirement: Verify local model integrity and repair derived evidence on demand
+### Requirement: Verify and repair an artifact's recorded coherence
 
 Coquena SHALL provide `coquena model verify <ref>`, which re-hashes the resolved
-installed file and compares it with the sidecar's persisted SHA-256 baseline.
-Default verification SHALL distinguish a hash match, hash mismatch, and absence
-of a baseline; it SHALL make no network request and SHALL NOT modify local
-state.
+artifact and reports to the operator whether its bytes still match the digest
+recorded for them. Verification SHALL make no network request and SHALL address
+one artifact per invocation.
 
-Coquena SHALL accept `--repair-derived` for one referenced artifact. Repair
-SHALL proceed only after a hash match and SHALL recalculate only locally derived
-GGUF evidence and its derivation version. It SHALL preserve model bytes, the
-persisted digest baseline, source/provenance, attestation, remote drift, and
-operator ownership. Hash mismatch or absent baseline SHALL refuse repair. The
+`verify` is an acting command, not a reading one: it exists to repair the
+coherence between an artifact and the evidence recorded about it. What it
+persists, and the rule that it is the sole writer of that evidence, belong to the
+`gguf-model-library` capability and SHALL NOT be restated here.
+
+Coquena SHALL accept `--repair-derived`, which recalculates the artifact's
+locally derived GGUF evidence. Repair SHALL proceed only after a digest match,
+SHALL be refused after a mismatch, and SHALL fail without changing the derived
+evidence when the artifact can no longer be classified. A failed repair SHALL NOT
+retract the verification that ran before it: the hash comparison happened, and
+discarding its outcome would lose an observation Coquena actually made. The
 command SHALL NOT accept a bulk repair mode.
 
-#### Scenario: Verify an intact model read-only
+`verify` SHALL NOT accept `--json`.
 
-- **WHEN** an operator verifies a model whose current digest matches its sidecar
-  without requesting repair
-- **THEN** Coquena reports the model as verified
-- **AND** it writes no sidecar or verification timestamp
+#### Scenario: Verify an intact artifact
+- **WHEN** an operator verifies an artifact whose current digest matches the one recorded for it
+- **THEN** Coquena reports the artifact as verified
+- **AND** it does not modify the artifact's bytes
 
 #### Scenario: Detect local corruption
-
-- **WHEN** an operator verifies a model whose current digest disagrees with its
-  sidecar
-- **THEN** Coquena reports verification failure and an appropriate recovery
-  direction
-- **AND** it does not modify bytes or metadata
-
-#### Scenario: Verify a model with no recorded digest
-
-- **WHEN** an operator verifies a model with no persisted digest baseline
-- **THEN** Coquena reports that no baseline is available
-- **AND** it does not report a match or repair derived evidence
+- **WHEN** an operator verifies an artifact whose current digest disagrees with the one recorded for it
+- **THEN** Coquena reports verification failure and an appropriate recovery direction
+- **AND** it does not modify the artifact's bytes
 
 #### Scenario: Repair stale derived evidence
-
-- **WHEN** an operator invokes `verify <ref> --repair-derived` for an artifact
-  whose digest matches and whose derivation is stale
-- **THEN** Coquena writes current classification, parameter count, physical
-  evidence when available, and derivation version
-- **AND** it preserves every non-derived authority field and the model bytes
+- **WHEN** an operator invokes `verify <ref> --repair-derived` for an artifact whose digest matches and whose derivation is stale
+- **THEN** Coquena reports the refreshed classification and quantization evidence
+- **AND** it preserves the model bytes
 
 #### Scenario: Refuse repair after a digest mismatch
-
-- **WHEN** `verify <ref> --repair-derived` computes a digest that differs from
-  the stored baseline
+- **WHEN** `verify <ref> --repair-derived` computes a digest that differs from the recorded one
 - **THEN** Coquena refuses the repair
-- **AND** the sidecar and model bytes remain unchanged
+- **AND** the model bytes remain unchanged
 
-#### Scenario: Repair a supported legacy sidecar
-
-- **WHEN** an otherwise valid schema-version-2 sidecar is verified with
-  `--repair-derived` and its digest matches
-- **THEN** Coquena publishes the current sidecar shape with current derivation
-- **AND** it preserves the legacy record's valid source and artifact evidence
+#### Scenario: Refuse repair that cannot be recomputed
+- **WHEN** `verify <ref> --repair-derived` cannot classify the artifact
+- **THEN** Coquena reports the failure
+- **AND** the recorded derived evidence is left as it was
+- **AND** the verification outcome that ran before the repair is still recorded
 
 #### Scenario: Reject bulk repair
-
-- **WHEN** an operator requests `verify --all` or an equivalent library-wide
-  repair
+- **WHEN** an operator requests `verify --all` or an equivalent library-wide repair
 - **THEN** Coquena rejects the invocation
 - **AND** it does not repair any artifact
 
-### Requirement: Check for remote model updates on demand
-Coquena SHALL provide `coquena model check-updates <ref>`, which queries Hugging Face using only the installed model's recorded repository, requested revision, and filename, without reading or hashing the local file. It SHALL report whether Hugging Face's current content for that path differs from what is recorded locally, degrading to a commit-revision-only comparison when Hugging Face reports no content hash for the artifact. It SHALL NOT run automatically from any listing command.
+#### Scenario: Reject machine-readable verification
+- **WHEN** an operator invokes `verify` with `--json`
+- **THEN** Coquena reports that the option does not apply to this command
+- **AND** it does not silently ignore the option
+
+### Requirement: Query a repository for updates on demand
+
+Coquena SHALL provide `coquena model update <ref>`, which queries Hugging Face
+using only the artifact's recorded repository, requested revision, and filename,
+without reading or hashing the local file. It SHALL report whether Hugging Face's
+current content for that path differs from what is recorded locally, degrading to
+a commit-revision-only comparison when Hugging Face reports no content hash for
+the artifact. It SHALL NOT run automatically from any listing command.
 
 #### Scenario: Report an up-to-date model
-- **WHEN** an operator checks updates for a model whose recorded revision and content hash still match Hugging Face's current state
+- **WHEN** an operator queries updates for a model whose recorded revision and content hash still match Hugging Face's current state
 - **THEN** Coquena reports the model as up to date
 
 #### Scenario: Detect remote content replacement under the same path
@@ -326,25 +415,36 @@ Coquena SHALL provide `coquena model check-updates <ref>`, which queries Hugging
 - **THEN** Coquena reports that an update is available
 - **AND** it names the newly observed revision
 
-#### Scenario: Refuse to check updates for a local-provider model
-- **WHEN** an operator checks updates for a model reconciled with `--accept`
+#### Scenario: Refuse to query updates for a local artifact
+- **WHEN** an operator queries updates for an artifact in state `local`
 - **THEN** Coquena refuses with a diagnostic explaining no Hugging Face identity is recorded for it
 
-### Requirement: Download a principal artifact with its companions
-Coquena SHALL download exactly one artifact per `coquena model download` invocation by default. It SHALL accept an explicit opt-in flag that additionally enqueues the companions identified for the selected principal, creating one independent durable job per artifact and reporting every created job ID. The flag SHALL NOT change the default single-artifact behavior when it is absent.
+### Requirement: Download a quantization as a complete bundle
 
-#### Scenario: Download one artifact by default
-- **WHEN** an operator downloads a selected artifact without the companion flag
-- **THEN** Coquena creates exactly one job for that artifact
+Coquena SHALL download a selected principal artifact together with every
+companion identified for it in the same repository, creating one independent
+durable job per artifact and reporting every created job ID. The complete set
+SHALL NOT be optional: Coquena SHALL NOT accept a flag limiting a download to the
+principal alone, because the operator asks for a quantization and a quantization
+is not usable in pieces.
+
+`download` SHALL NOT accept `--json`. It acts rather than reads, and the job
+identities it creates are reported on standard output one per line and remain
+addressable through the download-job query subcommands.
 
 #### Scenario: Enqueue companions with the principal
-- **WHEN** an operator downloads a principal with the companion flag and the repository holds a compatible projector
+- **WHEN** an operator downloads a principal from a repository that holds a compatible projector
 - **THEN** Coquena creates one job per artifact and reports every job ID
 - **AND** each job remains independently pausable, resumable, and cancellable
 
-#### Scenario: Request companions where none exist
-- **WHEN** an operator downloads with the companion flag from a repository holding no companion
+#### Scenario: Download from a repository with no companion
+- **WHEN** an operator downloads a principal from a repository holding no companion
 - **THEN** Coquena creates the principal's job alone and reports that no companion was identified
+
+#### Scenario: Reject the removed companion opt-in flag
+- **WHEN** an operator passes the former companion opt-in flag to `coquena model download`
+- **THEN** Coquena reports a usage error naming the flag as not accepted
+- **AND** it does not silently ignore the flag
 
 ### Requirement: Discovery reports quantization download cost
 Coquena SHALL project the GGUF artifacts discovered in a remote repository into quantization entries suitable for comparison. Each quantization entry SHALL identify every constituent file and SHALL report the sum of their published sizes when every constituent size is known. Shared companions SHALL remain separate entries and SHALL NOT be counted in each quantization total. Human-readable and JSON discovery output SHALL expose the same grouping and size knowledge without changing what a subsequent download selects.

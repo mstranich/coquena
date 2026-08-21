@@ -24,7 +24,11 @@ func installArtifact(t *testing.T, modelsDir, rel string, body []byte) string {
 		Source:        Source{Provider: "huggingface", Repository: repository, RequestedRevision: "main", ResolvedRevision: "abc", Filename: filename, URL: "https://example.test/" + filename},
 		Artifact:      Artifact{SizeBytes: int64(len(body))},
 	}
-	record.SetDerivation(Derivation{Version: DerivationVersion, Classification: classifyFile(path)})
+	classification, err := classifyFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	record.SetDerivation(Derivation{Version: DerivationVersion, Classification: classification})
 	digest, err := hashFile(path)
 	if err != nil {
 		t.Fatal(err)
@@ -68,8 +72,8 @@ func TestUsabilityReportsReconciledPrincipalUsableWithoutAProjector(t *testing.T
 	if !entry.Usability.Usable {
 		t.Fatalf("usability=%+v", entry.Usability)
 	}
-	if entry.Usability.Reason != "" || entry.Usability.Detail != "" {
-		t.Fatalf("a usable artifact carries a reason: %+v", entry.Usability)
+	if entry.State != StateLocal {
+		t.Fatalf("an imported artifact is in state %q, not local", entry.State)
 	}
 }
 
@@ -81,7 +85,7 @@ func TestUsabilityReportsCompanionWithoutItsPrincipalUsable(t *testing.T) {
 	models := t.TempDir()
 	installArtifact(t, models, "org/repo/mmproj.gguf", projectorGGUF())
 	entry := entriesByFilename(t, models)["mmproj.gguf"]
-	if !entry.Usability.Usable || entry.Usability.Reason != "" {
+	if !entry.Usability.Usable {
 		t.Fatalf("usability=%+v", entry.Usability)
 	}
 	if !strings.Contains(entry.Usability.Advice, "principal") {
@@ -120,43 +124,62 @@ func TestUsabilityAdmitsACompanionImportedBeforeItsPrincipal(t *testing.T) {
 	}
 }
 
-// An artifact with no valid sidecar is unusable, and reconciliation is the
-// reason reported even though its declared type is known.
-func TestUsabilityReportsUnreconciledArtifactUnusable(t *testing.T) {
+// An artifact with no valid sidecar is untracked, and untracked is unusable.
+// The state is the whole answer: no separate reason is reported, because there
+// is nothing to say that the state does not already say.
+func TestUsabilityReportsUntrackedArtifactUnusable(t *testing.T) {
 	models := t.TempDir()
 	writeArtifact(t, models, "org/repo/m.gguf", principalGGUF())
 	entry := entriesByFilename(t, models)["m.gguf"]
-	if entry.Usability.Usable || entry.Usability.Reason != ReasonUnreconciled {
-		t.Fatalf("usability=%+v", entry.Usability)
+	if entry.State != StateUntracked {
+		t.Fatalf("state=%q want untracked", entry.State)
 	}
-	if !strings.Contains(entry.Usability.Detail, "reconcile") {
-		t.Fatalf("the reason does not name reconciliation: %q", entry.Usability.Detail)
+	if entry.Usability.Usable {
+		t.Fatalf("an untracked artifact was reported usable: %+v", entry.Usability)
 	}
 }
 
-// An unreconciled projector satisfies both the unreconciled and the orphaned
-// test. Reconciliation governs: it is what the operator must do first, and the
+// An untracked projector satisfies both the untracked and the orphaned test.
+// Management governs: adopting it is what the operator must do first, and the
 // artifact would be unusable whatever principals surrounded it.
-func TestUsabilityPrefersUnreconciledOverOrphanedForAForeignProjector(t *testing.T) {
+func TestUsabilityPrefersUntrackedOverOrphanedForAForeignProjector(t *testing.T) {
 	models := t.TempDir()
 	writeArtifact(t, models, "org/repo/mmproj.gguf", projectorGGUF())
 	entry := entriesByFilename(t, models)["mmproj.gguf"]
-	if entry.Usability.Reason != ReasonUnreconciled {
-		t.Fatalf("usability=%+v", entry.Usability)
+	if entry.State != StateUntracked || entry.Usability.Usable {
+		t.Fatalf("state=%q usability=%+v", entry.State, entry.Usability)
 	}
 }
 
-// An artifact Coquena cannot type is unusable rather than listed untyped.
-func TestUsabilityReportsUnclassifiableArtifactUnusable(t *testing.T) {
+// An artifact Coquena cannot type never becomes a managed artifact at all.
+//
+// This replaces a test that installed a broken artifact and expected it to be
+// listed as unusable for lacking a type. That state cannot be reached any more:
+// publication refuses it, so the file keeps no sidecar. It stays in the library
+// as an unmanaged file, which is what the operator sees and what a preset cannot
+// bind.
+func TestPublicationRefusesAnArtifactItCannotClassify(t *testing.T) {
 	models := t.TempDir()
-	installArtifact(t, models, "org/repo/broken.gguf", []byte("not a gguf at all"))
+	path := writeArtifact(t, models, "org/repo/broken.gguf", []byte("not a gguf at all"))
+	partial := filepath.Join(t.TempDir(), "partial")
+	if err := os.WriteFile(partial, []byte("not a gguf at all"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	source := Source{Provider: "huggingface", Repository: "org/repo", RequestedRevision: "main", ResolvedRevision: "abc", Filename: "broken.gguf", URL: "https://example.test/broken.gguf"}
+	if _, err := Publish(filepath.Join(t.TempDir(), "models"), partial, Record{Source: source}); err == nil {
+		t.Fatal("publication accepted an artifact it could not classify")
+	}
+	sidecar := strings.TrimSuffix(path, filepath.Ext(path)) + ".json"
+	if _, err := os.Stat(sidecar); !os.IsNotExist(err) {
+		t.Fatalf("a refused artifact kept a sidecar: %v", err)
+	}
 	entry := entriesByFilename(t, models)["broken.gguf"]
-	if entry.Usability.Usable || entry.Usability.Reason != ReasonUnclassifiable {
-		t.Fatalf("usability=%+v", entry.Usability)
+	if entry.Usability.Usable {
+		t.Fatalf("an unmanaged artifact was reported usable: %+v", entry.Usability)
 	}
 }
 
-// An unreconciled principal grants nothing: it is excluded from binding, so it
+// An untracked principal grants nothing: it is excluded from binding, so it
 // does not satisfy the companion criterion and the advice stands.
 func TestUsabilityIgnoresUnreconciledPrincipalWhenAdvisingOnAProjector(t *testing.T) {
 	models := t.TempDir()
@@ -188,7 +211,7 @@ func TestUsabilityIsDerivedNotPersisted(t *testing.T) {
 	installArtifact(t, models, "org/repo/m.gguf", principalGGUF())
 
 	entry := entriesByFilename(t, models)["mmproj.gguf"]
-	if !entry.Usability.Usable || entry.Usability.Reason != "" || entry.Usability.Advice != "" {
+	if !entry.Usability.Usable || entry.Usability.Advice != "" {
 		t.Fatalf("the advice survived a compatible principal arriving: %+v", entry.Usability)
 	}
 	afterSidecar, err := os.ReadFile(projectorSidecar)
