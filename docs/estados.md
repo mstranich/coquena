@@ -2,26 +2,22 @@
 
 ## Instancia
 
-El estado se **deriva** de la configuración, el PID guardado y lo que responde el
-sistema operativo y el endpoint de salud de `llama-server`.
+Una instancia es un `llama-server` vivo: existe desde que se inicia hasta que termina. El
+estado se **deriva** del PID guardado, de lo que responde el sistema operativo y del
+endpoint de salud de `llama-server`.
 
 ```plantuml
 @startuml
-[*] --> Detenida : definir instancia
-
-Detenida --> Iniciando : iniciar\n[backend instalado,\npuerto libre]
+[*] --> Iniciando : iniciar servidor + versión\n[versión de la familia,\npuerto libre]\n/ genera el INI
 Iniciando --> EnEjecucion : /health responde OK
 Iniciando --> Fallida : el proceso termina\no vence el tiempo
 EnEjecucion --> Deteniendo : detener
-Deteniendo --> Detenida : el proceso terminó
+Deteniendo --> [*] : el proceso terminó
 EnEjecucion --> Fallida : el proceso muere\nsin que se pidiera
-Fallida --> Iniciando : iniciar
-Fallida --> Detenida : limpiar
+Fallida --> [*] : limpiar
 
 EnEjecucion --> Huerfana : el PID guardado\nya no corresponde\na llama-server
-Huerfana --> Detenida : limpiar PID
-
-Detenida --> [*] : eliminar instancia
+Huerfana --> [*] : limpiar PID
 
 state EnEjecucion {
   [*] --> PrimerPlano
@@ -36,16 +32,16 @@ state EnEjecucion {
   reutilizó para otro programa. Coquena debe verificar que el PID pertenece al
   `llama-server` que lanzó antes de actuar sobre él.
 
-## Backend
+## Versión de backend
 
 ```plantuml
 @startuml
 [*] --> Descargando : instalar
-Descargando --> Instalado : descomprimido\ny sondeado (--version)
+Descargando --> Instalada : descomprimida\ny sondeada (--version)
 Descargando --> [*] : cancelar / error
-Instalado --> EnUso : una instancia\nen ejecución lo usa
-EnUso --> Instalado : la instancia se detiene
-Instalado --> [*] : desinstalar
+Instalada --> EnUso : una instancia\nen ejecución la usa
+EnUso --> Instalada : la instancia termina
+Instalada --> [*] : desinstalar
 note right of EnUso
   No se puede desinstalar
   mientras está en uso.
