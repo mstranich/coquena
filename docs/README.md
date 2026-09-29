@@ -7,6 +7,28 @@ coordina con qué modelos y companions se levanta cada `llama-server`.
 Reemplaza los scripts lanzadores (`.bat`, `.ps1`, `.sh`) que hoy se escriben a mano para
 arrancar `llama-server` con la combinación correcta de binario, modelos y parámetros.
 
+## Por qué nace
+
+Nace de una necesidad propia. Catapult, LM Studio y Ollama no simplifican la configuración
+de llama.cpp para exprimir el hardware disponible; el resultado era mantener funciones de
+PowerShell que lanzaban `llama-server` con líneas de comando cada vez más largas.
+
+Tres descubrimientos dan forma al proyecto:
+
+- **Un archivo INI enruta varios modelos en un solo `llama-server`** (`--models-preset`).
+  Intercambiar modelos en VRAM dentro del mismo proceso es potencialmente más rápido que
+  cerrar el servidor y relanzarlo con otro modelo.
+- **Lanzar `llama-server` directamente ahorra recursos**: sin el overhead de los wrappers.
+- **`llama-server` expone métricas** (formato Prometheus) aprovechables en un dashboard.
+
+Existen enrutadores como llama-swap, pero apuntan a otro problema. llama.cpp sirve igual
+para un servidor local, un laboratorio personal o un equipo productivo; Coquena quiere que
+**los presets que un desarrollador afina en su PC sean migrables** a otra escala de
+ejecución. Por eso, a largo plazo, aparecen una TUI (Terminal.Gui, cuando el núcleo esté
+maduro) y una Web GUI para hardware remoto.
+
+## Alcance de este análisis
+
 Esta carpeta contiene el análisis funcional. No define implementación: el traslado a
 código ocurre después, a partir de estos diagramas.
 
@@ -36,6 +58,8 @@ sobre el mismo GGUF.
 | [estados.md](estados.md) | Ciclos de vida (instancia, backend) |
 | [actividades.md](actividades.md) | Flujos de los casos de uso principales |
 | [secuencias.md](secuencias.md) | Interacciones entre CLI, Coquena, sistema y llama-server |
+| [comandos.md](comandos.md) | Superficie de la línea de comandos |
+| [catalogo-de-parametros.md](catalogo-de-parametros.md) | Parámetros de llama-server por versión y distribución |
 
 Los diagramas son PlantUML empotrado en Markdown. Ante contradicción entre un diagrama y
 el texto, manda el diagrama y el texto se corrige.
