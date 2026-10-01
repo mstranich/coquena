@@ -45,7 +45,7 @@ stop
 ```plantuml
 @startuml
 start
-:Usuario pide iniciar un servidor\n(backend y modo opcionales);
+:Usuario pide iniciar un servidor\n(backend, puerto y modo opcionales);
 if (¿indicó familia?) then (no)
   if (¿el servidor fija familia?) then (sí)
     :Usar esa familia;
@@ -84,9 +84,10 @@ endif
 if (¿hay parámetros no admitidos?) then (sí)
   :Avisar (consultivo);
 endif
+:Asignar ID de instancia;
 :Escribir el INI en\n<home>/run/<servidor>/<id>.ini;
 :Lanzar llama-server\n--models-preset <INI> + puerto;
-:Guardar PID junto al INI;
+:Guardar ID, puerto, backend\ny PID junto al INI;
 :Esperar /health;
 if (¿responde a tiempo?) then (sí)
   if (¿modo daemon?) then (sí)
@@ -114,7 +115,7 @@ detener la instancia.
 ```plantuml
 @startuml
 start
-:Leer PID guardado;
+:Resolver ID de instancia\ny leer PID guardado;
 if (¿el proceso existe y es el\nllama-server que se lanzó?) then (no)
   :Informar Huérfana\ny limpiar PID;
   stop
@@ -123,7 +124,7 @@ endif
 if (¿terminó a tiempo?) then (no)
   :Forzar terminación;
 endif
-:Borrar PID e INI temporal;
+:Borrar PID e INI generado;
 stop
 @enduml
 ```
@@ -133,8 +134,8 @@ stop
 ```plantuml
 @startuml
 start
-:Usuario indica la ruta de un GGUF;
-if (¿existe y es GGUF?) then (no)
+:Usuario indica un GGUF principal\no un conjunto de shards;
+if (¿existe y es GGUF legible?) then (no)
   :Rechazar;
   stop
 endif
@@ -146,10 +147,35 @@ if (¿ya está registrado?) then (sí)
   stop
 endif
 :Leer metadatos del encabezado\n(arquitectura, cuantización);
-:Registrar sin copiar ni mover;
+:Registrar la unidad completa\nsin copiar ni mover archivos;
 stop
 @enduml
 ```
+
+## Retirar un modelo o backend
+
+```plantuml
+@startuml
+start
+:Resolver la unidad registrada;
+if (¿está en uso por una instancia?) then (sí)
+  :Rechazar; primero detener la instancia;
+  stop
+endif
+if (¿archivos gestionados por Coquena?) then (sí)
+  :Borrar todos sus archivos propios\ny retirar el registro;
+  :Informar los bytes liberados;
+else (no, externos)
+  :Retirar sólo el registro;
+  :Avisar que los archivos permanecen;
+endif
+stop
+@enduml
+```
+
+La eliminación de un conjunto de shards no debe dejar una parte registrada como modelo
+completo. Si otro registro comparte alguno de sus archivos, la regla de propiedad se
+resolverá antes de implementar la eliminación gestionada.
 
 ## Clonar un preset
 
@@ -171,3 +197,34 @@ stop
 @enduml
 ```
 
+
+## Asociar un companion a un preset
+
+```plantuml
+@startuml
+start
+:Usuario asocia un companion a un preset\n(ubicación y --force opcionales);
+if (¿el companion está disponible?) then (no)
+  :Rechazar;
+  stop
+endif
+:Leer metadatos GGUF\ndel modelo y del companion;
+if (¿compatibilidad demostrada?) then (sí)
+else (no o desconocida)
+  if (¿--force?) then (no)
+    :Rechazar explicando\nla evidencia o su ausencia;
+    stop
+  else (sí)
+    :Avisar y registrar que la\nasociación fue forzada;
+  endif
+endif
+:Guardar la asociación\ncon su ubicación (GPU / CPU);
+stop
+@enduml
+```
+
+Forzar permite **experimentar** con un companion de otra cuantización o de un
+modelo derivado, sin declararlo compatible. La decisión y el diagnóstico quedan
+visibles en el preset. La disponibilidad del archivo se comprueba aparte; `--force`
+no convierte un archivo faltante en servible. Un mismo companion puede ser usado por
+varios presets y su ubicación CPU/GPU se elige por asociación.

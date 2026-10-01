@@ -26,6 +26,7 @@ rectangle Coquena {
     usecase "Instalar versión" as UC_BI
     usecase "Listar instaladas" as UC_BL
     usecase "Desinstalar versión" as UC_BD
+    usecase "Registrar backend externo" as UC_BE
     usecase "Elegir familia\nsegún hardware" as UC_VAR
     usecase "Incorporar distribución" as UC_DI
   }
@@ -54,6 +55,7 @@ Usuario --> UC_BR
 Usuario --> UC_BI
 Usuario --> UC_BL
 Usuario --> UC_BD
+Usuario --> UC_BE
 Usuario --> UC_DI
 Usuario --> UC_MD
 Usuario --> UC_MR
@@ -94,11 +96,20 @@ release (arqueología de `legacy-go`, `internal/runtime/llamacpp/catalog.go`).
 publicar sus propios binarios compatibles; Coquena los gestiona como SDKMan gestiona el JDK
 de Oracle junto a otros.
 
+**Registrar backend externo.** El usuario puede incorporar un binario que compiló o
+instaló por su cuenta. Coquena registra su ubicación para usarlo, pero no lo mueve ni
+lo borra al retirarlo. En cambio, al desinstalar un backend descargado por Coquena se
+borran sus archivos y se informan los bytes liberados. La sintaxis del comando de
+registro todavía no está fijada.
+
 **Varias familias a la vez.** En una máquina con GPU NVIDIA y AMD pueden correr dos
 instancias simultáneas: una con `cuda13` y otra con `vulkan`, en puertos distintos.
 
 **Registrar modelo externo.** Coquena guarda la ruta del GGUF sin copiarlo ni moverlo. El
 directorio de modelos es sólo el destino de lo que Coquena descarga (iteración posterior).
+Un modelo puede comprender varios shards; registrarlo y retirarlo se hace como unidad.
+Retirar uno externo deja sus archivos intactos; retirar uno gestionado borra todos sus
+archivos propios e informa el espacio liberado.
 
 **Clonar configuración o preset.** Reutiliza un ajuste fino en otro modelo o familia.
 

@@ -32,6 +32,12 @@ maduro) y una Web GUI para hardware remoto.
 Esta carpeta contiene el análisis funcional. No define implementación: el traslado a
 código ocurre después, a partir de estos diagramas.
 
+El reinicio se implementará en **C#**, en pasos pequeños y revisables por quien mantiene
+Coquena. Primero se cerrarán las reglas de backends, presets y ejecución; la identidad,
+actualización y procedencia de modelos frente a Hugging Face se tratarán después, como
+un problema separado. Las soluciones de `legacy-go` son experiencia, no arquitectura
+que deba copiarse.
+
 ## El contexto es la máquina
 
 A diferencia de NVM o UV, el contexto no es una carpeta ni un proyecto: es **el hardware
@@ -55,11 +61,13 @@ sobre el mismo GGUF.
 | [glosario.md](glosario.md) | Vocabulario del dominio |
 | [casos-de-uso.md](casos-de-uso.md) | Actores y casos de uso |
 | [modelo-de-datos.md](modelo-de-datos.md) | Diagrama de clases del dominio |
-| [estados.md](estados.md) | Ciclos de vida (instancia, backend) |
+| [estados.md](estados.md) | Ciclos de vida (instancia, backend, modelo, preset) |
+| [modelos-y-companions.md](modelos-y-companions.md) | Por qué el estado de un modelo es un solo eje, y qué quedó afuera |
 | [actividades.md](actividades.md) | Flujos de los casos de uso principales |
-| [secuencias.md](secuencias.md) | Interacciones entre CLI, Coquena, sistema y llama-server |
 | [comandos.md](comandos.md) | Superficie de la línea de comandos |
 | [catalogo-de-parametros.md](catalogo-de-parametros.md) | Parámetros de llama-server por versión y distribución |
 
-Los diagramas son PlantUML empotrado en Markdown. Ante contradicción entre un diagrama y
-el texto, manda el diagrama y el texto se corrige.
+Los diagramas son PlantUML empotrado en Markdown y muestran primero el flujo o la
+estructura. El texto breve aclara sus condiciones y excepciones. **No deben
+contradecirse**: si discrepan, se corrigen ambos antes de implementar; ninguno prevalece
+automáticamente. Una hipótesis se rotula como tal hasta verificarla.
