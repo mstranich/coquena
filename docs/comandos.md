@@ -6,8 +6,12 @@ gestión y de Docker para la ejecución. Los nombres son borrador.
 ## Convenciones
 
 - `<familia>` es `cpu`, `vulkan`, `cuda12`, `cuda13`, …; `<familia>@<versión>` fija un
-  build (`cuda13@b6123`). Sin familia, Coquena elige la más adecuada al hardware; sin
-  versión, la última.
+  build (`cuda13@b6123`). La identidad completa de un backend incluye también su
+  **distribución**: esta notación abreviada sólo es inequívoca si hay una coincidencia.
+  Antes de admitir varias distribuciones se definirá cómo seleccionarla sin ambigüedad.
+  Sin familia, Coquena elige una instalada y compatible con el hardware; sin versión,
+  la más reciente de esa selección. Un orden fijo de familias es sólo fallback, no
+  sustituto de la evaluación de compatibilidad.
 - Los comandos que **leen** estado aceptan `--json`; los que **actúan** no, y rechazan la
   opción antes de hacer nada (convención heredada de `legacy-go`, `docs/model-commands.md`).
 
@@ -31,6 +35,7 @@ gestión y de Docker para la ejecución. Los nombres son borrador.
 *** add <ruta.gguf>
 *** add-companion <ruta.gguf> --type mmproj|draft
 *** list
+*** refresh <modelo>
 *** remove <modelo>
 ** param
 *** list [--version <build>]
@@ -44,6 +49,9 @@ gestión y de Docker para la ejecución. Los nombres son borrador.
 ** preset
 *** create <modelo> <nombre>
 *** clone <preset> <nombre> [--model M]
+*** companion add <preset> <companion> [--on cpu|gpu] [--force]
+*** companion remove <preset> <companion>
+*** model set <preset> <modelo> [--force]
 *** list [--model M]
 *** show <preset>
 *** remove <preset>
@@ -53,10 +61,10 @@ gestión y de Docker para la ejecución. Los nombres son borrador.
 *** remove-preset <servidor> <preset>
 *** list
 *** show <servidor>
-** run <servidor> [--backend F[@V]] [-d]
+** run <servidor> [--backend F[@V]] [--port N] [-d]
 ** ps
-** logs <servidor> [-f]
-** stop <servidor>
+** logs <id-instancia> [-f]
+** stop <id-instancia>
 @endmindmap
 ```
 
@@ -106,3 +114,11 @@ stop
 
 - `run` siempre ejecuta un **servidor registrado** con un **backend instalado**; no existe
   un lanzamiento ad hoc de un preset suelto.
+- `run` devuelve un ID de instancia. `ps`, `logs` y `stop` se refieren a ese ID, no al
+  nombre del servidor; varias instancias del mismo servidor pueden convivir sólo con
+  puertos distintos. El puerto del servidor es el predeterminado y `--port` permite
+  elegir otro para ese lanzamiento.
+- `model remove` y `backend uninstall` borran los archivos **gestionados por Coquena**
+  junto con su registro e informan los bytes liberados. Si el registro es externo,
+  quitan sólo el registro y avisan que los archivos permanecen en disco. La misma regla
+  deberá aplicarse al comando de quitar companions cuando se defina su superficie.

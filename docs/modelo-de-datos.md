@@ -38,6 +38,7 @@ package Backends {
   class VersionBackend {
     build : bNNNN
     ruta
+    origen : gestionado | externo
   }
 }
 
@@ -80,6 +81,8 @@ package Ejecución {
     puerto
   }
   class Instancia {
+    id
+    puerto efectivo
     pid
     modo : primer plano | daemon
     inicio
@@ -154,8 +157,13 @@ S ..> N : llama-server\nhereda
 - **Eje modelo:** una configuración inicial del modelo, especializada en presets para un
   comportamiento concreto (rápido, contexto largo, con o sin companion). Cada preset se
   vuelca en su propia sección.
-- **Precedencia (supuesto):** como `llama-server` hace que una sección de preset pise a
-  `[*]`, el eje modelo gana sobre el eje backend cuando ambos definen el mismo parámetro.
+- **Precedencia:** el valor específico de un preset sustituye al mismo parámetro de
+  `[*]`; así lo documenta `llama-server` para `--models-preset`. Coquena emite una sola
+  clave canónica por parámetro y sección, tras aplanar cada eje. Los parámetros que
+  admitan varios valores y los que sólo tengan sentido para el proceso router requieren
+  verificación específica por versión antes de fijar su tratamiento.
+  **No se presume herencia aditiva:** si un parámetro admite una lista, eso no demuestra
+  que repetir su clave en dos ámbitos acumule elementos.
 
 ## Aclaraciones
 
@@ -165,9 +173,12 @@ S ..> N : llama-server\nhereda
   retoma `data/servers/` de `legacy-go`; es provisorio.
 - **Clonar** configuraciones y presets hacia otros modelos o familias es la forma de
   reutilizar un ajuste fino.
-- **Modelos: nunca se copian.** Coquena descarga (iteración posterior) al directorio de
-  modelos, y registra modelos externos por ruta, como SDKMan registra un JDK instalado a
-  mano.
+- **Propiedad de archivos.** Coquena descarga modelos al directorio gestionado y borra
+  sus archivos al retirarlos; un registro externo sólo guarda rutas y nunca autoriza a
+  mover o borrar esos archivos. La regla es la misma para backends. Un modelo puede ser
+  un conjunto de shards, no una fila por archivo.
+- **Instancias.** Cada lanzamiento tiene ID y puerto efectivos propios; el puerto del
+  servidor es sólo el valor predeterminado. Dos instancias no comparten puerto ni INI.
 - **Distribuciones extensibles.** Además de `ggml-org`, un tercero puede incorporar sus
   familias.
 

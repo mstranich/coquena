@@ -48,3 +48,49 @@ note right of EnUso
 end note
 @enduml
 ```
+
+## Modelo y companion (núcleo)
+
+Un solo eje: **disponibilidad**. Se deriva en cada consulta, sin hashear y sin persistir.
+Por qué un solo eje, y qué quedó afuera: [modelos-y-companions.md](modelos-y-companions.md).
+
+```plantuml
+@startuml
+[*] --> Registrado : model add / add-companion\n[ruta válida, GGUF legible]
+
+state Registrado {
+  state q <<choice>>
+  [*] --> q : cada consulta\n(list, run, preset)
+  q --> Inaccesible : la ruta no existe\no no se puede leer
+  q --> Invalido : no es un GGUF legible
+  q --> Incompleto : faltan shards
+  q --> Disponible : todo presente\ny legible
+}
+
+Registrado --> [*] : model remove\n(borra bytes propios;\nconserva externos)
+
+note right of Disponible
+  Si tamaño o fecha difieren
+  de lo registrado: se avisa.
+  No se actualiza el registro
+  ni se verifica integridad.
+end note
+@enduml
+```
+
+- **Origen** (gestionado o externo) es un atributo del registro, no un estado.
+- Un companion no depende de su modelo principal para estar disponible.
+
+## Preset
+
+Derivado de la disponibilidad de su modelo y sus companions.
+
+```plantuml
+@startuml
+state q <<choice>>
+[*] --> q
+q --> Servible : modelo y companions\ndisponibles
+q --> NoServible : algún archivo no disponible\no referencia retirada del registro
+NoServible : al iniciar el servidor,\nse omite con aviso
+@enduml
+```
