@@ -5,15 +5,36 @@ gestión y de Docker para la ejecución. Los nombres son borrador.
 
 ## Convenciones
 
-- `<familia>` es `cpu`, `vulkan`, `cuda12`, `cuda13`, …; `<familia>@<versión>` fija un
-  build (`cuda13@b6123`). La identidad completa de un backend incluye también su
-  **distribución**: esta notación abreviada sólo es inequívoca si hay una coincidencia.
-  Antes de admitir varias distribuciones se definirá cómo seleccionarla sin ambigüedad.
-  Sin familia, Coquena elige una instalada y compatible con el hardware; sin versión,
-  la más reciente de esa selección. Un orden fijo de familias es sólo fallback, no
-  sustituto de la evaluación de compatibilidad.
-- Los comandos que **leen** estado aceptan `--json`; los que **actúan** no, y rechazan la
-  opción antes de hacer nada (convención heredada de `legacy-go`, `docs/model-commands.md`).
+- `<familia>` es `cpu`, `vulkan`, `cuda@12`, `cuda@13`, … . En `cuda@12`, `12` es la
+  versión mayor de las bibliotecas CUDA usadas para compilar el runtime, **no** el
+  release de llama.cpp. Éste se expresa por separado como `<build>` (`b1002`).
+  Cada backend registrado tiene además un **ID único y estable**. Un selector abreviado
+  como familia + build sólo se acepta si identifica exactamente uno; `run` y
+  `uninstall` admiten el ID para eliminar toda ambigüedad.
+  Sin familia, Coquena elige automáticamente una compatible con el hardware; sin
+  release, `latest` significa **el build más reciente que tenga un binario compatible
+  dentro del filtro indicado**. Primero se compara el build y sólo entre candidatos
+  del mismo build se prefiere, en NVIDIA, la familia CUDA con la versión de bibliotecas
+  más alta que resulte compatible; después Vulkan. CPU es el fallback portable de la
+  arquitectura nativa. Así, CPU `b10010` gana a CUDA `b10009` sin filtro, pero
+  filtrar por CUDA con `latest` elige CUDA `b10009`. Coquena informa la elección por
+  defecto y enumera las alternativas. La preferencia no garantiza rendimiento; el
+  usuario siempre puede elegir explícitamente otra familia.
+- La selección automática considera sólo candidatos `compatible`. En la plataforma
+  correcta, un candidato con aceleración `incompatible` o `unknown` puede elegirse
+  explícitamente; ambos quedan fuera de la elección automática, pero se muestran con
+  diagnósticos distintos. La elección explícita no cambia su estado de compatibilidad.
+  Un binario de otro SO o arquitectura se rechaza siempre: Coquena no descarga algo
+  que no podrá instalar para uso local. Toda instalación o registro exige además un
+  `llama-server --version` local válido.
+- En el núcleo, la selección automática usa sólo la distribución oficial. Los
+  backends externos son obtenidos y registrados por el usuario, y se eligen
+  explícitamente para ejecutar. Repositorios de terceros como fuentes de descargas
+  quedan para una iteración posterior. Al registrar uno externo, el usuario declara
+  su familia; `--version` aporta la versión del ejecutable, no confirma esa familia.
+- El núcleo inicial **no ofrece `--json`**. Mantener salida JSON para cada comando fue
+  una carga en `legacy-go`; se reconsiderará después de un milestone funcional. Si
+  hiciera falta una interfaz programática, se prefiere evaluar un servidor HTTP.
 
 ## Mapa
 
@@ -23,13 +44,11 @@ gestión y de Docker para la ejecución. Los nombres son borrador.
 ** system
 *** (inspecciona hardware)
 ** backend
-*** remote [<familia>[@<versión>]]
-*** install [<familia>[@<versión>]]
+*** remote [<familia>] [--release <build>|latest]
+*** install [<familia>] [--release <build>|latest]
+*** register <ruta-llama-server> --family <familia>
 *** list
-*** uninstall <familia>@<versión>
-** distribution
-*** list
-*** add <nombre> <origen>
+*** uninstall <id-backend>
 ** model
 *** dir [<ruta>]
 *** add <ruta.gguf>
@@ -61,7 +80,7 @@ gestión y de Docker para la ejecución. Los nombres son borrador.
 *** remove-preset <servidor> <preset>
 *** list
 *** show <servidor>
-** run <servidor> [--backend F[@V]] [--port N] [-d]
+** run <servidor> [--backend <id-backend> | --family <familia> [--release <build>]] [--port N] [-d]
 ** ps
 ** logs <id-instancia> [-f]
 ** stop <id-instancia>
@@ -74,7 +93,6 @@ gestión y de Docker para la ejecución. Los nombres son borrador.
 |---|---|---|
 | `backend install` | `sdk install java 21-tem`, `fnm install --lts` | sin argumentos elige familia por hardware y último release |
 | `backend list` / `remote` | `sdk list java`, `fnm ls-remote` | |
-| `distribution add` | candidato/vendor de SDKMan | distribuciones de terceros |
 | `model add` | `sdk install java x /ruta/local` | registra sin copiar |
 | `config set` sin ámbito | configuración global | con `--family` o `--model`, el ámbito correspondiente |
 | `run` / `run -d` | `docker run` / `docker run -d` | genera el INI y lanza `llama-server` |

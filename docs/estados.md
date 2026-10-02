@@ -8,7 +8,7 @@ endpoint de salud de `llama-server`.
 
 ```plantuml
 @startuml
-[*] --> Iniciando : iniciar servidor + versión\n[versión de la familia,\npuerto libre]\n/ genera el INI
+[*] --> Iniciando : iniciar servidor + backend concreto\n[SO y arquitectura correctos,\npuerto libre]\n/ genera el INI
 Iniciando --> EnEjecucion : /health responde OK
 Iniciando --> Fallida : el proceso termina\no vence el tiempo
 EnEjecucion --> Deteniendo : detener
@@ -32,16 +32,17 @@ state EnEjecucion {
   reutilizó para otro programa. Coquena debe verificar que el PID pertenece al
   `llama-server` que lanzó antes de actuar sobre él.
 
-## Versión de backend
+## Backend registrado
 
 ```plantuml
 @startuml
 [*] --> Descargando : instalar
-Descargando --> Instalada : descomprimida\ny sondeada (--version)
+Descargando --> Registrado : descomprimido\ny sondeado (--version)
 Descargando --> [*] : cancelar / error
-Instalada --> EnUso : una instancia\nen ejecución la usa
-EnUso --> Instalada : la instancia termina
-Instalada --> [*] : desinstalar
+[*] --> Registrado : registrar externo\n[--version válido]
+Registrado --> EnUso : una instancia\nen ejecución lo usa
+EnUso --> Registrado : termina la última instancia que lo usa
+Registrado --> [*] : desinstalar\n(borrar propio o sólo registro externo)
 note right of EnUso
   No se puede desinstalar
   mientras está en uso.

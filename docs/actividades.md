@@ -5,20 +5,31 @@
 ```plantuml
 @startuml
 start
-:Usuario pide instalar\n(familia y versión opcionales);
-if (¿indicó familia?) then (no)
-  :Inspeccionar hardware;
-  :Elegir la mejor familia compatible\n(cuda13 > cuda12 > vulkan > cpu);
-else (sí)
+:Usuario pide instalar\n(familia y build opcionales);
+:Filtrar por SO y arquitectura nativa;
+if (¿indicó familia?) then (sí)
+  :Filtrar por familia;
 endif
-if (¿indicó versión?) then (no)
-  :Tomar el último release\nde la distribución;
-else (sí)
+if (¿indicó build?) then (sí)
+  :Filtrar por ese build;
 endif
-:Buscar el binario para\nSO + arquitectura + familia;
-if (¿existe?) then (no)
-  :Informar qué familias\nsí están publicadas;
+:Evaluar compatibilidad\ncon el hardware;
+if (¿se indicó familia concreta?) then (sí)
+  :Conservar candidatos seleccionados\naunque sean incompatibles o unknown;
+  :Informar estado y motivo;
+else (no)
+  :Conservar sólo compatibles;
+endif
+if (¿quedan candidatos?) then (no)
+  :Informar por qué no hay candidato;
   stop
+endif
+:Elegir el build más reciente\nentre los candidatos;
+if (¿hay varios candidatos\nen ese build?) then (sí)
+  :Aplicar preferencia de backend\n(CUDA compatible más alta en NVIDIA,\nluego Vulkan; CPU fallback);
+endif
+if (¿no indicó familia?) then (sí)
+  :Informar elección automática\ny listar alternativas;
 endif
 if (¿la familia requiere dependencias?\n(p. ej. cudart en Windows)) then (sí)
   :Sumar las dependencias\ndel mismo release;
@@ -31,7 +42,7 @@ endif
 :Descomprimir en el home;
 :Sondear llama-server --version;
 if (¿responde?) then (sí)
-  :Registrar la versión instalada;
+  :Asignar ID único y registrar\nel backend instalado;
 else (no)
   :Descartar la instalación;
   :Informar el error;
@@ -40,28 +51,74 @@ stop
 @enduml
 ```
 
+**Sólo se descarga para instalar y usar.** Un binario de otro SO o arquitectura se
+rechaza incluso si el usuario lo selecciona explícitamente. La elección explícita
+permite continuar ante aceleración `unknown` o `incompatible` en la plataforma
+correcta, pero la instalación aún exige que `llama-server --version` funcione
+localmente. Coquena no ofrece descargas sin instalación.
+
+## Registrar un backend externo
+
+```plantuml
+@startuml
+start
+:Usuario indica un llama-server externo\ny declara su familia;
+if (¿ruta existente y ejecutable?) then (no)
+  :Rechazar sin registrar;
+  stop
+endif
+:Ejecutar llama-server --version;
+if (¿termina correctamente y\nla versión es reconocible?) then (no)
+  :Rechazar con diagnóstico;
+  stop
+endif
+:Asignar ID único y registrar ruta,\nfamilia declarada, versión sondeada\ny origen externo sin mover archivos;
+stop
+@enduml
+```
+
+El sondeo valida el ejecutable, no demuestra compatibilidad con una GPU, no verifica
+la familia declarada ni hace una prueba de inferencia. Coquena no infiere la familia
+del nombre de la carpeta. Al retirarlo sólo se borra su registro.
+
 ## Iniciar una instancia
 
 ```plantuml
 @startuml
 start
 :Usuario pide iniciar un servidor\n(backend, puerto y modo opcionales);
-if (¿indicó familia?) then (no)
-  if (¿el servidor fija familia?) then (sí)
-    :Usar esa familia;
-  else (no)
-    :Inspeccionar hardware;
-    :Elegir la familia instalada\nmás adecuada;
+if (¿indicó ID de backend?) then (sí)
+  :Resolver ese backend exacto;
+else (no)
+  if (¿indicó familia?) then (sí)
+    :Filtrar por la familia indicada;
+  elseif (¿el servidor fija familia?) then (sí)
+    :Filtrar por la familia del servidor;
   endif
-else (sí)
 endif
-if (¿indicó versión?) then (no)
-  :Tomar la última versión instalada\nde esa familia;
-else (sí)
+if (¿indicó build?) then (sí)
+  :Filtrar por ese build;
 endif
-if (¿la versión está instalada?) then (no)
+:Filtrar por SO y arquitectura nativa;
+:Inspeccionar hardware y evaluar\ncompatibilidad de los instalados;
+if (¿backend elegido explícitamente?) then (sí)
+  :Conservarlo aunque su aceleración\nsea unknown o incompatible;
+  :Informar estado y motivo;
+else (no)
+  :Conservar sólo compatibles\nde la distribución oficial;
+endif
+if (¿hay candidatos?) then (no)
   :Rechazar y sugerir\nbackend install;
   stop
+endif
+if (¿se indicó ID exacto?) then (no)
+  :Elegir el build más reciente\nentre los candidatos;
+  if (¿hay varios candidatos\nen ese build?) then (sí)
+    :Aplicar preferencia de backend\n(CUDA compatible más alta en NVIDIA,\nluego Vulkan; CPU fallback);
+  endif
+endif
+if (¿no se fijó backend ni familia?) then (sí)
+  :Informar elección automática\ny listar alternativas;
 endif
 if (¿el puerto está libre?) then (no)
   :Rechazar indicando qué lo ocupa;
