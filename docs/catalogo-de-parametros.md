@@ -3,13 +3,13 @@
 Coquena conoce los parámetros (flags) de `llama-server` para validar lo que el usuario
 configura y para saber en qué versión se puede usar cada uno.
 
-## Los parámetros dependen de la versión, no de la familia
+## Los parámetros dependen del build de llama.cpp, no de la familia
 
 Un build para CPU y uno para CUDA del mismo release aceptan **los mismos argumentos**. Por
 eso se puede, en un mismo lanzamiento, poner el modelo en GPU y el proyector multimodal en
 CPU. Lo que cambia los parámetros es:
 
-- **la versión:** un flag aparece en cierto build y puede desaparecer en otro;
+- **el build de llama.cpp:** un flag aparece en cierto build y puede desaparecer en otro;
 - **la distribución:** un laboratorio que publica su propio llama.cpp puede sumar flags
   nuevos para sus funciones.
 

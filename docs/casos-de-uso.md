@@ -23,12 +23,11 @@ rectangle Coquena {
   }
   package Backends {
     usecase "Listar versiones remotas" as UC_BR
-    usecase "Instalar versión" as UC_BI
+    usecase "Instalar build" as UC_BI
     usecase "Listar instaladas" as UC_BL
-    usecase "Desinstalar versión" as UC_BD
+    usecase "Desinstalar backend" as UC_BD
     usecase "Registrar backend externo" as UC_BE
     usecase "Elegir familia\nsegún hardware" as UC_VAR
-    usecase "Incorporar distribución" as UC_DI
   }
   package Modelos {
     usecase "Configurar directorio\nde modelos" as UC_MD
@@ -56,7 +55,6 @@ Usuario --> UC_BI
 Usuario --> UC_BL
 Usuario --> UC_BD
 Usuario --> UC_BE
-Usuario --> UC_DI
 Usuario --> UC_MD
 Usuario --> UC_MR
 Usuario --> UC_CR
@@ -86,24 +84,37 @@ end note
 
 ## Notas por caso
 
-**Instalar versión.** Por defecto Coquena detecta el hardware y propone la mejor familia
-(p. ej. `cuda13` si el driver NVIDIA lo soporta, si no `cuda12`, si no `vulkan`, si no
-`cpu`). El usuario siempre puede ser explícito y pedir otra, incluida `cpu` en una máquina
-con GPU. En Windows, la familia CUDA requiere además el paquete `cudart` del mismo
-release (arqueología de `legacy-go`, `internal/runtime/llamacpp/catalog.go`).
-
-**Incorporar distribución.** Además de `ggml-org`, un desarrollador o laboratorio puede
-publicar sus propios binarios compatibles; Coquena los gestiona como SDKMan gestiona el JDK
-de Oracle junto a otros.
+**Instalar build.** Si el usuario no indica familia, Coquena comprueba el hardware,
+elige automáticamente una opción compatible e informa que fue una elección por defecto,
+enumerando las alternativas. `latest` es el build más reciente **con un candidato
+compatible dentro del filtro pedido**: sin familia, CPU `b10010` gana a CUDA `b10009`;
+con filtro CUDA se elige `b10009`. Sólo entre candidatos del mismo build, en una GPU
+NVIDIA se prefiere la familia CUDA compatible con mayor versión de bibliotecas y
+después Vulkan; CPU queda como fallback compatible con la arquitectura
+nativa. El usuario puede pedir otra opción, incluida `cpu`. En Windows, CUDA requiere
+además el paquete `cudart`
+del mismo release (arqueología de `legacy-go`, `internal/runtime/llamacpp/catalog.go`).
+Un candidato con aceleración `unknown` o `incompatible` no se elige automáticamente,
+pero puede instalarse mediante selección explícita si corresponde al SO y arquitectura
+nativos y supera `llama-server --version`. Coquena informa el estado y su motivo. Un
+binario de otra plataforma se rechaza: no hay descargas desligadas del uso local.
 
 **Registrar backend externo.** El usuario puede incorporar un binario que compiló o
-instaló por su cuenta. Coquena registra su ubicación para usarlo, pero no lo mueve ni
-lo borra al retirarlo. En cambio, al desinstalar un backend descargado por Coquena se
-borran sus archivos y se informan los bytes liberados. La sintaxis del comando de
-registro todavía no está fijada.
+instaló por su cuenta. Coquena exige que `llama-server --version` termine correctamente
+y devuelva una versión reconocible; no hace una prueba de inferencia. El usuario
+declara la familia (`cpu`, `vulkan`, `cuda@12`, …): el sondeo no la verifica y Coquena no
+la deduce del nombre de la carpeta. Registra su
+ubicación y le asigna un ID estable, pero no lo mueve ni lo borra al retirarlo. En
+cambio, al desinstalar un backend descargado por Coquena se borran sus archivos y se
+informan los bytes liberados. La sintaxis propuesta es `backend register`.
+
+**Distribuciones de terceros.** En el núcleo Coquena sólo consulta y descarga releases
+oficiales de `ggml-org`. El usuario obtiene por su cuenta otros binarios y los registra
+como externos; nunca participan en la selección automática. Incorporar sus repositorios
+como orígenes de confianza queda para otra etapa.
 
 **Varias familias a la vez.** En una máquina con GPU NVIDIA y AMD pueden correr dos
-instancias simultáneas: una con `cuda13` y otra con `vulkan`, en puertos distintos.
+instancias simultáneas: una con `cuda@13` y otra con `vulkan`, en puertos distintos.
 
 **Registrar modelo externo.** Coquena guarda la ruta del GGUF sin copiarlo ni moverlo. El
 directorio de modelos es sólo el destino de lo que Coquena descarga (iteración posterior).
@@ -113,8 +124,9 @@ archivos propios e informa el espacio liberado.
 
 **Clonar configuración o preset.** Reutiliza un ajuste fino en otro modelo o familia.
 
-**Iniciar instancia.** Sin backend explícito, Coquena elige la familia instalada más
-adecuada al hardware y su última versión. Arranca aunque falten archivos de algún preset
+**Iniciar instancia.** Sin backend explícito, Coquena elige el build instalado más
+reciente compatible; entre candidatos de ese build aplica la preferencia de backend.
+Informa la elección y las alternativas. Arranca aunque falten archivos de algún preset
 (avisa y lo omite) mientras quede al menos uno alcanzable. Coquena genera el INI en ese
 momento, dentro de su home. Como
 `docker run`: en primer plano queda adjunto mostrando logs; en modo daemon se desacopla y

@@ -2,9 +2,10 @@
 
 | Término | Significado |
 |---|---|
-| **Distribución** | Quién publica binarios de llama.cpp o compatibles: la oficial (`ggml-org`) u otra que un desarrollador o laboratorio incorpore a Coquena, como SDKMan admite el JDK de Oracle junto a otros. |
-| **Familia de backends** | Una línea de binarios intercambiables entre sí: misma distribución, misma aceleración. P. ej. `cuda12`, `cuda13`, `vulkan`, `cpu`. |
-| **Versión de backend** | Un build concreto de una familia (`b6123`) instalado por Coquena. Conviven varias versiones de la misma familia. |
+| **Distribución** | Origen que publica binarios de llama.cpp o compatibles. En el núcleo sólo se consultan releases oficiales de `ggml-org`; otros binarios se registran localmente como externos por acción del usuario. Repositorios de terceros quedan para después. |
+| **Familia de backends** | Tipo de aceleración y, cuando corresponde, versión de sus bibliotecas: `cuda@12`, `cuda@13`, `vulkan`, `cpu`. En `cuda@12`, `12` no es el release de llama.cpp. |
+| **Build de llama.cpp** | Release del binario oficial, p. ej. `b6123`. Una familia puede tener varios builds; un mismo build puede publicarse para varias familias. |
+| **Backend registrado** | Binario concreto con ID único y estable, familia y versión sondeada. Los externos pueden no seguir la numeración de builds oficiales. |
 | **Aceleración** | Para qué se compiló el binario: `cpu`, `vulkan`, `cuda` (con major 12 o 13), `hip`, `sycl`, `openvino`… Depende del sistema operativo y la arquitectura. |
 | **Dispositivo** | Una unidad de cómputo de la máquina: la CPU o una GPU concreta (NVIDIA, AMD, Intel). |
 | **Modelo** | Unidad principal registrada en Coquena: un GGUF o un conjunto completo de shards. Un modelo externo no se copia; uno descargado por Coquena queda bajo su gestión. |

@@ -32,11 +32,14 @@ package Backends {
     origen de releases
   }
   class Familia {
-    nombre : cuda12 | cuda13 | vulkan | cpu | …
+    nombre : cuda@12 | cuda@13 | vulkan | cpu | …
     aceleración
+    versión de bibliotecas (si aplica)
   }
-  class VersionBackend {
-    build : bNNNN
+  class BackendRegistrado {
+    id <<único, estable>>
+    build oficial : bNNNN (si aplica)
+    versión sondeada
     ruta
     origen : gestionado | externo
   }
@@ -95,7 +98,7 @@ package Ejecución {
 
 Maquina "1" *-- "1..*" Dispositivo
 Distribucion "1" *-- "1..*" Familia
-Familia "1" *-- "*" VersionBackend : instaladas
+Familia "1" *-- "*" BackendRegistrado : registrados
 Familia ..> Dispositivo : acelera
 
 DirectorioDeModelos "1" o-- "*" Modelo : gestionados
@@ -115,12 +118,12 @@ UsoDeCompanion "*" --> "1" Companion
 Servidor "*" --> "0..1" Familia : fija (opcional)
 Servidor "*" o-- "1..*" Preset : ofrece
 Instancia "*" --> "1" Servidor : lanza
-Instancia "*" --> "1" VersionBackend : ejecuta
+Instancia "*" --> "1" BackendRegistrado : ejecuta
 Instancia "1" *-- "1" ArchivoINI : genera
 note bottom of Instancia
-  Sin familia explícita, la más adecuada
-  al hardware; sin versión, la última
-  instalada de esa familia.
+  Sin filtro explícito, el build compatible
+  más reciente; entre candidatos de ese build,
+  preferencia de backend.
 end note
 @enduml
 ```
@@ -134,7 +137,7 @@ La configuración se hereda por dos ejes que se encuentran en el INI generado:
 left to right direction
 rectangle "Eje backend" {
   card "Global\n(todos los backends)" as G
-  card "Familia\n(p. ej. cuda13)" as F
+  card "Familia\n(p. ej. cuda@13)" as F
   G --> F : hereda
 }
 rectangle "Eje modelo" {
@@ -177,10 +180,17 @@ S ..> N : llama-server\nhereda
   sus archivos al retirarlos; un registro externo sólo guarda rutas y nunca autoriza a
   mover o borrar esos archivos. La regla es la misma para backends. Un modelo puede ser
   un conjunto de shards, no una fila por archivo.
+- **Backend externo.** La relación con `Familia` procede de la declaración del usuario;
+  la versión sondeada procede de `llama-server --version`; sólo los releases oficiales
+  llevan necesariamente un build `bNNNN`. Ese sondeo no verifica la familia ni la
+  compatibilidad de aceleración. Cada backend registrado recibe un ID único y estable;
+  `familia + build` es sólo un atajo cuando resuelve a uno.
 - **Instancias.** Cada lanzamiento tiene ID y puerto efectivos propios; el puerto del
   servidor es sólo el valor predeterminado. Dos instancias no comparten puerto ni INI.
-- **Distribuciones extensibles.** Además de `ggml-org`, un tercero puede incorporar sus
-  familias.
+- **Distribuciones.** En el núcleo sólo `ggml-org` es origen de descubrimiento y
+  descarga. Un tercero puede aportar un binario, pero el usuario lo registra como
+  externo y lo selecciona explícitamente. Agregar repositorios de terceros como
+  orígenes de confianza queda para después.
 
 ## Arqueología (`legacy-go`)
 
