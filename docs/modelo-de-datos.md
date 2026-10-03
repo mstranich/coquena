@@ -29,7 +29,7 @@ package Máquina {
 package Backends {
   class Distribucion {
     nombre : ggml-org | …
-    origen de releases
+    repositorio de origen <<identificador>>
   }
   class Familia {
     nombre : cuda@12 | cuda@13 | vulkan | cpu | …
@@ -161,7 +161,9 @@ S ..> N : llama-server\nhereda
   comportamiento concreto (rápido, contexto largo, con o sin companion). Cada preset se
   vuelca en su propia sección.
 - **Precedencia:** el valor específico de un preset sustituye al mismo parámetro de
-  `[*]`; así lo documenta `llama-server` para `--models-preset`. Coquena emite una sola
+  `[*]`; la documentación actual da prioridad a los argumentos CLI sobre ambos.
+  Coquena evita duplicar en CLI valores configurables por preset y verifica la regla
+  para el release elegido. Coquena emite una sola
   clave canónica por parámetro y sección, tras aplanar cada eje. Los parámetros que
   admitan varios valores y los que sólo tengan sentido para el proceso router requieren
   verificación específica por versión antes de fijar su tratamiento.
@@ -181,7 +183,10 @@ S ..> N : llama-server\nhereda
   mover o borrar esos archivos. La regla es la misma para backends. Un modelo puede ser
   un conjunto de shards, no una fila por archivo.
 - **Backend externo.** La relación con `Familia` procede de la declaración del usuario;
-  la versión sondeada procede de `llama-server --version`; sólo los releases oficiales
+  también se declara la distribución de origen (repositorio), que permite asociar el
+  catálogo por origen y release. Omitirla equivale al origen oficial
+  `https://github.com/ggml-org/llama.cpp`; un compilado de terceros debe indicar el suyo.
+  La versión sondeada procede de `llama-server --version`; sólo los releases oficiales
   llevan necesariamente un build `bNNNN`. Ese sondeo no verifica la familia ni la
   compatibilidad de aceleración. Cada backend registrado recibe un ID único y estable;
   `familia + build` es sólo un atajo cuando resuelve a uno.
@@ -190,7 +195,8 @@ S ..> N : llama-server\nhereda
 - **Distribuciones.** En el núcleo sólo `ggml-org` es origen de descubrimiento y
   descarga. Un tercero puede aportar un binario, pero el usuario lo registra como
   externo y lo selecciona explícitamente. Agregar repositorios de terceros como
-  orígenes de confianza queda para después.
+  orígenes de confianza queda para después. Identificarlos para asociar parámetros no
+  implica consultarlos, descargar de ellos ni verificar la procedencia del binario.
 
 ## Arqueología (`legacy-go`)
 

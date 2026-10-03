@@ -32,6 +32,9 @@ gestión y de Docker para la ejecución. Los nombres son borrador.
   explícitamente para ejecutar. Repositorios de terceros como fuentes de descargas
   quedan para una iteración posterior. Al registrar uno externo, el usuario declara
   su familia; `--version` aporta la versión del ejecutable, no confirma esa familia.
+  También se declara la distribución de origen para asociar su catálogo de parámetros:
+  `--distribution oficial` (implícito) o el repositorio de un tercero. Esto no habilita
+  descargas desde ese repositorio ni verifica la procedencia del binario externo.
 - El núcleo inicial **no ofrece `--json`**. Mantener salida JSON para cada comando fue
   una carga en `legacy-go`; se reconsiderará después de un milestone funcional. Si
   hiciera falta una interfaz programática, se prefiere evaluar un servidor HTTP.
@@ -46,7 +49,7 @@ gestión y de Docker para la ejecución. Los nombres son borrador.
 ** backend
 *** remote [<familia>] [--release <build>|latest]
 *** install [<familia>] [--release <build>|latest]
-*** register <ruta-llama-server> --family <familia>
+*** register <ruta-llama-server> --family <familia> [--distribution <origen>]
 *** list
 *** uninstall <id-backend>
 ** model
@@ -59,8 +62,8 @@ gestión y de Docker para la ejecución. Los nombres son borrador.
 ** param
 *** list [--version <build>]
 *** show <parámetro>
-*** import <archivo>
-*** export [<archivo>]
+*** import <archivo> [--backend <id-backend>]
+*** export [<archivo>] [--backend <id-backend>]
 ** config
 *** show [--family F | --model M | --preset P]
 *** set <param> <valor> [ámbito]
