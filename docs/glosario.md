@@ -2,7 +2,7 @@
 
 | Término | Significado |
 |---|---|
-| **Distribución** | Origen que publica binarios de llama.cpp o compatibles. En el núcleo sólo se consultan releases oficiales de `ggml-org`; otros binarios se registran localmente como externos por acción del usuario. Repositorios de terceros quedan para después. |
+| **Distribución** | Identificada por el repositorio de origen; `oficial` es el alias implícito de `https://github.com/ggml-org/llama.cpp`. Junto al release permite asociar parámetros. En el núcleo sólo se descubren y descargan binarios oficiales; un repositorio de terceros puede declararse como identidad, no como fuente de descargas o confianza. |
 | **Familia de backends** | Tipo de aceleración y, cuando corresponde, versión de sus bibliotecas: `cuda@12`, `cuda@13`, `vulkan`, `cpu`. En `cuda@12`, `12` no es el release de llama.cpp. |
 | **Build de llama.cpp** | Release del binario oficial, p. ej. `b6123`. Una familia puede tener varios builds; un mismo build puede publicarse para varias familias. |
 | **Backend registrado** | Binario concreto con ID único y estable, familia y versión sondeada. Los externos pueden no seguir la numeración de builds oficiales. |
