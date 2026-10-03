@@ -39,54 +39,180 @@ gestión y de Docker para la ejecución. Los nombres son borrador.
   una carga en `legacy-go`; se reconsiderará después de un milestone funcional. Si
   hiciera falta una interfaz programática, se prefiere evaluar un servidor HTTP.
 
-## Mapa
+## Mapa por comando
+
+Todos los comandos se invocan con el prefijo `coquena`, omitido en los diagramas.
+
+### `system`
+
+Inspecciona el hardware y la plataforma para informar las opciones de ejecución.
 
 ```plantuml
 @startmindmap
-* coquena
-** system
-*** (inspecciona hardware)
-** backend
-*** remote [<familia>] [--release <build>|latest]
-*** install [<familia>] [--release <build>|latest]
-*** register <ruta-llama-server> --family <familia> [--distribution <origen>]
-*** list
-*** uninstall <id-backend>
-** model
-*** dir [<ruta>]
-*** add <ruta.gguf>
-*** add-companion <ruta.gguf> --type mmproj|draft
-*** list
-*** refresh <modelo>
-*** remove <modelo>
-** param
-*** list [--version <build>]
-*** show <parámetro>
-*** import <archivo> [--backend <id-backend>]
-*** export [<archivo>] [--backend <id-backend>]
-** config
-*** show [--family F | --model M | --preset P]
-*** set <param> <valor> [ámbito]
-*** unset <param> [ámbito]
-** preset
-*** create <modelo> <nombre>
-*** clone <preset> <nombre> [--model M]
-*** companion add <preset> <companion> [--on cpu|gpu] [--force]
-*** companion remove <preset> <companion>
-*** model set <preset> <modelo> [--force]
-*** list [--model M]
-*** show <preset>
-*** remove <preset>
-** server
-*** create <nombre> [--family F] [--port N]
-*** add <servidor> <preset>...
-*** remove-preset <servidor> <preset>
-*** list
-*** show <servidor>
-** run <servidor> [--backend <id-backend> | --family <familia> [--release <build>]] [--port N] [-d]
-** ps
-** logs <id-instancia> [-f]
-** stop <id-instancia>
+* system
+** (inspecciona hardware)
+@endmindmap
+```
+
+### `backend`
+
+Consulta, instala y registra backends de llama.cpp; también permite retirarlos.
+
+```plantuml
+@startmindmap
+* backend
+** remote [<familia>] [--release <build>|latest]
+** install [<familia>] [--release <build>|latest]
+** register <ruta-llama-server> --family <familia> [--distribution <origen>]
+** list
+** uninstall <id-backend>
+@endmindmap
+```
+
+### `model`
+
+Registra modelos y companions, consulta su estado y gestiona su directorio.
+
+```plantuml
+@startmindmap
+* model
+** dir [<ruta>]
+** add <ruta.gguf> [<alias>]
+** companion
+*** add <ruta.gguf> [<alias>] --type <tipo>
+*** remove <alias>
+** list
+** refresh <alias-modelo>
+** remove <alias-modelo>
+@endmindmap
+```
+
+Modelos y companions se seleccionan por su alias en el catálogo local, no mediante
+búsquedas por nombre de archivo. Si se omite el alias al registrar, el nombre del archivo
+se usa como alias inicial; un alias ya ocupado se rechaza, sin sobrescribir otro registro.
+
+`model companion add` registra el archivo sin asociarlo a un modelo o preset.
+`--type` declara su papel (por ejemplo, `mmproj` o `draft`). `remove` retira el registro
+por alias: borra archivos gestionados, pero conserva los externos.
+
+### `param`
+
+Consulta, importa y exporta el catálogo de parámetros y su disponibilidad.
+
+```plantuml
+@startmindmap
+* param
+** list [--version <build>]
+** show <parámetro>
+** import <archivo> [--backend <id-backend>]
+** export [<archivo>] [--backend <id-backend>]
+@endmindmap
+```
+
+### `config`
+
+Consulta y modifica valores de configuración globales o de un ámbito específico.
+
+```plantuml
+@startmindmap
+* config
+** show [--family F | --model M | --preset P]
+** set <param> <valor> [ámbito]
+** set <param> --ref <alias> [ámbito]
+** unset <param> [ámbito]
+@endmindmap
+```
+
+`unset` elimina el par clave-valor propio del ámbito indicado, como `delete` en
+JavaScript. No bloquea la herencia: si hay un valor heredado, vuelve a regir; si no,
+la clave deja de emitirse en la sección correspondiente del INI. No modifica el padre.
+
+Los parámetros que cargan companions aceptan referencias por alias a su registro en vez
+de una ruta literal. Coquena conserva la referencia y la resuelve a una ruta absoluta al generar
+el INI; CPU/GPU y demás ajustes se configuran con los parámetros del backend.
+`config set <param> --ref <alias> [ámbito]` guarda una referencia al catálogo.
+El valor posicional y `--ref` son alternativas excluyentes: un valor normal es literal,
+aunque coincida con un alias. No se usa un prefijo especial como `@`.
+
+Por ejemplo:
+
+```text
+coquena config set mmproj --ref vision --preset conversacion
+coquena config set temperature 0.7 --preset conversacion
+```
+
+Coquena no valida la compatibilidad funcional entre modelo y companion ni requiere
+forzar su uso. El backend decide si puede cargar la combinación configurada.
+
+### `preset`
+
+Define configuraciones de ejecución de un modelo. Sus companions se eligen mediante
+los parámetros de `config`, no con una lista de asociaciones separada.
+
+```plantuml
+@startmindmap
+* preset
+** create <modelo> <nombre>
+** clone <preset> <nombre> [--model M]
+** model set <preset> <modelo>
+** list [--model M]
+** show <preset>
+** remove <preset>
+@endmindmap
+```
+
+### `server`
+
+Registra la composición de presets que ofrecerá un router y sus opciones de lanzamiento.
+
+```plantuml
+@startmindmap
+* server
+** create <nombre> [--family F] [--port N]
+** add <servidor> <preset>...
+** remove-preset <servidor> <preset>
+** list
+** show <servidor>
+@endmindmap
+```
+
+### `run`
+
+Genera el INI e inicia una instancia de un servidor registrado.
+
+```plantuml
+@startmindmap
+* run <servidor> [--backend <id-backend> | --family <familia> [--release <build>]] [--port N] [-d]
+@endmindmap
+```
+
+### `ps`
+
+Lista las instancias registradas y sus IDs.
+
+```plantuml
+@startmindmap
+* ps
+@endmindmap
+```
+
+### `logs`
+
+Consulta los logs de una instancia; con `-f`, sigue su salida.
+
+```plantuml
+@startmindmap
+* logs <id-instancia> [-f]
+@endmindmap
+```
+
+### `stop`
+
+Detiene la instancia identificada por su ID.
+
+```plantuml
+@startmindmap
+* stop <id-instancia>
 @endmindmap
 ```
 
@@ -142,4 +268,4 @@ stop
 - `model remove` y `backend uninstall` borran los archivos **gestionados por Coquena**
   junto con su registro e informan los bytes liberados. Si el registro es externo,
   quitan sólo el registro y avisan que los archivos permanecen en disco. La misma regla
-  deberá aplicarse al comando de quitar companions cuando se defina su superficie.
+  se aplica a `model companion remove`.

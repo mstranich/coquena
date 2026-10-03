@@ -50,10 +50,12 @@ package Modelos {
     ruta <<definida por el usuario>>
   }
   class Modelo {
+    alias <<catálogo local>>
     ruta(s) GGUF
     origen : gestionado | externo
   }
   class Companion {
+    alias <<catálogo local>>
     tipo : mmproj | draft | …
     ruta GGUF
     origen : gestionado | externo
@@ -62,7 +64,7 @@ package Modelos {
 
 package "Configuración (eje backend)" {
   abstract class Configuracion {
-    valores : parámetro → valor
+    valores : parámetro → literal o referencia de archivo
   }
   class ConfiguracionGlobal <<única>>
   class ConfiguracionDeFamilia
@@ -72,9 +74,6 @@ package "Configuración (eje modelo)" {
   class ConfiguracionDeModelo
   class Preset {
     nombre <<visible al cliente>>
-  }
-  class UsoDeCompanion {
-    ubicación (GPU / CPU)
   }
 }
 
@@ -112,8 +111,7 @@ ConfiguracionDeFamilia --> ConfiguracionGlobal : hereda de
 ConfiguracionDeFamilia "0..1" --> "1" Familia
 ConfiguracionDeModelo "0..1" --> "1" Modelo
 Preset "*" --> "1" ConfiguracionDeModelo : hereda de
-Preset "1" *-- "*" UsoDeCompanion
-UsoDeCompanion "*" --> "1" Companion
+Configuracion "*" --> "*" Companion : referencia en un parámetro
 
 Servidor "*" --> "0..1" Familia : fija (opcional)
 Servidor "*" o-- "1..*" Preset : ofrece
@@ -169,6 +167,17 @@ S ..> N : llama-server\nhereda
   verificación específica por versión antes de fijar su tratamiento.
   **No se presume herencia aditiva:** si un parámetro admite una lista, eso no demuestra
   que repetir su clave en dos ámbitos acumule elementos.
+- **Eliminar un valor (`unset`):** quita sólo el par clave-valor propio del ámbito,
+  sin modificar el padre ni bloquear su herencia. El valor heredado vuelve a regir;
+  si no existe, no se emite la clave en esa sección del INI.
+- **Companions:** se registran independientemente y se referencian mediante parámetros
+  de configuración. El preset hereda o sobrescribe esas referencias; no existe una lista
+  paralela de asociaciones. El render resuelve las referencias efectivas a rutas absolutas.
+  La ubicación CPU/GPU se expresa con los parámetros correspondientes del backend.
+  `config set <param> --ref <alias>` guarda una referencia; el valor posicional es
+  literal, incluso si coincide con un alias. Son alternativas excluyentes.
+  La compatibilidad funcional del conjunto queda a cargo del backend; Coquena no
+  necesita un modo forzado para configurar esas referencias.
 
 ## Aclaraciones
 
@@ -178,6 +187,9 @@ S ..> N : llama-server\nhereda
   retoma `data/servers/` de `legacy-go`; es provisorio.
 - **Clonar** configuraciones y presets hacia otros modelos o familias es la forma de
   reutilizar un ajuste fino.
+  En un preset se copian sólo sus valores propios, incluidas las referencias a companions,
+  no los valores heredados ni los archivos. El clon hereda del modelo destino y no queda
+  vinculado al preset origen; cambios posteriores de éste no se propagan al clon.
 - **Propiedad de archivos.** Coquena descarga modelos al directorio gestionado y borra
   sus archivos al retirarlos; un registro externo sólo guarda rutas y nunca autoriza a
   mover o borrar esos archivos. La regla es la misma para backends. Un modelo puede ser

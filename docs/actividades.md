@@ -241,47 +241,49 @@ resolverá antes de implementar la eliminación gestionada.
 start
 :Usuario elige un preset origen\ny un modelo destino;
 :Copiar los valores propios del preset\n(no los heredados);
+note right
+  Incluye referencias propias a companions,
+  no copia sus archivos ni valores heredados.
+  El clon es independiente del preset origen.
+end note
 :Pedir nombre nuevo;
 if (¿nombre válido y libre?) then (no)
   :Rechazar;
   stop
 endif
-if (¿el preset tenía companions\nincompatibles con el modelo destino?) then (sí)
-  :Quitarlos y avisar;
-endif
+:Resolver referencias de companions\nde la configuración efectiva del destino;
 :Guardar el preset\nbajo la configuración del modelo destino;
+note right
+  Hereda la configuración del destino.
+  Cambios posteriores del preset origen
+  no afectan al clon.
+end note
 stop
 @enduml
 ```
 
 
-## Asociar un companion a un preset
+## Referenciar un companion desde la configuración
 
 ```plantuml
 @startuml
 start
-:Usuario asocia un companion a un preset\n(ubicación y --force opcionales);
-if (¿el companion está disponible?) then (no)
-  :Rechazar;
+:config set <param> --ref <alias>\n[ámbito];
+:Resolver la referencia sin\nconfundirla con una ruta literal;
+if (¿identifica un único registro?) then (no)
+  :Rechazar con diagnóstico;
   stop
 endif
-:Leer metadatos GGUF\ndel modelo y del companion;
-if (¿compatibilidad demostrada?) then (sí)
-else (no o desconocida)
-  if (¿--force?) then (no)
-    :Rechazar explicando\nla evidencia o su ausencia;
-    stop
-  else (sí)
-    :Avisar y registrar que la\nasociación fue forzada;
-  endif
-endif
-:Guardar la asociación\ncon su ubicación (GPU / CPU);
+:Guardar el valor de configuración\ncomo referencia, no como ruta resuelta;
+:Al lanzar, resolver herencia y\ncomprobar archivos efectivos;
+:Emitir las rutas absolutas en el INI;
 stop
 @enduml
 ```
 
-Forzar permite **experimentar** con un companion de otra cuantización o de un
-modelo derivado, sin declararlo compatible. La decisión y el diagnóstico quedan
-visibles en el preset. La disponibilidad del archivo se comprueba aparte; `--force`
-no convierte un archivo faltante en servible. Un mismo companion puede ser usado por
-varios presets y su ubicación CPU/GPU se elige por asociación.
+Registrar mediante `model companion add` no configura ni activa una funcionalidad.
+CPU/GPU y los ajustes de inferencia se expresan con parámetros normales del backend.
+La compatibilidad funcional se delega al backend al cargar la combinación; no hay
+validación ni modo forzado en Coquena para ella. Coquena conserva sus comprobaciones de
+referencias y disponibilidad, sin garantizar funcionamiento. `--ref` distingue una
+referencia por alias de un valor literal; no se infiere por el contenido del texto.

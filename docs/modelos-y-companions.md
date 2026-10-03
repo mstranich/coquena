@@ -24,6 +24,20 @@ cada archivo por separado. Un companion es otra unidad y puede compartirse entre
 modelos o cuantizaciones. La identidad remota de esas unidades queda pendiente para
 la etapa específica de gestión de modelos.
 
+## Identificación en el catálogo local
+
+Modelos y companions se seleccionan por **alias**, no por sus rutas ni por búsquedas
+de nombres de archivos. El registro relaciona el alias con la unidad y sus archivos;
+las configuraciones guardan referencias al registro y el INI recibe las rutas absolutas.
+
+El alias puede declararse al incorporar el archivo. Si se omite, su nombre se usa como
+alias inicial: sigue siendo un alias del catálogo, no un mecanismo alternativo de búsqueda.
+Una colisión de alias se rechaza; no se sustituye otro registro por accidente.
+
+El alias de catálogo no es el nombre del preset visible al cliente. Varios presets pueden
+referenciar el mismo modelo o companion. Tampoco identifica una versión en Hugging Face:
+procedencia, revisión remota y actualización se discutirán aparte.
+
 ## Disponibilidad, en el núcleo
 
 - **Disponible:** la ruta existe, es legible, el encabezado GGUF se lee y, si es un
@@ -50,7 +64,8 @@ observa, `upgrade` reemplaza bytes).
 
 ## Quitar un modelo o companion
 
-`model remove` quita la unidad del registro. Si Coquena descargó sus archivos y los
+`model remove` y `model companion remove` quitan la unidad correspondiente del registro.
+Si Coquena descargó sus archivos y los
 guarda en su área gestionada, **borra físicamente todos los archivos propios** e informa
 cuántos bytes liberó. Si la unidad es externa, **no toca sus archivos** e informa que
 permanecen en disco; así no afecta a LM Studio ni a otra herramienta que los gestione.
@@ -71,10 +86,15 @@ companion no es su estado sino su relación con los modelos:
 
 - **No depende de un modelo principal para estar disponible.** Un proyector sin su
   modelo instalado sigue disponible (misma conclusión que legacy).
-- **La compatibilidad con un modelo se valida al asociarlo en un preset**, leyendo los
-  metadatos GGUF de ambos (p. ej. un `mmproj` debe corresponder a la arquitectura del
-  modelo). No es un estado del companion. Si la validación falla, la asociación se
-  rechaza, salvo que el usuario la fuerce explícitamente (`--force`).
+- **Registro:** `model companion add <ruta.gguf> [<alias>] --type <tipo>` no vincula el
+  archivo a un modelo. Sin alias explícito se usa su nombre de archivo.
+- **Retiro:** `model companion remove <alias>` resuelve el registro por ese alias.
+- **Uso:** un parámetro de configuración referencia al companion registrado. El preset
+  puede heredar esa referencia o sobrescribirla; Coquena la resuelve a una ruta absoluta
+  en el INI. No hay una segunda lista de asociaciones en el preset.
+- **Compatibilidad funcional:** queda a cargo del backend al cargar la combinación.
+  Coquena no la certifica ni bloquea la configuración por esa causa. No hay un modo
+  forzado: registrar y configurar los archivos basta para intentar utilizarlos.
 - **Un companion puede servir a varios modelos**, y un modelo puede tener varios
   companions (proyector, borrador).
 
@@ -83,7 +103,8 @@ companion no es su estado sino su relación con los modelos:
 El estado que realmente importa al lanzar no es el del modelo sino el del **preset**, y se
 deriva de la disponibilidad de sus archivos:
 
-- **Servible:** su modelo y todos sus companions están disponibles.
+- **Servible:** su modelo y los companions referenciados por su configuración efectiva
+  están disponibles. No garantiza que el backend consiga cargarlos.
 - **No servible:** alguno no está disponible, o la referencia está rota porque se quitó
   del registro. Al iniciar, el preset se omite con aviso; el servidor arranca si queda al
   menos uno servible.

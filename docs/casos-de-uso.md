@@ -123,6 +123,8 @@ Retirar uno externo deja sus archivos intactos; retirar uno gestionado borra tod
 archivos propios e informa el espacio liberado.
 
 **Clonar configuración o preset.** Reutiliza un ajuste fino en otro modelo o familia.
+Un preset clonado copia sus valores propios, incluidas referencias a companions, y
+hereda del modelo destino. Es independiente del preset origen y no duplica archivos.
 
 **Iniciar instancia.** Sin backend explícito, Coquena elige el build instalado más
 reciente compatible; entre candidatos de ese build aplica la preferencia de backend.
