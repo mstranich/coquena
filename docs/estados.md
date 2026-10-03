@@ -57,7 +57,7 @@ Por qué un solo eje, y qué quedó afuera: [modelos-y-companions.md](modelos-y-
 
 ```plantuml
 @startuml
-[*] --> Registrado : model add / add-companion\n[ruta válida, GGUF legible]
+[*] --> Registrado : model add / model companion add\n[ruta válida, GGUF legible]
 
 state Registrado {
   state q <<choice>>
