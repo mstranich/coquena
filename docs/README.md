@@ -33,10 +33,11 @@ Esta carpeta contiene el análisis funcional. No define implementación: el tras
 código ocurre después, a partir de estos diagramas.
 
 El reinicio se implementará en **C#**, en pasos pequeños y revisables por quien mantiene
-Coquena. Primero se cerrarán las reglas de backends, presets y ejecución; la identidad,
-actualización y procedencia de modelos frente a Hugging Face se tratarán después, como
-un problema separado. Las soluciones de `legacy-go` son experiencia, no arquitectura
-que deba copiarse.
+Coquena. El orden de revisión es: backends y catálogo de parámetros; configuración y
+presets; catálogo de modelos y sus comandos (incluida su relación con Hugging Face);
+por último, servidores e instanciación. La superficie `server` y las reglas de ejecución
+siguen siendo borradores, no decisiones cerradas. Las soluciones de `legacy-go` son
+experiencia, no arquitectura que deba copiarse.
 
 ## El contexto es la máquina
 
