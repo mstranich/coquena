@@ -29,15 +29,15 @@ maduro) y una Web GUI para hardware remoto.
 
 ## Alcance de este análisis
 
-Esta carpeta contiene el análisis funcional. No define implementación: el traslado a
-código ocurre después, a partir de estos diagramas.
+Esta carpeta contiene el análisis funcional y una guía de implementación del catálogo
+para trabajo futuro delegable. No hay implementación todavía: la guía distingue los
+acuerdos funcionales, los mecanismos técnicos propuestos y las decisiones pendientes.
 
-El reinicio se implementará en **C#**, en pasos pequeños y revisables por quien mantiene
+Coquena se implementará en **C#**, en pasos pequeños y revisables por quien mantiene
 Coquena. El orden de revisión es: backends y catálogo de parámetros; configuración y
 presets; catálogo de modelos y sus comandos (incluida su relación con Hugging Face);
 por último, servidores e instanciación. La superficie `server` y las reglas de ejecución
-siguen siendo borradores, no decisiones cerradas. Las soluciones de `legacy-go` son
-experiencia, no arquitectura que deba copiarse.
+siguen siendo borradores, no decisiones cerradas. La documentación es autosuficiente: ningún requisito depende de otra implementación.
 
 ## El contexto es la máquina
 
@@ -63,7 +63,9 @@ sobre el mismo GGUF.
 | [casos-de-uso.md](casos-de-uso.md) | Actores y casos de uso |
 | [modelo-de-datos.md](modelo-de-datos.md) | Diagrama de clases del dominio |
 | [estados.md](estados.md) | Ciclos de vida (instancia, backend, modelo, preset) |
-| [modelos-y-companions.md](modelos-y-companions.md) | Por qué el estado de un modelo es un solo eje, y qué quedó afuera |
+| [modelos-y-companions.md](modelos-y-companions.md) | Registro externo, seguimiento remoto, actualización e integridad |
+| [implementacion-catalogo-modelos.md](implementacion-catalogo-modelos.md) | Contratos, algoritmos, entregas y pruebas para implementar el catálogo en C# |
+| [descargas.md](descargas.md) | Gestión de transferencias, persistencia, recuperación y pruebas |
 | [actividades.md](actividades.md) | Flujos de los casos de uso principales |
 | [comandos.md](comandos.md) | Superficie de la línea de comandos |
 | [catalogo-de-parametros.md](catalogo-de-parametros.md) | Parámetros de llama-server por versión y distribución |

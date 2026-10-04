@@ -111,13 +111,6 @@ versiones anteriores o distribuciones modificadas.
 
 Referencia: [Model presets de llama-server](https://github.com/ggml-org/llama.cpp/blob/master/tools/server/README.md#model-presets).
 
-## Arqueología (`legacy-go`)
-
-`openspec/specs/llamacpp-field-catalog-persistence`: catálogo persistido en un documento
-propio, nombre canónico + tipo inmutable, alias corto y de entorno, disponibilidad por
-proveedor con rango `[desde, hasta)` de builds `b<dígitos>`, evaluación
-`admitted | not-admitted | unknown`, y protección de parámetros referenciados por presets.
-
 ## Origen del catálogo
 
 El catálogo **no se extrae automáticamente**: no hay heurística confiable para inferir

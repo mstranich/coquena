@@ -91,9 +91,7 @@ compatible dentro del filtro pedido**: sin familia, CPU `b10010` gana a CUDA `b1
 con filtro CUDA se elige `b10009`. Sólo entre candidatos del mismo build, en una GPU
 NVIDIA se prefiere la familia CUDA compatible con mayor versión de bibliotecas y
 después Vulkan; CPU queda como fallback compatible con la arquitectura
-nativa. El usuario puede pedir otra opción, incluida `cpu`. En Windows, CUDA requiere
-además el paquete `cudart`
-del mismo release (arqueología de `legacy-go`, `internal/runtime/llamacpp/catalog.go`).
+nativa. El usuario puede pedir otra opción, incluida `cpu`. La instalación incluye las dependencias declaradas por el artefacto seleccionado; si un release distribuye las bibliotecas CUDA por separado, deben resolverse como parte de esa instalación.
 Un candidato con aceleración `unknown` o `incompatible` no se elige automáticamente,
 pero puede instalarse mediante selección explícita si corresponde al SO y arquitectura
 nativos y supera `llama-server --version`. Coquena informa el estado y su motivo. Un
