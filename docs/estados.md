@@ -52,8 +52,10 @@ end note
 
 ## Modelo y companion (núcleo)
 
-Un solo eje: **disponibilidad**. Se deriva en cada consulta, sin hashear y sin persistir.
-Por qué un solo eje, y qué quedó afuera: [modelos-y-companions.md](modelos-y-companions.md).
+Este diagrama representa sólo **disponibilidad**, derivada en cada consulta sin hash
+completo y sin persistir. Seguimiento remoto e integridad son ejes independientes,
+definidos en [modelos-y-companions.md](modelos-y-companions.md): perder el seguimiento
+no cambia por sí solo la disponibilidad; en externos el seguimiento no aplica.
 
 ```plantuml
 @startuml

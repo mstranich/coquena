@@ -183,8 +183,7 @@ S ..> N : llama-server\nhereda
 
 - **Servidor** es la composición que Coquena coordina: un puerto, opcionalmente una
   familia, y los
-  presets que ofrece. Es lo que antes se escribía a mano en scripts lanzadores. El nombre
-  retoma `data/servers/` de `legacy-go`; es provisorio.
+  presets que ofrece. Su diseño y sus comandos siguen pendientes de revisión.
 - **Clonar** configuraciones y presets hacia otros modelos o familias es la forma de
   reutilizar un ajuste fino.
   En un preset se copian sólo sus valores propios, incluidas las referencias a companions,
@@ -210,15 +209,9 @@ S ..> N : llama-server\nhereda
   orígenes de confianza queda para después. Identificarlos para asociar parámetros no
   implica consultarlos, descargar de ellos ni verificar la procedencia del binario.
 
-## Arqueología (`legacy-go`)
+## Render del INI
 
-- Presets en `config/model-presets.json`, renderizados a un INI por runtime. El render es
-  una función pura: determinista, sin red, byte a byte idéntico ante las mismas entradas.
-  Las claves se emiten con el nombre largo canónico, sin guiones.
-- Nombre de preset = sección INI = identificador del modelo servido: minúsculas,
-  segmentos separados por `-` o `.`; reservados `global` y `render`.
-- Un preset podía declarar qué runtimes lo admiten (familia + rango de releases), y
-  Coquena calculaba el rango mínimo según los parámetros usados (un parámetro aparece en
-  cierto release). Era consultivo: no bloqueaba nada.
-- Sin versión explícita se usa la última (`latest`), como `fnm install --lts`.
-  (`openspec/specs/model-preset-persistence`, `llamacpp-runtime-artifact-management`)
+El render recibe la configuración efectiva y las rutas ya resueltas del catálogo.
+No consulta la red. Se propone como función determinista: las mismas entradas producen
+el mismo INI, usando claves canónicas sin guiones. Su implementación y pruebas deben
+cubrir la herencia y las reglas del backend seleccionado.

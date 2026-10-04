@@ -35,8 +35,7 @@ gestión y de Docker para la ejecución. Los nombres son borrador.
   También se declara la distribución de origen para asociar su catálogo de parámetros:
   `--distribution oficial` (implícito) o el repositorio de un tercero. Esto no habilita
   descargas desde ese repositorio ni verifica la procedencia del binario externo.
-- El núcleo inicial **no ofrece `--json`**. Mantener salida JSON para cada comando fue
-  una carga en `legacy-go`; se reconsiderará después de un milestone funcional. Si
+- El núcleo inicial **no ofrece `--json`**. La salida JSON por comando se reconsiderará después de un milestone funcional. Si
   hiciera falta una interfaz programática, se prefiere evaluar un servidor HTTP.
 
 ## Mapa por comando
@@ -83,6 +82,8 @@ Registra modelos y companions, consulta su estado y gestiona su directorio.
 *** remove <alias>
 ** list
 ** refresh <alias-modelo>
+** update [<alias-modelo>]
+** upgrade [<alias-modelo>]
 ** remove <alias-modelo>
 @endmindmap
 ```
@@ -94,6 +95,13 @@ se usa como alias inicial; un alias ya ocupado se rechaza, sin sobrescribir otro
 `model companion add` registra el archivo sin asociarlo a un modelo o preset.
 `--type` declara su papel (por ejemplo, `mmproj` o `draft`). `remove` retira el registro
 por alias: borra archivos gestionados, pero conserva los externos.
+
+El registro de archivos externos no copia pesos, crea enlaces físicos ni consulta la
+red. No requiere reconciliación con Hugging Face y queda fuera de las actualizaciones.
+`update` consulta metadatos y guarda novedades; `upgrade` aplica la revisión detectada
+sólo a gestionados. Las reglas están en [modelos-y-companions.md](modelos-y-companions.md).
+La superficie de descarga, búsqueda asistida, verificación y actualización de companions
+queda pendiente; no se presupone una reconciliación ni una descarga conjunta obligatoria.
 
 ### `param`
 
@@ -227,17 +235,10 @@ Detiene la instancia identificada por su ID.
 | `run` / `run -d` | `docker run` / `docker run -d` | genera el INI y lanza `llama-server` |
 | `ps`, `logs -f`, `stop` | `docker ps`, `docker logs -f`, `docker stop` | |
 
-## Arqueología (`legacy-go`)
-
-La CLI anterior (`cmd/coquena/runtime.go`) tenía `init`, `webui`, `system`,
-`runtime remote|download|list|remove`, `model resolve|download|revision`,
-`download list|status|pause|resume|cancel` y `field define|remove|list|show`. No tenía
-ningún comando para lanzar `llama-server`.
-
 ## Home
 
 No hay comando `init`. El home se resuelve así (`COQUENA_HOME` primero, porque es una
-decisión explícita del usuario; se conserva de `legacy-go`):
+decisión explícita del usuario):
 
 ```plantuml
 @startuml

@@ -1,28 +1,28 @@
-# Modelos y companions: estados
+# Catálogo de modelos y companions
 
-Los diagramas están en [estados.md](estados.md).
+Registro, actualización e integridad. Los diagramas de disponibilidad están en [estados.md](estados.md).
 
-## La regla
+La [guía de implementación](implementacion-catalogo-modelos.md) descompone estas reglas
+en contratos, algoritmos, pruebas y entregas para agentes. Los mecanismos propuestos
+allí no sustituyen las decisiones funcionales de este documento.
 
-> **Cada pregunta es un eje propio. Los ejes no se combinan en un único estado.**
-> Se muestran como columnas separadas, y cada uno aparece recién en la iteración que lo
-> necesita.
+## Ejes independientes
 
-| Eje | Pregunta | Iteración | Costo de responderla |
-|---|---|---|---|
-| **Origen** | ¿Gestionado (en el directorio de modelos) o externo? | núcleo | ninguno: es un atributo del registro, no un estado |
-| **Disponibilidad** | ¿Se puede cargar ahora? | núcleo | barato: existencia, shards, encabezado |
-| **Integridad** | ¿Los bytes cambiaron desde que se registraron? | biblioteca | caro: hash de gigabytes, sólo a pedido |
-| **Procedencia** | ¿Coincide con lo publicado en el repositorio remoto? | biblioteca | red |
+| Eje | Pregunta | Comprobación |
+|---|---|---|
+| **Disponibilidad** | ¿Están presentes y son legibles los archivos necesarios? | Local, sin hash completo |
+| **Seguimiento remoto** | ¿La selección instalada coincide con lo publicado en el origen seguido? | Metadatos remotos; no aplica a externos |
+| **Integridad** | ¿Los bytes coinciden con la referencia local registrada? | Hash completo, explícito |
 
-En el núcleo, **el único estado de un modelo o companion es su disponibilidad**, y se
-deriva cada vez que se consulta; no se persiste.
+La propiedad (**gestionado o externo**) es un atributo del registro. Perder el
+seguimiento remoto no vuelve inutilizable un modelo disponible; tampoco estar al día
+demuestra integridad ni garantiza que el backend pueda cargarlo.
 
-Un modelo puede ocupar **uno o varios archivos GGUF**. Sus shards forman una unidad:
-registrar, comprobar disponibilidad y eliminar se refieren al conjunto completo, no a
-cada archivo por separado. Un companion es otra unidad y puede compartirse entre
-modelos o cuantizaciones. La identidad remota de esas unidades queda pendiente para
-la etapa específica de gestión de modelos.
+Un modelo ocupa uno o varios archivos GGUF. Sus shards forman una unidad para
+registrar, actualizar, comprobar disponibilidad y eliminar. Un companion es una unidad
+independiente y opcional: no se descarga por acompañar al modelo en el repositorio.
+Coquena descarga sólo la selección solicitada y sus shards necesarios, no el repositorio
+completo.
 
 ## Identificación en el catálogo local
 
@@ -36,7 +36,7 @@ Una colisión de alias se rechaza; no se sustituye otro registro por accidente.
 
 El alias de catálogo no es el nombre del preset visible al cliente. Varios presets pueden
 referenciar el mismo modelo o companion. Tampoco identifica una versión en Hugging Face:
-procedencia, revisión remota y actualización se discutirán aparte.
+el alias permanece estable al actualizar sus archivos.
 
 ## Disponibilidad, en el núcleo
 
@@ -47,9 +47,7 @@ procedencia, revisión remota y actualización se discutirán aparte.
   movido, permisos).
 - **Inválido:** el archivo existe pero no es un GGUF legible.
 
-Ninguno de los cuatro exige hashear. Legacy necesitaba persistir `altered` justamente
-porque derivarlo costaba hashear cada modelo en cada listado; en el núcleo esa pregunta
-no se hace.
+Ninguno de los cuatro exige calcular un hash completo. La integridad se comprueba de forma explícita y separada.
 
 **Cambio detectado (aviso, no estado):** si el tamaño o la fecha de modificación difieren
 de lo registrado, Coquena avisa y no bloquea. La consulta no actualiza el registro ni
@@ -72,12 +70,10 @@ permanecen en disco; así no afecta a LM Studio ni a otra herramienta que los ge
 La misma regla de propiedad rige para backends. Los presets que referencian una unidad
 retirada no se borran: pasan a **No servible** por *referencia rota*.
 
-Un **índice central en el área de modelos gestionados** es la alternativa preferida a
-los sidecars que legacy escribió por archivo. Su ubicación exacta respecto del home
-configurable, su formato y su recuperación se decidirán con la identidad de modelos;
-no se crearán sidecars por shard por inercia de `legacy-go`. También quedan pendientes
-las reglas de propiedad cuando varios modelos comparten un archivo y la recuperación
-ante una eliminación parcial.
+El catálogo usa un **índice central en el área de modelos gestionados**, no sidecars
+por archivo o shard. El almacenamiento es propio de Coquena: no replica la estructura
+de LM Studio. La ubicación exacta, el formato y la recuperación del índice, la propiedad
+de archivos compartidos y las eliminaciones parciales quedan por resolver.
 
 ## Companions
 
@@ -85,7 +81,7 @@ Un companion tiene **exactamente los mismos estados** que un modelo. Lo propio d
 companion no es su estado sino su relación con los modelos:
 
 - **No depende de un modelo principal para estar disponible.** Un proyector sin su
-  modelo instalado sigue disponible (misma conclusión que legacy).
+  modelo instalado sigue disponible.
 - **Registro:** `model companion add <ruta.gguf> [<alias>] --type <tipo>` no vincula el
   archivo a un modelo. Sin alias explícito se usa su nombre de archivo.
 - **Retiro:** `model companion remove <alias>` resuelve el registro por ese alias.
@@ -109,17 +105,143 @@ deriva de la disponibilidad de sus archivos:
   del registro. Al iniciar, el preset se omite con aviso; el servidor arranca si queda al
   menos uno servible.
 
-## Lo que queda para la iteración de la biblioteca
+## Incorporación: externo o gestionado
 
-Integridad y procedencia vuelven **como ejes separados**, cada uno con su propia columna,
-sus propios valores y su propio comando, y nunca como valores adicionales de la
-disponibilidad. Los hallazgos de legacy sobre Hugging Face (ETag, blob id, Xet, historial
-destruible) se revisarán entonces, bajo demanda.
+```plantuml
+@startuml
+start
+if (¿Usar archivos existentes de otra herramienta?) then (sí)
+  :Registrar alias y rutas externas;
+  :Sin copiar, mover, crear enlaces físicos
+ni consultar Hugging Face;
+  :Seguimiento remoto: no aplica;
+else (no)
+  :Elegir origen y archivos remotos;
+  :Fijar un commit para la descarga;
+  :Descargar y verificar la selección completa;
+  :Registrar archivos gestionados
+y evidencia de descarga;
+endif
+:Disponible para referenciar desde configuraciones;
+stop
+@enduml
+```
 
-El registro futuro debe distinguir al menos dos **propósitos de evidencia**: comprobar
-la integridad de los bytes locales desde su incorporación y comparar esos bytes con una
-identidad de contenido publicada por el origen, cuando exista. No se presupone que un
-hash corto sea comparable con Hugging Face ni que ambos propósitos requieran algoritmos
-distintos. La comparación remota debe ser fehaciente, no una coincidencia heurística;
-el cálculo de integridad completo puede ser una operación costosa y explícita. El
-algoritmo, dominio, costo y persistencia de cada evidencia se decidirán en esa etapa.
+Registrar un externo no requiere identificar su revisión remota ni calcular un hash
+completo. Basta la referencia del catálogo a sus rutas: no necesita symlinks ni hardlinks.
+Si otra herramienta mueve, elimina o reemplaza esos archivos, Coquena informa lo que
+observa; no los repara, actualiza ni adopta automáticamente.
+
+La búsqueda de equivalentes es **opcional y asistida**: nombre de archivo y metadatos
+GGUF permiten proponer candidatos, no demostrar identidad de contenido ni revisión.
+No se recorren exhaustivamente repositorios o historiales para reconstruir procedencia.
+El usuario puede conservar el registro externo o elegir una descarga gestionada para
+tener seguimiento; esa descarga deja intactos los archivos externos. El comando y la
+ergonomía de esta búsqueda quedan pendientes.
+
+## Seguimiento y actualización de gestionados
+
+El registro conserva el repositorio, la referencia seguida (normalmente una rama como
+`main`), la selección de archivos, el commit de descarga y, por archivo, rutas, tamaño
+e identidad de contenido con su tipo. Conserva por separado el resultado y momento de
+la última consulta y la revisión candidata. No confunde revisión instalada con consultada.
+
+Se sigue el repositorio que publica los archivos seleccionados: actualizar el modelo
+original no implica que un tercero haya regenerado su GGUF. El alias local no cambia
+al actualizar los pesos.
+
+```plantuml
+@startuml
+start
+:model update;
+if (¿Registro externo?) then (sí)
+  :Informar que el seguimiento no aplica;
+  stop
+endif
+:Resolver referencia a un commit concreto;
+:Consultar inventario y metadatos remotos;
+no descargar pesos ni clonar el repositorio;
+:Comparar con el inventario registrado;
+if (¿Correspondencia suficiente?) then (no)
+  :Guardar diagnóstico y candidatos;
+requiere intervención;
+else (sí)
+  :Guardar resultado:
+sin cambios o actualización disponible;
+endif
+:Conservar intacta la instalación;
+stop
+@enduml
+```
+
+### Reglas de correspondencia
+
+| Observación | Resultado |
+|---|---|
+| Misma ruta y contenido | Sin cambios |
+| Misma ruta, contenido diferente | Actualización disponible |
+| Ruta desaparecida y una única coincidencia exacta de contenido en otra | Reubicación identificada, sin volver a descargar |
+| Varias ubicaciones posibles | Pedir cuál seguir |
+| Ruta desaparecida y candidatos con contenido diferente | Proponer candidatos, sin afirmar sucesión |
+
+Nombre, tamaño similar o eliminación y alta en el mismo commit son pistas, no pruebas.
+No se cambia automáticamente de cuantización. En un modelo dividido se resuelve el
+conjunto completo; no basta identificar un shard. La historia remota sólo se consulta
+de forma acotada cuando aporte evidencia útil: el flujo normal compara inventarios.
+
+`model update [alias]` consulta y guarda novedades; no cambia pesos ni su revisión de
+descarga. Puede registrar una reubicación inequívoca sin alterar las rutas locales.
+Un externo explícito informa que no aplica. El alcance sin alias queda por precisar.
+
+Una consulta fallida significa **no se pudo comprobar**; una correspondencia ambigua,
+**requiere intervención**. Ninguna equivale a «actualizado» ni necesariamente a
+«desactualizado». Se conserva la última observación con su fecha, sin presentarla como
+una comprobación actual.
+
+`model upgrade [alias]` aplica la revisión concreta detectada por `update`, no una
+revisión nueva elegida silenciosamente. Reutiliza archivos sin cambios, descarga los
+nuevos o modificados y verifica el conjunto antes de activarlo. Si falla, conserva la
+instalación anterior; nunca publica una mezcla de shards de revisiones distintas.
+Los casos que requieren intervención se informan sin sustituir sus archivos.
+El alcance sin alias queda por precisar.
+
+La reutilización por archivo es el criterio inicial. La transferencia diferencial por
+bloques es una optimización posterior, no un requisito para detectar actualizaciones.
+Quedan pendientes las reglas de aplicación con modelos en uso, para la revisión de
+servidores e instanciación.
+
+## Integridad local
+
+Al descargar se calcula y registra evidencia de integridad y se contrasta con la
+identidad de contenido remoto cuando sea comparable. La comprobación posterior lee los
+archivos completos y compara contra esa referencia. Registra el resultado y su fecha:
+no certifica indefinidamente que el disco sigue intacto.
+
+Una discrepancia se informa **sin sustituir el hash de referencia por el del archivo
+alterado**. `refresh` no restablece esa referencia ni declara integridad.
+
+En externos, establecer una referencia de integridad es opcional y explícito. Sólo
+permite afirmar después «no cambió desde aquella lectura», no que la descarga original
+fuera correcta o coincidiera con Hugging Face. No es requisito para registrarlos.
+
+Seguimiento remoto e integridad tienen propósitos distintos, pero pueden compartir
+algoritmo cuando corresponda. No se inventa un hash corto ni se confunden commit,
+identificador Git, ETag y hash de los bytes. La elección técnica y la superficie del
+comando de verificación quedan pendientes.
+
+## Límites del catálogo
+
+- No reconstruir obligatoriamente la procedencia de externos ni recorrer historiales exhaustivos.
+- No escribir sidecars por archivo o shard.
+- No descargar ni reconciliar companions automáticamente.
+- No deducir cambios de pesos solamente de un commit distinto.
+- No mezclar seguimiento remoto, integridad y disponibilidad en un estado único.
+
+La incorporación externa y la búsqueda asistida son independientes.
+El [administrador de descargas](descargas.md) especifica transferencias, seguimiento
+por archivo, pausa, reanudación, cancelación y recuperación.
+## Referencias técnicas
+
+- [Hugging Face: inventarios y metadatos por revisión](https://huggingface.co/docs/huggingface_hub/package_reference/hf_api#huggingface_hub.HfApi.list_repo_tree).
+- [Hugging Face: revisión, ETag y metadatos de descarga](https://huggingface.co/docs/huggingface_hub/package_reference/file_download).
+- [GGUF: metadatos y referencias de origen](https://github.com/ggml-org/ggml/blob/master/docs/gguf.md).
