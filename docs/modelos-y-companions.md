@@ -158,6 +158,12 @@ propiedad de archivos compartidos y eliminaciones parciales siguen pendientes.
 
 ## Companions
 
+Companion es la categoría auxiliar; `mmproj` es un proyector multimodal de visión/audio,
+no el nombre de toda la categoría. Registro, listado, refresh, update, upgrade,
+integridad y eliminación reutilizan las reglas de modelos bajo `model companion`.
+La descarga selecciona `usuario/repositorio#tipo[:cuantización]` con el mismo menú,
+limitado al tipo solicitado; no descarga el principal ni configura un preset.
+
 Un companion tiene **exactamente los mismos estados** que un modelo. Lo propio del
 companion no es su estado sino su relación con los modelos:
 
@@ -228,7 +234,9 @@ de forma acotada cuando aporte evidencia útil: el flujo normal compara inventar
 
 `model update [nombre]` consulta y guarda novedades; no cambia pesos ni su revisión de
 descarga. Puede registrar una reubicación inequívoca sin alterar las rutas locales.
-Un externo explícito informa que no aplica. El alcance sin nombre queda por precisar.
+Un externo explícito informa que no aplica. Sin nombre, consulta todos los gestionados
+del catálogo, incluidos companions; los externos se omiten indicando que no aplica.
+`model companion update` sin nombre limita esa consulta a companions.
 
 Una consulta fallida significa **no se pudo comprobar**; una correspondencia ambigua,
 **requiere intervención**. Ninguna equivale a «actualizado» ni necesariamente a
@@ -240,7 +248,11 @@ revisión nueva elegida silenciosamente. Reutiliza archivos sin cambios, descarg
 nuevos o modificados y verifica el conjunto antes de activarlo. Si falla, conserva la
 instalación anterior; nunca publica una mezcla de shards de revisiones distintas.
 Los casos que requieren intervención se informan sin sustituir sus archivos.
-El alcance sin nombre queda por precisar.
+Sin nombre, aplica los planes de actualización resueltos de todos los gestionados del
+catálogo, incluidos companions. No sustituye update ni selecciona una revisión nueva.
+Informa unidades sin cambios, externas, ambiguas o fallidas sin impedir tratar las demás.
+`model companion upgrade` sin nombre limita la operación a companions. No es una
+transacción global: cada unidad se publica completa o conserva su instalación anterior.
 
 La reutilización por archivo es el criterio inicial. La transferencia diferencial por
 bloques es una optimización posterior, no un requisito para detectar actualizaciones.
@@ -248,6 +260,11 @@ Quedan pendientes las reglas de aplicación con modelos en uso, para la revisió
 servidores e instanciación.
 
 ## Integridad local
+
+El algoritmo local acordado es **SHA-256 completo por archivo**.
+`model verify <nombre>` y `model companion verify <nombre>` verifican la unidad
+seleccionada, sin red. Informan por archivo y por conjunto, distinguiendo discrepancia,
+error de lectura y ausencia de referencia. No reparan ni crean una referencia implícita.
 
 Al descargar se calcula y registra evidencia de integridad y se contrasta con la
 identidad de contenido remoto cuando sea comparable. La comprobación posterior lee los
@@ -260,11 +277,16 @@ alterado**. `refresh` no restablece esa referencia ni declara integridad.
 En externos, establecer una referencia de integridad es opcional y explícito. Sólo
 permite afirmar después «no cambió desde aquella lectura», no que la descarga original
 fuera correcta o coincidiera con Hugging Face. No es requisito para registrarlos.
+Se realiza con `model verify <nombre> --set-baseline` o su equivalente bajo
+`model companion`. Calcula SHA-256 completos y registra la fecha; advierte el alcance
+de esa base. El flag expresa creación o sustitución explícita de la referencia del
+externo, no una verificación exitosa contra otra referencia. Lecturas fallidas o cambios
+detectados durante la lectura no producen una base completa exitosa. En gestionados
+se rechaza el flag: no se rebasan los hashes establecidos al descargar.
 
 Seguimiento remoto e integridad tienen propósitos distintos, pero pueden compartir
 algoritmo cuando corresponda. No se inventa un hash corto ni se confunden commit,
-identificador Git, ETag y hash de los bytes. La elección técnica y la superficie del
-comando de verificación quedan pendientes.
+identificador Git, ETag y hash de los bytes. Verify nunca establece una base por omisión.
 
 ## Límites del catálogo
 

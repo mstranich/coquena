@@ -92,7 +92,7 @@ un hash de archivo. No comparar un hash de puntero Git con un SHA-256 de los pes
 ETag es evidencia del transporte que debe interpretarse según su contrato, no por su
 longitud. La ausencia de identidad comparable produce incertidumbre, no igualdad.
 
-Propuesta: SHA-256 completo como referencia de integridad local, calculado durante la
+SHA-256 completo es la referencia de integridad local acordada, calculada durante la
 escritura de la descarga sin una segunda lectura obligatoria. Contrastar con el digest
 remoto sólo si representa esos mismos bytes y algoritmo. Xet no obliga a implementar
 su algoritmo interno para usar una descarga convencional.
@@ -275,10 +275,11 @@ Antes de la entrega afectada, resolver con el usuario:
    (modelos y backends) pertenece a una iteración posterior; no añadir un comando de
    directorio al catálogo para anticiparla.
 4. Compartición de archivos, eliminación parcial y cálculo real de espacio liberado.
-5. Confirmar SHA-256 local y tratamiento de identidades remotas no comparables.
-6. Comandos de descarga/verificación/búsqueda y alcance de update/upgrade sin nombre;
-   actualización de companions y resolución manual de sucesores.
-   Precisar búsqueda y alta de companions, confirmar y guardar emparejamientos,
+5. Tratamiento técnico de identidades remotas no comparables; SHA-256 local ya está acordado.
+6. Sintaxis de búsqueda. La base explícita de externos usa verify --set-baseline;
+   no certifica procedencia ni aplica a gestionados.
+   resolución manual de sucesores. Companions reutilizan las reglas y comandos de modelos.
+   Confirmar y guardar emparejamientos,
    inspección de repositorios sin GGUF y comportamiento sin entrada interactiva.
    El menú de descarga de modelos ya está acordado; no reabrirlo como pendiente.
 7. Autenticación y alcance inicial para repositorios privados o con acceso restringido;
@@ -286,9 +287,10 @@ Antes de la entrega afectada, resolver con el usuario:
 8. Modelos en uso durante activación/eliminación, al abordar servidores; política de
    conservación de instalaciones anteriores y adaptación de las operaciones de descarga
    existentes a conjuntos de archivos (véase descargas.md).
-9. Descargas: IDs internos de archivos y control individual frente a control por GUID
-   de operación; filtros de CLI; concurrencia y propiedad de ejecutores; límites y
-   reintentos; reinicio seguro si Range no permite continuar; historial y limpieza terminal.
+9. Descargas: IDs internos de archivos; mecanismo de exclusión y propiedad de ejecutores; límites y
+   reintentos y formato del log de transacciones. Operaciones terminadas y limpiadas
+   se eliminan, sin historial de objetos. El reinicio ante Range no soportado
+   requiere aceptación explícita y conserva selección, GUID y archivos ya verificados.
 10. Configuración: creación/representación de la raíz del modelo cuando está vacía;
     distinción en el catálogo entre opciones CLI, INI y del router; selección de catálogo
     por origen/backend en consultas `param` (no sólo por build).
