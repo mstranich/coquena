@@ -15,7 +15,8 @@
 left to right direction
 actor Usuario
 actor "Cliente de\ninferencia" as Cliente
-actor "Distribución" as GH
+actor "Distribución oficial" as GH
+actor "Hugging Face" as HF
 
 rectangle Coquena {
   package Máquina {
@@ -30,18 +31,26 @@ rectangle Coquena {
     usecase "Elegir familia\nsegún hardware" as UC_VAR
   }
   package Modelos {
-    usecase "Configurar directorio\nde modelos" as UC_MD
+    usecase "Descargar modelo\nelegir variante / ver README" as UC_DL
+    usecase "Consultar novedades (update)" as UC_UP
+    usecase "Aplicar actualización (upgrade)" as UC_UG
+    usecase "Verificar integridad local" as UC_V
+    usecase "Retirar modelo o companion" as UC_RM
     usecase "Registrar modelo externo" as UC_MR
     usecase "Registrar companion externo" as UC_CR
     usecase "Listar modelos" as UC_ML
   }
   package Configuración {
-    usecase "Definir servidor\n(presets, puerto,\nfamilia opcional)" as UC_ID
+    usecase "Definir servidor (borrador)\n(presets, puerto,\nfamilia opcional)" as UC_ID
     usecase "Editar configuración\nglobal / de familia /\nde modelo" as UC_IG
     usecase "Definir / editar /\neliminar preset" as UC_PD
     usecase "Clonar configuración\no preset" as UC_PC
   }
-  package Instancias {
+  package "Descargas" {
+    usecase "Consultar progreso y filtrar" as UC_DLIST
+    usecase "Pausar / reanudar / cancelar" as UC_DCTRL
+  }
+  package "Instancias (borrador)" {
     usecase "Iniciar instancia" as UC_IS
     usecase "Detener instancia" as UC_IX
     usecase "Ver estado (ps)" as UC_IP
@@ -55,7 +64,17 @@ Usuario --> UC_BI
 Usuario --> UC_BL
 Usuario --> UC_BD
 Usuario --> UC_BE
-Usuario --> UC_MD
+Usuario --> UC_DL
+Usuario --> UC_UP
+Usuario --> UC_UG
+Usuario --> UC_V
+Usuario --> UC_RM
+Usuario --> UC_DLIST
+Usuario --> UC_DCTRL
+UC_DL --> HF
+UC_UP --> HF
+UC_UG --> HF
+UC_MR --> HF : intento de emparejamiento
 Usuario --> UC_MR
 Usuario --> UC_CR
 Usuario --> UC_ML
@@ -82,52 +101,16 @@ end note
 @enduml
 ```
 
-## Notas por caso
+## Lectura del mapa
 
-**Instalar build.** Si el usuario no indica familia, Coquena comprueba el hardware,
-elige automáticamente una opción compatible e informa que fue una elección por defecto,
-enumerando las alternativas. `latest` es el build más reciente **con un candidato
-compatible dentro del filtro pedido**: sin familia, CPU `b10010` gana a CUDA `b10009`;
-con filtro CUDA se elige `b10009`. Sólo entre candidatos del mismo build, en una GPU
-NVIDIA se prefiere la familia CUDA compatible con mayor versión de bibliotecas y
-después Vulkan; CPU queda como fallback compatible con la arquitectura
-nativa. El usuario puede pedir otra opción, incluida `cpu`. La instalación incluye las dependencias declaradas por el artefacto seleccionado; si un release distribuye las bibliotecas CUDA por separado, deben resolverse como parte de esa instalación.
-Un candidato con aceleración `unknown` o `incompatible` no se elige automáticamente,
-pero puede instalarse mediante selección explícita si corresponde al SO y arquitectura
-nativos y supera `llama-server --version`. Coquena informa el estado y su motivo. Un
-binario de otra plataforma se rechaza: no hay descargas desligadas del uso local.
+- Backends: selección, compatibilidad y comandos en [comandos.md](comandos.md#convenciones).
+- Modelos: registro, emparejamiento, actualización e integridad en
+  [modelos-y-companions.md](modelos-y-companions.md).
+- Descargas: progreso, control y recuperación en [descargas.md](descargas.md).
+- Configuración y presets: herencia y referencias en [modelo-de-datos.md](modelo-de-datos.md#dos-ejes-de-herencia).
+- Servidores e instancias: borradores; todavía no autorizan implementación.
+- Elegir ubicaciones distintas para configuración y archivos pesados se difiere; no es
+  un caso de uso del catálogo de modelos.
 
-**Registrar backend externo.** El usuario puede incorporar un binario que compiló o
-instaló por su cuenta. Coquena exige que `llama-server --version` termine correctamente
-y devuelva una versión reconocible; no hace una prueba de inferencia. El usuario
-declara la familia (`cpu`, `vulkan`, `cuda@12`, …): el sondeo no la verifica y Coquena no
-la deduce del nombre de la carpeta. Registra su
-ubicación y le asigna un ID estable, pero no lo mueve ni lo borra al retirarlo. En
-cambio, al desinstalar un backend descargado por Coquena se borran sus archivos y se
-informan los bytes liberados. La sintaxis propuesta es `backend register`.
-
-**Distribuciones de terceros.** En el núcleo Coquena sólo consulta y descarga releases
-oficiales de `ggml-org`. El usuario obtiene por su cuenta otros binarios y los registra
-como externos; nunca participan en la selección automática. Incorporar sus repositorios
-como orígenes de confianza queda para otra etapa.
-
-**Varias familias a la vez.** En una máquina con GPU NVIDIA y AMD pueden correr dos
-instancias simultáneas: una con `cuda@13` y otra con `vulkan`, en puertos distintos.
-
-**Registrar modelo externo.** Coquena guarda la ruta del GGUF sin copiarlo ni moverlo. El
-directorio de modelos es sólo el destino de lo que Coquena descarga (iteración posterior).
-Un modelo puede comprender varios shards; registrarlo y retirarlo se hace como unidad.
-Retirar uno externo deja sus archivos intactos; retirar uno gestionado borra todos sus
-archivos propios e informa el espacio liberado.
-
-**Clonar configuración o preset.** Reutiliza un ajuste fino en otro modelo o familia.
-Un preset clonado copia sus valores propios, incluidas referencias a companions, y
-hereda del modelo destino. Es independiente del preset origen y no duplica archivos.
-
-**Iniciar instancia.** Sin backend explícito, Coquena elige el build instalado más
-reciente compatible; entre candidatos de ese build aplica la preferencia de backend.
-Informa la elección y las alternativas. Arranca aunque falten archivos de algún preset
-(avisa y lo omite) mientras quede al menos uno alcanzable. Coquena genera el INI en ese
-momento, dentro de su home. Como
-`docker run`: en primer plano queda adjunto mostrando logs; en modo daemon se desacopla y
-Coquena guarda el PID para gestionarla después.
+El cliente de inferencia consume llama-server, no una API de Coquena.
+La verificación local no usa red; sólo los casos remotos se relacionan con Hugging Face.

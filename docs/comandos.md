@@ -42,6 +42,11 @@ gestión y de Docker para la ejecución. Los nombres son borrador.
 
 Todos los comandos se invocan con el prefijo `coquena`, omitido en los diagramas.
 
+Las descargas y reanudaciones de modelos, companions y backends ocupan la terminal
+en primer plano. Ctrl+C pausa sin borrar parciales y muestra el GUID de la operación
+y `coquena download resume <guid>` antes de devolver el prompt. No equivale a
+`download cancel`, que solicita limpiar los parciales.
+
 ### `system`
 
 Inspecciona el hardware y la plataforma para informar las opciones de ejecución.
@@ -70,15 +75,16 @@ Consulta, instala y registra backends de llama.cpp; también permite retirarlos.
 
 ### `model`
 
-Registra modelos y companions, consulta su estado y gestiona su directorio.
+Registra y descarga modelos y companions, y consulta su estado.
 
 ```plantuml
 @startmindmap
 * model
-** dir [<ruta>]
-** add <ruta.gguf> [<alias>]
+** add <ruta.gguf> [<alias>] [--try-match <usuario/repositorio>]
+** download <usuario/repositorio> [<cuantización>] [--alias <alias>]
 ** companion
 *** add <ruta.gguf> [<alias>] --type <tipo>
+*** download (selección remota por definir)
 *** remove <alias>
 ** list
 ** refresh <alias-modelo>
@@ -96,12 +102,51 @@ se usa como alias inicial; un alias ya ocupado se rechaza, sin sobrescribir otro
 `--type` declara su papel (por ejemplo, `mmproj` o `draft`). `remove` retira el registro
 por alias: borra archivos gestionados, pero conserva los externos.
 
-El registro de archivos externos no copia pesos, crea enlaces físicos ni consulta la
-red. No requiere reconciliación con Hugging Face y queda fuera de las actualizaciones.
+El registro externo no copia pesos ni crea enlaces físicos. Intenta buscar equivalentes
+en Hugging Face con metadatos locales y un repositorio opcional para orientar la búsqueda
+(`--try-match usuario/repositorio`). Un fallo de red o la ausencia de
+coincidencias no invalida el registro. Emparejar no habilita actualizaciones del externo.
 `update` consulta metadatos y guarda novedades; `upgrade` aplica la revisión detectada
 sólo a gestionados. Las reglas están en [modelos-y-companions.md](modelos-y-companions.md).
-La superficie de descarga, búsqueda asistida, verificación y actualización de companions
-queda pendiente; no se presupone una reconciliación ni una descarga conjunta obligatoria.
+`model download` busca en Hugging Face la cuantización del repositorio indicado y
+descarga sólo esa unidad, incluidos todos sus shards. La cuantización es opcional;
+se propone `--alias` para evitar confundir alias y cuantización posicionales.
+Antes de crear la operación presenta un único menú repetible:
+
+- **Con cuantización:** descargar la selección indicada, mostrar README o cancelar.
+- **Sin cuantización:** una opción «Descargar <variante>» por candidato, mostrar README
+  o cancelar. Elegir una variante inicia la descarga, sin una segunda confirmación.
+- Mostrar README consulta la documentación del repositorio en la revisión resuelta y
+  vuelve al mismo menú. No descarga pesos; si falla o no existe, informa y vuelve.
+- Cancelar en este menú no crea GUID, trabajo ni parciales; no es Ctrl+C de una descarga
+  activa. Una cuantización inexistente se informa, sin sustituirla automáticamente.
+- Si una etiqueta identifica varias variantes, mostrar sus diferencias para una selección
+  explícita; no adivinar. Etiquetar cada opción de inicio como descarga, no como inspección.
+
+El README se consulta sólo al solicitarlo. No se descarga por defecto con los pesos.
+No encola companions. `model companion download` es otra invocación independiente,
+incluso otro día; su búsqueda y argumentos quedan por definir. Descargarlo no lo asocia
+automáticamente a un preset. La verificación y actualización de companions también
+requieren completar su superficie de comandos.
+
+### `download`
+
+Consulta y controla operaciones por GUID. Estados, persistencia y recuperación se
+definen en [descargas.md](descargas.md); no inicia selecciones nuevas.
+
+```plantuml
+@startmindmap
+* download
+** list
+** status [<guid>]
+** pause <guid>
+** resume <guid>
+** cancel <guid>
+@endmindmap
+```
+
+Las vistas filtradas por modelo/backend y las acciones sobre archivos individuales
+siguen pendientes de gramática. No inventar variantes por analogía con otros comandos.
 
 ### `param`
 
@@ -169,6 +214,11 @@ los parámetros de `config`, no con una lista de asociaciones separada.
 @endmindmap
 ```
 
+## Ejecución: borrador no aprobado
+
+Las siguientes secciones requieren revisión al abordar servidores; no autorizan
+implementación ni fijan políticas de omisión de presets, eliminación en uso o limpieza.
+
 ### `server`
 
 Registra la composición de presets que ofrecerá un router y sus opciones de lanzamiento.
@@ -224,18 +274,13 @@ Detiene la instancia identificada por su ID.
 @endmindmap
 ```
 
-## Correspondencias
-
-| Coquena | Análogo | Nota |
-|---|---|---|
-| `backend install` | `sdk install java 21-tem`, `fnm install --lts` | sin argumentos elige familia por hardware y último release |
-| `backend list` / `remote` | `sdk list java`, `fnm ls-remote` | |
-| `model add` | `sdk install java x /ruta/local` | registra sin copiar |
-| `config set` sin ámbito | configuración global | con `--family` o `--model`, el ámbito correspondiente |
-| `run` / `run -d` | `docker run` / `docker run -d` | genera el INI y lanza `llama-server` |
-| `ps`, `logs -f`, `stop` | `docker ps`, `docker logs -f`, `docker stop` | |
-
 ## Home
+
+El objetivo es separar una ubicación de configuración de otra para los archivos pesados
+gestionados (modelos, companions y backends). Configurar esas ubicaciones se abordará
+en una iteración posterior, dentro de la configuración de Coquena, no del catálogo
+de modelos ni de los parámetros de inferencia. No se define todavía su comando,
+migración ni una disposición física obligatoria para la primera iteración.
 
 No hay comando `init`. El home se resuelve así (`COQUENA_HOME` primero, porque es una
 decisión explícita del usuario):
@@ -258,7 +303,7 @@ stop
 @enduml
 ```
 
-## Reglas
+## Reglas de ejecución (borrador)
 
 - `run` siempre ejecuta un **servidor registrado** con un **backend instalado**; no existe
   un lanzamiento ad hoc de un preset suelto.
@@ -266,7 +311,3 @@ stop
   nombre del servidor; varias instancias del mismo servidor pueden convivir sólo con
   puertos distintos. El puerto del servidor es el predeterminado y `--port` permite
   elegir otro para ese lanzamiento.
-- `model remove` y `backend uninstall` borran los archivos **gestionados por Coquena**
-  junto con su registro e informan los bytes liberados. Si el registro es externo,
-  quitan sólo el registro y avisan que los archivos permanecen en disco. La misma regla
-  se aplica a `model companion remove`.

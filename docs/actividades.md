@@ -1,6 +1,9 @@
-# Diagramas de actividades
+# Actividades complementarias
 
-## Instalar una versión de backend
+Los flujos de modelos y descargas se describen en [secuencias.md](secuencias.md).
+Aquí sólo se conservan actividades complementarias y borradores de ejecución.
+
+## Selección e instalación de backend
 
 ```plantuml
 @startuml
@@ -39,7 +42,7 @@ if (¿ya está instalada?) then (sí)
   stop
 endif
 :Descargar;
-:Descomprimir en el home;
+:Verificar artefactos y extraer en preparación;
 :Sondear llama-server --version;
 if (¿responde?) then (sí)
   :Asignar ID único y registrar\nel backend instalado;
@@ -81,7 +84,10 @@ El sondeo valida el ejecutable, no demuestra compatibilidad con una GPU, no veri
 la familia declarada ni hace una prueba de inferencia. Coquena no infiere la familia
 del nombre de la carpeta. Al retirarlo sólo se borra su registro.
 
-## Iniciar una instancia
+## Iniciar una instancia (borrador)
+
+Este flujo requiere revisión con el usuario; omisión de presets, modos y limpieza
+no son reglas cerradas.
 
 ```plantuml
 @startuml
@@ -138,7 +144,7 @@ if (¿queda al menos un preset\nalcanzable?) then (no)
   stop
 endif
 :Evaluar parámetros contra\nel catálogo de la versión;
-if (¿hay parámetros no admitidos?) then (sí)
+if (¿hay parámetros no admitidos\no desconocidos?) then (sí)
   :Avisar (consultivo);
 endif
 :Asignar ID de instancia;
@@ -167,7 +173,7 @@ Coquena no queda en ejecución para regenerarlo. Cada lanzamiento usa su propio 
 (p. ej. `run/<servidor>/<id>.ini`) para que dos instancias no se pisen, y se borra al
 detener la instancia.
 
-## Detener una instancia
+## Detener una instancia (borrador)
 
 ```plantuml
 @startuml
@@ -185,54 +191,6 @@ endif
 stop
 @enduml
 ```
-
-## Registrar un modelo externo
-
-```plantuml
-@startuml
-start
-:Usuario indica un GGUF principal\no un conjunto de shards;
-if (¿existe y es GGUF legible?) then (no)
-  :Rechazar;
-  stop
-endif
-if (¿es parte de un conjunto de shards?) then (sí)
-  :Verificar que estén todos;
-endif
-if (¿ya está registrado?) then (sí)
-  :Informar y terminar;
-  stop
-endif
-:Leer metadatos del encabezado\n(arquitectura, cuantización);
-:Registrar la unidad completa\nsin copiar ni mover archivos;
-stop
-@enduml
-```
-
-## Retirar un modelo o backend
-
-```plantuml
-@startuml
-start
-:Resolver la unidad registrada;
-if (¿está en uso por una instancia?) then (sí)
-  :Rechazar; primero detener la instancia;
-  stop
-endif
-if (¿archivos gestionados por Coquena?) then (sí)
-  :Borrar todos sus archivos propios\ny retirar el registro;
-  :Informar los bytes liberados;
-else (no, externos)
-  :Retirar sólo el registro;
-  :Avisar que los archivos permanecen;
-endif
-stop
-@enduml
-```
-
-La eliminación de un conjunto de shards no debe dejar una parte registrada como modelo
-completo. Si otro registro comparte alguno de sus archivos, la regla de propiedad se
-resolverá antes de implementar la eliminación gestionada.
 
 ## Clonar un preset
 

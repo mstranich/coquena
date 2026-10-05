@@ -1,6 +1,6 @@
 # Modelo de datos
 
-Diagrama de clases del dominio del núcleo. No define persistencia ni tecnología.
+Relaciones del dominio, sin fijar persistencia ni clases C#. Ejecución sigue en borrador.
 
 Coquena tiene **su propio modelo interno**. Los archivos INI de `llama-server` no son
 parte de él: se **generan** en cada lanzamiento, a partir de ese modelo, y duran lo que
@@ -47,7 +47,7 @@ package Backends {
 
 package Modelos {
   class DirectorioDeModelos {
-    ruta <<definida por el usuario>>
+    ruta <<área gestionada; configuración posterior>>
   }
   class Modelo {
     alias <<catálogo local>>
@@ -57,7 +57,7 @@ package Modelos {
   class Companion {
     alias <<catálogo local>>
     tipo : mmproj | draft | …
-    ruta GGUF
+    ruta(s) GGUF
     origen : gestionado | externo
   }
 }
@@ -122,6 +122,40 @@ note bottom of Instancia
   Sin filtro explícito, el build compatible
   más reciente; entre candidatos de ese build,
   preferencia de backend.
+end note
+@enduml
+```
+
+La configuración de un modelo puede estar vacía. Antes de implementar presets debe
+definirse cómo se representa o crea su raíz de herencia; la cardinalidad opcional no
+autoriza a dejar un preset sin configuración efectiva.
+
+## Catálogo y seguimiento: estructura conceptual propuesta
+
+Los campos y significados se definen una sola vez en
+[la guía técnica](implementacion-catalogo-modelos.md#2-datos-mínimos-y-significado).
+
+```plantuml
+@startuml
+hide empty methods
+class EntradaDeCatalogo {
+  alias
+  propiedad : gestionado | externo
+}
+class Instalacion
+class ArchivoLocal
+class OrigenSeguido
+class ConsultaRemota
+class PlanDeActualizacion
+EntradaDeCatalogo "1" --> "1" Instalacion : activa
+Instalacion "1" o-- "1..*" ArchivoLocal
+EntradaDeCatalogo "1" --> "0..1" OrigenSeguido : sólo gestionados
+OrigenSeguido --> ConsultaRemota : observa
+ConsultaRemota --> "0..1" PlanDeActualizacion : si resuelto
+PlanDeActualizacion --> Instalacion : parte de
+note right of EntradaDeCatalogo
+  Modelo o companion.
+  Emparejar un externo no crea seguimiento.
 end note
 @enduml
 ```
@@ -203,8 +237,9 @@ S ..> N : llama-server\nhereda
   `familia + build` es sólo un atajo cuando resuelve a uno.
 - **Instancias.** Cada lanzamiento tiene ID y puerto efectivos propios; el puerto del
   servidor es sólo el valor predeterminado. Dos instancias no comparten puerto ni INI.
-- **Distribuciones.** En el núcleo sólo `ggml-org` es origen de descubrimiento y
-  descarga. Un tercero puede aportar un binario, pero el usuario lo registra como
+- **Distribuciones de backends.** Sólo `ggml-org` es origen de descubrimiento y
+  descarga de binarios. Hugging Face es el origen de modelos, no esta distribución.
+  Un tercero puede aportar un binario, pero el usuario lo registra como
   externo y lo selecciona explícitamente. Agregar repositorios de terceros como
   orígenes de confianza queda para después. Identificarlos para asociar parámetros no
   implica consultarlos, descargar de ellos ni verificar la procedencia del binario.

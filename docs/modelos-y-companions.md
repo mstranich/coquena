@@ -24,6 +24,11 @@ independiente y opcional: no se descarga por acompañar al modelo en el reposito
 Coquena descarga sólo la selección solicitada y sus shards necesarios, no el repositorio
 completo.
 
+La selección inicial y el menú de descarga están en [comandos.md](comandos.md#model).
+Cada companion se descarga en otra invocación; no se presupone su repositorio ni
+compatibilidad. Los algoritmos y las interacciones se detallan en la guía técnica
+y en secuencias.md.
+
 ## Identificación en el catálogo local
 
 Modelos y companions se seleccionan por **alias**, no por sus rutas ni por búsquedas
@@ -54,11 +59,6 @@ de lo registrado, Coquena avisa y no bloquea. La consulta no actualiza el regist
 afirma que los bytes sigan íntegros. El registro se actualiza sólo cuando el usuario
 lo pide, con `model refresh`, que relee los metadatos necesarios y anota el tamaño y la
 fecha actuales.
-
-Es la misma separación que `git fetch` / `git pull` o `apt update` / `apt upgrade`:
-observar y avisar es barato y automático; cambiar lo registrado es explícito. En la
-iteración de la biblioteca el par se repite contra el repositorio remoto (`update`
-observa, `upgrade` reemplaza bytes).
 
 ## Quitar un modelo o companion
 
@@ -102,42 +102,24 @@ deriva de la disponibilidad de sus archivos:
 - **Servible:** su modelo y los companions referenciados por su configuración efectiva
   están disponibles. No garantiza que el backend consiga cargarlos.
 - **No servible:** alguno no está disponible, o la referencia está rota porque se quitó
-  del registro. Al iniciar, el preset se omite con aviso; el servidor arranca si queda al
-  menos uno servible.
+  del registro. La decisión de omitirlo o rechazar el lanzamiento queda para servidores.
 
 ## Incorporación: externo o gestionado
-
-```plantuml
-@startuml
-start
-if (¿Usar archivos existentes de otra herramienta?) then (sí)
-  :Registrar alias y rutas externas;
-  :Sin copiar, mover, crear enlaces físicos
-ni consultar Hugging Face;
-  :Seguimiento remoto: no aplica;
-else (no)
-  :Elegir origen y archivos remotos;
-  :Fijar un commit para la descarga;
-  :Descargar y verificar la selección completa;
-  :Registrar archivos gestionados
-y evidencia de descarga;
-endif
-:Disponible para referenciar desde configuraciones;
-stop
-@enduml
-```
 
 Registrar un externo no requiere identificar su revisión remota ni calcular un hash
 completo. Basta la referencia del catálogo a sus rutas: no necesita symlinks ni hardlinks.
 Si otra herramienta mueve, elimina o reemplaza esos archivos, Coquena informa lo que
 observa; no los repara, actualiza ni adopta automáticamente.
 
-La búsqueda de equivalentes es **opcional y asistida**: nombre de archivo y metadatos
+El alta **intenta buscar equivalentes**: nombre de archivo y metadatos
 GGUF permiten proponer candidatos, no demostrar identidad de contenido ni revisión.
 No se recorren exhaustivamente repositorios o historiales para reconstruir procedencia.
+El usuario puede indicar `usuario/repositorio` para orientar el intento; si lo omite,
+se usan pistas locales sin exigir metadatos parametrizados. No encontrar coincidencia
+o no poder consultar la red no deshace el registro. La confirmación y persistencia del
+emparejamiento quedan pendientes; emparejar no habilita actualizaciones del externo.
 El usuario puede conservar el registro externo o elegir una descarga gestionada para
-tener seguimiento; esa descarga deja intactos los archivos externos. El comando y la
-ergonomía de esta búsqueda quedan pendientes.
+tener seguimiento; esa descarga deja intactos los archivos externos. La confirmación y persistencia del emparejamiento siguen pendientes.
 
 ## Seguimiento y actualización de gestionados
 
@@ -149,30 +131,6 @@ la última consulta y la revisión candidata. No confunde revisión instalada co
 Se sigue el repositorio que publica los archivos seleccionados: actualizar el modelo
 original no implica que un tercero haya regenerado su GGUF. El alias local no cambia
 al actualizar los pesos.
-
-```plantuml
-@startuml
-start
-:model update;
-if (¿Registro externo?) then (sí)
-  :Informar que el seguimiento no aplica;
-  stop
-endif
-:Resolver referencia a un commit concreto;
-:Consultar inventario y metadatos remotos;
-no descargar pesos ni clonar el repositorio;
-:Comparar con el inventario registrado;
-if (¿Correspondencia suficiente?) then (no)
-  :Guardar diagnóstico y candidatos;
-requiere intervención;
-else (sí)
-  :Guardar resultado:
-sin cambios o actualización disponible;
-endif
-:Conservar intacta la instalación;
-stop
-@enduml
-```
 
 ### Reglas de correspondencia
 
@@ -237,7 +195,7 @@ comando de verificación quedan pendientes.
 - No deducir cambios de pesos solamente de un commit distinto.
 - No mezclar seguimiento remoto, integridad y disponibilidad en un estado único.
 
-La incorporación externa y la búsqueda asistida son independientes.
+El alta intenta el emparejamiento, pero su éxito no condiciona el registro externo.
 El [administrador de descargas](descargas.md) especifica transferencias, seguimiento
 por archivo, pausa, reanudación, cancelación y recuperación.
 ## Referencias técnicas

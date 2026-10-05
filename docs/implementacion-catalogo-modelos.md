@@ -76,7 +76,8 @@ El espacio de aliases y su posible renombrado se deciden antes de cerrar ese con
 
 1. Validar alias, rutas y encabezados con lecturas acotadas; reunir los shards requeridos.
 2. Registrar todas las rutas de la unidad como externas, sin copiar ni crear enlaces.
-3. No ejecutar búsqueda remota ni hash completo como efecto secundario.
+3. No exigir hash completo. Tras persistir el registro, intentar emparejamiento remoto
+   con metadatos locales y repositorio opcional; un fallo remoto no revierte el alta.
 4. Resolver luego esas rutas para el INI. No certificar compatibilidad con el backend.
 
 Listar deriva disponibilidad mediante acceso local y muestra avisos de tamaño/fecha.
@@ -118,35 +119,28 @@ Antes de elegir endpoints/librería, comprobar estas capacidades con fixtures pe
 y documentación oficial. No hacer experimentos descargando modelos de gigabytes.
 La sintaxis de la API Python citada como referencia no exige introducir Python en C#.
 
-## 5. Comparación determinista y `update`
+## 5. Comparación determinista y update
 
-Entrada del comparador: inventario instalado, correspondencias seguidas e inventario
-remoto completo en un commit. Salida: diferencias explicadas y, sólo si hay resolución
-suficiente, un conjunto objetivo. No escribe archivos, no decide por semejanza opaca.
+Implementar las [reglas de correspondencia](modelos-y-companions.md#reglas-de-correspondencia)
+como función pura: entrada = instalación, correspondencias seguidas e inventario remoto;
+salida = diferencias explicadas y, sólo si hay resolución suficiente, conjunto objetivo.
+No hay E/S ni selección opaca por semejanza.
 
-1. Misma ruta e identidad comparable igual: conservar contenido.
-2. Misma ruta e identidad comparable distinta: contenido modificado.
-3. Ruta ausente: buscar coincidencia exacta de contenido en el inventario remoto.
-   Una sola permite seguir la reubicación; varias requieren elección.
-4. Sin coincidencia exacta: candidatos por pistas, nunca sustitución automática.
-5. Identidad ausente o incomparable: resultado no concluyente; no usar sólo commit,
-   tamaño o fecha para afirmar identidad o actualización de pesos.
-6. Validar la correspondencia del conjunto completo de shards. Cambios en su composición
-   requieren una regla explícita de agrupación; hasta resolverla, pedir intervención.
+Identidad ausente o incomparable produce un resultado no concluyente. No sustituir
+esa evidencia por commit, tamaño o fecha. Para localizar una reubicación se necesita
+inventario suficientemente completo; para comparar rutas conocidas no hace falta
+recorrer todo el repositorio.
 
-`update` fija un commit, obtiene metadatos, compara y guarda la observación. No actualiza
-el commit de descarga ni las rutas físicas instaladas. Un commit distinto con idénticos
-archivos seleccionados significa que no hay pesos que descargar.
-
-Propuesta de resultados internos: sin consultar, sin cambios, actualización disponible,
-requiere intervención, consulta fallida; externo usa no aplica. Conservar fecha y último
-éxito separadamente del último intento para no mostrar información vieja como actual.
-
-Una elección del usuario resuelve una correspondencia, no demuestra retrospectivamente
-que los bytes anteriores procedían de esa revisión. Persistir la selección explícita
-sin fabricar esa evidencia.
-
+Resultados propuestos: sin consultar, sin cambios, actualización disponible,
+requiere intervención y consulta fallida; externo usa no aplica.
+Conservar último intento y último éxito con sus fechas.
+Una elección manual resuelve correspondencia, no prueba retrospectivamente procedencia.
 ## 6. Descarga inicial y `upgrade`: publicación recuperable
+
+La adquisición inicial usa el menú definido en comandos.md y secuencias.md: cuantización
+opcional, README a pedido y cancelación antes de crear trabajo. Upgrade aplica el plan
+fijado sin repetir esa selección. Ambos transfieren en primer plano; Ctrl+C conserva
+parciales y muestra el GUID para reanudar sin volver a buscar ni elegir cuantización.
 
 El [administrador de descargas](descargas.md) define los contratos de transferencia, pausa, reanudación, cancelación, progreso y vistas global/filtrada. Implementarlos en C# con las pruebas de aceptación allí especificadas.
 
@@ -190,16 +184,14 @@ stop
 - Reanudar una transferencia incompleta no es actualizar por bloques un archivo viejo.
   Ninguna de esas optimizaciones forma parte del comparador.
 
-## 7. Búsqueda asistida: fuera del camino obligatorio
+## 7. Emparejamiento
 
-Una acción explícita puede leer nombre y metadatos locales y proponer candidatos
-remotos mediante consultas acotadas. Registrar y usar el externo funciona aunque esa
-búsqueda no exista, falle o no encuentre nada. No reconstruir revisiones históricas.
+El flujo está en [secuencias.md](secuencias.md#1-registrar-un-externo-e-intentar-emparejarlo).
+Implementar consultas acotadas a partir de pistas locales; confirmar y persistir la
+elección sigue pendiente. Un candidato no demuestra identidad de bytes ni revisión.
 
-Elegir descargar un candidato crea una instalación gestionada; no modifica ni convierte
-automáticamente el externo. Reasignar un alias o los presets entre ambos requiere un
-flujo explícito aún pendiente. No eliminar el externo al terminar la descarga.
-
+Elegir descargarlo crea una instalación gestionada sin alterar el externo. Reasignar
+aliases o presets entre ambos requiere un flujo explícito aún por definir.
 ## 8. Entregas delegables y evidencia de aceptación
 
 Cada entrega recibe este documento, las reglas funcionales, sus decisiones pendientes
@@ -210,11 +202,11 @@ estabilizar los datos compartidos. Sólo después podrán delegarse piezas indep
 |---|---|---|
 | M0: contratos y fixtures | Decisiones de identidad local y agrupación | Datos de ejemplo monofichero, shards y companion; revisión humana, sin aplicación todavía |
 | M1: comparador puro | M0 | Tabla de correspondencia completa; mismas entradas producen mismo resultado; ninguna E/S |
-| M2: índice y registro externo | M0, persistencia elegida | Registro/listado/retiro sin red; cero escrituras externas; colisión de alias sin pérdida |
+| M2: índice y registro externo | M0, M3, persistencia elegida | Registro local independiente del éxito remoto; listado/retiro sin red; cero escrituras externas; colisión sin pérdida |
 | M3: inspección e integridad | M0 | GGUF inválido, shards ausentes, lectura fallida, hash correcto/incorrecto; nunca rebasar referencia tras discrepancia |
 | M4: metadatos HF y update | M1, M2, contrato HTTP verificado | Paginación, error de acceso/red, identidad ausente, reubicación; cero descarga de pesos |
 | M5: descarga y upgrade | M2–M4, publicación/propiedad resueltas | Commit fijo, conjunto verificado, plan obsoleto, fallo y recuperación antes/después de activación |
-| M6: búsqueda asistida | M2–M4, UX definida | Candidatos no certificados; externo utilizable sin búsqueda; descarga no altera externo |
+| M6: búsqueda asistida | M2–M4, UX definida | Intento integrado al alta; candidatos no certificados; fallo remoto no invalida registro; descarga no altera externo |
 
 Pruebas de regresión obligatorias: cambio sólo de README; cambio de pesos con igual
 nombre; renombre exacto único y ambiguo; eliminación más alta con distinto contenido;
@@ -231,21 +223,37 @@ claramente propuesta, implementación y comportamiento efectivamente verificado.
 
 ## 9. Decisiones que no deben quedar ocultas en el código
 
+Esta es la lista central de pendientes del catálogo y descargas. Las notas junto a
+diagramas sólo indican dónde afectan; no son decisiones adicionales. Su resolución
+se incorpora al documento dueño de la regla y se retira de esta lista.
+
 Antes de la entrega afectada, resolver con el usuario:
 
 1. Identificador local estable, namespace/case de aliases y renombrado.
 2. Detección de shards, selección de variante y archivo de entrada para llama.cpp.
 3. Ubicación y formato del índice, versión de esquema, exclusión de escritores,
    publicación recuperable y almacenamiento de archivos sin cambios entre instalaciones.
+   La configuración de ubicaciones separadas para configuración y archivos pesados
+   (modelos y backends) pertenece a una iteración posterior; no añadir un comando de
+   directorio al catálogo para anticiparla.
 4. Compartición de archivos, eliminación parcial y cálculo real de espacio liberado.
 5. Confirmar SHA-256 local y tratamiento de identidades remotas no comparables.
 6. Comandos de descarga/verificación/búsqueda y alcance de update/upgrade sin alias;
    actualización de companions y resolución manual de sucesores.
+   Precisar búsqueda y alta de companions, confirmar y guardar emparejamientos,
+   inspección de repositorios sin GGUF y comportamiento sin entrada interactiva.
+   El menú de descarga de modelos ya está acordado; no reabrirlo como pendiente.
 7. Autenticación y alcance inicial para repositorios privados o con acceso restringido;
    límites concretos de consultas, tamaño de metadatos, tiempos y reintentos.
 8. Modelos en uso durante activación/eliminación, al abordar servidores; política de
    conservación de instalaciones anteriores y adaptación de las operaciones de descarga
    existentes a conjuntos de archivos (véase descargas.md).
+9. Descargas: IDs internos de archivos y control individual frente a control por GUID
+   de operación; filtros de CLI; concurrencia y propiedad de ejecutores; límites y
+   reintentos; reinicio seguro si Range no permite continuar; historial y limpieza terminal.
+10. Configuración: creación/representación de la raíz del modelo cuando está vacía;
+    distinción en el catálogo entre opciones CLI, INI y del router; selección de catálogo
+    por origen/backend en consultas `param` (no sólo por build).
 
 Estas decisiones no reabren lo descartado: reconciliación obligatoria, sidecars por
 shard, actualización de externos, descarga automática de companions, estado único que
