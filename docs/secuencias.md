@@ -22,7 +22,8 @@ estos diagramas. La publicación recuperable es el mecanismo propuesto en la gu�
 El menú de adquisición pertenece a la secuencia 2; no se propaga a operaciones que ya
 tienen selección fijada. Las cajas de catálogo, operaciones e índice representan
 persistencia local en disco, no almacenamiento de Hugging Face ni una base de datos
-obligatoria. El historial de operaciones y el catálogo instalado son datos distintos.
+obligatoria. Operaciones activas/recuperables y catálogo instalado son datos distintos.
+Al terminar y limpiar, la operación se elimina; sólo queda su resultado en el log.
 
 ## 1. Registrar un externo e intentar emparejarlo
 
@@ -171,11 +172,13 @@ colisión tardía no autoriza a sobrescribir otro registro.
 
 ### Descarga del companion: otra invocación
 
-El usuario ejecutará `model companion download ...` por separado, cuando lo necesite.
+El usuario ejecutará `model companion download usuario/repositorio#tipo[:cuantización]`
+por separado, cuando lo necesite, usando el mismo flujo de selección y descarga
+de la secuencia 2, limitado al tipo auxiliar indicado.
 Ese comando creará una unidad registrada independiente, reutilizable mediante referencias
 de configuración. No requerirá repetir la descarga del principal ni lo vinculará a un
-preset. No se dibuja todavía su búsqueda como si estuviera resuelta: falta definir cómo
-indicar origen, elegir archivo/tipo y presentar candidatos sin prometer compatibilidad.
+preset. No promete compatibilidad funcional; las secuencias de update, upgrade e
+integridad se aplican igualmente a esta unidad auxiliar.
 
 ## 3. Consultar novedades sin descargar pesos
 
@@ -418,7 +421,9 @@ D --> U : resultado y progreso
 @enduml
 ```
 
-Reiniciar desde cero cuando Range no permite continuar requiere la UX pendiente.
+Si Range no permite continuar, conservar el parcial y preguntar antes de reiniciar
+ese archivo desde cero, con el mismo GUID y selección. No repetir archivos completos
+y verificados. Rechazar o no poder preguntar conserva el trabajo sin reinicio automático.
 El GUID identifica la operación tanto de modelos como de backends. Ctrl+C conserva
 los parciales: no equivale al comando `cancel`. La descarga activa y su reanudación
 permanecen en primer plano; no devuelven el prompt mientras siguen transfiriendo.
@@ -436,14 +441,14 @@ actor Usuario as U
 participant "Verificación local" as V
 database "Índice central" as I
 participant "Lector de archivos" as F
-U -> V : verificar referencia del catálogo\n(sintaxis pendiente)
+U -> V : model verify nombre\no model companion verify nombre
 V -> I : leer archivos y referencias de integridad
 I --> V : datos
 loop archivo de la unidad
   alt no hay referencia de integridad
     V -> V : resultado: no verificable sin establecer base
   else existe referencia
-    V -> F : leer completo con memoria acotada\ny calcular digest del mismo dominio
+    V -> F : leer completo con memoria acotada\ny calcular SHA-256 de los bytes
     F --> V : digest / error de lectura
     V -> V : comparar; distinguir discrepancia de error
   end

@@ -9,7 +9,7 @@ compatibilidad de hardware ni qué modelo sustituye a otro.
 
 Este documento define comportamiento y pruebas sin depender de otro repositorio.
 Los mecanismos marcados como propuesta requieren aprobación antes de implementarse.
-No establece una base de datos, un daemon ni una política de concurrencia todavía.
+No establece una base de datos ni un daemon. La concurrencia inicial se define abajo.
 
 ## Responsabilidades
 
@@ -44,6 +44,24 @@ Un backend puede requerir varios archivos, como un ejecutable empaquetado y bibl
 distribuidas por separado. Terminar un archivo no completa necesariamente la instalación.
 
 ## Identificación y persistencia
+
+### Concurrencia
+
+La CLI permite operaciones distintas desde terminales distintas. Un GUID sólo tiene
+un ejecutor activo; otro intento de ejecutarlo se rechaza con diagnóstico. No hay
+paralelismo automático de descargas en una invocación inicialmente.
+
+La publicación sobre el mismo registro o destino se serializa y vuelve a comprobar
+colisiones y vigencia antes de activar; ninguna operación sobrescribe a otra. Las
+escrituras de un mismo catálogo JSON también deben excluirse para evitar perder cambios
+de operaciones distintas. No mantener ese bloqueo durante toda la transferencia.
+El mecanismo técnico de exclusión queda para la implementación.
+
+Después del milestone ejecutable con las funcionalidades iniciales, una TUI podrá
+coordinar múltiples descargas simultáneas. El motor mantiene operaciones independientes
+y progreso por archivo, sin asumir una única descarga global ni depender de una terminal
+concreta. No se implementa ahora la TUI ni un scheduler paralelo: esto preserva su futura
+integración, no amplía el alcance inicial.
 
 Cada operación de descarga tiene un GUID estable, persistido antes de transferir y
 mostrado al usuario. Sus transferencias se identifican dentro de esa operación.
@@ -92,8 +110,11 @@ Descargar y conservar parciales en esta área; verificar el conjunto completo y 
 moverlo al destino, publicando mediante un protocolo recuperable. Para backends,
 extracción y validación también ocurren en preparación antes de publicar.
 Una pausa conserva la preparación. Cancelar elimina sólo preparación propia, nunca
-archivos instalados o externos. Tras publicar se limpia la preparación; la retención
-del historial JSON sigue pendiente.
+archivos instalados o externos. Al terminar y completar su limpieza, se elimina toda
+la carpeta de operación, incluido operation.json. No se conservan objetos terminales
+ni un catálogo histórico de descargas. El resultado se registra en un log de transacciones
+local, sin credenciales ni URLs firmadas. Pausadas y fallos recuperables conservan su
+operación; una limpieza pendiente no se presenta como terminada.
 
 En la primera iteración preparación y destino están bajo el mismo home y volumen,
 para evitar copiar gigabytes al mover. Un movimiento no vuelve atómica la publicación
@@ -124,10 +145,15 @@ end note
 @enduml
 ```
 
+Un fallo de transferencia conserva selección, parciales y GUID para reanudación
+explícita. Tras detener escritores y guardar el diagnóstico, devuelve el prompt e
+informa `coquena download resume <guid>`. Resume comprueba de nuevo la seguridad del
+parcial; que sea recuperable no autoriza a reutilizar bytes corruptos ni cambiar contenido.
+
 La operación informa también las fases de verificación, extracción cuando corresponda,
 publicación y limpieza pendiente. No anuncia instalación disponible al llegar al 100 %
 de bytes. Una nueva tentativa desde fallo requiere validar su causa y la seguridad del
-parcial; la UX concreta queda pendiente, no implica reintento infinito.
+parcial; se realiza mediante resume, no mediante reintento infinito.
 
 ## Comportamiento por acción
 
@@ -178,18 +204,23 @@ o un fallo explícito de persistencia. No anunciar pausa guardada si la escritur
 
 Nunca añadir una respuesta completa HTTP 200 al parcial ni mezclar contenido de versiones.
 Si el servidor no permite continuar o cambia la identidad, conservar un diagnóstico seguro.
-**Pendiente de UX:** ofrecer reinicio desde cero o exigir otra acción explícita; nunca
-presentar ese reinicio como continuación exitosa ni cambiar de revisión por conveniencia.
+Si Range no permite continuar, conservar el parcial y preguntar si se desea reiniciar
+ese archivo desde cero. Sólo tras aceptación explícita se descarta su parcial y se
+reinicia bajo el mismo GUID y selección fijada. Rechazar conserva el trabajo recuperable.
+No repetir archivos completos y verificados ni presentar el reinicio como reanudación
+exitosa. Si cambió la identidad o la revisión fijada no es accesible, informar el fallo:
+reiniciar no autoriza descargar otra versión. Sin respuesta interactiva no reiniciar.
 
 ### Cancelar
 
 Detener y esperar al escritor antes de eliminar sus parciales. No permitir que un
 callback tardío recree el registro o continúe escribiendo. No eliminar archivos publicados
 ni externos. Sólo confirmar limpieza cuando termine; si falla, conservar un registro
-recuperable que indique lo pendiente. La retención de historial terminal queda por definir.
+recuperable que indique lo pendiente. Tras completar la cancelación y limpieza, registrar
+el resultado en el log y eliminar la carpeta de operación, incluido su JSON.
 
-La política de cancelar un archivo dentro de una operación compuesta queda pendiente:
-en ningún caso puede publicarse como completa una unidad a la que le falta ese archivo.
+No se permite cancelar archivos individuales en el alcance inicial: el control por
+GUID actúa sobre todo el conjunto.
 
 ### Recuperar después de un cierre
 
@@ -235,6 +266,8 @@ de cualquier configuración de inferencia.
 
 - Separar tiempos de espera de metadatos y transferencias largas.
 - Reintentos acotados sólo para fallos transitorios; respetar espera indicada por servidor.
+- Agotados los reintentos, persistir fallo recuperable, conservar parciales y selección,
+  mostrar GUID y comando resume y devolver el control al usuario tras detener escritores.
 - No ignorar fallos al persistir, leer el parcial, calcular hash, sincronizar o publicar.
 - Memoria acotada: flujo de bytes, no cargar modelos completos en RAM.
 - Validar rutas, colisiones y propiedad antes de escribir o eliminar.
@@ -246,10 +279,11 @@ de cualquier configuración de inferencia.
 
 ## Superficie de comandos
 
-La gramática común está en [comandos.md](comandos.md#download). Consultar sin GUID
-muestra el conjunto; controlar requiere GUID. Los filtros por recurso no deben operar
-silenciosamente sobre otro tipo. Su sintaxis y el control de archivos individuales
-siguen pendientes. La persistencia JSON interna no implica salida JSON pública.
+La gramática común está en [comandos.md](comandos.md#download). `download list` muestra
+todas las operaciones y admite filtros excluyentes `--model`, `--companion` o `--backend`.
+Modelo selecciona principales, no companions. Controlar requiere GUID y actúa sobre
+el conjunto; no hay control individual por archivo inicialmente. El detalle por archivo
+se conserva. La persistencia JSON interna no implica salida JSON pública.
 ## Pruebas de aceptación para implementar desde cero
 
 | Escenario | Resultado exigido |

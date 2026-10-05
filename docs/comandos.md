@@ -84,10 +84,16 @@ Registra y descarga modelos y companions, y consulta su estado.
 ** download <usuario/repositorio[:cuantización]>
 ** companion
 *** add <ruta.gguf> --name <nombre-canónico-con-tipo> [--try-match]
-*** download (selección remota por definir)
+*** download <usuario/repositorio#tipo[:cuantización]>
+*** list
+*** refresh <nombre>
+*** verify <nombre> [--set-baseline]
+*** update [<nombre>]
+*** upgrade [<nombre>]
 *** remove <nombre>
 ** list
 ** refresh <nombre-modelo>
+** verify <nombre-modelo> [--set-baseline]
 ** update [<nombre-modelo>]
 ** upgrade [<nombre-modelo>]
 ** remove <nombre-modelo>
@@ -119,9 +125,24 @@ Antes de crear la operación presenta un único menú repetible:
 
 El README se consulta sólo al solicitarlo. No se descarga por defecto con los pesos.
 No encola companions. `model companion download` es otra invocación independiente,
-incluso otro día; su búsqueda y argumentos quedan por definir. Descargarlo no lo asocia
-automáticamente a un preset. La verificación y actualización de companions también
-requieren completar su superficie de comandos.
+incluso otro día. Usa `usuario/repositorio#tipo[:cuantización]` y el mismo menú de
+selección, README y cancelación, limitado al tipo auxiliar indicado. Descargarlo no
+descarga el principal ni lo asocia automáticamente a un preset. `list`, `refresh`,
+`update`, `upgrade` y `remove` aplican las mismas reglas que en modelos, sobre companions.
+Sin nombre, `model update` revisa todos los gestionados del catálogo, incluidos companions,
+y `model upgrade` aplica sus planes resueltos; los subcomandos de `companion` limitan
+el alcance a companions. Externos no reciben seguimiento ni actualización. Los problemas
+de una unidad se informan sin impedir tratar las demás; no hay publicación global atómica.
+`model verify <nombre>` y `model companion verify <nombre>` leen todos los archivos
+de la unidad y comparan SHA-256 completos con las referencias registradas, sin red.
+No reparan ni reemplazan referencias. Sin referencia, informan que no pueden verificar;
+no establecen una base automáticamente. Reglas en
+[integridad local](modelos-y-companions.md#integridad-local).
+
+En externos, `verify <nombre> --set-baseline` calcula y registra SHA-256 de los bytes
+actuales como base local. Advierte que no certifica procedencia ni corrección original.
+Es una acción explícita distinta de comparar; sin el flag nunca reemplaza la referencia.
+El flag no se aplica a gestionados, cuya referencia se establece durante la descarga.
 
 ### `download`
 
@@ -131,7 +152,7 @@ definen en [descargas.md](descargas.md); no inicia selecciones nuevas.
 ```plantuml
 @startmindmap
 * download
-** list
+** list [--model | --companion | --backend]
 ** status [<guid>]
 ** pause <guid>
 ** resume <guid>
@@ -139,8 +160,10 @@ definen en [descargas.md](descargas.md); no inicia selecciones nuevas.
 @endmindmap
 ```
 
-Las vistas filtradas por modelo/backend y las acciones sobre archivos individuales
-siguen pendientes de gramática. No inventar variantes por analogía con otros comandos.
+`download list` muestra todas las operaciones y admite filtros excluyentes `--model`,
+`--companion` o `--backend`: principales, companions o backends respectivamente.
+El detalle conserva progreso por archivo. Pause, resume y cancel requieren el GUID
+ del conjunto; no hay control individual de archivos en el alcance inicial.
 
 ### `param`
 
