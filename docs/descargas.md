@@ -70,10 +70,35 @@ La persistencia pertenece a Coquena, nunca se escribe junto a modelos externos.
 Debe poder restaurarse y diagnosticar documentos dañados sin omitirlos silenciosamente.
 Catálogo instalado y trabajo en curso son independientes.
 
-**Propuesta:** archivos JSON versionados, un documento por operación con sus archivos,
-escritos mediante temporal y reemplazo seguro. Índices de instalación separados. Elegir
-ubicaciones, respaldo, exclusión de escritores y recuperación antes de codificar.
-No se exige un documento por shard ni un único JSON gigante.
+### Área de preparación acordada
+
+Cada operación guarda sus archivos en `downloads`, no en la carpeta instalada:
+
+```text
+<home>/downloads/<guid>/
+  operation.json
+  files/
+    <archivo>.part
+    <otro-archivo>.part
+```
+
+`operation.json` describe el origen, revisión o release fijado, archivos esperados,
+rutas de preparación y destinos finales, progreso, verificadores de contenido,
+estado y diagnóstico. Es un documento por operación, no un sidecar por shard.
+Su escritura segura, versión de esquema y exclusión de escritores deben definirse
+antes de codificar; el índice instalado es independiente.
+
+Descargar y conservar parciales en esta área; verificar el conjunto completo y luego
+moverlo al destino, publicando mediante un protocolo recuperable. Para backends,
+extracción y validación también ocurren en preparación antes de publicar.
+Una pausa conserva la preparación. Cancelar elimina sólo preparación propia, nunca
+archivos instalados o externos. Tras publicar se limpia la preparación; la retención
+del historial JSON sigue pendiente.
+
+En la primera iteración preparación y destino están bajo el mismo home y volumen,
+para evitar copiar gigabytes al mover. Un movimiento no vuelve atómica la publicación
+con el índice. Ubicaciones configurables en volúmenes distintos quedan para después:
+requieren copia y verificación antes de eliminar la preparación.
 
 ## Estados y fases
 
