@@ -50,9 +50,8 @@ se rechaza registrar el mismo conjunto externo con otro nombre, sin exigir dedup
 por hash. Un nombre retirado puede reutilizarse, sin reconectar referencias rotas.
 
 El nombre no es una ruta física ni el nombre del preset. Las configuraciones referencian
-el registro; el INI recibe rutas absolutas. Puede usarse un GUID interno estable.
-Su representación y los renombres remotos siguen pendientes; no se fija aquí una
-estructura de directorios.
+el registro; el INI recibe rutas absolutas. Cada registro tiene un ID interno estable
+para mantener referencias ante renombres. Su esquema concreto sigue pendiente.
 
 ## Disponibilidad, en el núcleo
 
@@ -152,10 +151,10 @@ permanecen en disco; así no afecta a LM Studio ni a otra herramienta que los ge
 La misma regla de propiedad rige para backends. Los presets que referencian una unidad
 retirada no se borran: pasan a **No servible** por *referencia rota*.
 
-El catálogo usa un **índice central en el área de modelos gestionados**, no sidecars
-por archivo o shard. El almacenamiento es propio de Coquena: no replica la estructura
-de LM Studio. La ubicación exacta, el formato y la recuperación del índice, la propiedad
-de archivos compartidos y las eliminaciones parciales quedan por resolver.
+El catálogo central es `<home>/catalogs/models.json`, sin sidecars por archivo o shard.
+Los pesos siguen `models/<usuario>/<repositorio>/<ruta-remota>`, sin carpetas propias
+por cuantización. La estructura completa está en la guía técnica. Recuperación del índice,
+propiedad de archivos compartidos y eliminaciones parciales siguen pendientes.
 
 ## Companions
 

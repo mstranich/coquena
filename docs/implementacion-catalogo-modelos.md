@@ -46,6 +46,35 @@ no consulta Hugging Face ni exige que el seguimiento esté al día.
 
 ## 2. Datos mínimos y significado
 
+### Almacenamiento local acordado
+
+```text
+<home>/
+  config.json
+  catalogs/
+    models.json       # modelos principales y companions
+    backends.json
+    parameters.json
+    presets.json
+  downloads/<guid>/
+    operation.json
+    files/
+  models/<usuario>/<repositorio>/<ruta-remota>
+  backends/           # disposición interna pendiente
+```
+
+Un JSON por catálogo, no un archivo por registro ni por shard; configuración separada.
+Los registros tienen nombre canónico visible e ID estable. Las referencias conservan
+el ID para sobrevivir a renombres y muestran el nombre para lectura humana; un nombre
+reutilizado no reconecta referencias al registro retirado. El esquema concreto sigue
+pendiente, sin exigir duplicar nombre e ID en cada referencia.
+
+Los pesos conservan las rutas relativas remotas bajo usuario/repositorio; no se agrega
+una carpeta propia por cuantización. Los renombres confirmados se reflejan físicamente
+según las reglas funcionales. Validar las rutas antes de escribir: ninguna ruta remota
+puede escapar del área gestionada. La publicación entre archivos e índice requiere
+un protocolo recuperable; JSON por sí solo no lo garantiza.
+
 Nombres conceptuales: no son todavía clases públicas ni esquema de persistencia.
 
 | Registro | Contenido |
@@ -146,9 +175,11 @@ parciales y muestra el GUID para reanudar sin volver a buscar ni elegir cuantiza
 
 El [administrador de descargas](descargas.md) define los contratos de transferencia, pausa, reanudación, cancelación, progreso y vistas global/filtrada. Implementarlos en C# con las pruebas de aceptación allí especificadas.
 
-Propuesta de almacenamiento: índice central y directorios propios por instalación,
-con área de preparación dentro del mismo volumen. Los nombres exactos y el motor del
-índice siguen pendientes. No copiar la estructura de LM Studio ni exigir symlinks.
+La preparación acordada es `downloads/<guid>/operation.json` y `files/`, según
+[descargas.md](descargas.md#área-de-preparación-acordada). Está separada del destino
+instalado y en el mismo volumen en la primera iteración. La disposición del catálogo
+instalado está acordada en la sección 2; el protocolo recuperable sigue pendiente.
+No exigir symlinks.
 
 ```plantuml
 @startuml
@@ -238,7 +269,7 @@ Antes de la entrega afectada, resolver con el usuario:
 2. Implementar la selección explícita de variante con un único registro por selector; conjuntos que no
    siguen la convención numerada quedan fuera del alcance inicial. La agrupación estándar, entrada por primer shard y
    registro externo incompleto con uso bloqueado están definidos en modelos-y-companions.md.
-3. Ubicación y formato del índice, versión de esquema, exclusión de escritores,
+3. Esquema de los catálogos JSON y su versión, exclusión de escritores,
    publicación recuperable y almacenamiento de archivos sin cambios entre instalaciones.
    La configuración de ubicaciones separadas para configuración y archivos pesados
    (modelos y backends) pertenece a una iteración posterior; no añadir un comando de
