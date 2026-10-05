@@ -27,11 +27,11 @@ obligatoria. El historial de operaciones y el catálogo instalado son datos dist
 ## 1. Registrar un externo e intentar emparejarlo
 
 Los archivos GGUF externos y el catálogo son dos almacenamientos locales distintos:
-los primeros contienen los pesos; el segundo persiste alias, rutas y metadatos propios
+los primeros contienen los pesos; el segundo persiste nombre canónico, rutas y metadatos propios
 de Coquena, sin copiar pesos. Sólo Hugging Face está en Internet.
 
-El repositorio para orientar el intento es opcional; el argumento se llama `--try-match`:
-`model add <ruta.gguf> [<alias>] [--try-match <usuario/repositorio>]`.
+El nombre es obligatorio; el intento remoto es opcional:
+`model add <ruta.gguf> --name <usuario/repositorio:cuantización> [--try-match]`.
 
 ```plantuml
 @startuml
@@ -44,23 +44,20 @@ end box
 box "Internet" #FFF3DB
 participant "Hugging Face\nbúsqueda y metadatos" as HF
 end box
-U -> C : agregar ruta, alias opcional\ny repositorio opcional para emparejar
-C -> F : leer encabezado y localizar partes del modelo
+U -> C : agregar ruta y --name obligatorio\n[--try-match opcional]
+C -> F : leer metadatos de división y localizar hermanos\ndel primer shard en la misma carpeta
 F --> C : metadatos y rutas / error
 alt archivo inaccesible o GGUF inválido
   C --> U : no registrado: indicar archivo y causa
 else unidad identificada
-  C -> I : persistir alias, rutas y propiedad externa\nsólo si alias libre
-  I --> C : guardado / alias ocupado / error de escritura
+  C -> I : persistir nombre canónico, rutas y propiedad externa\nsólo si nombre canónico libre
+  I --> C : guardado / nombre canónico ocupado / error de escritura
   alt registro no guardado
     C --> U : no registrado: explicar colisión o fallo
   else registro guardado
-    C --> U : modelo externo registrado; archivos sin copiar
-    alt repositorio indicado por usuario
-      C -> HF : consultar candidatos en usuario/repositorio\na partir de metadatos locales
-    else sin repositorio indicado
-      C -> HF : búsqueda acotada por metadatos locales\ny nombre del archivo como pista
-    end
+    C --> U : registrado; completo o Incompleto con faltantes\nsin copiar; uso bloqueado si incompleto
+    opt --try-match indicado
+      C -> HF : consultar selección en repositorio declarado\ncon nombre y metadatos locales
     HF --> C : candidatos / sin coincidencias / error
     alt candidatos encontrados
       C --> U : posibles equivalentes y razones\nno equivalen a identidad de bytes o revisión
@@ -68,6 +65,7 @@ else unidad identificada
       C --> U : registrado sin emparejar; no se identificó equivalente
     else consulta fallida
       C --> U : registrado; no se pudo consultar Hugging Face
+    end
     end
   end
 end
@@ -78,21 +76,19 @@ end note
 @enduml
 ```
 
-El alta intenta el emparejamiento sin exigir metadatos manuales ni un repositorio como
-argumento obligatorio. Si las pistas son insuficientes, informa esa limitación sin
-rastrear exhaustivamente el Hub. La confirmación de candidatos y la persistencia del
-emparejamiento quedan pendientes: indicar repositorio no prueba procedencia.
+Sin `--try-match`, no se consulta la red. El nombre declarado no prueba procedencia.
+Un intento fallido no revierte el registro. Confirmar y persistir candidatos sigue pendiente.
 Configurar un preset y generar el INI son operaciones separadas de este diagrama.
 
-La agrupación de shards y el tratamiento de registros inicialmente incompletos deben
-cerrarse antes de implementar este alta. El diagrama no autoriza a registrar sólo el
-primer shard como si fuera un modelo completo.
+Aplicar la agrupación de [shards](modelos-y-companions.md#modelos-divididos-en-shards).
+El registro conserva todas las partes esperadas, incluso ausentes; informa Incompleto
+y bloquea su uso. No presenta el primer shard como un modelo completo.
 
 ## 2. Descargar un modelo desde Hugging Face
 
 Esta secuencia es la adquisición inicial, no `upgrade` ni el alta de un archivo externo.
-Entrada: `usuario/repositorio`, cuantización opcional y alias opcional. Gramática propuesta:
-`model download <usuario/repositorio> [<cuantización>] [--alias <alias>]`.
+Entrada: `usuario/repositorio[:cuantización]`, sin nombre canónico.
+El menú determina la cuantización omitida y, con ella, el nombre canónico.
 
 ```plantuml
 @startuml
@@ -106,7 +102,7 @@ end box
 box "Internet" #FFF3DB
 participant "Hugging Face" as HF
 end box
-U -> C : descargar usuario/repositorio\n[cuantización opcional] [alias opcional]
+U -> C : descargar usuario/repositorio[:cuantización]
 C -> HF : resolver revisión y consultar inventario\nen un commit concreto
 HF --> C : archivos y metadatos / error
 C -> C : identificar variantes y conjuntos completos\nfiltrar cuantización si fue indicada
@@ -130,11 +126,11 @@ else candidatos disponibles
     C --> U : volver al prompt; sin GUID ni parciales
   end
   C -> C : seleccionar unidad elegida\ne iniciar sin segunda confirmación
-  C -> I : comprobar disponibilidad del alias
+  C -> I : comprobar disponibilidad del nombre canónico
   I --> C : libre / ocupado / error
-  alt alias ocupado o error local
+  alt nombre canónico ocupado o error local
     C --> U : explicar; no iniciar descarga
-  else alias disponible
+  else nombre canónico disponible
     C -> D : crear operación con selección y commit fijados\nsin companions
     D --> U : GUID de operación\nla terminal queda ocupada
     loop cada archivo de la unidad
@@ -151,7 +147,7 @@ else candidatos disponibles
     alt algún archivo falló o conjunto incompleto
       D --> U : descarga no instalada; diagnóstico recuperable
     else conjunto completo y verificado
-      D -> I : publicar instalación gestionada\ny registrar alias si sigue disponible
+      D -> I : publicar instalación gestionada\ny registrar nombre canónico si sigue disponible
       I --> D : instalación registrada / conflicto / error
       D --> U : modelo disponible o fallo de publicación
     end
@@ -168,7 +164,8 @@ La cuantización identifica candidatos, no necesariamente un archivo único. Las
 del menú deben identificar las variantes inequívocamente y declarar que elegirlas inicia
 una descarga. Mostrar README no modifica la selección y vuelve al menú. Sin candidatos
 no hay opción de descarga; la política de inspección de repositorios sin GGUF sigue pendiente.
-La regla de agrupación de shards debe cerrarse antes de implementar.
+Aplicar la agrupación de shards documentada; conjuntos remotos incompletos no son descargables
+como instalaciones completas.
 La publicación usa el protocolo recuperable de la guía técnica: una
 colisión tardía no autoriza a sobrescribir otro registro.
 
@@ -190,8 +187,8 @@ participant "Caso de uso Update" as UP
 database "Índice central" as I
 participant "Adaptador Hugging Face" as HF
 participant "Comparador puro" as CMP
-U -> CLI : model update alias
-CLI -> UP : consultar(alias)
+U -> CLI : model update nombre
+CLI -> UP : consultar(nombre)
 UP -> I : leer instalación y origen seguido
 I --> UP : registro
 alt externo
@@ -238,7 +235,7 @@ database "Índice / operaciones" as I
 participant "Administrador de descargas" as D
 participant "Acceso local y verificador" as F
 participant "Hugging Face" as HF
-U -> CLI : model upgrade alias
+U -> CLI : model upgrade nombre
 CLI -> UG : aplicar actualización detectada
 UG -> I : leer plan, instalación actual y propiedad
 I --> UG : datos
@@ -463,7 +460,7 @@ end note
 
 ## Validación de las secuencias
 
-Traducir ramas alternativas a pruebas: colisión de alias, consulta remota incompleta,
+Traducir ramas alternativas a pruebas: colisión de nombre, consulta remota incompleta,
 plan obsoleto, fallo al persistir, shard fallido, extracción inválida, ejecutor aún vivo,
 Range incompatible y discrepancia de integridad. Los diagramas no prueban código ni
 resuelven por sí solos la atomicidad del índice y el sistema de archivos.

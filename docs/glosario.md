@@ -8,6 +8,7 @@
 | **Backend registrado** | Binario concreto con ID único y estable, familia y versión sondeada. Los externos pueden no seguir la numeración de builds oficiales. |
 | **Aceleración** | Para qué se compiló el binario: `cpu`, `vulkan`, `cuda` (con major 12 o 13), `hip`, `sycl`, `openvino`… Depende del sistema operativo y la arquitectura. |
 | **Dispositivo** | Una unidad de cómputo de la máquina: la CPU o una GPU concreta (NVIDIA, AMD, Intel). |
+| **Nombre canónico** | `usuario/repositorio:cuantización` para el principal; `usuario/repositorio#tipo:cuantización` para un companion. Sin aliases; comparación local case insensitive. En externos es declarado, no procedencia certificada. |
 | **Modelo** | Unidad principal registrada en Coquena: un GGUF o un conjunto completo de shards. Un modelo externo no se copia; uno descargado por Coquena queda bajo su gestión. |
 | **Directorio de modelos** | Área donde Coquena guarda modelos y companions gestionados. Su ubicación configurable se difiere. |
 | **Externo** | Archivo o conjunto registrado por Coquena pero gestionado por otra herramienta o por el usuario. Coquena no lo mueve ni lo borra al quitar su registro. Aplica a modelos, companions y backends. |
