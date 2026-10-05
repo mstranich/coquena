@@ -1,6 +1,6 @@
 # Diagramas de estado
 
-## Instancia
+## Instancia (borrador)
 
 Una instancia es un `llama-server` vivo: existe desde que se inicia hasta que termina. El
 estado se **deriva** del PID guardado, de lo que responde el sistema operativo y del
@@ -34,21 +34,12 @@ state EnEjecucion {
 
 ## Backend registrado
 
-```plantuml
-@startuml
-[*] --> Descargando : instalar
-Descargando --> Registrado : descomprimido\ny sondeado (--version)
-Descargando --> [*] : cancelar / error
-[*] --> Registrado : registrar externo\n[--version válido]
-Registrado --> EnUso : una instancia\nen ejecución lo usa
-EnUso --> Registrado : termina la última instancia que lo usa
-Registrado --> [*] : desinstalar\n(borrar propio o sólo registro externo)
-note right of EnUso
-  No se puede desinstalar
-  mientras está en uso.
-end note
-@enduml
-```
+La transferencia y sus estados pertenecen a [descargas.md](descargas.md).
+El backend aparece como registrado sólo tras validar y publicar la instalación, o tras
+registrar un externo con sondeo válido. Un trabajo pausado o fallido no es un backend
+instalado y permanece recuperable en el administrador de descargas.
+
+La política de retirar backends en uso se resolverá con servidores; no se establece aquí.
 
 ## Modelo y companion (núcleo)
 
@@ -84,7 +75,7 @@ end note
 - **Origen** (gestionado o externo) es un atributo del registro, no un estado.
 - Un companion no depende de su modelo principal para estar disponible.
 
-## Preset
+## Preset: disponibilidad de referencias
 
 Derivado de la disponibilidad de su modelo y sus companions.
 
@@ -94,6 +85,6 @@ state q <<choice>>
 [*] --> q
 q --> Servible : modelo y companions\ndisponibles
 q --> NoServible : algún archivo no disponible\no referencia retirada del registro
-NoServible : al iniciar el servidor,\nse omite con aviso
+NoServible : alguna referencia no puede resolverse
 @enduml
 ```

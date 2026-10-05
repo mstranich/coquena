@@ -57,6 +57,21 @@ sobre el mismo GGUF.
 
 ## Documentos
 
+### Cómo leer y mantener esta documentación
+
+1. **Comportamiento:** modelos-y-companions.md, descargas.md y catalogo-de-parametros.md.
+2. **Interfaz:** comandos.md define sintaxis y menús; no repite los algoritmos.
+3. **Diagramas:** casos-de-uso.md es el mapa; secuencias.md muestra interacciones;
+   actividades.md sólo conserva flujos complementarios. Estados y modelo de datos
+   explican ejes y relaciones, no otra versión de las reglas.
+4. **Implementación futura:** implementacion-catalogo-modelos.md describe mecanismos
+   propuestos, entregas y [pendientes](implementacion-catalogo-modelos.md#9-decisiones-que-no-deben-quedar-ocultas-en-el-código).
+
+Una regla se mantiene en su documento de comportamiento; los demás la enlazan o
+representan. Cambiarla exige revisar sus diagramas y comandos, no copiar otro párrafo.
+**Servidores e instanciación siguen en borrador**, incluidos los bloques de ejecución
+en comandos, actividades y estados. No implementar esos bloques como requisitos cerrados.
+
 | Documento | Contenido |
 |---|---|
 | [glosario.md](glosario.md) | Vocabulario del dominio |
@@ -66,6 +81,7 @@ sobre el mismo GGUF.
 | [modelos-y-companions.md](modelos-y-companions.md) | Registro externo, seguimiento remoto, actualización e integridad |
 | [implementacion-catalogo-modelos.md](implementacion-catalogo-modelos.md) | Contratos, algoritmos, entregas y pruebas para implementar el catálogo en C# |
 | [descargas.md](descargas.md) | Gestión de transferencias, persistencia, recuperación y pruebas |
+| [secuencias.md](secuencias.md) | Interacciones de registro, update, upgrade, instalación, recuperación e integridad |
 | [actividades.md](actividades.md) | Flujos de los casos de uso principales |
 | [comandos.md](comandos.md) | Superficie de la línea de comandos |
 | [catalogo-de-parametros.md](catalogo-de-parametros.md) | Parámetros de llama-server por versión y distribución |

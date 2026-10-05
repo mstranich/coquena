@@ -37,12 +37,17 @@ T --> V
 - **Catálogo de descargas:** consulta operaciones y archivos, globalmente o por tipo.
 
 Los shards pertenecen a una misma unidad. Un companion es otra unidad opcional.
+Modelo y companion se solicitan en invocaciones separadas: descargar el modelo no
+encola el companion. Una sola operación puede transferir múltiples shards del modelo;
+eso no equivale a combinar dos unidades en un comando.
 Un backend puede requerir varios archivos, como un ejecutable empaquetado y bibliotecas
 distribuidas por separado. Terminar un archivo no completa necesariamente la instalación.
 
 ## Identificación y persistencia
 
-Cada operación y transferencia tiene ID estable. El alias de modelo o la identidad del
+Cada operación de descarga tiene un GUID estable, persistido antes de transferir y
+mostrado al usuario. Sus transferencias se identifican dentro de esa operación.
+El alias de modelo o la identidad del
 backend sirven para presentación, no sustituyen el ID del trabajo.
 
 | Información persistente | Finalidad |
@@ -103,6 +108,21 @@ parcial; la UX concreta queda pendiente, no implica reintento infinito.
 
 ### Iniciar y consultar
 
+Selección y menú viven en [comandos.md](comandos.md#model): cancelar antes de iniciar
+no crea operación. Upgrade y resume usan selecciones fijadas, sin repetir el menú;
+la selección de backend sigue sus reglas propias.
+
+Descargar y reanudar se ejecutan **en primer plano**: ocupan la terminal, muestran
+progreso y no devuelven el prompt mientras la operación continúa. No hay descarga
+desacoplada implícita. Esta regla aplica a modelos, companions y backends.
+
+**Ctrl+C interrumpe de forma conservadora:** detiene la transferencia, conserva los
+archivos parciales y marca la operación como pausada. Antes de devolver el prompt,
+muestra su GUID y `coquena download resume <guid>`. No ejecuta la cancelación destructiva.
+El GUID no es un hash del modelo ni cambia al reanudar. En operaciones de varios archivos,
+se conserva el progreso de todos ellos; reanudar no vuelve a descargar los ya completos
+y comprobados.
+
 Persistir selección y destinos antes de transferir. Escribir sólo en preparación;
 no sobrescribir una instalación activa. Una selección inválida no crea trabajo.
 
@@ -117,8 +137,9 @@ modelos. Consulta local sin peticiones al proveedor.
 ### Pausar
 
 Solicitar detención, esperar al escritor y persistir un checkpoint coherente antes de
-confirmar pausa. Conservar parcial y selección. Una interrupción de consola debe dejar
-un trabajo recuperable cuando sea posible, mostrando el ID y cómo continuarlo.
+confirmar pausa. Conservar parcial y selección. Ctrl+C usa este mismo procedimiento;
+la CLI sólo devuelve el prompt tras detener al escritor e informar el estado persistido
+o un fallo explícito de persistencia. No anunciar pausa guardada si la escritura falló.
 
 ### Reanudar
 
@@ -200,14 +221,10 @@ de cualquier configuración de inferencia.
 
 ## Superficie de comandos
 
-La gestión común dispone de `download list|status|pause|resume|cancel`.
-`list` y `status` sin ID muestran el conjunto; `status <id>` muestra el detalle.
-Las acciones de control requieren ID. Las vistas por recurso filtran modelos o backends
-y rechazan un ID de otro tipo en vez de operar silenciosamente sobre él.
-
-La gramática exacta de filtros y acciones sobre operación/archivo se cerrará con el mapa
-de comandos. No hay `--json`. La persistencia JSON interna no implica salida JSON pública.
-
+La gramática común está en [comandos.md](comandos.md#download). Consultar sin GUID
+muestra el conjunto; controlar requiere GUID. Los filtros por recurso no deben operar
+silenciosamente sobre otro tipo. Su sintaxis y el control de archivos individuales
+siguen pendientes. La persistencia JSON interna no implica salida JSON pública.
 ## Pruebas de aceptación para implementar desde cero
 
 | Escenario | Resultado exigido |
@@ -217,6 +234,8 @@ de comandos. No hay `--json`. La persistencia JSON interna no implica salida JSO
 | Varios shards, uno pendiente | Detalle individual; modelo no disponible como instalación nueva |
 | Companion no elegido | No se crea su transferencia |
 | Pausa y reinicio del programa | Mismo ID, parcial conservado, sin red hasta reanudar |
+| Ctrl+C en descarga o reanudación de modelo/backend | Escritor detenido, parciales conservados, GUID y comando para retomar; vuelve el prompt |
+| Descarga activa en terminal | No devuelve el prompt ni continúa en segundo plano implícitamente |
 | Otro proceso sigue descargando | Listar no lo convierte en pausado |
 | Parcial adelantado o menor al checkpoint | Reconciliación segura o error; nunca offset inventado |
 | Range ignorado, rango incorrecto o recurso cambiado | No añade bytes incompatibles ni publica |
@@ -232,14 +251,8 @@ Usar transporte simulado, archivos pequeños y fallos inyectados. Integración c
 real es opt-in, con tráfico acotado. No se consideran pruebas ejecutadas hasta que exista
 la implementación y se informe su resultado.
 
-## Entregas y decisiones pendientes
+## Implementación y pendientes
 
-1. Cerrar esquema de operación/archivo, acciones de conjunto y persistencia restaurable.
-2. Implementar estados y almacenamiento con pruebas de errores y recuperación.
-3. Implementar transferencia HTTP y pruebas de reanudación/cancelación.
-4. Integrar validadores y publicación específica de cada recurso.
-5. Integrar comandos, progreso y filtros con pruebas de extremo a extremo.
-
-Resolver además límites concretos, coordinación entre procesos, concurrencia de archivos,
-historial terminal y reinicio de parciales no reanudables. Los agentes no deben deducir
-estas políticas de una librería o de una implementación ajena.
+Las entregas y las decisiones abiertas se mantienen en
+[la guía técnica](implementacion-catalogo-modelos.md#9-decisiones-que-no-deben-quedar-ocultas-en-el-código).
+Este documento define el comportamiento común y sus pruebas, no otro plan de trabajo.

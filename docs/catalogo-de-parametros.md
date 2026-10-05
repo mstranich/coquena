@@ -32,8 +32,10 @@ class Parametro {
   alias corto
   variable de entorno
   descripción
+  destino : CLI | INI | router (según definición)
 }
 class Disponibilidad {
+  evidencia : admite | rechaza
   desde : build (opcional)
   hasta : build (opcional, excluido)
 }
