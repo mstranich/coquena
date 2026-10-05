@@ -50,7 +50,7 @@ Nombres conceptuales: no son todavía clases públicas ni esquema de persistenci
 
 | Registro | Contenido |
 |---|---|
-| Entrada | Identificador estable propuesto, alias, modelo o companion, tipo de companion, propiedad, instalación activa |
+| Entrada | Identificador estable propuesto, nombre canónico, modelo o companion, tipo de companion, propiedad, instalación activa |
 | Instalación | Conjunto completo de archivos locales; commit de descarga si es gestionada |
 | Archivo instalado | Ruta local, ruta remota si aplica, tamaño observado, fecha local observada, identidad remota tipada, referencia de integridad opcional |
 | Origen seguido | Repositorio, referencia solicitada, selección remota y correspondencias actuales de sus archivos |
@@ -70,14 +70,16 @@ su algoritmo interno para usar una descarga convencional.
 
 Las referencias de configuración deben sobrevivir a la actualización de archivos.
 Se propone resolverlas mediante un identificador estable, no mediante rutas físicas.
-El espacio de aliases y su posible renombrado se deciden antes de cerrar ese contrato.
+El nombre canónico es case insensitive, sin aliases. La representación del ID y el tratamiento de renombres remotos siguen pendientes.
 
 ## 3. Registro externo y comprobaciones locales
 
-1. Validar alias, rutas y encabezados con lecturas acotadas; reunir los shards requeridos.
+1. Validar nombre canónico, rutas y encabezados con lecturas acotadas; aplicar la
+   agrupación estándar desde el primer shard. Conservar partes esperadas y faltantes:
+   un externo incompleto puede registrarse con diagnóstico, pero no usarse.
 2. Registrar todas las rutas de la unidad como externas, sin copiar ni crear enlaces.
-3. No exigir hash completo. Tras persistir el registro, intentar emparejamiento remoto
-   con metadatos locales y repositorio opcional; un fallo remoto no revierte el alta.
+3. No exigir hash completo. Tras persistir, intentar emparejamiento sólo si se indicó `--try-match`,
+   usando `--name` y metadatos locales. Un fallo remoto no revierte el alta.
 4. Resolver luego esas rutas para el INI. No certificar compatibilidad con el backend.
 
 Listar deriva disponibilidad mediante acceso local y muestra avisos de tamaño/fecha.
@@ -186,12 +188,13 @@ stop
 
 ## 7. Emparejamiento
 
+El intento es opcional mediante `--try-match`; el nombre se declara con `--name`.
 El flujo está en [secuencias.md](secuencias.md#1-registrar-un-externo-e-intentar-emparejarlo).
 Implementar consultas acotadas a partir de pistas locales; confirmar y persistir la
 elección sigue pendiente. Un candidato no demuestra identidad de bytes ni revisión.
 
 Elegir descargarlo crea una instalación gestionada sin alterar el externo. Reasignar
-aliases o presets entre ambos requiere un flujo explícito aún por definir.
+nombres o presets entre ambos requiere un flujo explícito aún por definir.
 ## 8. Entregas delegables y evidencia de aceptación
 
 Cada entrega recibe este documento, las reglas funcionales, sus decisiones pendientes
@@ -206,7 +209,7 @@ estabilizar los datos compartidos. Sólo después podrán delegarse piezas indep
 | M3: inspección e integridad | M0 | GGUF inválido, shards ausentes, lectura fallida, hash correcto/incorrecto; nunca rebasar referencia tras discrepancia |
 | M4: metadatos HF y update | M1, M2, contrato HTTP verificado | Paginación, error de acceso/red, identidad ausente, reubicación; cero descarga de pesos |
 | M5: descarga y upgrade | M2–M4, publicación/propiedad resueltas | Commit fijo, conjunto verificado, plan obsoleto, fallo y recuperación antes/después de activación |
-| M6: búsqueda asistida | M2–M4, UX definida | Intento integrado al alta; candidatos no certificados; fallo remoto no invalida registro; descarga no altera externo |
+| M6: búsqueda asistida | M2–M4, UX definida | Intento opcional en el alta; candidatos no certificados; fallo remoto no invalida registro; descarga no altera externo |
 
 Pruebas de regresión obligatorias: cambio sólo de README; cambio de pesos con igual
 nombre; renombre exacto único y ambiguo; eliminación más alta con distinto contenido;
@@ -229,8 +232,12 @@ se incorpora al documento dueño de la regla y se retira de esta lista.
 
 Antes de la entrega afectada, resolver con el usuario:
 
-1. Identificador local estable, namespace/case de aliases y renombrado.
-2. Detección de shards, selección de variante y archivo de entrada para llama.cpp.
+1. Representación del identificador interno estable y protocolo físico recuperable de renombres.
+   Nombre canónico, comparación case insensitive, ausencia de aliases y alta externa
+   con `--name` obligatorio y `--try-match` opcional ya están acordados.
+2. Implementar la selección explícita de variante con un único registro por selector; conjuntos que no
+   siguen la convención numerada quedan fuera del alcance inicial. La agrupación estándar, entrada por primer shard y
+   registro externo incompleto con uso bloqueado están definidos en modelos-y-companions.md.
 3. Ubicación y formato del índice, versión de esquema, exclusión de escritores,
    publicación recuperable y almacenamiento de archivos sin cambios entre instalaciones.
    La configuración de ubicaciones separadas para configuración y archivos pesados
@@ -238,7 +245,7 @@ Antes de la entrega afectada, resolver con el usuario:
    directorio al catálogo para anticiparla.
 4. Compartición de archivos, eliminación parcial y cálculo real de espacio liberado.
 5. Confirmar SHA-256 local y tratamiento de identidades remotas no comparables.
-6. Comandos de descarga/verificación/búsqueda y alcance de update/upgrade sin alias;
+6. Comandos de descarga/verificación/búsqueda y alcance de update/upgrade sin nombre;
    actualización de companions y resolución manual de sucesores.
    Precisar búsqueda y alta de companions, confirmar y guardar emparejamientos,
    inspección de repositorios sin GGUF y comportamiento sin entrada interactiva.

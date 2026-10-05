@@ -47,7 +47,7 @@ distribuidas por separado. Terminar un archivo no completa necesariamente la ins
 
 Cada operación de descarga tiene un GUID estable, persistido antes de transferir y
 mostrado al usuario. Sus transferencias se identifican dentro de esa operación.
-El alias de modelo o la identidad del
+El nombre canónico del modelo o la identidad del
 backend sirven para presentación, no sustituyen el ID del trabajo.
 
 | Información persistente | Finalidad |

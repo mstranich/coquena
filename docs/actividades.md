@@ -226,7 +226,7 @@ stop
 ```plantuml
 @startuml
 start
-:config set <param> --ref <alias>\n[ámbito];
+:config set <param> --ref <nombre>\n[ámbito];
 :Resolver la referencia sin\nconfundirla con una ruta literal;
 if (¿identifica un único registro?) then (no)
   :Rechazar con diagnóstico;
@@ -244,4 +244,4 @@ CPU/GPU y los ajustes de inferencia se expresan con parámetros normales del bac
 La compatibilidad funcional se delega al backend al cargar la combinación; no hay
 validación ni modo forzado en Coquena para ella. Coquena conserva sus comprobaciones de
 referencias y disponibilidad, sin garantizar funcionamiento. `--ref` distingue una
-referencia por alias de un valor literal; no se infiere por el contenido del texto.
+referencia por nombre canónico de un valor literal; no se infiere por el contenido del texto.

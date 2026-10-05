@@ -80,37 +80,31 @@ Registra y descarga modelos y companions, y consulta su estado.
 ```plantuml
 @startmindmap
 * model
-** add <ruta.gguf> [<alias>] [--try-match <usuario/repositorio>]
-** download <usuario/repositorio> [<cuantización>] [--alias <alias>]
+** add <ruta.gguf> --name <nombre-canónico> [--try-match]
+** download <usuario/repositorio[:cuantización]>
 ** companion
-*** add <ruta.gguf> [<alias>] --type <tipo>
+*** add <ruta.gguf> --name <nombre-canónico-con-tipo> [--try-match]
 *** download (selección remota por definir)
-*** remove <alias>
+*** remove <nombre>
 ** list
-** refresh <alias-modelo>
-** update [<alias-modelo>]
-** upgrade [<alias-modelo>]
-** remove <alias-modelo>
+** refresh <nombre-modelo>
+** update [<nombre-modelo>]
+** upgrade [<nombre-modelo>]
+** remove <nombre-modelo>
 @endmindmap
 ```
 
-Modelos y companions se seleccionan por su alias en el catálogo local, no mediante
-búsquedas por nombre de archivo. Si se omite el alias al registrar, el nombre del archivo
-se usa como alias inicial; un alias ya ocupado se rechaza, sin sobrescribir otro registro.
+La sintaxis del nombre es `usuario/repositorio[#tipo]:cuantización`; `#tipo` sólo
+aparece en companions. No hay aliases ni `--type`. Las reglas de identidad están en
+[modelos-y-companions.md](modelos-y-companions.md#identificación-en-el-catálogo-local).
+`--name` es obligatorio para externos; no certifica procedencia.
+`--try-match` es opcional, sin valor. Sin él no se consulta la red; si falla, el alta
+local permanece. Emparejar no habilita actualizaciones del externo.
+`update` guarda novedades y `upgrade` aplica la revisión detectada sólo a gestionados.
 
-`model companion add` registra el archivo sin asociarlo a un modelo o preset.
-`--type` declara su papel (por ejemplo, `mmproj` o `draft`). `remove` retira el registro
-por alias: borra archivos gestionados, pero conserva los externos.
-
-El registro externo no copia pesos ni crea enlaces físicos. Intenta buscar equivalentes
-en Hugging Face con metadatos locales y un repositorio opcional para orientar la búsqueda
-(`--try-match usuario/repositorio`). Un fallo de red o la ausencia de
-coincidencias no invalida el registro. Emparejar no habilita actualizaciones del externo.
-`update` consulta metadatos y guarda novedades; `upgrade` aplica la revisión detectada
-sólo a gestionados. Las reglas están en [modelos-y-companions.md](modelos-y-companions.md).
-`model download` busca en Hugging Face la cuantización del repositorio indicado y
-descarga sólo esa unidad, incluidos todos sus shards. La cuantización es opcional;
-se propone `--alias` para evitar confundir alias y cuantización posicionales.
+`model download usuario/repositorio[:cuantización]` selecciona una unidad completa.
+Omitir cuantización conserva el menú acordado; al elegirla se determina el nombre
+canónico. No se descargan companions como efecto secundario.
 Antes de crear la operación presenta un único menú repetible:
 
 - **Con cuantización:** descargar la selección indicada, mostrar README o cancelar.
@@ -171,7 +165,7 @@ Consulta y modifica valores de configuración globales o de un ámbito específi
 * config
 ** show [--family F | --model M | --preset P]
 ** set <param> <valor> [ámbito]
-** set <param> --ref <alias> [ámbito]
+** set <param> --ref <nombre> [ámbito]
 ** unset <param> [ámbito]
 @endmindmap
 ```
@@ -180,17 +174,17 @@ Consulta y modifica valores de configuración globales o de un ámbito específi
 JavaScript. No bloquea la herencia: si hay un valor heredado, vuelve a regir; si no,
 la clave deja de emitirse en la sección correspondiente del INI. No modifica el padre.
 
-Los parámetros que cargan companions aceptan referencias por alias a su registro en vez
+Los parámetros que cargan companions aceptan referencias por nombre canónico a su registro en vez
 de una ruta literal. Coquena conserva la referencia y la resuelve a una ruta absoluta al generar
 el INI; CPU/GPU y demás ajustes se configuran con los parámetros del backend.
-`config set <param> --ref <alias> [ámbito]` guarda una referencia al catálogo.
+`config set <param> --ref <nombre> [ámbito]` guarda una referencia al catálogo.
 El valor posicional y `--ref` son alternativas excluyentes: un valor normal es literal,
-aunque coincida con un alias. No se usa un prefijo especial como `@`.
+aunque coincida con un nombre registrado. No se usa un prefijo especial como `@`.
 
 Por ejemplo:
 
 ```text
-coquena config set mmproj --ref vision --preset conversacion
+coquena config set mmproj --ref ggml-org/Qwen3.8-27B-GGUF#mmproj:BF16 --preset conversacion
 coquena config set temperature 0.7 --preset conversacion
 ```
 

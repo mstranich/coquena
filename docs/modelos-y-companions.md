@@ -31,17 +31,28 @@ y en secuencias.md.
 
 ## Identificación en el catálogo local
 
-Modelos y companions se seleccionan por **alias**, no por sus rutas ni por búsquedas
-de nombres de archivos. El registro relaciona el alias con la unidad y sus archivos;
-las configuraciones guardan referencias al registro y el INI recibe las rutas absolutas.
+No se usan aliases. El **nombre canónico** identifica la selección local:
 
-El alias puede declararse al incorporar el archivo. Si se omite, su nombre se usa como
-alias inicial: sigue siendo un alias del catálogo, no un mecanismo alternativo de búsqueda.
-Una colisión de alias se rechaza; no se sustituye otro registro por accidente.
+```text
+usuario/repositorio:cuantización
+usuario/repositorio#tipo:cuantización
+```
 
-El alias de catálogo no es el nombre del preset visible al cliente. Varios presets pueden
-referenciar el mismo modelo o companion. Tampoco identifica una versión en Hugging Face:
-el alias permanece estable al actualizar sus archivos.
+Ejemplos: `ggml-org/Qwen3.8-27B-GGUF:Q4_K_M` y
+`ggml-org/Qwen3.8-27B-GGUF#mmproj:BF16`. El principal omite `#tipo`.
+La cuantización del companion es independiente de la del principal; puede compartirse
+entre cuantizaciones y modelos sin duplicar su registro. `#tipo` es una extensión
+de Coquena; `:cuantización` sigue la convención de llama.cpp.
+
+Los nombres locales son case insensitive y conservan su escritura. Las rutas remotas
+se conservan exactamente como las informa el origen. Una colisión se rechaza; también
+se rechaza registrar el mismo conjunto externo con otro nombre, sin exigir deduplicación
+por hash. Un nombre retirado puede reutilizarse, sin reconectar referencias rotas.
+
+El nombre no es una ruta física ni el nombre del preset. Las configuraciones referencian
+el registro; el INI recibe rutas absolutas. Puede usarse un GUID interno estable.
+Su representación y los renombres remotos siguen pendientes; no se fija aquí una
+estructura de directorios.
 
 ## Disponibilidad, en el núcleo
 
@@ -59,6 +70,77 @@ de lo registrado, Coquena avisa y no bloquea. La consulta no actualiza el regist
 afirma que los bytes sigan íntegros. El registro se actualiza sólo cuando el usuario
 lo pide, con `model refresh`, que relee los metadatos necesarios y anota el tamaño y la
 fecha actuales.
+
+## Modelos divididos en shards
+
+Un conjunto dividido tiene un único registro y una lista ordenada de archivos esperados.
+Por ejemplo, `DeepSeek-V4-Flash-IQ1_S-XL-00001-of-00002.gguf` y
+`DeepSeek-V4-Flash-IQ1_S-XL-00002-of-00002.gguf` forman una selección
+`persadian/DeepSeek-V4-Flash-GGUF:IQ1_S-XL`, no dos modelos ni un companion.
+Se conserva la etiqueta de variante completa; no se reduce `IQ1_S-XL` a `IQ1_S`.
+
+- **Descubrimiento:** agrupar por carpeta, prefijo de variante y sufijo numerado
+  `-00001-of-00002.gguf`; exigir índices consecutivos 1…N y total consistente.
+  No agrupar por semejanza de nombres ni mezclar variantes. Si hay varias agrupaciones
+  candidatas, pedir selección explícita. Un nombre ambiguo no autoriza a inventar un conjunto.
+- **Comprobación local:** leer metadatos GGUF de división en las partes presentes y
+  contrastar cantidad e índices con los nombres. Una contradicción se diagnostica como
+  inválida; una parte esperada ausente, como incompleta. Estas lecturas no prueban integridad.
+- **Alta externa:** el usuario indica el primer shard; localizar sus hermanos en la misma
+  carpeta. Registrar el conjunto esperado y diagnosticar partes ausentes. El registro puede
+  quedar incompleto, pero no se permite usarlo hasta disponer de todas sus piezas legibles.
+  No buscar hermanos recursivamente ni copiar o reparar archivos externos.
+- **Carga:** resolver la referencia al primer shard y conservar hermanos con los nombres
+  esperados en la misma carpeta. llama.cpp carga el conjunto; Coquena no fusiona los pesos.
+- **Gestionados:** descargar todas las partes desde el mismo commit, controlar cada archivo
+  y activar sólo el conjunto completo verificado. Actualización y eliminación operan sobre
+  la unidad; progreso e integridad se informan también por archivo.
+
+GGUF no exige un CRC de los pesos equivalente al de un archivo comprimido. Nombres y
+metadatos permiten comprobar completitud y estructura, no certificar que partes externas
+provengan de la misma revisión. La integridad requiere hashes completos contra referencias
+conocidas; una base calculada en un externo sólo permite detectar cambios posteriores.
+Coquena no replica las comprobaciones de tensores ni la carga de inferencia del backend.
+
+### Límites de la convención GGUF
+
+Los nombres descubren candidatos; los metadatos comprueban estructura; los hashes
+comprueban integridad contra una referencia. La expresión regular de la convención
+GGUF no es un validador universal: un nombre no convencional no vuelve inválido un
+archivo legible. Si no puede determinarse el conjunto sin ambigüedad, se consulta al
+usuario; no se agrupan partes por semejanza ni se inventa una identidad.
+
+`mmproj` puede servir a visión/audio y `mtp` es otro prefijo auxiliar documentado.
+Los metadatos de nombre, versión, UUID y repositorio son pistas, no hashes ni pruebas
+de revisión remota. Los repositorios del modelo de origen no sustituyen al repositorio
+que publica los GGUF seleccionados. Una misma etiqueta de cuantización puede describir
+varias variantes; su selección explícita y representación local deben desambiguarse.
+
+Para el alcance inicial:
+- Conjuntos divididos con nombres no convencionales quedan fuera del registro automático;
+  se diagnostica la limitación, no se declara inválido el GGUF. No se incorpora un flujo
+  manual de partes y orden en esta iteración.
+- Si hay varias variantes para un selector, el usuario elige las rutas concretas. Sólo
+  una variante puede estar registrada por nombre canónico; otra alta colisiona y se rechaza.
+
+## Renombres y reubicaciones remotas
+
+Coquena sigue los nombres actuales del origen: un renombre confirmado del repositorio
+actualiza el nombre canónico; una reubicación confirmada de archivos actualiza sus rutas
+seguidas. En almacenamiento gestionado, carpetas y archivos se renombran o reubican
+físicamente para reflejar el origen, sin volver a descargar contenido sin cambios.
+No se conserva deliberadamente una estructura física con nombres remotos antiguos.
+
+El registro interno y las referencias de configuración conservan su identidad durante
+la operación. Un renombre no crea otro modelo ni implica un cambio de pesos. Se comprueba
+la correspondencia de contenido separadamente; no basta la semejanza de nombres.
+La regla de seguimiento de nombres no autoriza mover archivos externos.
+
+`update` detecta y guarda el cambio; no mueve archivos. `upgrade` aplica el cambio físico
+en gestionados junto con la actualización correspondiente. Debe resolver colisiones,
+fallos e interrupciones sin sobrescribir registros o archivos ajenos ni dejar referencias
+inconsistentes. El protocolo físico concreto, su relación con el índice y modelos en uso
+se define al cerrar almacenamiento y publicación recuperable.
 
 ## Quitar un modelo o companion
 
@@ -82,9 +164,9 @@ companion no es su estado sino su relación con los modelos:
 
 - **No depende de un modelo principal para estar disponible.** Un proyector sin su
   modelo instalado sigue disponible.
-- **Registro:** `model companion add <ruta.gguf> [<alias>] --type <tipo>` no vincula el
-  archivo a un modelo. Sin alias explícito se usa su nombre de archivo.
-- **Retiro:** `model companion remove <alias>` resuelve el registro por ese alias.
+- **Registro:** `model companion add <ruta.gguf> --name <usuario/repositorio#tipo:cuantización> [--try-match]`.
+  El tipo está en el nombre, sin `--type`; no configura un preset.
+- **Retiro:** `model companion remove <nombre>` resuelve el registro por ese alias.
 - **Uso:** un parámetro de configuración referencia al companion registrado. El preset
   puede heredar esa referencia o sobrescribirla; Coquena la resuelve a una ruta absoluta
   en el INI. No hay una segunda lista de asociaciones en el preset.
@@ -111,15 +193,13 @@ completo. Basta la referencia del catálogo a sus rutas: no necesita symlinks ni
 Si otra herramienta mueve, elimina o reemplaza esos archivos, Coquena informa lo que
 observa; no los repara, actualiza ni adopta automáticamente.
 
-El alta **intenta buscar equivalentes**: nombre de archivo y metadatos
-GGUF permiten proponer candidatos, no demostrar identidad de contenido ni revisión.
-No se recorren exhaustivamente repositorios o historiales para reconstruir procedencia.
-El usuario puede indicar `usuario/repositorio` para orientar el intento; si lo omite,
-se usan pistas locales sin exigir metadatos parametrizados. No encontrar coincidencia
-o no poder consultar la red no deshace el registro. La confirmación y persistencia del
-emparejamiento quedan pendientes; emparejar no habilita actualizaciones del externo.
-El usuario puede conservar el registro externo o elegir una descarga gestionada para
-tener seguimiento; esa descarga deja intactos los archivos externos. La confirmación y persistencia del emparejamiento siguen pendientes.
+El alta exige `--name <nombre-canónico>`: declaración del usuario, no prueba de procedencia.
+Sin `--try-match`, el registro es exclusivamente local. `--try-match` es un flag opcional
+sin valor: intenta emparejar la selección en el repositorio declarado usando metadatos
+locales. Fallo de red, ausencia de coincidencias o ambigüedad no invalidan el registro
+ni cambian su nombre. Confirmar y persistir candidatos sigue pendiente.
+No reconstruye procedencia exhaustivamente ni habilita update/upgrade del externo.
+Una descarga gestionada posterior deja intactos los archivos externos.
 
 ## Seguimiento y actualización de gestionados
 
@@ -129,7 +209,7 @@ e identidad de contenido con su tipo. Conserva por separado el resultado y momen
 la última consulta y la revisión candidata. No confunde revisión instalada con consultada.
 
 Se sigue el repositorio que publica los archivos seleccionados: actualizar el modelo
-original no implica que un tercero haya regenerado su GGUF. El alias local no cambia
+original no implica que un tercero haya regenerado su GGUF. El nombre local no cambia
 al actualizar los pesos.
 
 ### Reglas de correspondencia
@@ -147,21 +227,21 @@ No se cambia automáticamente de cuantización. En un modelo dividido se resuelv
 conjunto completo; no basta identificar un shard. La historia remota sólo se consulta
 de forma acotada cuando aporte evidencia útil: el flujo normal compara inventarios.
 
-`model update [alias]` consulta y guarda novedades; no cambia pesos ni su revisión de
+`model update [nombre]` consulta y guarda novedades; no cambia pesos ni su revisión de
 descarga. Puede registrar una reubicación inequívoca sin alterar las rutas locales.
-Un externo explícito informa que no aplica. El alcance sin alias queda por precisar.
+Un externo explícito informa que no aplica. El alcance sin nombre queda por precisar.
 
 Una consulta fallida significa **no se pudo comprobar**; una correspondencia ambigua,
 **requiere intervención**. Ninguna equivale a «actualizado» ni necesariamente a
 «desactualizado». Se conserva la última observación con su fecha, sin presentarla como
 una comprobación actual.
 
-`model upgrade [alias]` aplica la revisión concreta detectada por `update`, no una
+`model upgrade [nombre]` aplica la revisión concreta detectada por `update`, no una
 revisión nueva elegida silenciosamente. Reutiliza archivos sin cambios, descarga los
 nuevos o modificados y verifica el conjunto antes de activarlo. Si falla, conserva la
 instalación anterior; nunca publica una mezcla de shards de revisiones distintas.
 Los casos que requieren intervención se informan sin sustituir sus archivos.
-El alcance sin alias queda por precisar.
+El alcance sin nombre queda por precisar.
 
 La reutilización por archivo es el criterio inicial. La transferencia diferencial por
 bloques es una optimización posterior, no un requisito para detectar actualizaciones.
@@ -195,7 +275,7 @@ comando de verificación quedan pendientes.
 - No deducir cambios de pesos solamente de un commit distinto.
 - No mezclar seguimiento remoto, integridad y disponibilidad en un estado único.
 
-El alta intenta el emparejamiento, pero su éxito no condiciona el registro externo.
+El alta intenta el emparejamiento sólo con `--try-match`; su éxito no condiciona el registro.
 El [administrador de descargas](descargas.md) especifica transferencias, seguimiento
 por archivo, pausa, reanudación, cancelación y recuperación.
 ## Referencias técnicas
@@ -203,3 +283,5 @@ por archivo, pausa, reanudación, cancelación y recuperación.
 - [Hugging Face: inventarios y metadatos por revisión](https://huggingface.co/docs/huggingface_hub/package_reference/hf_api#huggingface_hub.HfApi.list_repo_tree).
 - [Hugging Face: revisión, ETag y metadatos de descarga](https://huggingface.co/docs/huggingface_hub/package_reference/file_download).
 - [GGUF: metadatos y referencias de origen](https://github.com/ggml-org/ggml/blob/master/docs/gguf.md).
+- [llama.cpp: carga de partes y comprobaciones estructurales](https://github.com/ggml-org/llama.cpp/blob/master/src/llama-model-loader.cpp).
+- [Ejemplo de variante dividida IQ1_S-XL](https://huggingface.co/persadian/DeepSeek-V4-Flash-GGUF/tree/main).

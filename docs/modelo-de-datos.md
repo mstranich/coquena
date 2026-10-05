@@ -50,12 +50,12 @@ package Modelos {
     ruta <<área gestionada; configuración posterior>>
   }
   class Modelo {
-    alias <<catálogo local>>
+    nombre canónico <<catálogo local>>
     ruta(s) GGUF
     origen : gestionado | externo
   }
   class Companion {
-    alias <<catálogo local>>
+    nombre canónico <<catálogo local>>
     tipo : mmproj | draft | …
     ruta(s) GGUF
     origen : gestionado | externo
@@ -139,7 +139,7 @@ Los campos y significados se definen una sola vez en
 @startuml
 hide empty methods
 class EntradaDeCatalogo {
-  alias
+  nombre canónico
   propiedad : gestionado | externo
 }
 class Instalacion
@@ -208,8 +208,8 @@ S ..> N : llama-server\nhereda
   de configuración. El preset hereda o sobrescribe esas referencias; no existe una lista
   paralela de asociaciones. El render resuelve las referencias efectivas a rutas absolutas.
   La ubicación CPU/GPU se expresa con los parámetros correspondientes del backend.
-  `config set <param> --ref <alias>` guarda una referencia; el valor posicional es
-  literal, incluso si coincide con un alias. Son alternativas excluyentes.
+  `config set <param> --ref <nombre>` guarda una referencia; el valor posicional es
+  literal, incluso si coincide con un nombre registrado. Son alternativas excluyentes.
   La compatibilidad funcional del conjunto queda a cargo del backend; Coquena no
   necesita un modo forzado para configurar esas referencias.
 
