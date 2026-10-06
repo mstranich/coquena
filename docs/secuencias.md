@@ -4,8 +4,8 @@ Contratos de interacción para implementar en C#. Los participantes representan
 responsabilidades, no proyectos, interfaces ni servicios de red obligatorios.
 Complementan [modelos y companions](modelos-y-companions.md),
 [descargas](descargas.md) y la [guía técnica](implementacion-catalogo-modelos.md).
-El formato persistente, los bloqueos y la gramática pendiente no quedan decididos por
-estos diagramas. La publicación recuperable es el mecanismo propuesto en la guía.
+La estructura JSON acordada está en la guía técnica. Estos diagramas no eligen los
+mecanismos de exclusión o recuperación ni cierran la gramática marcada como pendiente.
 
 ## Correspondencia entre reglas y secuencias
 
@@ -17,7 +17,7 @@ estos diagramas. La publicación recuperable es el mecanismo propuesto en la gu�
 | 4. Upgrade | Plan ya seleccionado; no repite selección de cuantización; transferencia en primer plano, GUID y Ctrl+C conservador |
 | 5. Backend | Selección propia de hardware/release; sin menú de cuantizaciones ni README de modelos; transferencia en primer plano y reanudable |
 | 6. Pausa y reanudación | Procedimiento común de descarga; conserva GUID, parciales y selección; no repite búsqueda ni menú |
-| 7. Integridad | Sólo lectura local y resultado persistido; sin descarga ni búsqueda remota |
+| 7. Integridad | Lectura local y resultado persistido; --set-baseline sólo establece base explícita en externos; sin red |
 
 El menú de adquisición pertenece a la secuencia 2; no se propaga a operaciones que ya
 tienen selección fijada. Las cajas de catálogo, operaciones e índice representan
@@ -40,7 +40,7 @@ actor Usuario as U
 box "PC del usuario — local" #EEF4FA
 participant "Coquena\ncomando model add" as C
 collections "Archivos externos en disco\nGGUF y sus partes" as F
-database "Catálogo de Coquena en disco\nformato de persistencia por definir" as I
+database "Catálogo local\ncatalogs/models.json" as I
 end box
 box "Internet" #FFF3DB
 participant "Hugging Face\nbúsqueda y metadatos" as HF
@@ -61,7 +61,15 @@ else unidad identificada
       C -> HF : consultar selección en repositorio declarado\ncon nombre y metadatos locales
     HF --> C : candidatos / sin coincidencias / error
     alt candidatos encontrados
-      C --> U : posibles equivalentes y razones\nno equivalen a identidad de bytes o revisión
+      C --> U : menú: candidatos y razones / Cancelar empate\nno certifica bytes ni revisión
+      U -> C : elegir candidato / cancelar emparejamiento
+      alt candidato elegido
+        C -> I : guardar equivalencia informativa seleccionada\nsin cambiar nombre ni habilitar seguimiento
+        I --> C : guardado / fallo
+        C --> U : emparejamiento guardado o diagnóstico\nregistro externo permanece
+      else cancela
+        C --> U : registrado localmente sin emparejar
+      end
     else sin coincidencia suficiente
       C --> U : registrado sin emparejar; no se identificó equivalente
     else consulta fallida
@@ -78,7 +86,8 @@ end note
 ```
 
 Sin `--try-match`, no se consulta la red. El nombre declarado no prueba procedencia.
-Un intento fallido no revierte el registro. Confirmar y persistir candidatos sigue pendiente.
+Un intento fallido o cancelar el menú no revierte el registro. La elección explícita
+guarda equivalencia informativa, no certificación de procedencia ni revisión.
 Configurar un preset y generar el INI son operaciones separadas de este diagrama.
 
 Aplicar la agrupación de [shards](modelos-y-companions.md#modelos-divididos-en-shards).
@@ -88,7 +97,7 @@ y bloquea su uso. No presenta el primer shard como un modelo completo.
 ## 2. Descargar un modelo desde Hugging Face
 
 Esta secuencia es la adquisición inicial, no `upgrade` ni el alta de un archivo externo.
-Entrada: `usuario/repositorio[:cuantización]`, sin nombre canónico.
+Entrada: `usuario/repositorio[:cuantización]`, sin alias ni nombre adicional.
 El menú determina la cuantización omitida y, con ella, el nombre canónico.
 
 ```plantuml
@@ -97,7 +106,7 @@ actor Usuario as U
 box "PC del usuario" #EEF4FA
 participant "Coquena\nselección remota" as C
 participant "Administrador de descargas" as D
-collections "Área gestionada en disco\npreparación e instalación" as F
+collections "Preparación local\ndownloads/<guid>/files" as F
 database "Catálogo local de Coquena" as I
 end box
 box "Internet" #FFF3DB
@@ -109,6 +118,17 @@ HF --> C : archivos y metadatos / error
 C -> C : identificar variantes y conjuntos completos\nfiltrar cuantización si fue indicada
 alt error de consulta o cuantización indicada inexistente
   C --> U : explicar; no crear descarga
+else repositorio consultado sin GGUF seleccionables
+  loop inspección hasta cancelar
+    C --> U : sin candidatos: Mostrar README / Cancelar\nsin opción de descarga
+    U -> C : elegir acción
+    opt mostrar README
+      C -> HF : consultar README del commit resuelto
+      HF --> C : documento / ausente / error
+      C --> U : mostrar documento o diagnóstico; volver al menú
+    end
+  end
+  C --> U : volver al prompt; sin GUID ni operación
 else candidatos disponibles
   loop menú hasta elegir descargar o cancelar
     alt cuantización especificada y única
@@ -128,10 +148,15 @@ else candidatos disponibles
   end
   C -> C : seleccionar unidad elegida\ne iniciar sin segunda confirmación
   C -> I : comprobar disponibilidad del nombre canónico
-  I --> C : libre / ocupado / error
-  alt nombre canónico ocupado o error local
+  I --> C : libre / externo / otro registro / error
+  opt nombre ocupado por externo
+    C --> U : ¿pasar este registro a gestionado?\nsin tocar archivos externos; conservar ID y presets
+    U -> C : aceptar / cancelar
+    C -> C : fijar transición explícita y registro de partida\no terminar sin cambios
+  end
+  alt otra colisión, transición cancelada o error local
     C --> U : explicar; no iniciar descarga
-  else nombre canónico disponible
+  else nombre libre o transición aceptada
     C -> D : crear operación con selección y commit fijados\nsin companions
     D --> U : GUID de operación\nla terminal queda ocupada
     loop cada archivo de la unidad
@@ -146,10 +171,14 @@ else candidatos disponibles
       D --> U : progreso individual y del conjunto
     end
     alt algún archivo falló o conjunto incompleto
-      D --> U : descarga no instalada; diagnóstico recuperable
+      D -> D : detener escritores; guardar fallo y parciales
+      D --> U : no instalada; GUID y comando resume\ndevolver prompt
     else conjunto completo y verificado
-      D -> I : publicar instalación gestionada\ny registrar nombre canónico si sigue disponible
+      D -> I : coordinar destino y catálogo\ncomprobar nombre libre o externo de partida vigente\nen transición conservar ID y referencias
       I --> D : instalación registrada / conflicto / error
+      opt publicación y limpieza completadas
+        D -> D : registrar resultado en log\ny eliminar downloads/<guid> incluido JSON
+      end
       D --> U : modelo disponible o fallo de publicación
     end
   end
@@ -164,7 +193,7 @@ end note
 La cuantización identifica candidatos, no necesariamente un archivo único. Las opciones
 del menú deben identificar las variantes inequívocamente y declarar que elegirlas inicia
 una descarga. Mostrar README no modifica la selección y vuelve al menú. Sin candidatos
-no hay opción de descarga; la política de inspección de repositorios sin GGUF sigue pendiente.
+no hay opción de descarga: sólo mostrar README o cancelar, sin crear operación.
 Aplicar la agrupación de shards documentada; conjuntos remotos incompletos no son descargables
 como instalaciones completas.
 La publicación usa el protocolo recuperable de la guía técnica: una
@@ -209,6 +238,18 @@ else gestionado
     else inventario suficiente
       UP -> CMP : comparar instalación y correspondencias\ncontra inventario fijado
       CMP --> UP : sin cambios / reubicación /\nplan candidato / requiere intervención
+      opt sucesor ambiguo con candidatos
+        UP --> CLI : candidatos y diferencias para menú
+        CLI --> U : elegir candidato / Cancelar
+        U -> CLI : elección / cancelación
+        CLI -> UP : resultado del menú
+        alt candidato elegido explícitamente
+          UP -> CMP : resolver correspondencia elegida\ny plan en commit fijado
+          CMP --> UP : destino y plan / diagnóstico
+        else cancela
+          UP -> UP : conservar seguimiento sin resolver\ny archivos instalados
+        end
+      end
       UP -> I : guardar observación y candidato\nligados a instalación de partida
     end
   end
@@ -225,6 +266,12 @@ end note
 
 El comparador aplica las reglas de correspondencia documentadas, no heurísticas nuevas.
 Una reubicación exacta puede cambiar el seguimiento, no la ruta física instalada.
+El movimiento físico y cambio de nombre canónico se aplican en upgrade, no en update.
+Esto incluye espacios de nombres elegidos mediante candidatos: upgrade renombra
+carpetas y archivos gestionados, conservando IDs y referencias. Sin origen ni candidatos
+no hay plan aplicable; no se bloquea por ello la disponibilidad local.
+Sin nombre, repetir la consulta por cada gestionado, incluidos companions; su subcomando
+limita el conjunto a companions. Un fallo no impide consultar las demás unidades.
 Si no se guarda el candidato, no se presenta como un plan durable listo para aplicar.
 
 ## 4. Preparar y publicar una actualización de modelo
@@ -280,12 +327,19 @@ else plan aplicable
         La instalación anterior sigue activa.
       end note
     else conjunto verificado
+      UG -> F : aplicar archivos y renombres al destino remoto reflejado\nsin sobrescribir archivos ajenos
+      F --> UG : preparado para activar / fallo o inconsistencia
+      opt destino preparado sin errores
       UG -> I : activar conjunto si instalación de partida\nsigue vigente; escritura protegida
       I --> UG : activado / conflicto / fallo
       opt activación confirmada
         UG -> F : limpiar archivos anteriores propios\ncuando sea seguro
         F --> UG : limpieza terminada / pendiente
         UG -> I : registrar resultado de limpieza
+        opt limpieza completada
+          UG -> UG : registrar resultado en log\ny eliminar carpeta de operación incluido JSON
+        end
+      end
       end
     end
   end
@@ -299,7 +353,10 @@ El orden del bucle es ilustrativo, no prescribe paralelismo. Un fallo impide pub
 si procede continuar otras transferencias es una política pendiente. La descarga
 inicial usa selección fijada sin instalación anterior; nunca publica una unidad parcial.
 El mecanismo de activación y limpieza debe resolver concurrencia, archivos compartidos
-y modelos en uso antes de su implementación definitiva.
+y modelos en uso antes de su implementación definitiva. Si el movimiento físico falla,
+no activar el catálogo; diagnosticar cualquier inconsistencia sin reparación destructiva.
+Sin nombre, aplicar secuencialmente planes resueltos de las unidades seleccionadas;
+no hay transacción global ni cambio silencioso de revisión.
 
 ## 5. Instalar un backend desde una selección concreta
 
@@ -321,9 +378,11 @@ alt selección inválida
   C --> U : explicar; no crear descarga
 else selección válida
   C --> U : informar elección y alternativas
+  C -> D : persistir una operación para el conjunto completo
+  D --> U : GUID de operación\nla terminal permanece ocupada
   loop artefactos y dependencias seleccionados
-    C -> D : descargar selección fijada
-    D --> U : GUID de operación y progreso por archivo\nla terminal permanece ocupada
+    C -> D : transferir artefacto de la selección fijada\nbajo el mismo GUID
+    D --> U : progreso por archivo y conjunto
     break Ctrl+C durante transferencia (termina la invocación)
       U -> D : solicitar pausa conservando parciales
       D -> D : detener escritores y persistir pausa
@@ -342,6 +401,9 @@ else selección válida
     V -> I : publicar instalación y registro
     I --> V : confirmado / error
     V --> C : resultado
+  end
+  opt publicación y limpieza completadas
+    C -> D : registrar resultado en log\ny eliminar carpeta de operación incluido JSON
   end
   C --> U : instalado o diagnóstico
 end
@@ -395,7 +457,7 @@ opt control obtenido y parcial coherente
   H --> D : respuesta y encabezados
   alt rango e identidad válidos
     D -> W : continuar parcial
-    W -> F : escribir resto; verificar hash completo\nincluido prefijo existente
+    W -> F : escribir resto; validar según recurso\nmodelos/companions: SHA-256 de prefijo y resto\nbackends: sin SHA-256
     W --> D : archivo verificado / fallo
     alt archivo verificado
       D -> I : persistir archivo completo y progreso del conjunto
@@ -415,7 +477,26 @@ opt control obtenido y parcial coherente
     end
   else no es seguro continuar
     D -> I : registrar diagnóstico\nsin añadir bytes incompatibles
+    opt Range no soportado pero selección original disponible
+      D --> U : ¿reiniciar sólo este archivo desde cero?
+      U -> D : aceptar / rechazar
+      alt acepta explícitamente
+        D -> F : descartar sólo parcial de este archivo
+        D -> H : descargar desde cero la misma selección
+        H --> D : bytes / fallo
+        D -> D : verificar y continuar conjunto\nsin repetir archivos ya verificados
+        opt conjunto completo y verificado
+          D -> P : validar y publicar la misma operación
+          P --> D : instalado / fallo / limpieza pendiente
+        end
+      else rechaza o no hay respuesta
+        D -> I : conservar parcial y operación recuperable
+      end
+    end
   end
+end
+opt publicación y limpieza completadas
+  D -> D : registrar resultado en log\ny eliminar carpeta de operación incluido JSON
 end
 D --> U : resultado y progreso
 @enduml
@@ -441,9 +522,24 @@ actor Usuario as U
 participant "Verificación local" as V
 database "Índice central" as I
 participant "Lector de archivos" as F
-U -> V : model verify nombre\no model companion verify nombre
+U -> V : model verify nombre [--set-baseline]\no model companion verify nombre [--set-baseline]
 V -> I : leer archivos y referencias de integridad
 I --> V : datos
+alt --set-baseline y registro gestionado
+  V --> U : rechazar; no modificar referencia de descarga
+else --set-baseline y registro externo
+  loop cada archivo esperado
+    V -> F : leer completo y calcular SHA-256\ncomprobar errores y cambios durante lectura
+    F --> V : digest y fecha / fallo
+  end
+  alt conjunto leído sin fallos ni cambios detectados
+    V -> I : establecer base explícita y fecha\ncreación o sustitución, no verificación
+    I --> V : confirmado / error
+    V --> U : base registrada o fallo\nno certifica origen ni corrección original
+  else lectura incompleta o inestable
+    V --> U : no establecer base completa; explicar fallo
+  end
+else verify normal
 loop archivo de la unidad
   alt no hay referencia de integridad
     V -> V : resultado: no verificable sin establecer base
@@ -456,6 +552,7 @@ end
 V -> I : guardar resultados y fecha\nsin reemplazar referencias de integridad
 I --> V : confirmado / error
 V --> U : resultado por archivo y del conjunto
+end
 note over V,F
   Sin red. No establece revisión remota.
   No repara ni cambia los pesos.

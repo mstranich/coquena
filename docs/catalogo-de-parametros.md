@@ -95,6 +95,27 @@ end note
 - **Configuración de familia:** sirve para *valores* propios del hardware (dispositivo,
   capas en GPU), no para inferir la disponibilidad de un flag.
 
+## Consulta del catálogo local
+
+`param list` y `param show <parámetro>` admiten dos selectores excluyentes:
+
+- `--backend <id>` consulta el catálogo efectivo del binario registrado: su origen,
+  versión y las excepciones específicas de ese backend.
+- `--version <release> [--distribution <origen>]` consulta las definiciones de esa
+  distribución y release, sin excepciones de un backend local. Omitir origen significa
+  oficial. Declarar origen requiere versión en esta consulta.
+
+No mezclar `--backend` con versión/distribución. Estas consultas leen los catálogos
+locales; no acceden al repositorio ni descargan binarios. Sin selector no se afirma
+disponibilidad para un backend concreto. Los releases externos no se fuerzan a bNNNN.
+
+```text
+coquena param list --backend <id-backend>
+coquena param show ctx-size --backend <id-backend>
+coquena param list --version b1002
+coquena param show <parametro> --distribution <repositorio-origen> --version <release>
+```
+
 ## Aplicación en Router Mode
 
 El INI generado es la vía principal para configurar los modelos: `[*]` contiene valores

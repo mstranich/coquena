@@ -57,6 +57,8 @@ escrituras de un mismo catálogo JSON también deben excluirse para evitar perde
 de operaciones distintas. No mantener ese bloqueo durante toda la transferencia.
 El mecanismo técnico de exclusión queda para la implementación.
 
+### Datos de la operación
+
 Después del milestone ejecutable con las funcionalidades iniciales, una TUI podrá
 coordinar múltiples descargas simultáneas. El motor mantiene operaciones independientes
 y progreso por archivo, sin asumir una única descarga global ni depender de una terminal
@@ -80,7 +82,8 @@ backend sirven para presentación, no sustituyen el ID del trabajo.
 | Identificación del ejecutor activo | Evitar recuperar como interrumpido un trabajo aún vivo |
 
 Para modelos, guardar repositorio, referencia solicitada, commit resuelto y rutas elegidas.
-Para backends, origen, release, familia, plataforma y artefactos con sus digests disponibles.
+Para backends, origen, release, familia, plataforma, artefactos y tamaños disponibles.
+No calcular, almacenar ni verificar SHA-256 para backends en el alcance inicial.
 No persistir credenciales ni usar URLs firmadas caducables como identidad. Renovar una
 ubicación de descarga no autoriza a cambiar el contenido seleccionado.
 
@@ -103,8 +106,8 @@ Cada operación guarda sus archivos en `downloads`, no en la carpeta instalada:
 `operation.json` describe el origen, revisión o release fijado, archivos esperados,
 rutas de preparación y destinos finales, progreso, verificadores de contenido,
 estado y diagnóstico. Es un documento por operación, no un sidecar por shard.
-Su escritura segura, versión de esquema y exclusión de escritores deben definirse
-antes de codificar; el índice instalado es independiente.
+Guardar JSON mediante archivo nuevo y reemplazo seguro; el índice instalado es
+independiente. Versión de esquema y mecanismo de exclusión se concretan al implementar.
 
 Descargar y conservar parciales en esta área; verificar el conjunto completo y luego
 moverlo al destino, publicando mediante un protocolo recuperable. Para backends,
@@ -123,6 +126,10 @@ requieren copia y verificación antes de eliminar la preparación.
 
 ## Estados y fases
 
+El diagrama muestra el estado de cada transferencia de archivo, no la disponibilidad
+del modelo ni el resultado final de la instalación. Los estados terminales se muestran
+durante la ejecución; no obligan a conservar objetos después de completar la operación.
+
 ```plantuml
 @startuml
 [*] --> Pendiente : selección persistida
@@ -131,8 +138,9 @@ Descargando --> Pausada : pausa / interrupción
 Pausada --> Descargando : reanudar explícitamente
 Descargando --> Verificando : transferencia terminada
 Verificando --> Completada : archivo íntegro
-Descargando --> Fallida : error no recuperable
+Descargando --> Fallida : error / reintentos agotados\nconservar trabajo y devolver prompt
 Verificando --> Fallida : tamaño o digest incorrecto
+Fallida --> Descargando : resume explícito\n[causa y parcial comprobados]
 Pendiente --> Cancelada : cancelar
 Pausada --> Cancelada : cancelar
 Descargando --> Cancelada : detener escritor y limpiar parcial
@@ -200,7 +208,8 @@ o un fallo explícito de persistencia. No anunciar pausa guardada si la escritur
 4. Si está adelantado, reconciliar el checkpoint sólo tras validar que pertenece al trabajo.
 5. Solicitar el resto mediante Range y un validador apropiado cuando esté disponible.
 6. Validar código, inicio de Content-Range, límites y continuidad de identidad antes de añadir bytes.
-7. Verificar el archivo completo: el hash incluye el prefijo anterior a la reanudación.
+7. Validar según el recurso: modelos y companions calculan SHA-256 del archivo completo,
+   incluido el prefijo anterior; backends aplican tamaño/extracción/sondeo, sin SHA-256.
 
 Nunca añadir una respuesta completa HTTP 200 al parcial ni mezclar contenido de versiones.
 Si el servidor no permite continuar o cambia la identidad, conservar un diagnóstico seguro.
@@ -231,9 +240,11 @@ Los interrumpidos pasan a pausados o a fallo diagnosticado según la coherencia 
 datos; no reanudar red automáticamente. Reconciliar índice, checkpoint y parciales sin
 declarar instalación completa a partir de su mera existencia.
 
-Las interrupciones durante publicación siguen el protocolo recuperable de instalación:
-conservar la anterior hasta activar la nueva completa. La limpieza posterior fallida se
-informa separadamente de la validez de la instalación activa.
+Durante publicación, no dejar mezclas de archivos declaradas como instalación completa
+ni anunciar éxito antes de coordinar destino e índice.
+Detectar inconsistencias entre disco y catálogo, sin borrar o sobrescribir por adivinación.
+El mecanismo se prueba al implementar, sin imponer un archivo transaccional adicional.
+La limpieza posterior fallida se informa separadamente de la validez de la instalación activa.
 
 ## Validación específica por recurso
 
@@ -255,8 +266,9 @@ distintas. `latest` y las reglas compatible/unknown/incompatible se resuelven an
 de transferir. Descarga desde origen oficial; terceros se registran externamente.
 
 Resolver todos los artefactos y dependencias requeridos por esa distribución.
-Comprobar tamaño y digest disponible antes de extraer; definir explícitamente la política
-si falta evidencia de integridad, sin anunciar una verificación inexistente.
+Comprobar tamaño cuando se conozca. Se omite SHA-256 completamente para backends,
+incluidos artefactos y dependencias; no es requisito de instalación ni referencia local.
+No anunciar integridad o autenticidad verificada contra el origen.
 Extraer en preparación con límites de bytes/entradas y protección contra rutas que
 escapen del destino. Localizar y ejecutar `llama-server --version`; sólo publicar
 si la validación termina correctamente. El sondeo no demuestra compatibilidad funcional
@@ -298,12 +310,12 @@ se conserva. La persistencia JSON interna no implica salida JSON pública.
 | Otro proceso sigue descargando | Listar no lo convierte en pausado |
 | Parcial adelantado o menor al checkpoint | Reconciliación segura o error; nunca offset inventado |
 | Range ignorado, rango incorrecto o recurso cambiado | No añade bytes incompatibles ni publica |
-| Hash de archivo reanudado | Incluye prefijo y sufijo; detecta corrupción del parcial |
+| Hash de modelo o companion reanudado | Incluye prefijo y sufijo; detecta corrupción del parcial |
 | Cancelación con escritor activo | Espera su terminación; no reaparece trabajo ni borra instalación |
 | JSON ilegible o fallo de escritura | Diagnóstico visible, sin desaparición silenciosa del trabajo |
 | Disco lleno o transferencia cortada | No publica; conserva resultado anterior y estado recuperable |
 | Archivo comprimido malicioso | No escribe fuera de preparación |
-| Digest incorrecto o --version fallido | Backend no instalado |
+| Tamaño incorrecto, extracción inválida o --version fallido | Backend no instalado |
 | Interrupción antes/después de activar conjunto | Recuperación coherente; ninguna mezcla de revisiones |
 
 Usar transporte simulado, archivos pequeños y fallos inyectados. Integración con proveedores

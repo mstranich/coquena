@@ -41,11 +41,16 @@ if (¿ya está instalada?) then (sí)
   :Informar y terminar;
   stop
 endif
-:Descargar;
+:Crear operación única y descargar en preparación;
+if (¿transferencia completa?) then (no)
+  :Detener escritores, conservar trabajo\ny mostrar GUID + resume; devolver prompt;
+  stop
+endif
 :Verificar artefactos y extraer en preparación;
 :Sondear llama-server --version;
 if (¿responde?) then (sí)
   :Asignar ID único y registrar\nel backend instalado;
+  :Registrar resultado en log y limpiar operación\neliminando su JSON;
 else (no)
   :Descartar la instalación;
   :Informar el error;
@@ -232,7 +237,7 @@ if (¿identifica un único registro?) then (no)
   :Rechazar con diagnóstico;
   stop
 endif
-:Guardar el valor de configuración\ncomo referencia, no como ruta resuelta;
+:Guardar referencia por ID estable\nmostrando nombre canónico, no ruta resuelta;
 :Al lanzar, resolver herencia y\ncomprobar archivos efectivos;
 :Emitir las rutas absolutas en el INI;
 stop

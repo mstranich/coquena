@@ -50,18 +50,18 @@ no cambia por sí solo la disponibilidad; en externos el seguimiento no aplica.
 
 ```plantuml
 @startuml
-[*] --> Registrado : model add / model companion add\n[ruta válida, GGUF legible]
+[*] --> Registrado : alta externa legible (puede estar incompleta)\no descarga gestionada publicada completa
 
 state Registrado {
   state q <<choice>>
   [*] --> q : cada consulta\n(list, run, preset)
   q --> Inaccesible : la ruta no existe\no no se puede leer
-  q --> Invalido : no es un GGUF legible
+  q --> Invalido : GGUF ilegible o metadatos\nde división contradictorios
   q --> Incompleto : faltan shards
   q --> Disponible : todo presente\ny legible
 }
 
-Registrado --> [*] : model remove\n(borra bytes propios;\nconserva externos)
+Registrado --> [*] : remove del modelo o companion\n(borra bytes propios;\nconserva externos)
 
 note right of Disponible
   Si tamaño o fecha difieren

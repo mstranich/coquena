@@ -8,7 +8,8 @@ No crea el proyecto ni autoriza a implementar ahora. Leer primero
 
 - **Acordado:** comportamiento de modelos-y-companions.md; ningún agente lo reinterpreta.
 - **Diseño propuesto:** mecanismos concretos de esta guía, pendientes de revisión antes
-  de implementarlos. No equivalen a decisiones ya aceptadas sobre persistencia o librerías.
+  de implementarlos. La estructura JSON de la sección 2 sí está acordada; librerías y
+  mecanismos no aprobados siguen siendo propuestas.
 - **Pendiente:** decisiones enumeradas al final. Un agente no las resuelve por omisión.
 - Implementar desde cero a partir de estos contratos; ninguna tarea requiere consultar otro repositorio.
 - Implementar sólo la entrega asignada. No crear framework de proveedores, daemon,
@@ -29,7 +30,7 @@ left to right direction
 rectangle "Comandos\nvalidar entrada y presentar resultados" as CLI
 rectangle "Casos de uso\nregistrar / consultar / actualizar / verificar" as UC
 rectangle "Comparador de inventarios\nfunción pura, sin red ni disco" as CMP
-database "Índice central\nregistros y operaciones" as IDX
+database "Persistencia local\ncatálogos JSON y operaciones separadas" as IDX
 rectangle "Acceso local\nGGUF, archivos y hash" as FS
 cloud "Hugging Face\nmetadatos y descarga HTTP" as HF
 CLI --> UC
@@ -79,8 +80,8 @@ Nombres conceptuales: no son todavía clases públicas ni esquema de persistenci
 
 | Registro | Contenido |
 |---|---|
-| Entrada | Identificador estable propuesto, nombre canónico, modelo o companion, tipo de companion, propiedad, instalación activa |
-| Instalación | Conjunto completo de archivos locales; commit de descarga si es gestionada |
+| Entrada | Identificador estable, nombre canónico, modelo o companion, tipo de companion, propiedad, instalación activa |
+| Instalación | Archivos esperados y rutas locales; externo puede estar incompleto; commit de descarga si es gestionada |
 | Archivo instalado | Ruta local, ruta remota si aplica, tamaño observado, fecha local observada, identidad remota tipada, referencia de integridad opcional |
 | Origen seguido | Repositorio, referencia solicitada, selección remota y correspondencias actuales de sus archivos |
 | Consulta remota | Fecha, commit consultado, resultado, diferencias y candidatos; separada de la instalación |
@@ -98,8 +99,9 @@ remoto sólo si representa esos mismos bytes y algoritmo. Xet no obliga a implem
 su algoritmo interno para usar una descarga convencional.
 
 Las referencias de configuración deben sobrevivir a la actualización de archivos.
-Se propone resolverlas mediante un identificador estable, no mediante rutas físicas.
-El nombre canónico es case insensitive, sin aliases. La representación del ID y el tratamiento de renombres remotos siguen pendientes.
+Se resuelven mediante el identificador estable, no mediante rutas físicas.
+El nombre canónico es case insensitive, sin aliases. Los renombres físicos siguen la
+regla funcional; esquema de ID y recuperación se concretan al implementar.
 
 ## 3. Registro externo y comprobaciones locales
 
@@ -203,13 +205,16 @@ stop
   proceso no puede aplicar después un plan obsoleto sin detectarlo.
 - Reutilización exige evidencia local suficiente; no confiar únicamente en que el
   índice recuerde un digest. Si hace falta, verificar los bytes antes de reutilizarlos.
-- No reemplazar shards activos uno a uno. Propuesta: preparar la instalación, registrar
-  durablemente la operación y cambiar su referencia activa mediante una escritura
-  transaccional del índice. Una transacción de base de datos no vuelve atómicas las
-  operaciones del sistema de archivos.
-- Recuperación tras interrupción: antes del cambio activo sigue vigente la instalación
-  anterior; después, la nueva completa. La limpieza pendiente no revierte una publicación
-  válida. El mecanismo exacto depende del índice elegido y debe probarse con fallos.
+- No reemplazar shards activos durante la transferencia. Verificar el conjunto antes
+  de publicar. Guardar cada JSON nuevo y reemplazar el original de forma segura, con
+  exclusión de escritores y comprobación de vigencia. Esto no vuelve atómicos los
+  movimientos físicos: detectar inconsistencias sin reparación destructiva automática.
+  No se impone un archivo transaccional adicional.
+- Mantener la instalación anterior durante preparación; después de una publicación
+  confirmada, la nueva debe estar completa. Una interrupción entre movimiento e índice
+  puede requerir recuperación antes de usar la unidad. No declarar éxito o inventar
+  rutas para ocultarlo. Probar el mecanismo con fallos; una limpieza pendiente no revierte
+  una publicación válida.
 - Cancelación, falta de espacio o hash incorrecto no publican archivos parciales.
   Validar rutas remotas para impedir escapes, rutas absolutas y colisiones locales.
 - La política de archivos compartidos y de modelos en uso es un prerrequisito de la
@@ -221,11 +226,15 @@ stop
 
 El intento es opcional mediante `--try-match`; el nombre se declara con `--name`.
 El flujo está en [secuencias.md](secuencias.md#1-registrar-un-externo-e-intentar-emparejarlo).
-Implementar consultas acotadas a partir de pistas locales; confirmar y persistir la
-elección sigue pendiente. Un candidato no demuestra identidad de bytes ni revisión.
+Implementar consultas acotadas a partir de pistas locales. Tras concretar el registro
+local, mostrar candidatos y razones en un menú con selección explícita o cancelación.
+Guardar la equivalencia elegida como información, no como identidad certificada ni
+habilitación de seguimiento. Cancelar deja el alta local intacta y sin emparejamiento.
 
-Elegir descargarlo crea una instalación gestionada sin alterar el externo. Reasignar
-nombres o presets entre ambos requiere un flujo explícito aún por definir.
+Si el nombre está ocupado por un externo, ofrecer la transición explícita definida
+en modelos-y-companions.md: publicar sólo tras completar/verificar la descarga,
+conservando ID y referencias, sin tocar los archivos externos. La operación conserva
+el registro de partida para comprobar vigencia antes de publicar.
 ## 8. Entregas delegables y evidencia de aceptación
 
 Cada entrega recibe este documento, las reglas funcionales, sus decisiones pendientes
@@ -257,47 +266,33 @@ claramente propuesta, implementación y comportamiento efectivamente verificado.
 
 ## 9. Decisiones que no deben quedar ocultas en el código
 
-Esta es la lista central de pendientes del catálogo y descargas. Las notas junto a
-diagramas sólo indican dónde afectan; no son decisiones adicionales. Su resolución
-se incorpora al documento dueño de la regla y se retira de esta lista.
+Esta es la lista central de pendientes. No reabre nombres canónicos, shards estándar,
+JSON por catálogo, comandos de companions, SHA-256, alcance global de update/upgrade
+ni controles de descargas ya acordados.
 
-Antes de la entrega afectada, resolver con el usuario:
+### Decisiones funcionales pendientes
 
-1. Representación del identificador interno estable y protocolo físico recuperable de renombres.
-   Nombre canónico, comparación case insensitive, ausencia de aliases y alta externa
-   con `--name` obligatorio y `--try-match` opcional ya están acordados.
-2. Implementar la selección explícita de variante con un único registro por selector; conjuntos que no
-   siguen la convención numerada quedan fuera del alcance inicial. La agrupación estándar, entrada por primer shard y
-   registro externo incompleto con uso bloqueado están definidos en modelos-y-companions.md.
-3. Esquema de los catálogos JSON y su versión, exclusión de escritores,
-   publicación recuperable y almacenamiento de archivos sin cambios entre instalaciones.
-   La configuración de ubicaciones separadas para configuración y archivos pesados
-   (modelos y backends) pertenece a una iteración posterior; no añadir un comando de
-   directorio al catálogo para anticiparla.
-4. Compartición de archivos, eliminación parcial y cálculo real de espacio liberado.
-5. Tratamiento técnico de identidades remotas no comparables; SHA-256 local ya está acordado.
-6. Sintaxis de búsqueda. La base explícita de externos usa verify --set-baseline;
-   no certifica procedencia ni aplica a gestionados.
-   resolución manual de sucesores. Companions reutilizan las reglas y comandos de modelos.
-   Confirmar y guardar emparejamientos,
-   inspección de repositorios sin GGUF y comportamiento sin entrada interactiva.
-   El menú de descarga de modelos ya está acordado; no reabrirlo como pendiente.
-7. Autenticación y alcance inicial para repositorios privados o con acceso restringido;
-   límites concretos de consultas, tamaño de metadatos, tiempos y reintentos.
-8. Modelos en uso durante activación/eliminación, al abordar servidores; política de
-   conservación de instalaciones anteriores y adaptación de las operaciones de descarga
-   existentes a conjuntos de archivos (véase descargas.md).
-9. Descargas: IDs internos de archivos; mecanismo de exclusión y propiedad de ejecutores; límites y
-   reintentos y formato del log de transacciones. Operaciones terminadas y limpiadas
-   se eliminan, sin historial de objetos. El reinicio ante Range no soportado
-   requiere aceptación explícita y conserva selección, GUID y archivos ya verificados.
-10. Configuración: creación/representación de la raíz del modelo cuando está vacía;
-    distinción en el catálogo entre opciones CLI, INI y del router; selección de catálogo
-    por origen/backend en consultas `param` (no sólo por build).
+- Autenticación y repositorios privados/restringidos: decisión aplazada; no requisito
+  confirmado de la primera versión.
 
-Estas decisiones no reabren lo descartado: reconciliación obligatoria, sidecars por
-shard, actualización de externos, descarga automática de companions, estado único que
-mezcla disponibilidad con seguimiento, ni búsqueda exhaustiva de procedencia.
+### Detalles técnicos al implementar
+
+- Esquemas JSON y versiones; representación de IDs; exclusión de escritores y
+  comprobación de ejecutores vivos; recuperación entre cambios de disco e índice.
+- Reutilización física dentro de la misma unidad, sin deduplicación entre repositorios;
+  representación de eliminaciones parciales; tratamiento de identificadores remotos
+  no comparables sin convertirlos en evidencia falsa de igualdad.
+- Límites de consultas, metadatos, tiempos, reintentos y extracción; frecuencia de
+  checkpoints y formato del log. Reintentos limitados y trabajo recuperable ya están acordados.
+- Detención y diagnóstico tras fallar un archivo del conjunto, sin confundirlo con
+  el recorrido global: un fallo de unidad no impide tratar otras unidades.
+- Disposición interna de backends; cálculo de espacio liberado y pruebas de fallos.
+
+Estos detalles requieren evidencia y pruebas en su entrega, no nuevas rondas de
+decisiones funcionales salvo que aparezca un impacto visible o una contradicción.
+La etapa de servidores resolverá modelos/backends en uso y conservación de instalaciones
+anteriores. La TUI, separación configurable de ubicaciones y transferencia diferencial
+por bloques quedan para iteraciones posteriores.
 
 ## Referencias
 

@@ -1,7 +1,8 @@
 # Comandos de la CLI
 
 Propuesta de superficie de comandos del núcleo, al estilo de SDKMan, FNM o UV para la
-gestión y de Docker para la ejecución. Los nombres son borrador.
+gestión y de Docker para la ejecución. Las decisiones acordadas se describen aquí;
+ejecución y opciones expresamente pendientes siguen en borrador.
 
 ## Convenciones
 
@@ -41,6 +42,12 @@ gestión y de Docker para la ejecución. Los nombres son borrador.
 ## Mapa por comando
 
 Todos los comandos se invocan con el prefijo `coquena`, omitido en los diagramas.
+
+Los flujos de selección y confirmación son **interactivos**. No se incorpora un modo
+automático para omitir sus menús. Si no hay entrada interactiva y el flujo necesita
+una respuesta, informar el requisito y terminar sin decidir por el usuario ni ejecutar
+la acción pendiente. Un registro local ya concretado antes de un emparejamiento se
+conserva; la falta de interacción no revierte esa alta.
 
 Las descargas y reanudaciones de modelos, companions y backends ocupan la terminal
 en primer plano. Ctrl+C pausa sin borrar parciales y muestra el GUID de la operación
@@ -106,11 +113,16 @@ aparece en companions. No hay aliases ni `--type`. Las reglas de identidad está
 `--name` es obligatorio para externos; no certifica procedencia.
 `--try-match` es opcional, sin valor. Sin él no se consulta la red; si falla, el alta
 local permanece. Emparejar no habilita actualizaciones del externo.
+Si hay candidatos, un menú muestra opciones y razones y permite elegir o cancelar
+el empate. Cancelar conserva el registro local; elegir guarda sólo equivalencia informativa.
 `update` guarda novedades y `upgrade` aplica la revisión detectada sólo a gestionados.
 
 `model download usuario/repositorio[:cuantización]` selecciona una unidad completa.
 Omitir cuantización conserva el menú acordado; al elegirla se determina el nombre
 canónico. No se descargan companions como efecto secundario.
+Si ese nombre está ocupado por un externo, ofrecer su transición explícita a gestionado;
+publicar sólo tras verificar la descarga, conservando ID y referencias y sin tocar los
+archivos externos. Cancelar o fallar mantiene el externo. Otras colisiones se rechazan.
 Antes de crear la operación presenta un único menú repetible:
 
 - **Con cuantización:** descargar la selección indicada, mostrar README o cancelar.
@@ -124,6 +136,10 @@ Antes de crear la operación presenta un único menú repetible:
   explícita; no adivinar. Etiquetar cada opción de inicio como descarga, no como inspección.
 
 El README se consulta sólo al solicitarlo. No se descarga por defecto con los pesos.
+Si el repositorio existe pero no ofrece GGUF seleccionables para la unidad solicitada,
+mostrar sólo «Mostrar README» y «Cancelar», explicando la ausencia de candidatos.
+No ofrecer descarga ni crear GUID, operación o parciales. La misma regla aplica a
+companions cuando no hay candidatos del tipo indicado.
 No encola companions. `model companion download` es otra invocación independiente,
 incluso otro día. Usa `usuario/repositorio#tipo[:cuantización]` y el mismo menú de
 selección, README y cancelación, limitado al tipo auxiliar indicado. Descargarlo no
@@ -163,7 +179,8 @@ definen en [descargas.md](descargas.md); no inicia selecciones nuevas.
 `download list` muestra todas las operaciones y admite filtros excluyentes `--model`,
 `--companion` o `--backend`: principales, companions o backends respectivamente.
 El detalle conserva progreso por archivo. Pause, resume y cancel requieren el GUID
- del conjunto; no hay control individual de archivos en el alcance inicial.
+del conjunto; no hay control individual de archivos en el alcance inicial.
+Operaciones terminadas y limpiadas desaparecen de estas vistas; su resultado queda en el log.
 
 ### `param`
 
@@ -172,8 +189,8 @@ Consulta, importa y exporta el catálogo de parámetros y su disponibilidad.
 ```plantuml
 @startmindmap
 * param
-** list [--version <build>]
-** show <parámetro>
+** list [--backend <id-backend> | --version <release> [--distribution <origen>]]
+** show <parámetro> [--backend <id-backend> | --version <release> [--distribution <origen>]]
 ** import <archivo> [--backend <id-backend>]
 ** export [<archivo>] [--backend <id-backend>]
 @endmindmap
@@ -297,7 +314,8 @@ El objetivo es separar una ubicación de configuración de otra para los archivo
 gestionados (modelos, companions y backends). Configurar esas ubicaciones se abordará
 en una iteración posterior, dentro de la configuración de Coquena, no del catálogo
 de modelos ni de los parámetros de inferencia. No se define todavía su comando,
-migración ni una disposición física obligatoria para la primera iteración.
+migración. La primera iteración usa un home común con la
+[estructura acordada](implementacion-catalogo-modelos.md#almacenamiento-local-acordado).
 
 No hay comando `init`. El home se resuelve así (`COQUENA_HOME` primero, porque es una
 decisión explícita del usuario):

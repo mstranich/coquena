@@ -50,11 +50,13 @@ package Modelos {
     ruta <<área gestionada; configuración posterior>>
   }
   class Modelo {
+    id <<estable>>
     nombre canónico <<catálogo local>>
     ruta(s) GGUF
     origen : gestionado | externo
   }
   class Companion {
+    id <<estable>>
     nombre canónico <<catálogo local>>
     tipo : mmproj | draft | …
     ruta(s) GGUF
@@ -109,7 +111,7 @@ Configuracion <|-- ConfiguracionDeModelo
 Configuracion <|-- Preset
 ConfiguracionDeFamilia --> ConfiguracionGlobal : hereda de
 ConfiguracionDeFamilia "0..1" --> "1" Familia
-ConfiguracionDeModelo "0..1" --> "1" Modelo
+ConfiguracionDeModelo "1" --> "1" Modelo
 Preset "*" --> "1" ConfiguracionDeModelo : hereda de
 Configuracion "*" --> "*" Companion : referencia en un parámetro
 
@@ -126,9 +128,9 @@ end note
 @enduml
 ```
 
-La configuración de un modelo puede estar vacía. Antes de implementar presets debe
-definirse cómo se representa o crea su raíz de herencia; la cardinalidad opcional no
-autoriza a dejar un preset sin configuración efectiva.
+Cada modelo tiene una configuración inicial vacía desde su registro. Es la raíz de
+herencia de sus presets, sin comando adicional ni archivo propio. Vacía significa
+que no tiene valores propios; no que la raíz sea inexistente.
 
 ## Catálogo y seguimiento: estructura conceptual propuesta
 
@@ -139,11 +141,14 @@ Los campos y significados se definen una sola vez en
 @startuml
 hide empty methods
 class EntradaDeCatalogo {
+  id <<estable>>
   nombre canónico
   propiedad : gestionado | externo
 }
 class Instalacion
-class ArchivoLocal
+class ArchivoLocal {
+  ruta esperada
+}
 class OrigenSeguido
 class ConsultaRemota
 class PlanDeActualizacion
@@ -156,6 +161,7 @@ PlanDeActualizacion --> Instalacion : parte de
 note right of EntradaDeCatalogo
   Modelo o companion.
   Emparejar un externo no crea seguimiento.
+  Un externo puede tener partes ausentes.
 end note
 @enduml
 ```
