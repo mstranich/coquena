@@ -31,10 +31,11 @@ rectangle Coquena {
     usecase "Elegir familia\nsegún hardware" as UC_VAR
   }
   package Modelos {
-    usecase "Descargar modelo\nelegir variante / ver README" as UC_DL
+    usecase "Descargar modelo o companion\nelegir variante / ver README" as UC_DL
     usecase "Consultar novedades (update)" as UC_UP
     usecase "Aplicar actualización (upgrade)" as UC_UG
     usecase "Verificar integridad local" as UC_V
+    usecase "Establecer base local\nde externo (--set-baseline)" as UC_BASE
     usecase "Retirar modelo o companion" as UC_RM
     usecase "Registrar modelo externo" as UC_MR
     usecase "Registrar companion externo" as UC_CR
@@ -68,13 +69,15 @@ Usuario --> UC_DL
 Usuario --> UC_UP
 Usuario --> UC_UG
 Usuario --> UC_V
+Usuario --> UC_BASE
 Usuario --> UC_RM
 Usuario --> UC_DLIST
 Usuario --> UC_DCTRL
 UC_DL --> HF
 UC_UP --> HF
 UC_UG --> HF
-UC_MR --> HF : intento de emparejamiento
+UC_MR --> HF : sólo --try-match
+UC_CR --> HF : sólo --try-match
 Usuario --> UC_MR
 Usuario --> UC_CR
 Usuario --> UC_ML

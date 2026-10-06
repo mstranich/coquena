@@ -24,8 +24,8 @@ Tres descubrimientos dan forma al proyecto:
 Existen enrutadores como llama-swap, pero apuntan a otro problema. llama.cpp sirve igual
 para un servidor local, un laboratorio personal o un equipo productivo; Coquena quiere que
 **los presets que un desarrollador afina en su PC sean migrables** a otra escala de
-ejecución. Por eso, a largo plazo, aparecen una TUI (Terminal.Gui, cuando el núcleo esté
-maduro) y una Web GUI para hardware remoto.
+ejecución. Después del milestone ejecutable se prevé una TUI que coordine múltiples
+descargas; su librería no está elegida. Una Web GUI para hardware remoto es una idea futura.
 
 ## Alcance de este análisis
 

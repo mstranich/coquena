@@ -52,6 +52,8 @@ por hash. Un nombre retirado puede reutilizarse, sin reconectar referencias rota
 El nombre no es una ruta física ni el nombre del preset. Las configuraciones referencian
 el registro; el INI recibe rutas absolutas. Cada registro tiene un ID interno estable
 para mantener referencias ante renombres. Su esquema concreto sigue pendiente.
+Cada modelo principal obtiene una configuración inicial vacía al registrarse, como
+raíz de herencia de sus presets. No requiere otro comando ni un archivo separado.
 
 ## Disponibilidad, en el núcleo
 
@@ -60,7 +62,7 @@ para mantener referencias ante renombres. Su esquema concreto sigue pendiente.
 - **Incompleto:** faltan shards.
 - **Inaccesible:** la ruta no existe o no se puede leer (disco desmontado, archivo
   movido, permisos).
-- **Inválido:** el archivo existe pero no es un GGUF legible.
+- **Inválido:** no es un GGUF legible o sus metadatos de división contradicen el conjunto.
 
 Ninguno de los cuatro exige calcular un hash completo. La integridad se comprueba de forma explícita y separada.
 
@@ -113,7 +115,7 @@ usuario; no se agrupan partes por semejanza ni se inventa una identidad.
 Los metadatos de nombre, versión, UUID y repositorio son pistas, no hashes ni pruebas
 de revisión remota. Los repositorios del modelo de origen no sustituyen al repositorio
 que publica los GGUF seleccionados. Una misma etiqueta de cuantización puede describir
-varias variantes; su selección explícita y representación local deben desambiguarse.
+varias variantes; se seleccionan explícitamente las rutas concretas.
 
 Para el alcance inicial:
 - Conjuntos divididos con nombres no convencionales quedan fuera del registro automático;
@@ -148,6 +150,15 @@ Si Coquena descargó sus archivos y los
 guarda en su área gestionada, **borra físicamente todos los archivos propios** e informa
 cuántos bytes liberó. Si la unidad es externa, **no toca sus archivos** e informa que
 permanecen en disco; así no afecta a LM Studio ni a otra herramienta que los gestione.
+Eliminar sólo los archivos propios de la unidad, nunca toda la carpeta del repositorio
+indiscriminadamente: puede contener otras cuantizaciones o companions. Retirar carpetas
+únicamente si quedan vacías, sin tocar archivos o registros vecinos.
+Si una eliminación física falla, informar archivos eliminados y pendientes con sus
+causas; conservar la información necesaria para reintentar sin perder la propiedad
+de los pendientes. No anunciar retiro completamente finalizado ni borrar silenciosamente
+esa información. Contar sólo bytes de archivos efectivamente eliminados, no el tamaño
+previsto de toda la unidad. La eliminación parcial no convierte el resto en externo
+ni autoriza a retirar archivos de otras unidades.
 La misma regla de propiedad rige para backends. Los presets que referencian una unidad
 retirada no se borran: pasan a **No servible** por *referencia rota*.
 
@@ -171,7 +182,7 @@ companion no es su estado sino su relación con los modelos:
   modelo instalado sigue disponible.
 - **Registro:** `model companion add <ruta.gguf> --name <usuario/repositorio#tipo:cuantización> [--try-match]`.
   El tipo está en el nombre, sin `--type`; no configura un preset.
-- **Retiro:** `model companion remove <nombre>` resuelve el registro por ese alias.
+- **Retiro:** `model companion remove <nombre>` resuelve el registro por su nombre canónico.
 - **Uso:** un parámetro de configuración referencia al companion registrado. El preset
   puede heredar esa referencia o sobrescribirla; Coquena la resuelve a una ruta absoluta
   en el INI. No hay una segunda lista de asociaciones en el preset.
@@ -180,6 +191,12 @@ companion no es su estado sino su relación con los modelos:
   forzado: registrar y configurar los archivos basta para intentar utilizarlos.
 - **Un companion puede servir a varios modelos**, y un modelo puede tener varios
   companions (proyector, borrador).
+
+Compartir significa referenciar el mismo registro, no crear varios registros propietarios
+del mismo archivo. No se introduce deduplicación física entre repositorios ni almacenamiento
+compartido por hash en la primera versión. Cada unidad gestionada tiene archivos propios;
+si otra unidad pretende apropiarse de una ruta ya registrada, se rechaza la colisión.
+Retirar un companion compartido conserva los presets, pero sus referencias quedan rotas.
 
 ## Preset: servible o no
 
@@ -202,9 +219,27 @@ El alta exige `--name <nombre-canónico>`: declaración del usuario, no prueba d
 Sin `--try-match`, el registro es exclusivamente local. `--try-match` es un flag opcional
 sin valor: intenta emparejar la selección en el repositorio declarado usando metadatos
 locales. Fallo de red, ausencia de coincidencias o ambigüedad no invalidan el registro
-ni cambian su nombre. Confirmar y persistir candidatos sigue pendiente.
+ni cambian su nombre. Si hay candidatos, la terminal muestra sus identificadores y
+razones de equivalencia en un menú de selección explícita, similar al de cuantizaciones,
+con opción de cancelar el emparejamiento. Elegir uno guarda la equivalencia informativa
+seleccionada, sin certificar identidad de bytes o revisión ni cambiar automáticamente
+el nombre del registro. Cancelar deja el registro local concretado, sin emparejamiento.
+El registro local se persiste antes de presentar ese menú; no se exige elegir un candidato.
 No reconstruye procedencia exhaustivamente ni habilita update/upgrade del externo.
 Una descarga gestionada posterior deja intactos los archivos externos.
+
+### Pasar un externo a gestión de Coquena
+
+Si una descarga solicita un nombre canónico ocupado por un externo, ofrecer reemplazar
+explícitamente ese registro por la instalación gestionada. No es una excepción silenciosa
+a las colisiones: rechazar la propuesta o cancelar mantiene el externo sin cambios.
+Otras colisiones continúan rechazándose.
+
+Hasta completar y verificar toda la descarga, el registro externo sigue vigente.
+Sólo al publicar se cambia su propiedad y rutas a la instalación gestionada, conservando
+su ID y las referencias de presets/configuración. Fallos o interrupciones previas no
+retiran el externo. Nunca borrar, mover ni adoptar sus archivos originales.
+Antes de publicar, comprobar que el registro de partida no cambió durante la operación.
 
 ## Seguimiento y actualización de gestionados
 
@@ -214,8 +249,8 @@ e identidad de contenido con su tipo. Conserva por separado el resultado y momen
 la última consulta y la revisión candidata. No confunde revisión instalada con consultada.
 
 Se sigue el repositorio que publica los archivos seleccionados: actualizar el modelo
-original no implica que un tercero haya regenerado su GGUF. El nombre local no cambia
-al actualizar los pesos.
+original no implica que un tercero haya regenerado su GGUF. Un cambio de pesos por sí
+solo no cambia el nombre local; un renombre remoto confirmado sigue las reglas de renombres.
 
 ### Reglas de correspondencia
 
@@ -242,6 +277,20 @@ Una consulta fallida significa **no se pudo comprobar**; una correspondencia amb
 **requiere intervención**. Ninguna equivale a «actualizado» ni necesariamente a
 «desactualizado». Se conserva la última observación con su fecha, sin presentarla como
 una comprobación actual.
+
+Si la consulta permite confirmar pérdida del origen o de la selección seguida y no
+hay sucesor identificado ni candidatos, informar **huérfano de seguimiento**: no puede
+actualizarse con el seguimiento actual. No reconstruir procedencia ni elegir otra
+cuantización para remediarlo. Si hay candidatos, ofrecerlos para elección explícita;
+cancelar conserva instalación y seguimiento sin resolver, sin descargar pesos.
+El menú muestra candidatos, diferencias y la acción de cancelar. Elegir uno establece
+explícitamente el destino de seguimiento y guarda el plan del commit seleccionado;
+no prueba identidad retrospectiva ni modifica pesos. `upgrade` aplica ese plan.
+Si la elección implica cambiar el espacio de nombres o las rutas remotas, upgrade
+también renombra/reubica carpetas y archivos físicos gestionados para reflejarlo,
+conservando IDs y referencias y comprobando colisiones. Update no mueve archivos.
+Un error de red o permisos no demuestra orfandad. La pérdida de seguimiento no bloquea
+la inferencia: archivos completos y legibles continúan disponibles localmente.
 
 `model upgrade [nombre]` aplica la revisión concreta detectada por `update`, no una
 revisión nueva elegida silenciosamente. Reutiliza archivos sin cambios, descarga los
