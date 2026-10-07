@@ -1,7 +1,7 @@
 # Actividades complementarias
 
 Los flujos de modelos y descargas se describen en [secuencias.md](secuencias.md).
-Aquí sólo se conservan actividades complementarias y borradores de ejecución.
+Aquí sólo se conservan actividades complementarias; los pendientes de ejecución están en servidores.md.
 
 ## Selección e instalación de backend
 
@@ -89,114 +89,79 @@ El sondeo valida el ejecutable, no demuestra compatibilidad con una GPU, no veri
 la familia declarada ni hace una prueba de inferencia. Coquena no infiere la familia
 del nombre de la carpeta. Al retirarlo sólo se borra su registro.
 
-## Iniciar una instancia (borrador)
+## Iniciar una instancia
 
-Este flujo requiere revisión con el usuario; omisión de presets, modos y limpieza
-no son reglas cerradas.
+Reglas en [servidores.md](servidores.md); no se descargan actualizaciones al iniciar.
 
 ```plantuml
 @startuml
 start
-:Usuario pide iniciar un servidor\n(backend, puerto y modo opcionales);
-if (¿indicó ID de backend?) then (sí)
-  :Resolver ese backend exacto;
-else (no)
-  if (¿indicó familia?) then (sí)
-    :Filtrar por la familia indicada;
-  elseif (¿el servidor fija familia?) then (sí)
-    :Filtrar por la familia del servidor;
-  endif
-endif
-if (¿indicó build?) then (sí)
-  :Filtrar por ese build;
-endif
-:Filtrar por SO y arquitectura nativa;
-:Inspeccionar hardware y evaluar\ncompatibilidad de los instalados;
-if (¿backend elegido explícitamente?) then (sí)
-  :Conservarlo aunque su aceleración\nsea unknown o incompatible;
-  :Informar estado y motivo;
-else (no)
-  :Conservar sólo compatibles\nde la distribución oficial;
-endif
-if (¿hay candidatos?) then (no)
-  :Rechazar y sugerir\nbackend install;
+:server [servidor] start [-d];
+:Resolver servidor indicado\no predeterminado;
+if (¿ya tiene instancia activa?) then (sí)
+  :Informar que ya está ejecutándose;
   stop
 endif
-if (¿se indicó ID exacto?) then (no)
-  :Elegir el build más reciente\nentre los candidatos;
-  if (¿hay varios candidatos\nen ese build?) then (sí)
-    :Aplicar preferencia de backend\n(CUDA compatible más alta en NVIDIA,\nluego Vulkan; CPU fallback);
-  endif
-endif
-if (¿no se fijó backend ni familia?) then (sí)
-  :Informar elección automática\ny listar alternativas;
-endif
-if (¿el puerto está libre?) then (no)
-  :Rechazar indicando qué lo ocupa;
+:Resolver backend propio o default\ny build actual instalado;
+if (¿backend ausente?) then (sí)
+  :Rechazar sin seleccionar sustituto;
   stop
 endif
-fork
-  :Aplanar eje backend\n(global → familia)\nen [*];
-fork again
-  :Por cada preset,\naplanar eje modelo\n(modelo → preset)\nen su sección;
-end fork
-:Verificar modelos y companions\nde cada preset en disco;
-if (¿algún preset tiene archivos\nfaltantes o inaccesibles?) then (sí)
-  :Avisar cuáles y omitir\nesos presets;
-endif
-if (¿queda al menos un preset\nalcanzable?) then (no)
-  :Rechazar: no hay\nningún modelo para servir;
+:Resolver presets explícitos\ny sus dependencias locales;
+if (¿vacío o algún preset no servible?) then (sí)
+  :Rechazar todo el inicio\ncon diagnóstico;
   stop
 endif
-:Evaluar parámetros contra\nel catálogo de la versión;
-if (¿hay parámetros no admitidos\no desconocidos?) then (sí)
-  :Avisar (consultivo);
+:Resolver defaults y valores propios\ndel servidor (host, port, metrics, otros);
+if (¿puerto ocupado?) then (sí)
+  :Rechazar sin reasignar puerto;
+  stop
 endif
-:Asignar ID de instancia;
-:Escribir el INI en\n<home>/run/<servidor>/<id>.ini;
-:Lanzar llama-server\n--models-preset <INI> + puerto;
-:Guardar ID, puerto, backend\ny PID junto al INI;
-:Esperar /health;
-if (¿responde a tiempo?) then (sí)
-  if (¿modo daemon?) then (sí)
-    :Desacoplar y devolver la terminal;
-  else (no)
-    :Seguir logs en la terminal\nhasta Ctrl+C;
-    :Detener la instancia;
-  endif
+:Generar INI por instancia\ncon herencia de modelos/presets;
+:Asignar ID, lanzar backend concreto\ny registrar PID, escucha y log;
+if (¿-d?) then (sí)
+  :Informar ID y log;\ndevolver prompt;
 else (no)
-  :Marcar Fallida;
-  :Mostrar el final del log;
+  :Mostrar salida;
+  :Ctrl+C detiene esta instancia\ny devuelve prompt;
 endif
 stop
 @enduml
 ```
 
-**Dónde vive el INI generado.** En el home de Coquena, no en la carpeta temporal del
-sistema operativo: un limpiador podría borrarlo mientras `llama-server` sigue corriendo, y
-Coquena no queda en ejecución para regenerarlo. Cada lanzamiento usa su propio archivo
-(p. ej. `run/<servidor>/<id>.ini`) para que dos instancias no se pisen, y se borra al
-detener la instancia.
+El INI generado vive en el home de Coquena, no en temporales del sistema.
+Cada instancia tiene el suyo; se elimina al detenerla. Los tiempos de salud,
+validación del proceso, terminación y recuperación quedan pendientes de diseño.
 
-## Detener una instancia (borrador)
+## Detener y consultar instancias
 
 ```plantuml
 @startuml
-start
-:Resolver ID de instancia\ny leer PID guardado;
-if (¿el proceso existe y es el\nllama-server que se lanzó?) then (no)
-  :Informar Huérfana\ny limpiar PID;
-  stop
-endif
-:Pedir terminación ordenada;
-if (¿terminó a tiempo?) then (no)
-  :Forzar terminación;
-endif
-:Borrar PID e INI generado;
-stop
+actor Usuario
+participant Coquena
+participant "Instancia del backend" as Backend
+Usuario -> Coquena : server stop <id-instancia>
+Coquena -> Coquena : Resolver ejecución registrada
+Coquena -> Backend : Detener esa instancia
+Coquena -> Coquena : Conservar definición del servidor
+Coquena --> Usuario : Informar resultado
 @enduml
 ```
 
+```plantuml
+@startuml
+actor Usuario
+participant Coquena
+participant "Instancias activas" as Instancias
+Usuario -> Coquena : server ps
+Coquena -> Coquena : Consultar registros de instancias
+loop Por instancia y modelo
+  Coquena -> Instancias : Consultar estado y métricas
+  Instancias --> Coquena : Resultado o diagnóstico
+end
+Coquena --> Usuario : Instantánea con IDs y métricas disponibles
+@enduml
+```
 ## Clonar un preset
 
 ```plantuml

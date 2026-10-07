@@ -36,8 +36,7 @@ acuerdos funcionales, los mecanismos técnicos propuestos y las decisiones pendi
 Coquena se implementará en **C#**, en pasos pequeños y revisables por quien mantiene
 Coquena. El orden de revisión es: backends y catálogo de parámetros; configuración y
 presets; catálogo de modelos y sus comandos (incluida su relación con Hugging Face);
-por último, servidores e instanciación. La superficie `server` y las reglas de ejecución
-siguen siendo borradores, no decisiones cerradas. La documentación es autosuficiente: ningún requisito depende de otra implementación.
+por último, servidores e instanciación. Los acuerdos y pendientes de ejecución están en [servidores.md](servidores.md). La documentación es autosuficiente: ningún requisito depende de otra implementación.
 
 ## El contexto es la máquina
 
@@ -59,7 +58,7 @@ sobre el mismo GGUF.
 
 ### Cómo leer y mantener esta documentación
 
-1. **Comportamiento:** modelos-y-companions.md, descargas.md y catalogo-de-parametros.md.
+1. **Comportamiento:** modelos-y-companions.md, descargas.md, catalogo-de-parametros.md y servidores.md.
 2. **Interfaz:** comandos.md define sintaxis y menús; no repite los algoritmos.
 3. **Diagramas:** casos-de-uso.md es el mapa; secuencias.md muestra interacciones;
    actividades.md sólo conserva flujos complementarios. Estados y modelo de datos
@@ -69,11 +68,11 @@ sobre el mismo GGUF.
 
 Una regla se mantiene en su documento de comportamiento; los demás la enlazan o
 representan. Cambiarla exige revisar sus diagramas y comandos, no copiar otro párrafo.
-**Servidores e instanciación siguen en borrador**, incluidos los bloques de ejecución
-en comandos, actividades y estados. No implementar esos bloques como requisitos cerrados.
+Los acuerdos de servidores están en [servidores.md](servidores.md); sus pendientes no autorizan decisiones implícitas.
 
 | Documento | Contenido |
 |---|---|
+| [servidores.md](servidores.md) | Composición, defaults, instancias y pendientes |
 | [glosario.md](glosario.md) | Vocabulario del dominio |
 | [casos-de-uso.md](casos-de-uso.md) | Actores y casos de uso |
 | [modelo-de-datos.md](modelo-de-datos.md) | Diagrama de clases del dominio |

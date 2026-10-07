@@ -287,9 +287,9 @@ participant "Acceso local y verificador" as F
 participant "Hugging Face" as HF
 U -> CLI : model upgrade nombre
 CLI -> UG : aplicar actualización detectada
-UG -> I : leer plan, instalación actual y propiedad
+UG -> I : leer plan, instalación actual, propiedad\ny uso por instancias activas
 I --> UG : datos
-alt externo, candidato ambiguo o plan obsoleto
+alt externo, candidato ambiguo, plan obsoleto o unidad en uso
   UG --> CLI : rechazar aplicación; explicar acción necesaria
 else plan aplicable
   UG -> I : persistir operación y conjunto objetivo fijado
@@ -566,3 +566,73 @@ Traducir ramas alternativas a pruebas: colisión de nombre, consulta remota inco
 plan obsoleto, fallo al persistir, shard fallido, extracción inválida, ejecutor aún vivo,
 Range incompatible y discrepancia de integridad. Los diagramas no prueban código ni
 resuelven por sí solos la atomicidad del índice y el sistema de archivos.
+
+## Reiniciar un servidor
+
+```plantuml
+@startuml
+actor Usuario
+participant CLI
+database "Definiciones / catálogo / instancias locales" as I
+participant "Instancia anterior" as A
+participant "Backend actual instalado" as B
+Usuario -> CLI : server [nombre] restart
+CLI -> I : resolver servidor y ejecución activa
+I --> CLI : definición y ejecución (si existe)
+opt hay instancia activa
+  CLI -> A : detener y confirmar terminación
+  A --> CLI : detenida / fallo
+end
+opt puede continuar (detenido o terminación confirmada)
+  CLI -> I : resolver selección propia/default y build actual
+  I --> CLI : backend, parámetros y presets guardados
+  CLI -> CLI : validar dependencias y puerto
+  alt validación falla
+    CLI --> Usuario : diagnóstico; sin sustitución automática
+  else validación correcta
+    CLI -> CLI : generar INI e ID nuevo
+    CLI -> B : iniciar en segundo plano
+    CLI -> I : registrar ejecución, build concreto y log
+    CLI --> Usuario : resultado e ID; devolver prompt
+  end
+end
+note over CLI,B
+  Latest utiliza el build actual tras upgrade.
+  No consulta ni descarga novedades.
+  No se adjunta a la salida del nuevo proceso.
+end note
+@enduml
+```
+
+El mecanismo de terminación, detección de salud y exclusión se prueba al implementar;
+el diagrama no fija tiempos ni sustituye las reglas de servidores.md.
+
+## Crear o reasignar el puerto de un servidor
+
+```plantuml
+@startuml
+actor Usuario
+participant CLI
+database "Catálogo local de servidores" as C
+Usuario -> CLI : server create nombre [--port N]\no server [nombre] unset port
+CLI -> C : leer puertos guardados
+C --> CLI : puertos
+alt create con puerto explícito
+  CLI -> CLI : validar rango y unicidad
+else asignación automática
+  CLI -> CLI : catálogo vacío: 8080\nen otro caso: máximo + 1
+end
+alt inválido, colisión explícita o máximo agotado
+  CLI --> Usuario : rechazar sin alterar registro anterior
+else puerto válido
+  CLI -> C : guardar preservando unicidad
+  C --> CLI : guardado / conflicto
+  CLI --> Usuario : informar puerto asignado o error
+end
+note over CLI,C
+  Unset port usa el máximo guardado, no elimina primero el anterior.
+  No se buscan huecos ni se reinicia la numeración.
+  Al iniciar se comprueba disponibilidad real, sin reasignar.
+end note
+@enduml
+```

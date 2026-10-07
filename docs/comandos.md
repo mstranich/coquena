@@ -10,8 +10,8 @@ ejecución y opciones expresamente pendientes siguen en borrador.
   versión mayor de las bibliotecas CUDA usadas para compilar el runtime, **no** el
   release de llama.cpp. Éste se expresa por separado como `<build>` (`b1002`).
   Cada backend registrado tiene además un **ID único y estable**. Un selector abreviado
-  como familia + build sólo se acepta si identifica exactamente uno; `run` y
-  `uninstall` admiten el ID para eliminar toda ambigüedad.
+  como familia + build sólo se acepta si identifica exactamente uno. Servidores seleccionan
+  por origen/variante:release o nombre externo; `uninstall` conserva la selección por ID.
   Sin familia, Coquena elige automáticamente una compatible con el hardware; sin
   release, `latest` significa **el build más reciente que tenga un binario compatible
   dentro del filtro indicado**. Primero se compara el build y sólo entre candidatos
@@ -74,7 +74,10 @@ Consulta, instala y registra backends de llama.cpp; también permite retirarlos.
 * backend
 ** remote [<familia>] [--release <build>|latest]
 ** install [<familia>] [--release <build>|latest]
-** register <ruta-llama-server> --family <familia> [--distribution <origen>]
+** register <ruta-llama-server> --name <nombre> --family <familia> [--distribution <origen>]
+** use [<selector>|<nombre-externo>]
+** update (sintaxis pendiente)
+** upgrade (sintaxis pendiente)
 ** list
 ** uninstall <id-backend>
 @endmindmap
@@ -248,65 +251,79 @@ los parámetros de `config`, no con una lista de asociaciones separada.
 @endmindmap
 ```
 
-## Ejecución: borrador no aprobado
+## Servidores e instancias
 
-Las siguientes secciones requieren revisión al abordar servidores; no autorizan
-implementación ni fijan políticas de omisión de presets, eliminación en uso o limpieza.
+Reglas confirmadas y pendientes en [servidores.md](servidores.md).
 
-### `server`
+### Sintaxis confirmada
 
-Registra la composición de presets que ofrecerá un router y sus opciones de lanzamiento.
+~~~text
+coquena backend use [<selector>|<nombre-externo>]
 
-```plantuml
-@startmindmap
-* server
-** create <nombre> [--family F] [--port N]
-** add <servidor> <preset>...
-** remove-preset <servidor> <preset>
-** list
-** show <servidor>
-@endmindmap
-```
+coquena server create <nombre> [--port <puerto>]
+coquena server default [<nombre>]
+coquena server [<nombre>] use default|<selector>|<nombre-externo>
+coquena server [<nombre>] set <parámetro> <valor>
+coquena server [<nombre>] unset <parámetro>
+coquena server [<nombre>] preset add <preset>...
+coquena server [<nombre>] preset remove <preset>...
+coquena server [<nombre>] preset list
+coquena server [<nombre>] start [-d]
+coquena server [<nombre>] restart
+coquena server [<nombre>] show
+coquena server [<nombre>] remove
+coquena server [<nombre>] logs [-f]
+coquena server list
+coquena server ps
+coquena server stop <id-instancia>
+~~~
 
-### `run`
+Backend use configura el backend predeterminado de Coquena; sin selector lo muestra.
+No descarga ni inicia: la selección debe resolver a una instalación registrada.
+Server default designa un servidor existente; sin nombre muestra el predeterminado.
+Coquena parte de un servidor default predeterminado. El primer backend instalado
+correctamente mediante descarga propia se autoasigna como backend predeterminado,
+sin sustituir una selección previa del usuario. Los presets siguen asignándose explícitamente.
 
-Genera el INI e inicia una instancia de un servidor registrado.
+Después de server, las palabras reservadas se interpretan como subcomandos; en otro
+caso se exige el nombre de un servidor existente y luego su acción. Los nombres de
+servidores no pueden coincidir con palabras reservadas. Omitir el nombre en use, set,
+unset, preset, show, remove, logs, start o restart dirige la acción al servidor predeterminado. Create, default, list,
+ps y stop tienen su significado propio; no operan implícitamente sobre ese servidor.
 
-```plantuml
-@startmindmap
-* run <servidor> [--backend <id-backend> | --family <familia> [--release <build>]] [--port N] [-d]
-@endmindmap
-```
+Server use default elimina la selección propia y recupera la herencia del backend
+predeterminado de Coquena. Los selectores mantienen la distinción entre release fijado
+y seguimiento latest. El selector admite origen/variante:release (o latest), con origen
+oficial implícito si se omite. Un externo se selecciona por nombre, sin --backend.
+Los selectores de gestionados no incluyen externos, aunque éstos declaren igual origen,
+familia y release. Backend update/upgrade no siguen ni actualizan registros externos.
+Las identidades y alcance de terceros están en [servidores.md](servidores.md#identificación-de-backends).
 
-### `ps`
+Start utiliza la definición guardada, sin overrides temporales de backend o parámetros;
+-d sólo selecciona el modo. Start sin -d permanece en primer plano. Ps muestra instancias activas y métricas como
+instantánea. Stop detiene sólo el ID indicado. No hay comando de guardar.
+Restart aplica la configuración guardada y, si la selección sigue latest, el build actual
+instalado por backend upgrade. No descarga al reiniciar. Hay una sola instancia activa
+por servidor; un segundo start no crea otra. Restart inicia también un servidor detenido
+y devuelve el prompt sin seguir logs; la nueva instancia queda en segundo plano.
+Los antiguos comandos raíz run, ps y stop no son la superficie acordada.
 
-Lista las instancias registradas y sus IDs.
+Preset add asocia presets existentes; remove retira sólo las asociaciones, sin eliminar
+los presets del catálogo. List muestra los asociados al servidor seleccionado. Los cambios
+afectan al próximo inicio, no a instancias activas.
 
-```plantuml
-@startmindmap
-* ps
-@endmindmap
-```
+Show muestra la definición completa: selección de backend propia o heredada, build
+instalado resuelto, parámetros efectivos y presets asociados. No inicia procesos ni
+consulta actualizaciones remotas. Si falta una referencia/default, muestra el diagnóstico
+sin inventar una selección.
 
-### `logs`
+Logs muestra salida reciente; -f sigue la salida. Ctrl+C termina únicamente el
+seguimiento, sin detener el servidor. Se consulta la ejecución actual o, si está
+detenido, la última ejecución. La retención se limita por tamaño configurable;
+no confundir logs -f con start en primer plano.
 
-Consulta los logs de una instancia; con `-f`, sigue su salida.
-
-```plantuml
-@startmindmap
-* logs <id-instancia> [-f]
-@endmindmap
-```
-
-### `stop`
-
-Detiene la instancia identificada por su ID.
-
-```plantuml
-@startmindmap
-* stop <id-instancia>
-@endmindmap
-```
+Remove retira sólo la definición de un servidor detenido. Si era el predeterminado,
+limpia la designación sin seleccionar otro ni recrear default. No elimina recursos asociados.
 
 ## Home
 
@@ -337,12 +354,3 @@ endif
 stop
 @enduml
 ```
-
-## Reglas de ejecución (borrador)
-
-- `run` siempre ejecuta un **servidor registrado** con un **backend instalado**; no existe
-  un lanzamiento ad hoc de un preset suelto.
-- `run` devuelve un ID de instancia. `ps`, `logs` y `stop` se refieren a ese ID, no al
-  nombre del servidor; varias instancias del mismo servidor pueden convivir sólo con
-  puertos distintos. El puerto del servidor es el predeterminado y `--port` permite
-  elegir otro para ese lanzamiento.

@@ -10,6 +10,15 @@ para un tercero se declara su repositorio de origen. Una etiqueta amigable no su
 ese identificador. Un mismo número de release en repositorios distintos no identifica
 la misma disponibilidad.
 
+## Ámbito de aplicación
+
+Cada definición distingue servidor/router de modelo/inferencia, además de su destino
+CLI/INI. Los parámetros del servidor se configuran en su definición, no en presets.
+Host, port y metrics son definiciones estáticas no eliminables, independientes del
+backend; los defaults y reglas están en [servidores.md](servidores.md#parámetros-del-servidor).
+Unset elimina valores, no definiciones. Las demás definiciones conservan sus reglas
+por distribución/release o binario exacto; no hay otro catálogo separado para servidores.
+
 ## Disponibilidad por distribución y build
 
 La familia de aceleración (CPU, CUDA, Vulkan) no identifica por sí sola el conjunto de
@@ -33,6 +42,7 @@ class Parametro {
   variable de entorno
   descripción
   destino : CLI | INI | router (según definición)
+  aplicación : servidor/router | modelo/inferencia
 }
 class Disponibilidad {
   evidencia : admite | rechaza
@@ -48,7 +58,7 @@ class BackendRegistrado {
 }
 class ValorEnumerado
 
-Parametro "1" *-- "1..*" Disponibilidad
+Parametro "1" *-- "*" Disponibilidad
 Disponibilidad "*" --> "0..1" Distribucion : ámbito por builds
 Disponibilidad "*" --> "0..1" BackendRegistrado : ámbito exacto
 BackendRegistrado "1" --> "1" Distribucion

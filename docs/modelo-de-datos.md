@@ -1,6 +1,6 @@
 # Modelo de datos
 
-Relaciones del dominio, sin fijar persistencia ni clases C#. Ejecución sigue en borrador.
+Relaciones del dominio, sin fijar persistencia ni clases C#. Reglas de ejecución en [servidores.md](servidores.md); detalles pendientes allí.
 
 Coquena tiene **su propio modelo interno**. Los archivos INI de `llama-server` no son
 parte de él: se **generan** en cada lanzamiento, a partir de ese modelo, y duran lo que
@@ -30,6 +30,7 @@ package Backends {
   class Distribucion {
     nombre : ggml-org | …
     repositorio de origen <<identificador>>
+    nombre corto (ggml; oficial es alias)
   }
   class Familia {
     nombre : cuda@12 | cuda@13 | vulkan | cpu | …
@@ -40,6 +41,8 @@ package Backends {
     id <<único, estable>>
     build oficial : bNNNN (si aplica)
     versión sondeada
+    variante
+    nombre externo (si externo)
     ruta
     origen : gestionado | externo
   }
@@ -82,7 +85,8 @@ package "Configuración (eje modelo)" {
 package Ejecución {
   class Servidor {
     nombre
-    puerto
+    parámetros del router
+    selección de backend (opcional)
   }
   class Instancia {
     id
@@ -115,15 +119,16 @@ ConfiguracionDeModelo "1" --> "1" Modelo
 Preset "*" --> "1" ConfiguracionDeModelo : hereda de
 Configuracion "*" --> "*" Companion : referencia en un parámetro
 
-Servidor "*" --> "0..1" Familia : fija (opcional)
-Servidor "*" o-- "1..*" Preset : ofrece
-Instancia "*" --> "1" Servidor : lanza
+Servidor "*" --> "0..1" Familia : filtro de selección propia (opcional)
+Servidor "*" o-- "*" Preset : ofrece explícitamente
+Instancia "0..1" --> "1" Servidor : activa para
 Instancia "*" --> "1" BackendRegistrado : ejecuta
 Instancia "1" *-- "1" ArchivoINI : genera
 note bottom of Instancia
-  Sin filtro explícito, el build compatible
-  más reciente; entre candidatos de ese build,
-  preferencia de backend.
+  Backend propio del servidor o default de Coquena.
+  Latest resuelve el build actual instalado,
+  sin actualizar al iniciar.
+  La instancia conserva ese build.
 end note
 @enduml
 ```
@@ -221,9 +226,7 @@ S ..> N : llama-server\nhereda
 
 ## Aclaraciones
 
-- **Servidor** es la composición que Coquena coordina: un puerto, opcionalmente una
-  familia, y los
-  presets que ofrece. Su diseño y sus comandos siguen pendientes de revisión.
+- **Servidor** reúne presets explícitos, backend propio o heredado y parámetros del router. Véase [servidores.md](servidores.md).
 - **Clonar** configuraciones y presets hacia otros modelos o familias es la forma de
   reutilizar un ajuste fino.
   En un preset se copian sólo sus valores propios, incluidas las referencias a companions,
@@ -242,7 +245,7 @@ S ..> N : llama-server\nhereda
   compatibilidad de aceleración. Cada backend registrado recibe un ID único y estable;
   `familia + build` es sólo un atajo cuando resuelve a uno.
 - **Instancias.** Cada lanzamiento tiene ID y puerto efectivos propios; el puerto del
-  servidor es sólo el valor predeterminado. Dos instancias no comparten puerto ni INI.
+  servidor es sólo el valor predeterminado. Cada instancia tiene INI propio; colisiones de escucha y sobrescrituras por inicio siguen pendientes.
 - **Distribuciones de backends.** Sólo `ggml-org` es origen de descubrimiento y
   descarga de binarios. Hugging Face es el origen de modelos, no esta distribución.
   Un tercero puede aportar un binario, pero el usuario lo registra como

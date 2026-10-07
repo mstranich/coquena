@@ -161,11 +161,15 @@ previsto de toda la unidad. La eliminación parcial no convierte el resto en ext
 ni autoriza a retirar archivos de otras unidades.
 La misma regla de propiedad rige para backends. Los presets que referencian una unidad
 retirada no se borran: pasan a **No servible** por *referencia rota*.
+La retirada se rechaza si una instancia activa utiliza la unidad, indicando sus IDs;
+referencias guardadas sin uso por instancias activas no bloquean el retiro. Véase
+[servidores.md](servidores.md#inicio-y-detención). Upgrade y renombres también se bloquean en uso.
 
 El catálogo central es `<home>/catalogs/models.json`, sin sidecars por archivo o shard.
 Los pesos siguen `models/<usuario>/<repositorio>/<ruta-remota>`, sin carpetas propias
-por cuantización. La estructura completa está en la guía técnica. Recuperación del índice,
-propiedad de archivos compartidos y eliminaciones parciales siguen pendientes.
+por cuantización. La estructura completa está en la guía técnica. Recuperación del índice
+y representación técnica de eliminaciones parciales requieren diseño; las reglas de
+propiedad y diagnóstico ya están definidas arriba.
 
 ## Companions
 
@@ -206,7 +210,7 @@ deriva de la disponibilidad de sus archivos:
 - **Servible:** su modelo y los companions referenciados por su configuración efectiva
   están disponibles. No garantiza que el backend consiga cargarlos.
 - **No servible:** alguno no está disponible, o la referencia está rota porque se quitó
-  del registro. La decisión de omitirlo o rechazar el lanzamiento queda para servidores.
+  del registro. El inicio del servidor se rechaza, sin omitir el preset; véase [servidores.md](servidores.md).
 
 ## Incorporación: externo o gestionado
 
@@ -305,8 +309,13 @@ transacción global: cada unidad se publica completa o conserva su instalación 
 
 La reutilización por archivo es el criterio inicial. La transferencia diferencial por
 bloques es una optimización posterior, no un requisito para detectar actualizaciones.
-Quedan pendientes las reglas de aplicación con modelos en uso, para la revisión de
-servidores e instanciación.
+Update puede consultar novedades aunque la unidad esté en uso. Upgrade de modelos o
+companions se rechaza antes de descargar mientras una instancia activa utilice esa
+unidad, indicando sus IDs; primero deben detenerse. Incluye planes de sólo renombre.
+No se mantienen dos instalaciones de pesos para servir simultáneamente revisiones
+distintas. Esto no elimina el espacio temporal de preparación necesario para verificar
+la actualización y conservar la instalación anterior si falla. Coordinar inicio y
+upgrade para impedir que una instancia adquiera los archivos durante su sustitución.
 
 ## Integridad local
 

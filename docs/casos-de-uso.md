@@ -42,7 +42,7 @@ rectangle Coquena {
     usecase "Listar modelos" as UC_ML
   }
   package Configuración {
-    usecase "Definir servidor (borrador)\n(presets, puerto,\nfamilia opcional)" as UC_ID
+    usecase "Definir servidor\n(presets, puerto,\nbackend propio o default)" as UC_ID
     usecase "Editar configuración\nglobal / de familia /\nde modelo" as UC_IG
     usecase "Definir / editar /\neliminar preset" as UC_PD
     usecase "Clonar configuración\no preset" as UC_PC
@@ -51,8 +51,8 @@ rectangle Coquena {
     usecase "Consultar progreso y filtrar" as UC_DLIST
     usecase "Pausar / reanudar / cancelar" as UC_DCTRL
   }
-  package "Instancias (borrador)" {
-    usecase "Iniciar instancia" as UC_IS
+  package "Instancias" {
+    usecase "Iniciar / reiniciar instancia" as UC_IS
     usecase "Detener instancia" as UC_IX
     usecase "Ver estado (ps)" as UC_IP
     usecase "Seguir logs" as UC_IL
@@ -111,7 +111,7 @@ end note
   [modelos-y-companions.md](modelos-y-companions.md).
 - Descargas: progreso, control y recuperación en [descargas.md](descargas.md).
 - Configuración y presets: herencia y referencias en [modelo-de-datos.md](modelo-de-datos.md#dos-ejes-de-herencia).
-- Servidores e instancias: borradores; todavía no autorizan implementación.
+- Servidores e instancias: acuerdos y pendientes en [servidores.md](servidores.md).
 - Elegir ubicaciones distintas para configuración y archivos pesados se difiere; no es
   un caso de uso del catálogo de modelos.
 
