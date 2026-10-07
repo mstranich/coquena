@@ -116,7 +116,8 @@ Una pausa conserva la preparación. Cancelar elimina sólo preparación propia, 
 archivos instalados o externos. Al terminar y completar su limpieza, se elimina toda
 la carpeta de operación, incluido operation.json. No se conservan objetos terminales
 ni un catálogo histórico de descargas. El resultado se registra en un log de transacciones
-local, sin credenciales ni URLs firmadas. Pausadas y fallos recuperables conservan su
+local en JSONL, con retención limitada y sin credenciales ni URLs firmadas. No sustituye
+los JSON de estado ni requiere reproducción de eventos. Pausadas y fallos recuperables conservan su
 operación; una limpieza pendiente no se presenta como terminada.
 
 En la primera iteración preparación y destino están bajo el mismo home y volumen,

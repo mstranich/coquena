@@ -1,36 +1,35 @@
 # Diagramas de estado
 
-## Instancia (borrador)
+## Instancia y registro de ejecución
 
-Una instancia es un `llama-server` vivo: existe desde que se inicia hasta que termina. El
-estado se **deriva** del PID guardado, de lo que responde el sistema operativo y del
-endpoint de salud de `llama-server`.
+El estado se deriva de la existencia e identidad del proceso. Salud y modo de ejecución
+son observaciones distintas: no responder a /health no demuestra que el proceso terminó.
+Los tiempos y mecanismos concretos se definen al implementar.
 
 ```plantuml
 @startuml
-[*] --> Iniciando : iniciar servidor + backend concreto\n[SO y arquitectura correctos,\npuerto libre]\n/ genera el INI
-Iniciando --> EnEjecucion : /health responde OK
-Iniciando --> Fallida : el proceso termina\no vence el tiempo
-EnEjecucion --> Deteniendo : detener
-Deteniendo --> [*] : el proceso terminó
-EnEjecucion --> Fallida : el proceso muere\nsin que se pidiera
-Fallida --> [*] : limpiar
-
-EnEjecucion --> Huerfana : el PID guardado\nya no corresponde\na llama-server
-Huerfana --> [*] : limpiar PID
-
-state EnEjecucion {
-  [*] --> PrimerPlano
-  [*] --> Daemon
-  PrimerPlano : adjunta a la terminal,\nmuestra logs
-  Daemon : desacoplada,\nPID guardado
-}
+[*] --> Registrada : inicio o lectura de registro local
+Registrada --> Activa : proceso vivo e identidad confirmada
+Registrada --> IdentidadIncierta : no se puede verificar
+Registrada --> Terminada : ejecución anterior confirmada como terminada
+Activa --> Deteniendo : stop, Ctrl+C en primer plano o restart
+Activa --> Terminada : proceso termina
+Activa --> IdentidadIncierta : no se puede verificar identidad
+IdentidadIncierta --> Activa : identidad y proceso vivo confirmados
+IdentidadIncierta --> Terminada : ejecución original confirmada como terminada
+Deteniendo --> Terminada : terminación confirmada
+Deteniendo --> Activa : fallo de detención; proceso sigue vivo
+Terminada --> [*] : limpiar registro activo e INI; conservar log
+IdentidadIncierta : diagnóstico; no matar procesos ni iniciar sustituto
+Activa : primer plano o segundo plano
+Activa : salud observada por separado
 @enduml
 ```
 
-- **Huérfana:** el PID guardado apunta a un proceso que ya no existe o que el sistema
-  reutilizó para otro programa. Coquena debe verificar que el PID pertenece al
-  `llama-server` que lanzó antes de actuar sobre él.
+Un PID reutilizado no autoriza a actuar sobre el proceso ajeno. Si se confirma que la
+ejecución original terminó, se limpia su registro, no se mata el proceso que reutilizó
+el PID. Si hay incertidumbre, se conserva evidencia y se informa. No hay reinicio automático.
+La definición de servidor con backend ausente es una referencia rota, no un proceso huérfano.
 
 ## Backend registrado
 
