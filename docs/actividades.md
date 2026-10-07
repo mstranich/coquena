@@ -50,6 +50,7 @@ endif
 :Sondear llama-server --version;
 if (¿responde?) then (sí)
   :Asignar ID único y registrar\nel backend instalado;
+  :Conservar intención latest o pin;\nsi es la primera instalación propia y no hay\nselección previa, asignar backend default;
   :Registrar resultado en log y limpiar operación\neliminando su JSON;
 else (no)
   :Descartar la instalación;
@@ -70,7 +71,11 @@ localmente. Coquena no ofrece descargas sin instalación.
 ```plantuml
 @startuml
 start
-:Usuario indica un llama-server externo\ny declara su familia;
+:Usuario indica un llama-server externo,\nnombre obligatorio y familia declarada;
+if (¿nombre válido y libre?) then (no)
+  :Rechazar sin registrar;
+  stop
+endif
 if (¿ruta existente y ejecutable?) then (no)
   :Rechazar sin registrar;
   stop
@@ -80,7 +85,7 @@ if (¿termina correctamente y\nla versión es reconocible?) then (no)
   :Rechazar con diagnóstico;
   stop
 endif
-:Asignar ID único y registrar ruta,\nfamilia declarada, versión sondeada\ny origen externo sin mover archivos;
+:Asignar ID único y registrar nombre, ruta,\nfamilia declarada, versión sondeada\ny origen externo sin mover archivos;
 stop
 @enduml
 ```
@@ -168,14 +173,13 @@ Coquena --> Usuario : Instantánea con IDs y métricas disponibles
 ```plantuml
 @startuml
 start
-:Usuario elige un preset origen\ny un modelo destino;
-:Copiar los valores propios del preset\n(no los heredados);
+:Usuario indica preset origen,\nnombre nuevo y modelo destino (opcional);
+  :Copiar los valores propios del preset\n(no los heredados);
 note right
   Incluye referencias propias a companions,
   no copia sus archivos ni valores heredados.
   El clon es independiente del preset origen.
 end note
-:Pedir nombre nuevo;
 if (¿nombre válido y libre?) then (no)
   :Rechazar;
   stop

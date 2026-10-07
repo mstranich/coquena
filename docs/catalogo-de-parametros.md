@@ -5,7 +5,7 @@ Cada backend registrado tiene un catálogo efectivo asociado: el conocimiento of
 le corresponda y, si el usuario lo aporta, definiciones específicas de ese binario.
 
 La asociación reutilizable es **origen de la distribución + release + parámetro**.
-El origen omitido equivale a `oficial` (`https://github.com/ggml-org/llama.cpp`);
+El origen omitido equivale a `ggml`, con alias `oficial` (`https://github.com/ggml-org/llama.cpp`);
 para un tercero se declara su repositorio de origen. Una etiqueta amigable no sustituye
 ese identificador. Un mismo número de release en repositorios distintos no identifica
 la misma disponibilidad.

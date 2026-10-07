@@ -28,6 +28,8 @@ rectangle Coquena {
     usecase "Listar instaladas" as UC_BL
     usecase "Desinstalar backend" as UC_BD
     usecase "Registrar backend externo" as UC_BE
+    usecase "Consultar / aplicar novedades\nde seguimientos latest" as UC_BU
+    usecase "Seleccionar backend\npredeterminado" as UC_BDEF
     usecase "Elegir familia\nsegún hardware" as UC_VAR
   }
   package Modelos {
@@ -65,6 +67,8 @@ Usuario --> UC_BI
 Usuario --> UC_BL
 Usuario --> UC_BD
 Usuario --> UC_BE
+Usuario --> UC_BU
+Usuario --> UC_BDEF
 Usuario --> UC_DL
 Usuario --> UC_UP
 Usuario --> UC_UG
@@ -92,6 +96,7 @@ Usuario --> UC_IL
 
 UC_BR --> GH
 UC_BI --> GH
+UC_BU --> GH
 UC_BI ..> UC_VAR : <<include>>
 UC_VAR ..> UC_HW : <<include>>
 UC_IS ..> UC_IL : <<extend>>\n(primer plano)

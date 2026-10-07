@@ -1,8 +1,8 @@
 # Comandos de la CLI
 
-Propuesta de superficie de comandos del núcleo, al estilo de SDKMan, FNM o UV para la
-gestión y de Docker para la ejecución. Las decisiones acordadas se describen aquí;
-ejecución y opciones expresamente pendientes siguen en borrador.
+Superficie acordada del núcleo, al estilo de SDKMan, FNM o UV para la gestión y de
+Docker para la ejecución. El alcance aplazado y las excepciones por resolver se
+identifican en la lista central; no son requisitos implícitos.
 
 ## Convenciones
 
@@ -76,12 +76,18 @@ Consulta, instala y registra backends de llama.cpp; también permite retirarlos.
 ** install [<familia>] [--release <build>|latest]
 ** register <ruta-llama-server> --name <nombre> --family <familia> [--distribution <origen>]
 ** use [<selector>|<nombre-externo>]
-** update (sintaxis pendiente)
-** upgrade (sintaxis pendiente)
+** update [<selector-latest>]
+** upgrade [<selector-latest>]
 ** list
 ** uninstall <id-backend>
 @endmindmap
 ```
+
+Update y upgrade sin selector operan sobre todos los seguimientos latest registrados;
+con selector (por ejemplo ggml/cuda@12:latest), sólo sobre ese seguimiento. Releases
+fijados y externos quedan excluidos. Update consulta y guarda novedades; upgrade aplica
+el build detectado, sin seleccionar silenciosamente uno nuevo. El recorrido es por
+unidad: un fallo no impide tratar las demás. No se deduce el alcance del servidor default.
 
 ### `model`
 
@@ -285,9 +291,26 @@ Coquena parte de un servidor default predeterminado. El primer backend instalado
 correctamente mediante descarga propia se autoasigna como backend predeterminado,
 sin sustituir una selección previa del usuario. Los presets siguen asignándose explícitamente.
 
-Después de server, las palabras reservadas se interpretan como subcomandos; en otro
-caso se exige el nombre de un servidor existente y luego su acción. Los nombres de
-servidores no pueden coincidir con palabras reservadas. Omitir el nombre en use, set,
+Palabras reservadas tras server: create, default, list, ps, stop, use, set, unset,
+preset, show, remove, logs, start y restart. Para preset, las acciones son add, remove
+y list. Un token no reservado tras server identifica un servidor existente y su acción.
+Los nombres de servidores no pueden coincidir con las reservadas, salvo default,
+que también puede crearse explícitamente. Los argumentos se interpretan según su posición:
+server create default crea ese servidor si el nombre está libre; server default default
+lo designa como predeterminado si existe. No se interpretan esos argumentos como subcomandos.
+La excepción de acción explícita se resuelve por el siguiente token:
+
+- server default sin argumentos muestra la designación predeterminada.
+- server default <nombre> designa un servidor existente (incluido default).
+- server default seguido de use, set, unset, preset, show, remove, logs, start o restart
+  actúa sobre el servidor llamado default, aunque otro sea el predeterminado.
+- Un subcomando global como create, list, ps o stop no es una acción válida después
+  del nombre default; no se reinterpreta como nombre de servidor para adivinar la intención.
+
+Por ejemplo, server default start inicia el llamado default; server default lts designa
+lts como predeterminado. Se interpreta la gramática antes de consultar entidades;
+si el servidor default fue retirado, su acción informa que no existe y no lo recrea.
+Omitir el nombre en use, set,
 unset, preset, show, remove, logs, start o restart dirige la acción al servidor predeterminado. Create, default, list,
 ps y stop tienen su significado propio; no operan implícitamente sobre ese servidor.
 
