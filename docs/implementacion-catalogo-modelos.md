@@ -49,6 +49,19 @@ no consulta Hugging Face ni exige que el seguimiento esté al día.
 
 ### Almacenamiento local acordado
 
+Configuración, catálogos y registros de operaciones conservan JSON indentado con el
+estado actual, para facilitar lectura y edición manual. JSONL se utiliza para el log
+local de transacciones: un evento JSON por línea, agregado secuencialmente y con retención
+limitada. No es la fuente del estado ni exige reproducir eventos para reconstruir catálogos.
+Los logs originales de llama-server pueden conservarse como texto.
+
+No utilizar JSONL como historial de modificaciones de los catálogos: actualizar o retirar
+un registro exigiría reescribir el archivo o introducir reproducción y compactación.
+JSONL no aporta atomicidad; se mantiene la exclusión de escritores. Los documentos de
+estado se guardan en un archivo nuevo y se reemplazan de forma segura. El nombre/ruta,
+límite y rotación del log de transacciones se concretan al implementar, sin registrar
+credenciales ni URLs firmadas. No conservar indefinidamente eventos ni operaciones terminadas.
+
 ```text
 <home>/
   config.json
@@ -57,6 +70,9 @@ no consulta Hugging Face ni exige que el seguimiento esté al día.
     backends.json
     parameters.json
     presets.json
+    servers.json      # definiciones persistidas de servidores
+  run/<servidor>/     # registro JSON de instancia e INI por lanzamiento
+  logs/<servidor>/    # salida de llama-server como texto, con retención limitada
   downloads/<guid>/
     operation.json
     files/
@@ -65,10 +81,19 @@ no consulta Hugging Face ni exige que el seguimiento esté al día.
 ```
 
 Un JSON por catálogo, no un archivo por registro ni por shard; configuración separada.
+Config.json conserva las selecciones de servidor/backend predeterminados y las políticas
+de retención. Servers.json guarda presets referenciados, selección propia de backend
+o herencia y parámetros propios; no duplica valores efectivos heredados. El registro
+de instancia bajo run conserva ID, PID, backend/build concretos, escucha efectiva y
+ubicación del log. La definición guarda intención; la instancia registra lo ejecutado.
+Detener elimina el registro activo y su INI, no el último log. La consulta de ese log
+no exige mantener una instancia detenida como activa; la referencia al último log
+se diseña al implementar; la estructura mínima de servidores está acordada en
+[servidores.md](servidores.md#estructura-mínima-de-json-acordada).
 Los registros tienen nombre canónico visible e ID estable. Las referencias conservan
 el ID para sobrevivir a renombres y muestran el nombre para lectura humana; un nombre
 reutilizado no reconecta referencias al registro retirado. El esquema concreto sigue
-pendiente, sin exigir duplicar nombre e ID en cada referencia.
+pendiente para los otros catálogos; no se exige duplicar nombre e ID en cada referencia.
 
 Los pesos conservan las rutas relativas remotas bajo usuario/repositorio; no se agrega
 una carpeta propia por cuantización. Los renombres confirmados se reflejan físicamente

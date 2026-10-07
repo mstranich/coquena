@@ -131,7 +131,8 @@ stop
 
 El INI generado vive en el home de Coquena, no en temporales del sistema.
 Cada instancia tiene el suyo; se elimina al detenerla. Los tiempos de salud,
-validación del proceso, terminación y recuperación quedan pendientes de diseño.
+verificación del proceso y terminación requieren diseño técnico. Las reglas funcionales
+de recuperación están acordadas en servidores.md.
 
 ## Detener y consultar instancias
 

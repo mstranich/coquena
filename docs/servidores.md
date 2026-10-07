@@ -202,10 +202,128 @@ Si se retira el predeterminado, se limpia esa designación sin elegir otro ni re
 un servidor existente como predeterminado. La creación inicial de default es de primera
 configuración, no una reparación automática de una eliminación solicitada.
 
+## Persistencia
+
+El formato sigue la [regla de persistencia](implementacion-catalogo-modelos.md#almacenamiento-local-acordado):
+JSON indentado para estado y configuración, JSONL para el log de transacciones y texto
+para la salida original del backend. JSONL no define un historial reproducible del servidor.
+Las definiciones se guardan en `<home>/catalogs/servers.json`; las selecciones
+predeterminadas y políticas, en `<home>/config.json`. Bajo `<home>/run/<servidor>/`
+se guardan el registro JSON de instancia y su INI; los logs de texto van bajo
+`<home>/logs/<servidor>/`. No se persisten valores heredados resueltos en la definición:
+se calculan al consultar o iniciar. La instancia sí registra el backend/build y
+la escucha efectivos. El esquema exacto y la recuperación requieren pruebas.
+
+### Estructura mínima de JSON acordada
+
+La estructura mínima y el significado de los campos siguientes están acordados; no
+implican iniciar la implementación. Los IDs abreviados son placeholders; su representación,
+validación completa y migraciones se concretan junto con los otros catálogos.
+SchemaVersion versiona el documento de persistencia, no llama.cpp.
+
+Fragmento de config.json (no reemplaza el resto de su configuración):
+
+```json
+{
+  "schemaVersion": 1,
+  "defaultServerId": "server-default-id",
+  "defaultBackend": {
+    "kind": "latest",
+    "origin": "ggml",
+    "variant": "cuda@12"
+  },
+  "backendRetention": {
+    "maxBuilds": 5
+  }
+}
+```
+
+Servers.json guarda únicamente valores propios y el puerto asignado. Backend null
+representa herencia del predeterminado, no selección automática entre todos los binarios.
+Una selección concreta usa backendId, tanto para un release fijado como para un externo;
+la modalidad latest guarda origen/variante. Los nombres actuales se resuelven al mostrar.
+
+```json
+{
+  "schemaVersion": 1,
+  "servers": [
+    {
+      "id": "server-default-id",
+      "name": "default",
+      "backend": null,
+      "presetIds": [],
+      "parameters": {
+        "port": 8080
+      }
+    },
+    {
+      "id": "server-lts-id",
+      "name": "lts",
+      "backend": {
+        "kind": "fixed",
+        "backendId": "backend-b10201-id"
+      },
+      "presetIds": ["preset-chat-id"],
+      "parameters": {
+        "port": 8081,
+        "metrics": false
+      }
+    }
+  ]
+}
+```
+
+Host y metrics omitidos usan los defaults de Coquena. PresetIds vacío permite guardar,
+no iniciar. Un ID ausente conserva la referencia rota, sin enlazar a otra entidad con
+igual nombre. No se copian rutas de modelos ni configuraciones heredadas en servers.json.
+
+Registro de una ejecución bajo run/lts (nombre de archivo todavía propuesto):
+
+```json
+{
+  "schemaVersion": 1,
+  "instanceId": "instance-id",
+  "serverId": "server-lts-id",
+  "backendId": "backend-b10201-id",
+  "build": "b10201",
+  "pid": 12345,
+  "mode": "detached",
+  "host": "127.0.0.1",
+  "port": 8081,
+  "metrics": false,
+  "presetIds": ["preset-chat-id"],
+  "resourceIds": ["model-id", "companion-id"],
+  "iniPath": "run/lts/instance-id.ini",
+  "logPath": "logs/lts/instance-id.log"
+}
+```
+
+Las rutas del ejemplo son relativas al home. La ejecución registra recursos efectivos
+para protegerlos aunque luego cambie la definición del servidor o preset. Un PID guardado
+no prueba que el proceso siga vivo ni que sea el mismo; el mecanismo de identidad y
+recuperación debe verificarse al implementar. Inicio y escritura se coordinan para no
+confundir una ejecución real con una publicación parcial del registro.
+
+El límite de logs sigue siendo configurable, pero su valor inicial y representación
+no se inventan en estos ejemplos. El último log se conserva sin mantener una instancia
+detenida como activa; su referencia se concreta al diseñar rotación/limpieza.
+
+## Recuperación tras un cierre inesperado
+
+No se reinician servidores automáticamente. Al consultar o actuar sobre registros de
+instancias, se verifica si el proceso existe y pertenece a la ejecución registrada:
+
+- Si sigue vivo y se confirma su identidad, se reconoce como activo.
+- Si se confirma que terminó, se limpia el registro activo y su INI; se conserva el log.
+- Si la identidad no puede verificarse, se informa incertidumbre sin matar procesos
+  ni iniciar otro para ese servidor. Un PID por sí solo no identifica una ejecución.
+
+El mecanismo de verificación y las pruebas de recuperación se concretan al implementar;
+la falta de respuesta de salud por sí sola no autoriza a declarar terminado un proceso.
+
 ## Pendientes
 
 - Sintaxis de registro de variantes y nombres cortos de origen.
-- Tamaño inicial/rotación de logs, tiempos de salud y terminación, recuperación de registros de procesos.
-- Persistencia concreta del catálogo de servidores y de los defaults.
+- Tamaño inicial/rotación de logs, tiempos de salud y terminación, mecanismo de identidad de procesos.
 
 No confundir estos pendientes con las reglas de composición y modos ya confirmadas.
