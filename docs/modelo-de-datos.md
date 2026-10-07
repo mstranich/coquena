@@ -243,9 +243,11 @@ S ..> N : llama-server\nhereda
   La versión sondeada procede de `llama-server --version`; sólo los releases oficiales
   llevan necesariamente un build `bNNNN`. Ese sondeo no verifica la familia ni la
   compatibilidad de aceleración. Cada backend registrado recibe un ID único y estable;
-  `familia + build` es sólo un atajo cuando resuelve a uno.
+  `familia + build` abrevia la selección de gestionados, no la del externo por nombre.
 - **Instancias.** Cada lanzamiento tiene ID y puerto efectivos propios; el puerto del
-  servidor es sólo el valor predeterminado. Cada instancia tiene INI propio; colisiones de escucha y sobrescrituras por inicio siguen pendientes.
+  servidor es el guardado en su definición, sin sobrescrituras temporales al iniciar.
+  Hay una instancia activa como máximo por servidor; cada una tiene INI propio.
+  Un puerto ocupado impide iniciar y no se reasigna automáticamente.
 - **Distribuciones de backends.** Sólo `ggml-org` es origen de descubrimiento y
   descarga de binarios. Hugging Face es el origen de modelos, no esta distribución.
   Un tercero puede aportar un binario, pero el usuario lo registra como

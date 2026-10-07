@@ -212,6 +212,10 @@ No exigir symlinks.
 @startuml
 start
 :Cargar plan y comprobar instalación de partida;
+if (¿unidad utilizada por instancia activa?) then (sí)
+  :Rechazar antes de descargar o mover;
+  stop
+endif
 :Preparar conjunto del commit objetivo;
 :Reutilizar contenido comprobado sin cambios;\ndescargar nuevos o modificados a preparación;
 if (¿Conjunto completo y verificado?) then (no)
@@ -242,8 +246,9 @@ stop
   una publicación válida.
 - Cancelación, falta de espacio o hash incorrecto no publican archivos parciales.
   Validar rutas remotas para impedir escapes, rutas absolutas y colisiones locales.
-- La política de archivos compartidos y de modelos en uso es un prerrequisito de la
-  activación y limpieza definitivas, no algo que el agente de descargas deba inventar.
+- Respetar la propiedad ya acordada: sin deduplicación entre unidades y sin upgrade
+  de pesos en uso. Coordinar exclusión con start y comprobar vigencia antes de publicar;
+  el mecanismo técnico no puede permitir reemplazar recursos de una instancia activa.
 - Reanudar una transferencia incompleta no es actualizar por bloques un archivo viejo.
   Ninguna de esas optimizaciones forma parte del comparador.
 
@@ -295,22 +300,36 @@ Esta es la lista central de pendientes. No reabre nombres canónicos, shards est
 JSON por catálogo, comandos de companions, SHA-256, alcance global de update/upgrade
 ni controles de descargas ya acordados.
 
-### Decisiones funcionales pendientes
+### Alcance funcional aplazado
 
+- Gestión de nombres cortos de otros orígenes y variantes: aplazada. En esta versión
+  ggml y su alias oficial vienen incluidos; los terceros se declaran mediante el
+  repositorio en --distribution y sus externos se seleccionan por nombre propio.
+  La gramática conceptual no habilita comandos ni gestión/descargas de terceros.
 - Autenticación y repositorios privados/restringidos: decisión aplazada; no requisito
   confirmado de la primera versión.
 
+La excepción acordada para el servidor llamado default y las palabras reservadas se
+definen en [comandos.md](comandos.md#servidores-e-instancias). No queda como decisión
+del parser al implementar: probar designación, acción explícita y servidor retirado.
+
+Los detalles siguientes se resuelven con evidencia al implementar; si cambian conducta
+visible o alcance, deben volver a revisión antes de incorporarse.
+
 ### Detalles técnicos al implementar
 
-- Esquemas JSON y versiones; representación de IDs; exclusión de escritores y
+- Esquemas JSON de otros catálogos, validación y migraciones; la estructura mínima
+  de servidores está acordada. Representación de IDs; exclusión de escritores y
   comprobación de ejecutores vivos; recuperación entre cambios de disco e índice.
 - Reutilización física dentro de la misma unidad, sin deduplicación entre repositorios;
   representación de eliminaciones parciales; tratamiento de identificadores remotos
   no comparables sin convertirlos en evidencia falsa de igualdad.
 - Límites de consultas, metadatos, tiempos, reintentos y extracción; frecuencia de
-  checkpoints y formato del log. Reintentos limitados y trabajo recuperable ya están acordados.
-- Detención y diagnóstico tras fallar un archivo del conjunto, sin confundirlo con
-  el recorrido global: un fallo de unidad no impide tratar otras unidades.
+  checkpoints. JSONL para transacciones y texto para logs del backend están acordados;
+  faltan campos de eventos, límites iniciales y rotación. Reintentos limitados y trabajo
+  recuperable ya están acordados.
+- Identidad verificable de procesos y coordinación de start/stop/restart con cambios
+  del catálogo; tiempos de salud y terminación. Las reglas de recuperación no son pendientes.
 - Disposición interna de backends; cálculo de espacio liberado y pruebas de fallos.
 
 Estos detalles requieren evidencia y pruebas en su entrega, no nuevas rondas de

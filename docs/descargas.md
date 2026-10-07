@@ -138,9 +138,9 @@ Pendiente --> Descargando : iniciar
 Descargando --> Pausada : pausa / interrupción
 Pausada --> Descargando : reanudar explícitamente
 Descargando --> Verificando : transferencia terminada
-Verificando --> Completada : archivo íntegro
+Verificando --> Completada : validación del recurso correcta
 Descargando --> Fallida : error / reintentos agotados\nconservar trabajo y devolver prompt
-Verificando --> Fallida : tamaño o digest incorrecto
+Verificando --> Fallida : tamaño incorrecto o validación fallida\n(digest sólo en modelos/companions)
 Fallida --> Descargando : resume explícito\n[causa y parcial comprobados]
 Pendiente --> Cancelada : cancelar
 Pausada --> Cancelada : cancelar
@@ -281,6 +281,9 @@ de cualquier configuración de inferencia.
 - Reintentos acotados sólo para fallos transitorios; respetar espera indicada por servidor.
 - Agotados los reintentos, persistir fallo recuperable, conservar parciales y selección,
   mostrar GUID y comando resume y devolver el control al usuario tras detener escritores.
+  Se detiene la operación de la unidad completa, sin continuar otros archivos de ese
+  conjunto. En update/upgrade global, el fallo no impide tratar otras unidades
+  independientes; el prompt vuelve al finalizar el recorrido global.
 - No ignorar fallos al persistir, leer el parcial, calcular hash, sincronizar o publicar.
 - Memoria acotada: flujo de bytes, no cargar modelos completos en RAM.
 - Validar rutas, colisiones y propiedad antes de escribir o eliminar.

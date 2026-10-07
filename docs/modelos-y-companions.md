@@ -140,8 +140,8 @@ La regla de seguimiento de nombres no autoriza mover archivos externos.
 `update` detecta y guarda el cambio; no mueve archivos. `upgrade` aplica el cambio físico
 en gestionados junto con la actualización correspondiente. Debe resolver colisiones,
 fallos e interrupciones sin sobrescribir registros o archivos ajenos ni dejar referencias
-inconsistentes. El protocolo físico concreto, su relación con el índice y modelos en uso
-se define al cerrar almacenamiento y publicación recuperable.
+inconsistentes. Si la unidad está en uso, upgrade se rechaza antes de descargar o mover.
+El protocolo físico y su coordinación con el índice requieren pruebas de recuperación.
 
 ## Quitar un modelo o companion
 

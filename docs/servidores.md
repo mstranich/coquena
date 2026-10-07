@@ -28,6 +28,10 @@ consulta novedades; `backend upgrade` instala y cambia el build actual de las se
 que siguen `latest`, sin sustituir releases fijados. Iniciar no consulta ni descarga
 actualizaciones: resuelve el build actual instalado. Una instancia conserva el build
 con el que arrancó. Un upgrade fallido no sustituye al anterior.
+Sin selector, backend update/upgrade recorren todos los seguimientos latest registrados;
+con selector, sólo el indicado. Update guarda el build detectado y upgrade aplica ese
+build, sin resolver silenciosamente una novedad posterior. Releases fijados y externos
+no participan. Un fallo de una unidad no impide tratar las demás.
 
 Los upgrades conservan los binarios anteriores con un límite configurable: cinco builds
 por distribución, familia y plataforma, contando el actual. Tras un upgrade exitoso,
@@ -68,8 +72,9 @@ consulta de releases ni confianza en terceros. `latest` no amplía ese alcance.
 Los externos se registran con `--name <nombre>` obligatorio, `--family <familia>` y
 `--distribution <repositorio>` opcional; omitir la distribución conserva el origen
 oficial implícito. El nombre no certifica procedencia ni sustituye el sondeo válido
-de `llama-server --version`. La sintaxis para declarar nombres cortos de otros orígenes
-y variantes siguen pendientes. Registrar un externo del mismo origen/familia/release
+de `llama-server --version`. Los comandos para declarar nombres cortos de otros orígenes
+y variantes quedan aplazados: en esta versión basta --distribution con el repositorio
+y el nombre propio del externo. Registrar un externo del mismo origen/familia/release
 que uno gestionado no crea una colisión de selección: pertenecen a formas de acceso distintas.
 
 ## Parámetros del servidor
@@ -197,10 +202,17 @@ Se permite retirar cualquier servidor sólo cuando esté detenido. Se elimina su
 no los presets, modelos, companions ni backend asociados. Si existe una instancia activa,
 se rechaza la acción indicando su ID; primero debe detenerse.
 El comando es `server [nombre] remove`; sin nombre retira el servidor predeterminado.
+`server default remove` retira específicamente el servidor llamado default; la lista
+de acciones reservadas distingue esa referencia de `server default <nombre>`, que
+designa el predeterminado. La gramática se define en comandos.md.
 Si se retira el predeterminado, se limpia esa designación sin elegir otro ni recrear
 `default` automáticamente. Los comandos que omiten nombre informan que debe designarse
 un servidor existente como predeterminado. La creación inicial de default es de primera
 configuración, no una reparación automática de una eliminación solicitada.
+El usuario sí puede crearlo nuevamente con `server create default` cuando el nombre
+esté libre, y designarlo con `server default default` una vez existente. Crear y designar
+son acciones distintas; la interpretación posicional evita confundir esos nombres con
+subcomandos. Esto no cambia la prohibición de recreación automática.
 
 ## Persistencia
 
@@ -323,7 +335,9 @@ la falta de respuesta de salud por sí sola no autoriza a declarar terminado un 
 
 ## Pendientes
 
-- Sintaxis de registro de variantes y nombres cortos de origen.
-- Tamaño inicial/rotación de logs, tiempos de salud y terminación, mecanismo de identidad de procesos.
+Los pendientes globales se mantienen en la
+[lista central](implementacion-catalogo-modelos.md#9-decisiones-que-no-deben-quedar-ocultas-en-el-código):
+separan detalles técnicos y alcance aplazado. La gestión de abreviaturas de otros
+orígenes no bloquea esta versión.
 
 No confundir estos pendientes con las reglas de composición y modos ya confirmadas.

@@ -18,6 +18,8 @@ mecanismos de exclusión o recuperación ni cierran la gramática marcada como p
 | 5. Backend | Selección propia de hardware/release; sin menú de cuantizaciones ni README de modelos; transferencia en primer plano y reanudable |
 | 6. Pausa y reanudación | Procedimiento común de descarga; conserva GUID, parciales y selección; no repite búsqueda ni menú |
 | 7. Integridad | Lectura local y resultado persistido; --set-baseline sólo establece base explícita en externos; sin red |
+| Reinicio | Definición actual, latest instalado, servidor activo o detenido; devuelve prompt sin seguir logs |
+| Puertos | Asignación al crear/unset por máximo + 1; no reasignación al iniciar |
 
 El menú de adquisición pertenece a la secuencia 2; no se propaga a operaciones que ya
 tienen selección fijada. Las cajas de catálogo, operaciones e índice representan
@@ -169,6 +171,10 @@ else candidatos disponibles
       end
       D -> F : escribir parcial y verificar contenido
       D --> U : progreso individual y del conjunto
+      break archivo fallido tras reintentos o validación fallida (termina esta unidad)
+        D -> D : detener escritores y conservar todos los parciales
+        D --> U : fallo recuperable; GUID y comando resume
+      end
     end
     alt algún archivo falló o conjunto incompleto
       D -> D : detener escritores; guardar fallo y parciales
@@ -318,6 +324,17 @@ else plan aplicable
         D --> CLI : progreso por archivo
         D --> UG : transferencia terminada / fallo
       end
+      break archivo fallido tras reintentos o comprobación fallida (termina esta unidad)
+        UG -> D : detener escritores; conservar todos los parciales
+        UG -> I : persistir fallo recuperable de la unidad
+        UG --> CLI : GUID, diagnóstico y comando resume
+        CLI --> U : unidad no aplicada; instalación anterior conservada
+        note over CLI,UG
+          Sin más archivos ni publicación de esta unidad.
+          El recorrido global puede continuar otras unidades;
+          el prompt vuelve al terminar ese recorrido.
+        end note
+      end
     end
     UG -> F : verificar conjunto preparado completo
     F --> UG : íntegro y legible / fallo
@@ -349,11 +366,16 @@ CLI --> U : resultado de instalación, no sólo porcentaje
 @enduml
 ```
 
-El orden del bucle es ilustrativo, no prescribe paralelismo. Un fallo impide publicar;
-si procede continuar otras transferencias es una política pendiente. La descarga
+El orden del bucle es ilustrativo, no prescribe paralelismo. Agotados los reintentos
+de un archivo, detener la operación de esa unidad y sus escritores, conservar todos
+sus parciales y devolver el prompt con GUID y diagnóstico. No continuar transfiriendo
+otros archivos de esa unidad ni publicar el conjunto. En un recorrido global pueden
+seguir tratándose otras unidades independientes; el prompt vuelve al terminar ese recorrido.
+La descarga
 inicial usa selección fijada sin instalación anterior; nunca publica una unidad parcial.
-El mecanismo de activación y limpieza debe resolver concurrencia, archivos compartidos
-y modelos en uso antes de su implementación definitiva. Si el movimiento físico falla,
+El mecanismo de activación y limpieza respeta la propiedad de archivos acordada y
+excluye inicios mientras aplica un upgrade; pesos en uso se rechazan antes de descargar.
+Si el movimiento físico falla,
 no activar el catálogo; diagnosticar cualquier inconsistencia sin reparación destructiva.
 Sin nombre, aplicar secuencialmente planes resueltos de las unidades seleccionadas;
 no hay transacción global ni cambio silencioso de revisión.
@@ -398,8 +420,12 @@ else selección válida
   alt verificación o sondeo fallido
     V --> C : fallo; no instalar
   else validación completa
-    V -> I : publicar instalación y registro
+    V -> I : publicar instalación y registro\nconservar intención latest o pin
     I --> V : confirmado / error
+    opt primera instalación propia confirmada y sin default previo
+      V -> I : asignar backend predeterminado\ncon la selección solicitada
+      I --> V : guardado / fallo explícito
+    end
     V --> C : resultado
   end
   opt publicación y limpieza completadas
@@ -413,6 +439,9 @@ end
 La selección sigue las convenciones de comandos: release y versión de bibliotecas son
 independientes; explícito y automático tienen reglas distintas de compatibilidad.
 Transferencias fallidas impiden instalar; el sondeo no certifica toda inferencia futura.
+No se calcula ni verifica SHA-256 para backends. Backend upgrade reutiliza la transferencia
+y publicación con el build fijado por update; no resuelve latest nuevamente. Tras éxito,
+actualiza el seguimiento y aplica retención sin borrar builds protegidos. No actualiza externos.
 
 ## 6. Pausar, recuperar y reanudar una transferencia
 
@@ -463,6 +492,11 @@ opt control obtenido y parcial coherente
       D -> I : persistir archivo completo y progreso del conjunto
       loop otros archivos pendientes de la selección fijada
         D -> D : transferir y verificar; mismos controles
+        break archivo fallido tras reintentos o validación fallida (termina esta unidad)
+          D -> W : detener escritores
+          D -> I : guardar fallo; conservar todos los parciales
+          D --> U : GUID, diagnóstico y comando resume; sin publicar
+        end
       end
       alt conjunto completo y verificado
         D -> P : continuar instalación o upgrade del mismo trabajo
