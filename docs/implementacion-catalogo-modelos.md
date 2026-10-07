@@ -290,8 +290,8 @@ ni controles de descargas ya acordados.
 
 Estos detalles requieren evidencia y pruebas en su entrega, no nuevas rondas de
 decisiones funcionales salvo que aparezca un impacto visible o una contradicción.
-La etapa de servidores resolverá modelos/backends en uso y conservación de instalaciones
-anteriores. La TUI, separación configurable de ubicaciones y transferencia diferencial
+Las reglas de recursos en uso y retención de backends están en [servidores.md](servidores.md).
+Upgrade de pesos en uso se rechaza; el mecanismo de exclusión y recuperación requiere pruebas. La TUI, separación configurable de ubicaciones y transferencia diferencial
 por bloques quedan para iteraciones posteriores.
 
 ## Referencias

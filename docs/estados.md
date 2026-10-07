@@ -39,7 +39,9 @@ El backend aparece como registrado sólo tras validar y publicar la instalación
 registrar un externo con sondeo válido. Un trabajo pausado o fallido no es un backend
 instalado y permanece recuperable en el administrador de descargas.
 
-La política de retirar backends en uso se resolverá con servidores; no se establece aquí.
+Retirar un backend se rechaza mientras una instancia activa lo utiliza. Si sólo lo
+referencian definiciones de servidores detenidos, se permite retirarlo y se conservan
+esas definiciones con backend ausente. Véase [servidores.md](servidores.md#backend-seleccionado-ausente).
 
 ## Modelo y companion (núcleo)
 
@@ -54,7 +56,7 @@ no cambia por sí solo la disponibilidad; en externos el seguimiento no aplica.
 
 state Registrado {
   state q <<choice>>
-  [*] --> q : cada consulta\n(list, run, preset)
+  [*] --> q : cada consulta\n(list, server start, preset)
   q --> Inaccesible : la ruta no existe\no no se puede leer
   q --> Invalido : GGUF ilegible o metadatos\nde división contradictorios
   q --> Incompleto : faltan shards

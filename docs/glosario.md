@@ -16,10 +16,10 @@
 | **Configuración global** | Valores de `llama-server` aplicables a cualquier backend. Raíz del eje backend. |
 | **Configuración de familia** | Valores específicos de una familia; hereda de la global. |
 | **Configuración de modelo** | Valores iniciales de un modelo; raíz del eje modelo. |
-| **Servidor** | Composición que Coquena coordina: los presets que se ofrecen juntos, un puerto y, opcionalmente, una familia fija. Reemplaza al script lanzador. (Diseño de ejecución pendiente.) |
+| **Servidor** | Definición persistida de presets explícitos, backend propio o heredado del default y parámetros del router. No es una instancia. |
 | **Archivo INI** | El `--models-preset` que recibe `llama-server`. Coquena lo **genera** en cada lanzamiento a partir de su modelo interno ; vive en el home de Coquena mientras dura la instancia y se borra al detenerla. |
 | **Preset** | Un comportamiento concreto de un modelo (nombre visible al cliente, companions, parámetros). Hereda de la configuración del modelo. Se puede clonar a otro modelo. |
-| **Instancia** | Un lanzamiento identificado por un ID propio: `llama-server`, servidor, backend concreto, puerto, PID, INI generado y logs. Varias instancias pueden provenir del mismo servidor si usan puertos distintos. |
+| **Instancia** | Un lanzamiento identificado por un ID propio: `llama-server`, servidor, backend concreto, puerto, PID, INI generado y logs. Cada servidor tiene como máximo una instancia activa; distintos servidores pueden ejecutarse simultáneamente. |
 | **Primer plano / daemon** | Los dos modos de lanzar una instancia, como en Docker: adjunto a la terminal siguiendo logs, o desacoplado en segundo plano. |
 | **Home** | Directorio propio de Coquena, resuelto por las reglas de [comandos.md](comandos.md#home), incluida la prioridad de COQUENA_HOME. Separar configuración y archivos pesados configurables pertenece a una iteración posterior. |
 | **Parámetro** | Opción de llama-server, aplicable a CLI, INI o router según origen y release. Su disponibilidad no se deduce de la familia de aceleración. |
