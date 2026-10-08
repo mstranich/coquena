@@ -1,0 +1,48 @@
+using System.Diagnostics;
+using Coquena;
+
+string[][] cases = [[], ["--help"], ["-h"], ["help"], ["invalid"],
+    ["backend"], ["--json"], ["--help", "extra"], ["invalid", "--help"]];
+var executable = args.Length == 1 ? Path.GetFullPath(args[0]) : null;
+if (args.Length > 1 || (executable is not null && !File.Exists(executable)))
+    throw new ArgumentException("Uso: Coquena.Tests [ruta-binario-nativo]");
+
+foreach (var input in cases)
+{
+    var expected = input.Length == 0 ||
+        (input.Length == 1 && input[0] is "--help" or "-h" or "help") ? 0 : 2;
+    using var output = new StringWriter();
+    using var error = new StringWriter();
+    Verify(Cli.Run(input, output, error), output.ToString(), error.ToString());
+
+    if (executable is not null)
+    {
+        var start = new ProcessStartInfo(executable)
+        {
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false
+        };
+        foreach (var argument in input) start.ArgumentList.Add(argument);
+        using var process = Process.Start(start) ?? throw new Exception("No inició el binario.");
+        var stdout = process.StandardOutput.ReadToEndAsync();
+        var stderr = process.StandardError.ReadToEndAsync();
+        if (!process.WaitForExit(10_000))
+        {
+            process.Kill(entireProcessTree: true);
+            throw new Exception("El binario excedió 10 segundos.");
+        }
+        Verify(process.ExitCode, await stdout, await stderr);
+    }
+
+    void Verify(int code, string stdout, string stderr)
+    {
+        if (code != expected || (expected == 0
+            ? !stdout.Contains("Uso: coquena") || !stdout.Contains("sólo ayuda") || stderr.Length != 0
+            : stdout.Length != 0 || !stderr.Contains("Error:") || !stderr.Contains("coquena --help")))
+            throw new Exception($"Falló [{string.Join(", ", input)}]: code={code}, out={stdout}, err={stderr}");
+    }
+}
+
+Console.WriteLine($"OK: {cases.Length} casos administrados" +
+    (executable is null ? "." : $" y {cases.Length} casos del ejecutable publicado."));
