@@ -18,6 +18,12 @@ Native AOT y las reglas canónicas. Borrador: no autoriza implementación.
 
 ## Tareas preliminares
 
+La gestión de backends oficiales conserva el alcance de familias de
+[M1](M1-servidor-local.md#alcance-propuesto): CPU, CUDA y Vulkan. ROCm, SYCL,
+OpenVINO y otras familias no se incorporan automáticamente a M2; requieren una
+ampliación de alcance aprobada explícitamente. Esto no redefine la familia declarada
+al registrar un backend externo ni certifica su compatibilidad.
+
 - [ ] Update/upgrade de backends: seguimientos latest, pins, instalación y retención.
 - [ ] Update/upgrade de modelos y companions: revisiones fijas, correspondencias,
       candidatos interactivos, renombres físicos, integridad y protección de recursos en uso.

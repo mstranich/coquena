@@ -31,6 +31,10 @@ vertical que también necesita backend, configuración y servidor.
 - SDK 10.0.401, net10.0 y publicación win-x64 Native AOT.
 - Persistencia JSON indentado, transacciones JSONL y logs de llama-server como texto.
 - Un backend oficial instalado y seleccionado; default inicial según lo acordado.
+- Sólo CPU, CUDA y Vulkan para descubrimiento, selección e instalación de backends
+  oficiales. CUDA conserva sus variantes por versión mayor de bibliotecas (por ejemplo
+  `cuda@12` y `cuda@13`), independientes del release de llama.cpp. ROCm, SYCL, OpenVINO
+  y otras familias quedan fuera de M1, aunque el release oficial publique artefactos.
 - Dos modelos gestionados distintos descargados desde Hugging Face público.
 - Cada modelo conserva su unidad completa; si la selección tiene shards, se descargan
   y validan todas sus partes. No limitar artificialmente el dominio a un archivo.
