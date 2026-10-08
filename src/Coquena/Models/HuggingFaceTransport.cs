@@ -25,10 +25,10 @@ public sealed class HuggingFaceTransport : IDownloadTransport, IDisposable
         => transfer.OpenAsync(operation, file, offset, cancellation);
     public void Dispose() => transfer.Dispose();
 
-    private sealed class Redirects(HttpMessageHandler? handler) : HttpMessageHandler
+    internal sealed class Redirects(HttpMessageHandler? handler, Action? onRequest = null) : HttpMessageHandler
     {
-        private readonly HttpMessageInvoker sender = new(handler ?? new HttpClientHandler
-        { AllowAutoRedirect = false, UseCookies = false, AutomaticDecompression = DecompressionMethods.None });
+        private readonly HttpMessageInvoker sender = new(handler ?? new SocketsHttpHandler
+        { AllowAutoRedirect = false, UseCookies = false, AutomaticDecompression = DecompressionMethods.None, MaxResponseDrainSize = 0 });
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellation)
         {
             var uri = request.RequestUri!;
@@ -43,6 +43,7 @@ public sealed class HuggingFaceTransport : IDownloadTransport, IDisposable
                 next.Headers.AcceptEncoding.ParseAdd("identity");
                 next.Headers.Range = request.Headers.Range;
                 next.Headers.IfRange = request.Headers.IfRange;
+                onRequest?.Invoke();
                 var response = await sender.SendAsync(next, cancellation);
                 if (response.RequestMessage?.RequestUri is { } observed && observed != uri)
                 { response.Dispose(); throw new DownloadException("unexpected-redirect", "Cliente siguió redirección automática."); }

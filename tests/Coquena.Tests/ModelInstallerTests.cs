@@ -291,7 +291,8 @@ internal static class ModelInstallerTests
             new NoNetwork(), menu) == 0 && installer.Downloads.List().Length == 0, "README then cancel creates no GUID or work");
         Check(menu.Options.Count == 2 && menu.Options.All(o => o.Length == 3 && o[0].StartsWith("Descargar")), "one repeated menu, no companion");
         var bytes = new Bytes(payload); menu = new Menu(0);
-        Check(ModelCli.Run(["download", "owner/menu"], output, error, installer, source, bytes, menu) == 0 &&
+        Check(ModelCli.Run(["download", "owner/menu"], output, error, installer, source, bytes, menu,
+            inspector: new ResolutionTests.NamedInspector()) == 0 &&
             bytes.Calls.Count == 1 && menu.Options.Count == 1 && installer.List().Any(m => m.Record.Name == "owner/menu:Q4_K_M"), "menu choice starts download without second confirmation");
         var count = metadata;
         Check(ModelCli.Run(["download", "owner/menu#mmproj:F16"], output, error, installer, source, bytes, menu) == 1 && metadata == count, "companion rejected before metadata");

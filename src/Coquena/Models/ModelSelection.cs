@@ -25,64 +25,11 @@ public sealed record ModelRequest(string Repository, string? Quantization, strin
 
 public sealed record ModelVariant(string Quantization, string? CompanionType, string Label, RepositoryFile[] Files)
 {
+    public ModelEvidence[] Evidence { get; init; } = [];
     public string Name(string repository) => repository + (CompanionType is null ? "" : "#" + CompanionType) + ":" + Quantization;
 }
 public sealed record ModelCandidates(ModelVariant[] Variants, string[] Diagnostics);
 public sealed record SelectedModel(string Name, string? CompanionType, RemoteSelection Selection);
-
-public static class ModelSelection
-{
-    // Names discover candidates only. 008 validates GGUF structure; 009 verifies bytes.
-    public static ModelCandidates Discover(RepositoryInventory inventory)
-    {
-        List<string> diagnostics = [];
-        List<(RepositoryFile File, string Quant, string? Type, string Key, int Index, int Total)> parts = [];
-        foreach (var file in inventory.Files.Where(f => f.Path.EndsWith(".gguf", StringComparison.OrdinalIgnoreCase)))
-        {
-            HuggingFaceStore.ValidatePath(file.Path);
-            var slash = file.Path.LastIndexOf('/');
-            var folder = slash < 0 ? "" : file.Path[..(slash + 1)];
-            var stem = file.Path[(slash + 1)..^5];
-            string? type = stem.StartsWith("mmproj-", StringComparison.OrdinalIgnoreCase) ? "mmproj" :
-                stem.StartsWith("mtp-", StringComparison.OrdinalIgnoreCase) ? "mtp" : null;
-            var shard = Regex.Match(stem, "^(.*)-([0-9]{5})-of-([0-9]{5})$", RegexOptions.CultureInvariant);
-            if (!shard.Success && Regex.IsMatch(stem, "-[0-9]+-of-[0-9]+$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant))
-            {
-                diagnostics.Add($"{file.Path}: nombres de partes no convencionales; no se inventa conjunto ni orden.");
-                continue;
-            }
-            var prefix = shard.Success ? shard.Groups[1].Value : stem;
-            var quant = Regex.Match(prefix,
-                "(?:^|-)((?:IQ[0-9]+_[A-Z0-9_]+|Q[0-9]+(?:_[A-Z0-9]+)*|TQ[0-9]+_[A-Z0-9_]+|(?:MXFP4|NVFP4)(?:_[A-Z0-9]+)*|BF16|F16|F32|F64|FP16|FP32)(?:-[A-Z0-9]+)*)$",
-                RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
-            if (!quant.Success)
-            {
-                diagnostics.Add($"{file.Path}: variante no convencional; no se inventa cuantización ni conjunto.");
-                continue;
-            }
-            parts.Add((file, quant.Groups[1].Value, type, folder + prefix,
-                shard.Success ? int.Parse(shard.Groups[2].Value) : 1,
-                shard.Success ? int.Parse(shard.Groups[3].Value) : 1));
-        }
-        List<ModelVariant> variants = [];
-        foreach (var group in parts.GroupBy(p => p.Key, StringComparer.Ordinal))
-        {
-            var first = group.First();
-            var ordered = group.OrderBy(p => p.Index).ToArray();
-            if (first.Total < 1 || group.Any(p => p.Total != first.Total) || ordered.Length != first.Total ||
-                ordered.Where((p, i) => p.Index != i + 1).Any())
-            {
-                diagnostics.Add($"{group.Key}: conjunto incompleto o contradictorio; no se ofrece descargar.");
-                continue;
-            }
-            variants.Add(new(first.Quant, first.Type,
-                $"{first.Quant} — {string.Join(", ", ordered.Select(p => p.File.Path))}", ordered.Select(p => p.File).ToArray()));
-        }
-        return new(variants.OrderBy(v => v.CompanionType, StringComparer.Ordinal)
-            .ThenBy(v => v.Quantization, StringComparer.OrdinalIgnoreCase).ThenBy(v => v.Label, StringComparer.Ordinal).ToArray(),
-            diagnostics.ToArray());
-    }
-}
 
 public interface IModelSelectionInteraction
 {
@@ -107,20 +54,22 @@ public sealed class ConsoleModelSelectionInteraction : IModelSelectionInteractio
     }
 }
 
-/// <summary>007 menu: returns exactly one pinned unit, never allocates a GUID or transfers weights.</summary>
-public sealed class ModelSelectionMenu(HuggingFaceStore store)
+/// <summary>Returns one pinned unit after bounded metadata inspection, without creating installation state.</summary>
+public sealed class ModelSelectionMenu(HuggingFaceStore store, IRemoteGgufInspector? inspector = null)
 {
     public async Task<SelectedModel?> SelectAsync(ModelRequest request, IModelSelectionInteraction interaction,
-        CancellationToken cancellation = default)
+        CancellationToken cancellation = default, string requestedRevision = "main")
     {
-        var revision = await store.ResolveAsync(request.Repository, cancellation: cancellation);
+        var revision = await store.ResolveAsync(request.Repository, requestedRevision, cancellation);
         var inventory = await store.InventoryAsync(revision, cancellation);
-        var discovered = ModelSelection.Discover(inventory);
+        using var remote = inspector is null ? new RemoteGgufInspector() : null;
+        var resolver = new ModelResolver(inspector ?? remote!);
+        var discovered = await resolver.DiscoverAsync(inventory, interaction.Show, cancellation);
         foreach (var diagnostic in discovered.Diagnostics) interaction.Show(diagnostic);
         var variants = discovered.Variants.Where(v => v.CompanionType == request.CompanionType &&
             (request.Quantization is null || v.Quantization.Equals(request.Quantization, StringComparison.OrdinalIgnoreCase))).ToArray();
         if (variants.Length == 0) interaction.Show(request.Quantization is null ?
-            "No hay GGUF seleccionables para la unidad solicitada." : "Cuantización solicitada inexistente o no seleccionable; no se sustituye.");
+            "No se resolvieron GGUF seleccionables para la unidad solicitada; revisar los diagnósticos de exploración." : "Cuantización solicitada inexistente o no seleccionable según la exploración; puede ser parcial/no concluyente. No se sustituye.");
         if (!interaction.IsInteractive)
             throw new ModelSourceException("interaction-required", "La selección necesita entrada interactiva; no se eligió ni creó trabajo.");
         var options = variants.Select(v => "Descargar " + v.Label).Concat(["Mostrar README", "Cancelar"]).ToArray();
@@ -137,6 +86,14 @@ public sealed class ModelSelectionMenu(HuggingFaceStore store)
                 continue;
             }
             var selected = variants[choice.Value];
+            try
+            {
+                var evidence = await resolver.ValidateAsync(revision, new(selected.Files), interaction.Show, cancellation);
+                var verified = ModelSelection.Variant(new(selected.Files), evidence);
+                if (verified is null || verified.Quantization != selected.Quantization || verified.CompanionType != selected.CompanionType)
+                    throw new ModelSourceException("selection-conflict", string.Join("; ", evidence.Select(e => e.Diagnostic ?? "Rol/etiqueta cambió tras inspección.")));
+            }
+            catch (ModelSourceException e) { interaction.Show(e.Code + ": " + e.Message); continue; }
             // The consumer starts the action with this result; never ask for another confirmation.
             return new(selected.Name(revision.Repository), selected.CompanionType,
                 new(revision.Repository, revision.RequestedRevision, revision.Commit, selected.Files.Select(f => f.ToRemoteFile()).ToArray()));

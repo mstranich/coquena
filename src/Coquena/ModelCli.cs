@@ -9,7 +9,8 @@ public static class ModelCli
 {
     public static int Run(string[] args, TextWriter output, TextWriter error, ModelInstaller? installer = null,
         HuggingFaceStore? source = null, IDownloadTransport? transport = null,
-        IModelSelectionInteraction? interaction = null, CancellationToken cancellation = default)
+        IModelSelectionInteraction? interaction = null, CancellationToken cancellation = default,
+        IRemoteGgufInspector? inspector = null)
     {
         Guid? active = null;
         if (!(args.Length == 1 && args[0] == "list" || args.Length == 2 && args[0] == "download"))
@@ -40,7 +41,7 @@ public static class ModelCli
                 using var client = source is null ? HuggingFaceStore.CreateClient() : null;
                 source ??= new(client!);
                 interaction ??= new Interaction(output);
-                var selected = new ModelSelectionMenu(source).SelectAsync(request!, interaction, stopped.Token).GetAwaiter().GetResult();
+                var selected = new ModelSelectionMenu(source, inspector).SelectAsync(request!, interaction, stopped.Token).GetAwaiter().GetResult();
                 if (selected is null) { output.WriteLine("Selección cancelada; no se creó operación."); return 0; }
                 var operation = installer.Create(selected);
                 active = operation.Id;

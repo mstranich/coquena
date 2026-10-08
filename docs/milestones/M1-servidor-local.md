@@ -69,6 +69,7 @@ las dependencias determinan qué puede comenzar, no una secuencia obligatoriamen
 - [ ] [007 — Selección Hugging Face y menú de descarga](../../specs/007-m1-seleccion-hugging-face/README.md)
 - [ ] [008 — Inspección GGUF y coherencia de shards](../../specs/008-m1-gguf-integridad/README.md)
 - [ ] [009 — Descarga y publicación de modelos gestionados](../../specs/009-m1-instalacion-modelos/README.md)
+- [ ] [015 — Resolución robusta de unidades GGUF en Hugging Face](../../specs/015-m1-resolucion-gguf-hugging-face/README.md): prioridad inmediata después de 009; corregir el caso Gemma y la dependencia exclusiva de nombres convencionales. Su aceptación bloquea la entrega 014, no las tareas independientes de configuración/servidores.
 - [ ] [010 — Configuración, presets y generación de INI](../../specs/010-m1-config-presets-ini/README.md)
 - [ ] [011 — Definiciones de servidor, defaults y puertos](../../specs/011-m1-definiciones-server/README.md)
 - [ ] [012 — Inicio, parada, reinicio e identidad de procesos](../../specs/012-m1-ciclo-server/README.md)

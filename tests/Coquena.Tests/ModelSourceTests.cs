@@ -90,7 +90,7 @@ internal static class ModelSourceTests
         foreach (var path in new[] { "../one.gguf", "/one.gguf", "a\\one.gguf", "a/NUL.gguf", "a/a:one.gguf", "a/one.gguf." })
             await Fails(() => Task.FromResult(store.FileAddress(resolved, path)), "unsafe-path");
 
-        var menu = new ModelSelectionMenu(store);
+        var menu = new ModelSelectionMenu(store, new ResolutionTests.NamedInspector());
         var choose = new Interaction(0);
         var selection = await menu.SelectAsync(ModelRequest.Parse("owner/repo"), choose);
         Check(selection!.Name == "owner/repo:Q4_K_M" && selection.Selection.Commit == Commit && selection.Selection.Files.Length == 1,
@@ -179,17 +179,17 @@ internal static class ModelSourceTests
             Json("[" + FileJson("a/model-Q4_K_M.gguf") + "," + FileJson("b/model-Q4_K_M.gguf") + "]") : Standard(r));
         using var asc = new HttpClient(ambiguousSource);
         var secondVariant = new Interaction(1);
-        var explicitVariant = await new ModelSelectionMenu(new(asc)).SelectAsync(ModelRequest.Parse("owner/repo:Q4_K_M"), secondVariant);
+        var explicitVariant = await new ModelSelectionMenu(new(asc), new ResolutionTests.NamedInspector()).SelectAsync(ModelRequest.Parse("owner/repo:Q4_K_M"), secondVariant);
         Check(secondVariant.Menus[0].Length == 4 && explicitVariant!.Selection.Files[0].Path.StartsWith("b/"), "ambiguous quant explicit paths");
         using var missingReadme = new Fixture(r => r.RequestUri!.AbsolutePath.EndsWith("README.md") ? new(HttpStatusCode.NotFound) : Standard(r));
         using var mrc = new HttpClient(missingReadme);
         var unavailableReadme = new Interaction(1, 0);
-        Check(await new ModelSelectionMenu(new(mrc)).SelectAsync(ModelRequest.Parse("owner/repo"), unavailableReadme) is not null &&
+        Check(await new ModelSelectionMenu(new(mrc), new ResolutionTests.NamedInspector()).SelectAsync(ModelRequest.Parse("owner/repo"), unavailableReadme) is not null &&
             unavailableReadme.Menus.Count == 2 && unavailableReadme.Messages.Any(m => m.StartsWith("README:")), "README failure nonfatal");
         using var empty = new Fixture(r => r.RequestUri!.AbsolutePath.Contains("/tree/") ? Json("[]") : Standard(r));
         using var ec = new HttpClient(empty);
         var noGguf = new Interaction(1);
-        Check(await new ModelSelectionMenu(new(ec)).SelectAsync(ModelRequest.Parse("owner/repo"), noGguf) is null &&
+        Check(await new ModelSelectionMenu(new(ec), new ResolutionTests.NamedInspector()).SelectAsync(ModelRequest.Parse("owner/repo"), noGguf) is null &&
             noGguf.Menus[0].SequenceEqual(new[] { "Mostrar README", "Cancelar" }), "no GGUF only readme/cancel");
         Check(!fixture.Calls.Any(c => c.Contains("/resolve/")), "no weight GET or transfer calls");
         Console.WriteLine($"OK: {checks} comprobaciones HF/selección; sin pesos, GUID ni persistencia.");
@@ -209,7 +209,7 @@ internal static class ModelSourceTests
         foreach (var diagnostic in candidates.Diagnostics) Console.WriteLine(diagnostic);
         Console.WriteLine($"README del commit: {(await store.ReadmeAsync(revision)).Length} caracteres");
         var menu = new Interaction(0);
-        var selected = await new ModelSelectionMenu(store).SelectAsync(ModelRequest.Parse(repository), menu);
+        var selected = await new ModelSelectionMenu(store, new ResolutionTests.NamedInspector()).SelectAsync(ModelRequest.Parse(repository), menu);
         if (selected is null || selected.Selection.Files.Length == 0) throw new Exception("Live selection missing");
         Console.WriteLine($"Selección sin segunda confirmación: {selected.Name} @ {selected.Selection.Commit}; cero descarga de pesos.");
     }

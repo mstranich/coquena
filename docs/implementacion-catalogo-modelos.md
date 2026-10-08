@@ -179,6 +179,51 @@ Antes de elegir endpoints/librería, comprobar estas capacidades con fixtures pe
 y documentación oficial. No hacer experimentos descargando modelos de gigabytes.
 La sintaxis de la API Python citada como referencia no exige introducir Python en C#.
 
+### Mecanismo de selección inicial implementado (015)
+
+`ModelSelection` conserva clasificación/agrupación pura y evidencia por archivo:
+commit/ruta, rol, base y etiqueta completa, fuente, estado y diagnóstico. `ModelResolver`
+inspecciona nombres sin etiqueta y valida todas las partes finalmente elegidas.
+`RemoteGgufInspector` es async, secuencial e inyectable; comparte el parser binario con
+la inspección local. La API agregada `gguf` de HF no aporta cuantización por ruta y no
+se aplica al inventario como si lo hiciera. No se inspeccionan descriptores ni se deduce
+la receta K_M/K_S de tipos de tensores. Tabla de `llama_ftype` fijada a
+[llama.h 71ad059](https://github.com/ggml-org/llama.cpp/blob/71ad0590f4808b6202f9213d166913858c73b1bc/include/llama.h),
+incluidos BF16/IQ/TQ/MXFP/NVFP y Q1_0/Q2_0; IDs retirados/futuros permanecen desconocidos.
+
+Etiquetas dinámicas: [documentación del publicador](https://unsloth.ai/docs/models/qwen3.5/gguf-benchmarks)
+y rutas del snapshot Qwen bc014a1 respaldan `UD-IQ2_M`, `UD-IQ2_XXS`, `UD-IQ3_S`,
+`UD-IQ3_XXS`, `UD-IQ4_NL`, `UD-IQ4_XS` y `UD-Q2_K_XL`, `UD-Q3_K_XL`, `UD-Q4_K_L`,
+`UD-Q4_K_XL`, `UD-Q5_K_XL`, `UD-Q6_K_S`, `UD-Q6_K_XL`, `UD-Q8_K_XL`.
+La tabla de nombres conserva estas etiquetas exactas; no acepta cualquier sufijo.
+La cabecera no certifica una receta dinámica ni la reduce a la etiqueta estándar
+predominante. No se ofrece una equivalencia/alias implícita para omitir `UD-`.
+
+La lectura usa `resolve/<commit>/<ruta>` y `ResponseHeadersRead`, rangos cerrados,
+`Accept-Encoding: identity`, sin cookies/redirecciones automáticas. Reutiliza la política
+HF/CDN de 009 (cinco saltos, HTTPS, hosts permitidos, sin credenciales). Exige 206,
+Content-Range exacto y total de inventario, longitudes/cuerpo coherentes, sin compresión;
+contrasta commit opcional, continuidad de ETag e identidad LFS comparable cuando existe.
+Un 200 se cierra sin drenar; 416/rangos falsos/cambio de contenido son fallos de consulta.
+
+Presupuestos: primer bloque 64 KiB, siguientes hasta 1 MiB; máximo 64 MiB por cabecera,
+128 MiB por unidad, 256 MiB y 8192 peticiones (incluidos redirects) por invocación;
+20 segundos por petición, 120 por sesión. Memoria de cuerpo acotada a dos bloques y
+scratch del parser de 64 KiB, sin conservar tokenizer ni pesos. Contadores incluyen
+bytes leídos en fallos y un byte de detección de exceso. Máximo tres intentos HTTP
+429/500/502/503/504; Retry-After y RateLimit toman la espera mayor, más de 5 s se informa
+sin reintentar antes del plazo. Cancelación y fallos no se convierten en ausencia.
+Memoización por repo/commit/ruta sólo durante la invocación; sin caché en disco, home,
+GUID ni `.part`. Los límites del inventario siguen siendo independientes.
+
+El bloque inicial de 64 KiB se conserva; se aumentaron los posteriores porque ese tamaño
+en cada petición agotó 120 s para el principal Google. Con 1 MiB, principal+mmproj en el
+snapshot d1c082b se inspeccionaron con 15 859 712 bytes/34 peticiones en unos 10 s.
+Se leen rangos del prefijo GGUF, no el archivo completo; el último bloque puede contener
+bytes posteriores a los metadatos que no se interpretan como pesos ni se conservan.
+Los detalles reproducibles y la verificación Native AOT se registran en
+[015](../specs/015-m1-resolucion-gguf-hugging-face/README.md).
+
 ## 5. Comparación determinista y update
 
 Implementar las [reglas de correspondencia](modelos-y-companions.md#reglas-de-correspondencia)

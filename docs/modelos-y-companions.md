@@ -29,6 +29,27 @@ Cada companion se descarga en otra invocación; no se presupone su repositorio n
 compatibilidad. Los algoritmos y las interacciones se detallan en la guía técnica
 y en secuencias.md.
 
+Los nombres son pistas, no un requisito para reconocer un GGUF. La selección evalúa
+también archivos de nombre arbitrario mediante metadatos remotos acotados en el commit
+resuelto. Separa cuantización base y calificadores del publicador de tokens como `it`,
+`instruct` o `chat`. Conserva etiquetas respaldadas como `IQ1_S-XL`; `general.file_type`
+confirma la base, sin certificar la receta del calificador. Un conflicto entre nombre
+y cabecera impide crear la operación. Si falta `file_type` o su ID es desconocido,
+una etiqueta reconocida sigue siendo candidata por nombre; sin etiqueta resoluble se
+informa incertidumbre, sin inventar nombre local.
+
+Las recetas dinámicas documentadas por el publicador (por ejemplo `UD-Q4_K_XL`)
+conservan su etiqueta completa y condición de candidato. Su `file_type` predominante
+se registra como evidencia independiente: no renombra la receta ni prueba su mezcla.
+Una receta documentada no se equipara automáticamente a Q4_K_M por ese metadato.
+
+Auxiliares `mmproj`/`mtp` se distinguen por tokens de nombre/carpeta y pistas de cabecera
+cuando existen; no se convierten en principales por carecer de cuantización en el nombre.
+Dos unidades con igual cuantización conservan opciones separadas por rutas. Antes del GUID
+se comprueban las cabeceras de todas las partes elegidas y la coherencia split; esto no
+certifica integridad de los pesos ni compatibilidad de carga. Un fallo aislado conserva
+los demás candidatos; una exploración limitada se informa como parcial/no concluyente.
+
 ## Identificación en el catálogo local
 
 No se usan aliases. El **nombre canónico** identifica la selección local:
