@@ -3,8 +3,10 @@
 ## Contexto y alcance
 
 - Leer docs/README.md y los documentos canónicos del área antes de trabajar.
-- docs/ contiene las reglas funcionales; specs/ organiza entregas y evidencia, sin duplicarlas.
-- Reinicio en C#, en pasos pequeños y comprensibles. No consultar ni depender de legacy.
+- docs/ contiene las reglas funcionales; docs/milestones/ define entregables y alcance.
+  specs/ contiene tareas concretas y evidencia, enlazadas a su milestone sin duplicar reglas.
+- Reinicio en C# con publicación Native AOT desde la primera entrega, en pasos pequeños
+  y comprensibles. No consultar ni depender de legacy.
 - No iniciar código, agregar paquetes, ampliar alcance ni hacer commits sin autorización.
 - No resolver contradicciones por omisión: informar y detener sólo el trabajo afectado.
 
@@ -35,5 +37,8 @@ Mantener cada entrega acotada; enlazar las reglas canónicas en vez de copiarlas
 - Revisar manualmente alcance, estado, dependencias y evidencia mediante board/search/view.
 - Documentación: comprobar sintaxis PlantUML, ejemplos JSON, enlaces locales y git diff --check.
 - Código futuro: pruebas pertinentes y resultados reproducibles según la entrega acordada.
+- Las tareas de runtime incluyen publicación Native AOT y ejecución del binario para
+  el destino acordado; compilar/pruebas administradas no sustituyen esa evidencia.
+- Comprobar dependencias en ese camino antes de adoptarlas; no posponer AOT al final.
 - Informar cambios, verificaciones realmente ejecutadas, limitaciones y siguiente paso.
 - No presentar un borrador, un diagrama válido o una compilación como funcionalidad terminada.

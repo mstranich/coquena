@@ -33,12 +33,24 @@ Esta carpeta contiene el análisis funcional y una guía de implementación del 
 para trabajo futuro delegable. No hay implementación todavía: la guía distingue los
 acuerdos funcionales, los mecanismos técnicos propuestos y las decisiones pendientes.
 
-Coquena se implementará en **C#**, en pasos pequeños y revisables por quien mantiene
+Coquena se implementará en **C# con publicación Native AOT**, en pasos pequeños y revisables por quien mantiene
 Coquena. El orden de revisión es: backends y catálogo de parámetros; configuración y
 presets; catálogo de modelos y sus comandos (incluida su relación con Hugging Face);
 por último, servidores e instanciación. Los acuerdos y pendientes de ejecución están en [servidores.md](servidores.md). La documentación es autosuficiente: ningún requisito depende de otra implementación.
 
 ## El contexto es la máquina
+
+Native AOT es una restricción desde la primera entrega, no una conversión final.
+Las tareas deben verificar publicación y ejecución del binario nativo para la plataforma
+objetivo, además de sus pruebas funcionales. No elegir dependencias sin comprobar ese
+camino. Base elegida tras inspeccionar la PC el 7 de octubre de 2026: .NET 10 (`net10.0`),
+SDK estable instalado `10.0.401`, destino inicial `win-x64`. El SDK se fija mediante
+global.json al crear el proyecto; no se adopta una versión preliminar automáticamente.
+Hay herramientas C++ de Visual Studio Build Tools 2026 y Windows SDK instalados; la
+publicación AOT efectiva se comprobará en la primera entrega ejecutable, no se presume.
+
+La [descarga oficial de .NET](https://dotnet.microsoft.com/en-us/download) indicaba
+10.0.401 como SDK estable actual y .NET 11 RC como preliminar en esa fecha.
 
 A diferencia de NVM o UV, el contexto no es una carpeta ni un proyecto: es **el hardware
 de la PC donde corre**. No hay `.nvmrc` ni shims. Lo que importa es qué CPU y qué GPUs hay
@@ -55,6 +67,14 @@ implementación — con un preset liviano y rápido y otro pesado con más conte
 sobre el mismo GGUF.
 
 ## Documentos
+
+### Milestones
+
+- [M1: servidor local](milestones/M1-servidor-local.md): backend, dos modelos, métricas y logs.
+- [M2: gestión completa](milestones/M2-gestion-completa.md): funciones iniciales restantes, después de M1.
+
+Ambos son borradores de planificación. Las tareas concretas se gestionan con LeanSpec
+en specs/; los milestones no se mezclan con ellas en el tablero.
 
 ### Cómo leer y mantener esta documentación
 

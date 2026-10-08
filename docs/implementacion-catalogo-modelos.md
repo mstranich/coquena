@@ -3,6 +3,8 @@
 ## Contrato de trabajo para agentes
 
 Esta guía permite implementar en C# por entregas pequeñas sin reconstruir la conversación.
+Native AOT es requisito del ejecutable desde la primera entrega; condiciona contratos,
+persistencia y elección de dependencias. No se crea una fase final de conversión a AOT.
 No crea el proyecto ni autoriza a implementar ahora. Leer primero
 [las reglas funcionales](modelos-y-companions.md) y luego la entrega asignada aquí.
 
@@ -293,6 +295,9 @@ en cada listado. No declarar una entrega terminada sólo porque compila.
 Cada agente entrega: alcance realizado, archivos modificados, pruebas ejecutadas y
 resultado, limitaciones, decisiones pendientes y siguiente dependencia. Distinguir
 claramente propuesta, implementación y comportamiento efectivamente verificado.
+Las entregas de runtime incluyen evidencia de publicación Native AOT y ejecución del
+binario publicado para el destino acordado, además de las pruebas funcionales. La
+entrega documental M0 no requiere todavía un ejecutable ni crear el proyecto.
 
 ## 9. Decisiones que no deben quedar ocultas en el código
 
