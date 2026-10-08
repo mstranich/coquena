@@ -61,4 +61,5 @@ Console.WriteLine($"OK: {cases.Length} casos administrados" +
 
 Coquena.Tests.ContractTests.Run();
 Coquena.Tests.StorageTests.Run();
+await Coquena.Tests.BackendTests.Run(executable);
 await Coquena.Tests.DownloadTests.Run(executable);

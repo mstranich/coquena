@@ -5,6 +5,7 @@
     <AssemblyName>coquena</AssemblyName>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <PublishAot>true</PublishAot>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
   </PropertyGroup>
