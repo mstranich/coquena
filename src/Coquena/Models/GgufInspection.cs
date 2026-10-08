@@ -7,7 +7,7 @@ namespace Coquena.Models;
 public sealed class GgufException(string code, string message) : Exception(message)
 { public string Code { get; } = code; }
 public sealed record GgufHeader(uint Version, ulong TensorCount, int? SplitIndex, int? SplitCount,
-    long? SplitTensorCount, IReadOnlyDictionary<string, string> Hints);
+    long? SplitTensorCount, IReadOnlyDictionary<string, string> Hints, uint? FileTypeId = null);
 public sealed record GgufPart(string Path, GgufHeader? Header, string? Diagnostic);
 public sealed record GgufUnit(string Status, string[] Expected, string[] Missing, GgufPart[] Parts, string[] Diagnostics);
 
@@ -16,48 +16,55 @@ public static class GgufInspection
     // Only the metadata/header area is inspected: never allocate or read tensor weights.
     public const long MaxHeaderBytes = 64 * 1024 * 1024;
     private static readonly UTF8Encoding Utf8 = new(false, true);
-    public static GgufHeader ReadHeader(Stream stream, CancellationToken cancellation = default)
+    public static GgufHeader ReadHeader(Stream stream, CancellationToken cancellation = default) => ReadHeaderAsync(stream, cancellation).GetAwaiter().GetResult();
+
+    public static async Task<GgufHeader> ReadHeaderAsync(Stream stream, CancellationToken cancellation = default)
     {
         var reader = new HeaderReader(stream, cancellation);
-        if (!reader.Read(4).SequenceEqual("GGUF"u8)) throw new GgufException("invalid", "Magic GGUF ausente.");
-        var version = reader.Number(4);
+        if (!(await reader.Read(4)).Span.SequenceEqual("GGUF"u8)) throw new GgufException("invalid", "Magic GGUF ausente.");
+        var version = await reader.Number(4);
         if (version is not (2 or 3)) throw new GgufException("unsupported", "Sólo GGUF v2/v3 little-endian; no declarar inválida una versión/endian no soportada.");
-        var tensors = reader.Number(8);
-        var count = reader.Number(8);
+        var tensors = await reader.Number(8);
+        var count = await reader.Number(8);
         if (count > 1000000) throw new GgufException("limit", "Demasiadas claves GGUF para inspección acotada.");
         HashSet<string> keys = new(StringComparer.Ordinal);
         Dictionary<string, string> hints = new(StringComparer.Ordinal);
-        int? index = null, total = null; long? tensorTotal = null;
+        int? index = null, total = null; long? tensorTotal = null; uint? fileType = null;
         for (ulong i = 0; i < count; i++)
         {
-            var key = reader.Text(1024);
+            var key = await reader.Text(1024);
             if (key.Length == 0 || !keys.Add(key)) throw new GgufException("invalid", "Clave GGUF vacía/duplicada.");
-            var type = reader.Number(4);
+            var type = await reader.Number(4);
             if (key is "split.no" or "split.count")
             {
                 if (type != 2) throw new GgufException("invalid", "split.no/count debe ser UINT16.");
-                var value = (int)reader.Number(2);
+                var value = (int)await reader.Number(2);
                 if (key == "split.no") index = value; else total = value;
+            }
+            else if (key == "general.file_type")
+            {
+                if (type != 4) throw new GgufException("invalid", "general.file_type debe ser UINT32.");
+                fileType = (uint)await reader.Number(4);
             }
             else if (key == "split.tensors.count")
             {
                 if (type != 5) throw new GgufException("invalid", "split.tensors.count debe ser INT32.");
-                var value = unchecked((int)reader.Number(4));
+                var value = unchecked((int)await reader.Number(4));
                 if (value < 0) throw new GgufException("invalid", "Cantidad global de tensores negativa.");
                 tensorTotal = value;
             }
             else if (key is "general.architecture" or "general.name" or "general.basename" or "general.uuid")
             {
                 if (type != 8) throw new GgufException("invalid", "Pista general GGUF debe ser STRING.");
-                hints.Add(key, reader.Text(65536));
+                hints.Add(key, await reader.Text(65536));
             }
-            else reader.SkipValue(type, 0);
+            else await reader.SkipValue(type, 0);
         }
         // gguf-split --merge preserves split metadata with split.count=0 to disable splitting.
         if ((index.HasValue && !total.HasValue) ||
             (index.HasValue && total is > 0 && index.Value >= total.Value))
             throw new GgufException("invalid", "Metadatos de división contradictorios.");
-        return new((uint)version, tensors, index, total, tensorTotal, hints);
+        return new((uint)version, tensors, index, total, tensorTotal, hints, fileType);
     }
 
     // First shard only; locate exact siblings in this directory, never recursively or by similarity.
@@ -170,41 +177,41 @@ public static class GgufInspection
     {
         private long consumed;
         private readonly byte[] scratch = new byte[65536];
-        public ReadOnlySpan<byte> Read(int n)
+        public async ValueTask<ReadOnlyMemory<byte>> Read(int n)
         {
             cancellation.ThrowIfCancellationRequested();
             if (n < 0 || consumed > MaxHeaderBytes - n) throw new GgufException("limit", "Encabezado supera 64 MiB.");
-            try { stream.ReadExactly(scratch.AsSpan(0, n)); }
+            try { await stream.ReadExactlyAsync(scratch.AsMemory(0, n), cancellation); }
             catch (EndOfStreamException) { throw new GgufException("invalid", "Encabezado GGUF truncado."); }
-            consumed += n; return scratch.AsSpan(0, n);
+            consumed += n; return scratch.AsMemory(0, n);
         }
-        public ulong Number(int width) => width switch
-        { 1 => Read(1)[0], 2 => BinaryPrimitives.ReadUInt16LittleEndian(Read(2)),
-            4 => BinaryPrimitives.ReadUInt32LittleEndian(Read(4)), 8 => BinaryPrimitives.ReadUInt64LittleEndian(Read(8)), _ => throw new ArgumentException() };
-        public string Text(int max)
+        public async ValueTask<ulong> Number(int width) => width switch
+        { 1 => (await Read(1)).Span[0], 2 => BinaryPrimitives.ReadUInt16LittleEndian((await Read(2)).Span),
+            4 => BinaryPrimitives.ReadUInt32LittleEndian((await Read(4)).Span), 8 => BinaryPrimitives.ReadUInt64LittleEndian((await Read(8)).Span), _ => throw new ArgumentException() };
+        public async ValueTask<string> Text(int max)
         {
-            var n = Number(8);
+            var n = await Number(8);
             if (n > (ulong)max) throw new GgufException("limit", "Texto GGUF excede límite de inspección.");
-            try { return Utf8.GetString(Read((int)n)); }
+            try { return Utf8.GetString((await Read((int)n)).Span); }
             catch (DecoderFallbackException) { throw new GgufException("invalid", "Texto GGUF no es UTF-8 válido."); }
         }
-        private void Skip(ulong n)
+        private async ValueTask Skip(ulong n)
         {
             if (n > (ulong)(MaxHeaderBytes - consumed)) throw new GgufException("limit", "Encabezado supera 64 MiB.");
-            while (n > 0) { var size = (int)Math.Min(n, (ulong)scratch.Length); Read(size); n -= (ulong)size; }
+            while (n > 0) { var size = (int)Math.Min(n, (ulong)scratch.Length); await Read(size); n -= (ulong)size; }
         }
-        public void SkipValue(ulong type, int depth)
+        public async ValueTask SkipValue(ulong type, int depth)
         {
             if (depth > 8) throw new GgufException("limit", "Array GGUF demasiado anidado.");
             var width = type switch { 0 or 1 => 1, 2 or 3 => 2, 4 or 5 or 6 => 4, 10 or 11 or 12 => 8, _ => 0 };
-            if (width != 0) { Skip((ulong)width); return; }
-            if (type == 7) { if (Number(1) > 1) throw new GgufException("invalid", "Boolean GGUF inválido."); return; }
-            if (type == 8) { Skip(Number(8)); return; }
+            if (width != 0) { await Skip((ulong)width); return; }
+            if (type == 7) { if (await Number(1) > 1) throw new GgufException("invalid", "Boolean GGUF inválido."); return; }
+            if (type == 8) { await Skip(await Number(8)); return; }
             if (type != 9) throw new GgufException("unsupported", "Tipo de metadato GGUF no soportado.");
-            var element = Number(4); var count = Number(8);
+            var element = await Number(4); var count = await Number(8);
             if (element > 12) throw new GgufException("unsupported", "Tipo de array GGUF no soportado.");
             if (count > 1000000) throw new GgufException("limit", "Array GGUF excesivo.");
-            for (ulong i = 0; i < count; i++) SkipValue(element, depth + 1);
+            for (ulong i = 0; i < count; i++) await SkipValue(element, depth + 1);
         }
     }
 }

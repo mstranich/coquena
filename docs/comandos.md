@@ -148,6 +148,12 @@ Antes de crear la operación presenta un único menú repetible:
   explícita; no adivinar. Etiquetar cada opción de inicio como descarga, no como inspección.
 
 El README se consulta sólo al solicitarlo. No se descarga por defecto con los pesos.
+Cada opción muestra rutas, etiqueta/fuente y tamaño en GB decimal y GiB. La actividad
+de inspección de metadatos se informa separadamente de la descarga instalable, sin GUID
+ni parciales. Los nombres no convencionales se evalúan por cabecera; las
+[reglas de selección](modelos-y-companions.md) distinguen candidatos, conflictos e
+incertidumbre. Elegir completa la validación acotada antes de iniciar; si falla, explica
+la causa y vuelve al menú sin crear una operación vacía.
 Si el repositorio existe pero no ofrece GGUF seleccionables para la unidad solicitada,
 mostrar sólo «Mostrar README» y «Cancelar», explicando la ausencia de candidatos.
 No ofrecer descarga ni crear GUID, operación o parciales. La misma regla aplica a

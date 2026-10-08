@@ -19,6 +19,7 @@ Preparar paquete ejecutable y guía breve reproducible. Acordar backend/build y 
 - [milestones/M1-servidor-local.md](../../docs/milestones/M1-servidor-local.md)
 
 ## Trabajo y aceptación
+- [ ] Aceptar previamente [015 — resolución robusta de unidades GGUF de Hugging Face](../015-m1-resolucion-gguf-hugging-face/README.md), incluido el caso Google/Gemma con y sin cuantización explícita. Es un bloqueo de aceptación de M1, no un motivo para detener las tareas independientes 010–013. La relación se expresa aquí porque `leanspec rel` informa que todavía no está migrado al adaptador; no se editaron metadatos manualmente.
 - [ ] Probar instalación, descarga/pausa/resume, dos presets con inferencia, métricas/logs, -d/stop/restart y fallos de dependencias/puerto/shards. Pruebas automáticas pequeñas más integración real opt-in con binario publicado; registrar resultados, límites y pasos para el usuario.
 - [ ] Pruebas pertinentes y publicación/ejecución Native AOT win-x64 del recorrido entregado.
 - [ ] Registrar comandos ejecutados, resultados, decisiones técnicas y limitaciones en esta tarjeta.

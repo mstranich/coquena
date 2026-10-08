@@ -117,7 +117,12 @@ end box
 U -> C : descargar usuario/repositorio[:cuantización]
 C -> HF : resolver revisión y consultar inventario\nen un commit concreto
 HF --> C : archivos y metadatos / error
-C -> C : identificar variantes y conjuntos completos\nfiltrar cuantización si fue indicada
+C -> C : enumerar GGUF y agrupar shards estándar\nclasificar pistas de nombre y rol
+opt nombres sin cuantización resoluble
+  C -> HF : inspeccionar cabeceras por rangos acotados\nen el mismo commit, sin instalación
+  HF --> C : metadatos por archivo / fallo no concluyente
+end
+C -> C : conciliar evidencia y presentar candidatos\nfiltrar cuantización sin sustituirla
 alt error de consulta o cuantización indicada inexistente
   C --> U : explicar; no crear descarga
 else repositorio consultado sin GGUF seleccionables
@@ -149,6 +154,11 @@ else candidatos disponibles
     C --> U : volver al prompt; sin GUID ni parciales
   end
   C -> C : seleccionar unidad elegida\ne iniciar sin segunda confirmación
+  C -> HF : validar cabeceras de todas las partes elegidas\nrangos acotados o memoización del mismo commit
+  HF --> C : cabeceras / fallo
+  break conflicto o validación no concluyente
+    C --> U : explicar y volver al menú seguro\nsin GUID ni operación
+  end
   C -> I : comprobar disponibilidad del nombre canónico
   I --> C : libre / externo / otro registro / error
   opt nombre ocupado por externo
