@@ -3,6 +3,12 @@ using Coquena;
 
 if (args.Length == 1 && args[0] == "--version") { Console.WriteLine("version: 1 (abcdef)"); return; }
 
+if (args.Length == 2 && args[0] == "--hf-store")
+{
+    await Coquena.Tests.ModelSourceTests.Live(args[1]);
+    return;
+}
+
 if (args.Length == 3 && args[0] == "--download-worker")
 {
     Coquena.Tests.DownloadTests.Worker(args[1], Guid.Parse(args[2]));
@@ -67,3 +73,4 @@ await Coquena.Tests.BackendTests.Run(executable);
 await Coquena.Tests.DownloadTests.Run(executable);
 
 await Coquena.Tests.InstallerTests.Run(executable);
+await Coquena.Tests.ModelSourceTests.Run();
