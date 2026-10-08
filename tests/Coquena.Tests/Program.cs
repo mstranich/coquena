@@ -46,3 +46,5 @@ foreach (var input in cases)
 
 Console.WriteLine($"OK: {cases.Length} casos administrados" +
     (executable is null ? "." : $" y {cases.Length} casos del ejecutable publicado."));
+
+Coquena.Tests.ContractTests.Run();
