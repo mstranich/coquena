@@ -357,8 +357,12 @@ de modelos ni de los parámetros de inferencia. No se define todavía su comando
 migración. La primera iteración usa un home común con la
 [estructura acordada](implementacion-catalogo-modelos.md#almacenamiento-local-acordado).
 
-No hay comando `init`. El home se resuelve así (`COQUENA_HOME` primero, porque es una
-decisión explícita del usuario):
+No hay comando `init` ni autodetección de directorios junto al ejecutable. Si no se
+define `COQUENA_HOME`, se utiliza `$USERPROFILE\.coquena` en Windows.
+La variable puede redefinirse con una ruta absoluta para testing o uso portable;
+por ejemplo, `$env:COQUENA_HOME = Join-Path $PWD '.coquena'` estando en el
+directorio del ejecutable. La configuración es del proceso: Coquena no modifica
+variables de entorno persistentes. El directorio se crea en el primer uso de almacenamiento.
 
 ```plantuml
 @startuml
@@ -369,10 +373,8 @@ if (¿COQUENA_HOME definido?) then (sí)
     stop
   endif
   :Usar COQUENA_HOME;
-elseif (¿existe un home junto al ejecutable?) then (sí)
-  :Modo portable:\nusar ese directorio;
 else (no)
-  :Usar ~/.coquena\n(crearlo en el primer uso);
+  :Usar $USERPROFILE/.coquena\n(crearlo en el primer uso);
 endif
 stop
 @enduml

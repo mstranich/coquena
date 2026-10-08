@@ -62,6 +62,34 @@ public static class ContractJson
 // Shape checks only: no network, disk access, backend resolution or referential repair.
 public static class ContractValidation
 {
+    public static void Models(ModelsDocument value)
+    {
+        Version(value.SchemaVersion);
+        Catalog(value.Models, Model, x => x.Id, x => x.Name);
+    }
+    public static void Backends(BackendsDocument value)
+    {
+        Version(value.SchemaVersion);
+        Catalog(value.Backends, Backend, x => x.Id, null);
+    }
+    public static void Presets(PresetsDocument value)
+    {
+        Version(value.SchemaVersion);
+        Catalog(value.Presets, Preset, x => x.Id, x => x.Name);
+    }
+    private static void Catalog<T>(T[]? entries, Action<T> validate, Func<T, Guid> id, Func<T, string>? name) where T : class
+    {
+        Require(entries is not null, "Catálogo requerido.");
+        var ids = new HashSet<Guid>();
+        var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var entry in entries!)
+        {
+            Require(entry is not null, "Registro nulo.");
+            validate(entry!);
+            Require(ids.Add(id(entry!)), "ID duplicado.");
+            if (name is not null) Require(names.Add(name(entry!)), "Nombre duplicado.");
+        }
+    }
     private static void Require(bool value, string message) => ContractJson.Check(value, message);
     private static void Id(Guid id) => Require(id != Guid.Empty, "ID vacío.");
     private static void Text(string? text) => Require(!string.IsNullOrWhiteSpace(text), "Texto requerido.");
