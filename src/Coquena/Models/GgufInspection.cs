@@ -80,7 +80,8 @@ public static class GgufInspection
     }
 
     // Explicit complete selection (e.g. 009); duplicates and mixed units are diagnosed, not merged.
-    public static GgufUnit InspectPaths(IReadOnlyList<string> paths, CancellationToken cancellation = default)
+    public static GgufUnit InspectPaths(IReadOnlyList<string> paths, CancellationToken cancellation = default,
+        Func<string, string>? resolvePath = null)
     {
         if (paths.Count == 0 || paths.Count > 65535) throw new ArgumentException("Unidad vacía o excesiva.");
         var expected = paths.Select(Path.GetFullPath).ToArray();
@@ -114,7 +115,7 @@ public static class GgufInspection
             GgufHeader? header = null;
             try
             {
-                using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
+                using var stream = new FileStream(resolvePath?.Invoke(path) ?? path, FileMode.Open, FileAccess.Read, FileShare.Read);
                 header = ReadHeader(stream, cancellation);
                 parts.Add(new(path, header, null));
             }

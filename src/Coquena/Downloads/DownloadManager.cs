@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Headers;
 using Coquena.Contracts;
 using Coquena.Storage;
+using Coquena.Models;
 
 namespace Coquena.Downloads;
 
@@ -106,7 +107,7 @@ public sealed class DownloadManager(Home home, LocalStore? storage = null)
     {
         var value = Read(id);
         Paths(value);
-        if (value.Phase == "resource-validation" && value.Files.All(f => f.State == "transferred")) return value;
+        if (value.Phase is "publishing" or "cleanup" or "cancelling-publication" || value.Phase == "resource-validation" && value.Files.All(f => f.State == "transferred")) return value;
         if (value.State is not ("downloading" or "verifying")) return value;
         FileStream lease;
         try { lease = Lease(id); }
@@ -214,6 +215,8 @@ public sealed class DownloadManager(Home home, LocalStore? storage = null)
     {
         using var lease = Lease(id);
         var value = Read(id); Paths(value);
+        if (value.Phase == "cancelling-publication")
+            throw new DownloadException("cancel-required", "Publicación en reversión; repita download cancel para completar limpieza.");
         if (value.State == "completed" && !(finalize is not null && value.Phase == "cleanup"))
             throw new DownloadException("cleanup-pending", "Operación terminada pendiente de limpieza del consumidor.");
         if (value.State == "cancelled") throw new DownloadException("cleanup-pending", "Cancelar para completar limpieza pendiente.");
@@ -244,7 +247,15 @@ public sealed class DownloadManager(Home home, LocalStore? storage = null)
                 var length = Length(file);
                 if (length != file.ConfirmedBytes)
                     throw new DownloadException("checkpoint-inconsistent", "Parcial y checkpoint difieren; no se reutilizan bytes sin evidencia.");
-                if (file.State == "transferred") continue; // transport complete, resource validation/publication still pending
+                if (file.State == "transferred")
+                {
+                    if (value.ModelInstall is not null)
+                    {
+                        var check = await FileIntegrity.VerifyAsync(home.PathFor(file.PartialPath), file.LocalIntegrity, stopped.Token);
+                        if (check.Status != "verified") throw new DownloadException("partial-integrity-failed", "Archivo completo cambió; no se reutiliza ni se redefine su referencia.");
+                    }
+                    continue;
+                }
                 for (var attempt = 0; ; attempt++)
                 {
                     try
@@ -339,8 +350,14 @@ public sealed class DownloadManager(Home home, LocalStore? storage = null)
             value.Files[index] = file; value = Save(value);
             var path = home.PathFor(file.PartialPath);
             Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-            using var target = new FileStream(path, FileMode.OpenOrCreate, FileAccess.Write, FileShare.Read, 65536, FileOptions.Asynchronous);
+            using var target = new FileStream(path, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.Read, 65536, FileOptions.Asynchronous);
             if (target.Length != file.ConfirmedBytes) throw new DownloadException("checkpoint-inconsistent", "Parcial cambió antes de abrir escritor.");
+            using var hash = value.ModelInstall is not null ? new FileHashSession() : null;
+            if (hash is not null)
+            {
+                target.Position = 0;
+                await hash.ReadPrefixAsync(target, file.ConfirmedBytes, stopped.Token);
+            }
             target.Position = file.ConfirmedBytes;
             var nextCheckpoint = DateTimeOffset.UtcNow.AddSeconds(1);
             try
@@ -359,6 +376,7 @@ public sealed class DownloadManager(Home home, LocalStore? storage = null)
                     if ((end is { } limit && target.Position + read > limit) || (file.ExpectedSize is { } total && target.Position + read > total))
                         throw new DownloadException("size-mismatch", "Respuesta excede los límites esperados.");
                     await target.WriteAsync(buffer.AsMemory(0, read), stopped.Token);
+                    hash?.Append(buffer.AsSpan(0, read));
                     if (DateTimeOffset.UtcNow >= nextCheckpoint)
                     {
                         Checkpoint(); progress?.Invoke(value); nextCheckpoint = DateTimeOffset.UtcNow.AddSeconds(1);
@@ -366,6 +384,14 @@ public sealed class DownloadManager(Home home, LocalStore? storage = null)
                 }
                 if ((end is not null && target.Position != end) || (file.ExpectedSize is not null && target.Position != file.ExpectedSize))
                     throw new TransientException(TimeSpan.FromMilliseconds(250));
+                if (hash is not null)
+                {
+                    var digest = hash.Finish();
+                    if (FileIntegrity.Compare(digest, file.Identity).Status == "mismatch")
+                        throw new DownloadException("remote-hash-mismatch", "SHA-256 remoto no coincide; no publicar ni redefinir referencia.");
+                    target.Flush(true);
+                    file = file with { LocalIntegrity = digest, VerifiedWriteUtc = File.GetLastWriteTimeUtc(path) };
+                }
                 file = file with { State = "transferred" };
             }
             finally { Checkpoint(); }

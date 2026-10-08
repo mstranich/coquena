@@ -207,6 +207,27 @@ public static class ContractValidation
     public static void Operation(OperationDocument value)
     {
         Version(value.SchemaVersion); Id(value.Id); Text(value.Name); Text(value.Phase);
+        Require(value.Files is { Length: > 0 } && value.Files.All(f => f is not null), "Transferencias requeridas y no nulas.");
+        if (value.ModelInstall is { } model)
+        {
+            Require(value.ResourceKind == "model" && value.ModelSelection is not null && value.BackendInstall is null, "Plan exclusivo de modelo.");
+            Id(model.ModelId);
+            Require(model.MovedFiles >= 0 && model.MovedFiles <= value.Files.Length &&
+                (model.MovingFile == -1 || model.MovingFile == model.MovedFiles && model.MovingFile < value.Files.Length), "Progreso de publicación inválido.");
+            if (model.VerifiedFiles is { } verified)
+            {
+                Require(verified.Length == value.Files.Length, "Publicación sin unidad completa.");
+                for (var i = 0; i < verified.Length; i++)
+                {
+                    Require(verified[i] is not null, "Archivo verificado nulo.");
+                    Require(verified[i].RemotePath == value.Files[i].SourcePath && verified[i].LocalPath == value.Files[i].DestinationPath &&
+                        verified[i].Size == value.Files[i].ConfirmedBytes && Coquena.Models.FileIntegrity.Comparable(verified[i].Integrity) &&
+                        verified[i].Integrity == value.Files[i].LocalIntegrity && verified[i].LastWriteUtc is not null, "Archivo verificado inválido.");
+                }
+            }
+            if (value.Phase == "publishing" || value.Phase == "cleanup" && value.State != "cancelled")
+                Require(model.VerifiedFiles is not null, "Publicación sin referencias verificadas.");
+        }
         if (value.BackendInstall is { } plan)
         {
             Require(value.ResourceKind == "backend" && value.BackendSelection is not null, "Plan sólo para backend.");
@@ -261,7 +282,17 @@ public static class ContractValidation
             Text(file.PartialPath); Text(file.DestinationPath); Text(file.State);
             Require(file.ConfirmedBytes >= 0 && (file.ExpectedSize is null || file.ConfirmedBytes <= file.ExpectedSize), "Checkpoint inválido.");
             Require(value.ResourceKind != "backend" || file.Identity is null, "Backend no guarda digest.");
+            Require(value.ResourceKind != "backend" || file.LocalIntegrity is null, "Backend no calcula digest local.");
             Identity(file.Identity);
+            Identity(file.LocalIntegrity);
+            if (value.ModelInstall is not null)
+            {
+                Require(file.Identity == expected[i].Identity, "Referencia remota difiere de la selección fijada.");
+                Require(file.State is "pending" or "paused" or "downloading" or "failed" or "transferred", "Estado de transferencia desconocido.");
+                if (file.State == "transferred")
+                    Require(Coquena.Models.FileIntegrity.Comparable(file.LocalIntegrity) && file.VerifiedWriteUtc is not null,
+                        "Transferencia de modelo sin SHA-256 completo ni fecha observada.");
+            }
         }
     }
 }

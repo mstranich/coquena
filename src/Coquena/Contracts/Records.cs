@@ -14,7 +14,7 @@ public sealed record RemoteFile(string Path, long? Size, ContentIdentity? Identi
 public sealed record RemoteSelection(string Repository, string RequestedRevision,
     string Commit, RemoteFile[] Files);
 public sealed record InstalledFile(string RemotePath, string LocalPath, long Size,
-    ContentIdentity? Integrity = null);
+    ContentIdentity? Integrity = null, DateTimeOffset? LastWriteUtc = null);
 // One unit, ordered files (first shard first), empty initial model configuration.
 public sealed record ModelRecord(Guid Id, string Name, RemoteSelection Selection,
     InstalledFile[] Files, Dictionary<string, string> Parameters);
@@ -34,14 +34,18 @@ public sealed record InstanceDocument(int SchemaVersion, Guid InstanceId, Guid S
     bool Metrics, Guid[] PresetIds, Guid[] ResourceIds, string IniPath, string LogPath);
 public sealed record TransferRecord(string SourcePath, string PartialPath, string DestinationPath,
     long ConfirmedBytes, long? ExpectedSize, ContentIdentity? Identity,
-    string? ETag, string? LastModified, string State);
+    string? ETag, string? LastModified, string State, ContentIdentity? LocalIntegrity = null,
+    DateTimeOffset? VerifiedWriteUtc = null);
 // Exactly one pinned resource selection; no expiring URL or credentials persisted.
 public sealed record BackendDownloadSelection(string Origin, string Release, string Family,
     string Variant, string Platform, RemoteFile[] Artifacts);
 public sealed record OperationDocument(int SchemaVersion, Guid Id, string ResourceKind,
     string Name, RemoteSelection? ModelSelection, BackendDownloadSelection? BackendSelection,
     TransferRecord[] Files, string State, string Phase, DateTimeOffset UpdatedAt,
-    string? Diagnostic, BackendInstallPlan? BackendInstall = null);
+    string? Diagnostic, BackendInstallPlan? BackendInstall = null, ModelInstallPlan? ModelInstall = null);
+
+public sealed record ModelInstallPlan(Guid ModelId, InstalledFile[]? VerifiedFiles = null,
+    int MovedFiles = 0, int MovingFile = -1);
 
 public sealed record BackendInstallPlan(string RequestedRelease, Guid BackendId,
     BackendRecord? Previous, BackendRecord? PreviousLatest, string Slot,
