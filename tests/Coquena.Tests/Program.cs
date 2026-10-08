@@ -74,3 +74,4 @@ await Coquena.Tests.DownloadTests.Run(executable);
 
 await Coquena.Tests.InstallerTests.Run(executable);
 await Coquena.Tests.ModelSourceTests.Run();
+await Coquena.Tests.GgufTests.Run();
