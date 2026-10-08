@@ -1,6 +1,12 @@
 using System.Diagnostics;
 using Coquena;
 
+if (args.Length == 2 && args[0] == "--storage-worker")
+{
+    Coquena.Tests.StorageTests.Worker(args[1]);
+    return;
+}
+
 string[][] cases = [[], ["--help"], ["-h"], ["help"], ["invalid"],
     ["backend"], ["--json"], ["--help", "extra"], ["invalid", "--help"]];
 var executable = args.Length == 1 ? Path.GetFullPath(args[0]) : null;
@@ -48,3 +54,4 @@ Console.WriteLine($"OK: {cases.Length} casos administrados" +
     (executable is null ? "." : $" y {cases.Length} casos del ejecutable publicado."));
 
 Coquena.Tests.ContractTests.Run();
+Coquena.Tests.StorageTests.Run();

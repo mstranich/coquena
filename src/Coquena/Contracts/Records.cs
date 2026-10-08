@@ -25,6 +25,9 @@ public sealed record ServersDocument(int SchemaVersion, ServerRecord[] Servers);
 public sealed record BackendRetention(int MaxBuilds);
 public sealed record ConfigDocument(int SchemaVersion, Guid? DefaultServerId,
     BackendSelection? DefaultBackend, BackendRetention BackendRetention);
+public sealed record ModelsDocument(int SchemaVersion, ModelRecord[] Models);
+public sealed record BackendsDocument(int SchemaVersion, BackendRecord[] Backends);
+public sealed record PresetsDocument(int SchemaVersion, PresetRecord[] Presets);
 public sealed record InstanceDocument(int SchemaVersion, Guid InstanceId, Guid ServerId,
     Guid BackendId, string Build, int Pid, string Mode, string Host, int Port,
     bool Metrics, Guid[] PresetIds, Guid[] ResourceIds, string IniPath, string LogPath);
@@ -50,4 +53,7 @@ public sealed record OperationDocument(int SchemaVersion, Guid Id, string Resour
 [JsonSerializable(typeof(ConfigDocument))]
 [JsonSerializable(typeof(InstanceDocument))]
 [JsonSerializable(typeof(OperationDocument))]
+[JsonSerializable(typeof(ModelsDocument))]
+[JsonSerializable(typeof(BackendsDocument))]
+[JsonSerializable(typeof(PresetsDocument))]
 public partial class ContractJsonContext : JsonSerializerContext;
