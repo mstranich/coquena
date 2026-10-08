@@ -1,6 +1,12 @@
 using System.Diagnostics;
 using Coquena;
 
+if (args.Length == 3 && args[0] == "--download-worker")
+{
+    Coquena.Tests.DownloadTests.Worker(args[1], Guid.Parse(args[2]));
+    return;
+}
+
 if (args.Length == 2 && args[0] == "--storage-worker")
 {
     Coquena.Tests.StorageTests.Worker(args[1]);
@@ -44,7 +50,7 @@ foreach (var input in cases)
     void Verify(int code, string stdout, string stderr)
     {
         if (code != expected || (expected == 0
-            ? !stdout.Contains("Uso: coquena") || !stdout.Contains("sólo ayuda") || stderr.Length != 0
+            ? !stdout.Contains("Uso: coquena") || !stdout.Contains("download") || stderr.Length != 0
             : stdout.Length != 0 || !stderr.Contains("Error:") || !stderr.Contains("coquena --help")))
             throw new Exception($"Falló [{string.Join(", ", input)}]: code={code}, out={stdout}, err={stderr}");
     }
@@ -55,3 +61,4 @@ Console.WriteLine($"OK: {cases.Length} casos administrados" +
 
 Coquena.Tests.ContractTests.Run();
 Coquena.Tests.StorageTests.Run();
+await Coquena.Tests.DownloadTests.Run(executable);

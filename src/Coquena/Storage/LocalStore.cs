@@ -10,7 +10,9 @@ namespace Coquena.Storage;
 public enum DocumentKind { Config, Models, Backends, Parameters, Presets, Servers, Operation, Instance }
 public enum WriteStage { BeforeReplace, AfterReplace }
 // Deliberately no arbitrary text, URLs, paths, names or diagnostics in the journal.
-public sealed record TransactionEvent(DateTimeOffset At, Guid TransactionId, DocumentKind Document, Guid? RecordId);
+public enum OperationResult { Cancelled }
+public sealed record TransactionEvent(DateTimeOffset At, Guid TransactionId, DocumentKind Document, Guid? RecordId,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] OperationResult? Result = null);
 [JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase)]
 [JsonSerializable(typeof(TransactionEvent))]
 internal partial class JournalJsonContext : JsonSerializerContext;
@@ -161,6 +163,18 @@ public sealed class LocalStore
             }
         }
     }
+
+    // Short coordination only; never hold this lease while doing network I/O.
+    internal T Exclusive<T>(Func<T> action)
+    {
+        home.Ensure();
+        using var lease = Acquire(default);
+        return action();
+    }
+
+    // Called inside Exclusive, after the executor stopped and preparation was removed.
+    internal void RecordCancellation(Guid id) => AppendJournal(new(DateTimeOffset.UtcNow,
+        Guid.NewGuid(), DocumentKind.Operation, id, OperationResult.Cancelled), DefaultJournalBytes);
 
     private void AppendJournal(TransactionEvent entry, int maxBytes)
     {
