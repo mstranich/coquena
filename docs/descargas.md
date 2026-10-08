@@ -52,7 +52,9 @@ un ejecutor activo; otro intento de ejecutarlo se rechaza con diagnóstico. No h
 paralelismo automático de descargas en una invocación inicialmente.
 
 La publicación sobre el mismo registro o destino se serializa y vuelve a comprobar
-colisiones y vigencia antes de activar; ninguna operación sobrescribe a otra. Las
+colisiones y vigencia antes de activar; ninguna operación sobrescribe a otra.
+La reinstalación explícita de backend reemplaza sólo su registro esperado, tras
+validar una preparación nueva; conserva el anterior ante un fallo. Las
 escrituras de un mismo catálogo JSON también deben excluirse para evitar perder cambios
 de operaciones distintas. No mantener ese bloqueo durante toda la transferencia.
 El mecanismo técnico de exclusión queda para la implementación.

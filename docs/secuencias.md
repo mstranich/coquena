@@ -400,6 +400,9 @@ alt selección inválida
   C --> U : explicar; no crear descarga
 else selección válida
   C --> U : informar elección y alternativas
+  C -> I : leer registro previo y seguimiento;
+comprobar uso al reinstalar
+  I --> C : snapshot esperado / rechazo por uso
   C -> D : persistir una operación para el conjunto completo
   D --> U : GUID de operación\nla terminal permanece ocupada
   loop artefactos y dependencias seleccionados
@@ -420,7 +423,7 @@ else selección válida
   alt verificación o sondeo fallido
     V --> C : fallo; no instalar
   else validación completa
-    V -> I : publicar instalación y registro\nconservar intención latest o pin
+    V -> I : comprobar vigencia y publicar slot validado\nconservar ID al reinstalar e intención latest o pin
     I --> V : confirmado / error
     opt primera instalación propia confirmada y sin default previo
       V -> I : asignar backend predeterminado\ncon la selección solicitada
@@ -439,6 +442,8 @@ end
 La selección sigue las convenciones de comandos: release y versión de bibliotecas son
 independientes; explícito y automático tienen reglas distintas de compatibilidad.
 Transferencias fallidas impiden instalar; el sondeo no certifica toda inferencia futura.
+La reinstalación forzada sigue la regla canónica de [servidores.md](servidores.md):
+no reutiliza los bytes instalados como sustituto de una descarga nueva.
 No se calcula ni verifica SHA-256 para backends. Backend upgrade reutiliza la transferencia
 y publicación con el build fijado por update; no resuelve latest nuevamente. Tras éxito,
 actualiza el seguimiento y aplica retención sin borrar builds protegidos. No actualiza externos.

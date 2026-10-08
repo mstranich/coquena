@@ -1,4 +1,7 @@
+using Coquena.Contracts;
 using Coquena.Backends;
+using Coquena.Downloads;
+using Coquena.Storage;
 
 namespace Coquena;
 
@@ -8,6 +11,8 @@ public static class BackendCli
         Func<HardwareContext>? inspect = null, OfficialBackendSource? source = null,
         CancellationToken cancellation = default)
     {
+        if (args.Length >= 2 && args[0] == "backend" && args[1] is "list" or "use" or "install")
+            return Installed(args, output, error, inspect, source, cancellation);
         var system = args.Length == 1 && args[0] == "system";
         if (!system && !TryRemote(args, out _, out _))
         {
@@ -65,6 +70,60 @@ public static class BackendCli
             return 1;
         }
         finally { client?.Dispose(); }
+    }
+
+    private static int Installed(string[] args, TextWriter output, TextWriter error,
+        Func<HardwareContext>? inspect, OfficialBackendSource? source, CancellationToken cancellation)
+    {
+        var action = args[1];
+        var remote = args.ToArray(); remote[1] = "remote";
+        if ((action == "list" && args.Length != 2) || (action == "use" && args.Length is not (2 or 3)) ||
+            (action == "install" && !TryRemote(remote, out _, out _)))
+        { error.WriteLine("Error: argumentos inválidos. Consulte coquena --help."); return 2; }
+        try
+        {
+            var installer = new BackendInstaller(Home.Resolve());
+            if (action == "list")
+            {
+                var records = installer.List();
+                foreach (var b in records) output.WriteLine($"{b.Id:D} | {b.Origin}/{b.Variant}:{b.Build} | {b.Platform} | latest={b.TracksLatest} pin={b.Pinned} | {b.ServerPath}");
+                if (records.Length == 0) output.WriteLine("Sin backends instalados.");
+                return 0;
+            }
+            if (action == "use")
+            {
+                var selected = installer.Use(args.Length == 3 ? args[2] : null);
+                output.WriteLine(selected is null ? "Sin backend predeterminado." : selected.Kind == "latest"
+                    ? $"Backend predeterminado: {selected.Origin}/{selected.Variant}:latest" : $"Backend predeterminado fijado: {selected.BackendId:D}");
+                return 0;
+            }
+            var hardware = (inspect ?? HardwareProbe.Inspect)();
+            if (hardware.Platform != "win-x64") throw new DownloadException("unsupported-platform", "M1 requiere win-x64 nativo.");
+            TryRemote(remote, out var family, out var release);
+            using var client = new HttpClient(new HttpClientHandler { AllowAutoRedirect = false }) { Timeout = TimeSpan.FromSeconds(20) };
+            source ??= new(client);
+            using var stopped = CancellationTokenSource.CreateLinkedTokenSource(cancellation);
+            ConsoleCancelEventHandler handler = (_, e) => { e.Cancel = true; stopped.Cancel(); };
+            Console.CancelKeyPress += handler;
+            try
+            {
+                var resolution = source.ResolveAsync(hardware, family, release!, stopped.Token).GetAwaiter().GetResult();
+                var candidate = resolution.Selected ?? throw new DownloadException("no-candidate", "Sin candidato instalable.");
+                output.WriteLine($"Selección: ggml/{candidate.Variant}:{candidate.Release} [{candidate.Compatibility}] — {Safe(candidate.Diagnostic)}");
+                foreach (var alternative in resolution.Alternatives) output.WriteLine($"Alternativa: {alternative.Variant}:{alternative.Release} {alternative.Platform} [{alternative.Compatibility}]");
+                var operation = installer.Create(candidate, release!);
+                output.WriteLine($"Operación {operation.Id:D}; descarga/reinstalación en primer plano.");
+                // DownloadCli owns Ctrl+C and the same consumer on resume; no second selection.
+                return DownloadCli.Run(["resume", operation.Id.ToString("D")], output, error, cancellation: stopped.Token);
+            }
+            finally { Console.CancelKeyPress -= handler; }
+        }
+        catch (Exception e) when (e is DownloadException or BackendException or StorageException or ContractException or IOException or UnauthorizedAccessException or OperationCanceledException)
+        {
+            var code = e switch { DownloadException d => d.Code, BackendException b => b.Code,
+                StorageException s => s.Code, ContractException c => c.Code, _ => "installation-not-confirmed" };
+            error.WriteLine($"Error: {code}. Consulte coquena --help y download status."); return 1;
+        }
     }
 
     private static bool TryRemote(string[] args, out string? family, out string? release)

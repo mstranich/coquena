@@ -19,6 +19,15 @@ El primer backend descargado e instalado correctamente por Coquena se autoasigna
 backend predeterminado, conservando la selección latest o el pin solicitado. Un registro
 externo no activa esta asignación; descargar bytes sin completar la instalación tampoco.
 No se sustituye una selección predeterminada ya establecida por el usuario.
+Repetir `backend install` fuerza una descarga nueva y reinstalación, incluso si el
+build ya está instalado. Con `latest` vuelve a resolver el filtro y, si encuentra un
+build nuevo, lo instala y lo designa como actual de ese seguimiento. No requiere
+`update` previo: ésta es una excepción explícita al recorrido update/upgrade.
+Con release explícito reinstala ese build y conserva el pin. Reinstalar conserva
+el ID de un build ya registrado, no convierte un default fijado en latest ni viceversa.
+La instalación anterior sigue disponible ante un fallo; se rechaza reemplazar un
+backend que esté usado por una instancia activa o cuya identidad no pueda resolverse.
+
 Instalaciones posteriores no cambian silenciosamente ese predeterminado. La ausencia
 por retirada posterior no autoriza a reemplazarlo automáticamente por otra instalación.
 

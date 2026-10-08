@@ -7,7 +7,8 @@ namespace Coquena.Contracts;
 public sealed record BackendSelection(string Kind, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] Guid? BackendId = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? Origin = null, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? Variant = null);
 public sealed record BackendRecord(Guid Id, string Build, string Version, string Origin,
-    string Repository, string Variant, string Family, string Platform, string ServerPath);
+    string Repository, string Variant, string Family, string Platform, string ServerPath,
+    bool TracksLatest = false, bool Pinned = false);
 public sealed record ContentIdentity(string Algorithm, string Domain, string Value);
 public sealed record RemoteFile(string Path, long? Size, ContentIdentity? Identity = null);
 public sealed record RemoteSelection(string Repository, string RequestedRevision,
@@ -40,7 +41,11 @@ public sealed record BackendDownloadSelection(string Origin, string Release, str
 public sealed record OperationDocument(int SchemaVersion, Guid Id, string ResourceKind,
     string Name, RemoteSelection? ModelSelection, BackendDownloadSelection? BackendSelection,
     TransferRecord[] Files, string State, string Phase, DateTimeOffset UpdatedAt,
-    string? Diagnostic);
+    string? Diagnostic, BackendInstallPlan? BackendInstall = null);
+
+public sealed record BackendInstallPlan(string RequestedRelease, Guid BackendId,
+    BackendRecord? Previous, BackendRecord? PreviousLatest, string Slot,
+    string? ServerRelativePath = null, string? Version = null);
 
 [JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase,
 

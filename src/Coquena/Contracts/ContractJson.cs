@@ -207,6 +207,29 @@ public static class ContractValidation
     public static void Operation(OperationDocument value)
     {
         Version(value.SchemaVersion); Id(value.Id); Text(value.Name); Text(value.Phase);
+        if (value.BackendInstall is { } plan)
+        {
+            Require(value.ResourceKind == "backend" && value.BackendSelection is not null, "Plan sólo para backend.");
+            Id(plan.BackendId); Text(plan.RequestedRelease);
+            Require(plan.RequestedRelease == "latest" || plan.RequestedRelease == value.BackendSelection!.Release,
+                "Intención y release fijado no corresponden.");
+            Require(plan.Slot == $"backends/{plan.BackendId:D}/{value.Id:D}", "Slot no pertenece a la operación.");
+            if (plan.Previous is { } previous)
+            {
+                Backend(previous);
+                Require(previous.Id == plan.BackendId && previous.Build == value.BackendSelection!.Release &&
+                    previous.Origin == "ggml" && previous.Variant == value.BackendSelection.Variant &&
+                    previous.Platform == value.BackendSelection.Platform, "Registro anterior no corresponde.");
+            }
+            if (plan.PreviousLatest is { } latest)
+            {
+                Backend(latest);
+                Require(latest.TracksLatest && latest.Origin == "ggml" && latest.Variant == value.BackendSelection!.Variant &&
+                    latest.Platform == value.BackendSelection.Platform, "Seguimiento anterior no corresponde.");
+            }
+            if (value.Phase == "publishing" || value.Phase == "cleanup" && value.State != "cancelled")
+            { Text(plan.ServerRelativePath); Text(plan.Version); }
+        }
         Require(value.State is "pending" or "downloading" or "paused" or "verifying" or "failed" or
             "completed" or "cancelled", "Estado desconocido.");
         if (value.ResourceKind == "model")

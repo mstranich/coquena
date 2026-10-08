@@ -37,9 +37,13 @@ endif
 if (¿la familia requiere dependencias?\n(p. ej. cudart en Windows)) then (sí)
   :Sumar las dependencias\ndel mismo release;
 endif
-if (¿ya está instalada?) then (sí)
-  :Informar y terminar;
-  stop
+if (¿mismo build registrado?) then (sí)
+  :Conservar ID y registro anterior esperado;
+reinstalación forzada;
+  if (¿instancia activa o identidad incierta lo usa?) then (sí)
+    :Rechazar reemplazo con diagnóstico;
+    stop
+  endif
 endif
 :Crear operación única y descargar en preparación;
 if (¿transferencia completa?) then (no)
@@ -49,12 +53,12 @@ endif
 :Verificar artefactos y extraer en preparación;
 :Sondear llama-server --version;
 if (¿responde?) then (sí)
-  :Asignar ID único y registrar\nel backend instalado;
+  :Publicar con ID conservado o nuevo;\ncomprobar vigencia del registro anterior;
   :Conservar intención latest o pin;\nsi es la primera instalación propia y no hay\nselección previa, asignar backend default;
   :Registrar resultado en log y limpiar operación\neliminando su JSON;
 else (no)
-  :Descartar la instalación;
-  :Informar el error;
+  :Conservar instalación anterior y preparación;
+  :Informar error y GUID para resume;
 endif
 stop
 @enduml

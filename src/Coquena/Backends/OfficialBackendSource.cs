@@ -9,6 +9,15 @@ public sealed class OfficialBackendSource(HttpClient client)
     public const int MaxBuildProbes = 32;
     public const int MaxMetadataBytes = 4 * 1024 * 1024;
 
+    public async Task<OfficialRelease> PinnedAsync(string release, CancellationToken cancellation)
+    {
+        _ = BackendCatalog.BuildNumber(release);
+        var value = await ReadAsync($"/tags/{release}", cancellation)
+            ?? throw new BackendException("release-not-found", "Release fijado no disponible.");
+        if (value.Tag != release) throw new BackendException("invalid-metadata", "Release distinto del fijado.");
+        return value;
+    }
+
     // Official bNNNN builds are prereleases, so /latest is not their discovery API.
     // Establish the newest build from the recent published-build listing, then walk
     // numeric tags (including gaps) rather than mistaking latest for a stable marker.
