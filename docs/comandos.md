@@ -83,6 +83,9 @@ Consulta, instala y registra backends de llama.cpp; también permite retirarlos.
 @endmindmap
 ```
 
+Repetir install fuerza descarga y reinstalación; intención latest/pin y publicación
+siguen [servidores.md](servidores.md) y [descargas.md](descargas.md).
+
 Update y upgrade sin selector operan sobre todos los seguimientos latest registrados;
 con selector (por ejemplo ggml/cuda@12:latest), sólo sobre ese seguimiento. Releases
 fijados y externos quedan excluidos. Update consulta y guarda novedades; upgrade aplica

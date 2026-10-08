@@ -55,6 +55,7 @@ public sealed class HttpDownloadTransport : IDownloadTransport, IDisposable
 
 public sealed class DownloadManager(Home home, LocalStore? storage = null)
 {
+    internal Home StorageHome => home;
     private readonly LocalStore store = storage ?? new LocalStore(home);
     private static readonly ContractJsonContext Json = ContractJsonContext.Default;
     private string Area(Guid id) => home.PathFor($"downloads/{id:D}");
@@ -136,7 +137,8 @@ public sealed class DownloadManager(Home home, LocalStore? storage = null)
         return results.ToArray();
     }
 
-    public async Task ControlAsync(Guid id, bool cancel, CancellationToken cancellation = default)
+    public async Task ControlAsync(Guid id, bool cancel, CancellationToken cancellation = default,
+        Func<OperationDocument, Task<bool>>? beforeCancel = null)
     {
         FileStream? lease = null;
         try { lease = Lease(id); }
@@ -158,7 +160,11 @@ public sealed class DownloadManager(Home home, LocalStore? storage = null)
         using (lease)
         {
             var value = Read(id); Paths(value);
-            if (cancel) Cleanup(value);
+            if (cancel)
+            {
+                if (beforeCancel is not null && await beforeCancel(value)) return;
+                Cleanup(value);
+            }
             else
             {
                 if (value.State == "cancelled") throw new DownloadException("cleanup-pending", "Cancelación pendiente de limpieza.");
@@ -202,11 +208,14 @@ public sealed class DownloadManager(Home home, LocalStore? storage = null)
 
     public async Task<OperationDocument?> RunAsync(Guid id, IDownloadTransport transport,
         Func<OperationDocument, int, CancellationToken, Task<bool>>? restart = null,
-        Action<OperationDocument>? progress = null, CancellationToken cancellation = default)
+        Action<OperationDocument>? progress = null, CancellationToken cancellation = default,
+        Func<OperationDocument, CancellationToken, Task<OperationDocument?>>? finalize = null,
+        Func<OperationDocument, Task<bool>>? beforeCancel = null)
     {
         using var lease = Lease(id);
         var value = Read(id); Paths(value);
-        if (value.State == "completed") throw new DownloadException("cleanup-pending", "Operación terminada pendiente de limpieza del consumidor.");
+        if (value.State == "completed" && !(finalize is not null && value.Phase == "cleanup"))
+            throw new DownloadException("cleanup-pending", "Operación terminada pendiente de limpieza del consumidor.");
         if (value.State == "cancelled") throw new DownloadException("cleanup-pending", "Cancelar para completar limpieza pendiente.");
         using var stopped = CancellationTokenSource.CreateLinkedTokenSource(cancellation);
         // External controls are requests; only this executor mutates checkpoints while writing.
@@ -225,6 +234,8 @@ public sealed class DownloadManager(Home home, LocalStore? storage = null)
         }
         try
         {
+            if (finalize is not null && value.Phase is "publishing" or "cleanup")
+                return await finalize(value, stopped.Token);
             value = Save(value with { State = "downloading", Phase = "transfer", Diagnostic = null, UpdatedAt = DateTimeOffset.UtcNow });
             for (var i = 0; i < value.Files.Length; i++)
             {
@@ -249,18 +260,25 @@ public sealed class DownloadManager(Home home, LocalStore? storage = null)
             }
             value = Save(value with { State = "verifying", Phase = "resource-validation", UpdatedAt = DateTimeOffset.UtcNow });
             progress?.Invoke(value);
-            return value; // consumers 006/009 validate and publish; never claim installed
+            return finalize is null ? value : await finalize(value, stopped.Token);
         }
         catch (OperationCanceledException) when (stopped.IsCancellationRequested)
         {
+            value = Read(id);
             // Transfer's finally flushed and persisted the exact length before reaching here.
-            if (File.Exists(Control(id, "cancel"))) { Cleanup(value); return null; }
+            if (File.Exists(Control(id, "cancel")))
+            {
+                if (beforeCancel is not null && await beforeCancel(value)) return null;
+                Cleanup(value); return null;
+            }
             value = Save(value with { State = "paused", Files = value.Files.Select(f => f.State == "downloading" ? f with { State = "paused" } : f).ToArray(),
                 Diagnostic = null, UpdatedAt = DateTimeOffset.UtcNow });
             RemoveRequest(id, "pause"); progress?.Invoke(value); return value;
         }
-        catch (Exception e) when (e is DownloadException or HttpRequestException or IOException)
+        catch (Exception e) when (e is DownloadException or HttpRequestException or IOException or InvalidDataException)
         {
+            value = Read(id);
+            if (value.Phase == "cleanup") throw;
             // Fixed diagnostic codes only: exception text may contain credentials/ephemeral URLs.
             var code = e is DownloadException d ? d.Code : "transfer-io-failed";
             value = Save(value with { State = "failed", Files = value.Files.Select(f => f.State == "downloading" ? f with { State = "failed" } : f).ToArray(),

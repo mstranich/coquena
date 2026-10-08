@@ -1,6 +1,8 @@
 using System.Diagnostics;
 using Coquena;
 
+if (args.Length == 1 && args[0] == "--version") { Console.WriteLine("version: 1 (abcdef)"); return; }
+
 if (args.Length == 3 && args[0] == "--download-worker")
 {
     Coquena.Tests.DownloadTests.Worker(args[1], Guid.Parse(args[2]));
@@ -63,3 +65,5 @@ Coquena.Tests.ContractTests.Run();
 Coquena.Tests.StorageTests.Run();
 await Coquena.Tests.BackendTests.Run(executable);
 await Coquena.Tests.DownloadTests.Run(executable);
+
+await Coquena.Tests.InstallerTests.Run(executable);

@@ -170,7 +170,7 @@ internal static class BackendTests
             using var output = new StringWriter(); using var error = new StringWriter();
             Check(BackendCli.Run(["backend", "remote"], output, error, () => hardware, new(client), cancel.Token) == 1 && error.ToString().Contains("query-cancelled"), "cancellation typed");
         }
-        foreach (var arguments in new string[][] { ["system", "extra"], ["backend"], ["backend", "install"], ["backend", "remote", "--json"],
+        foreach (var arguments in new string[][] { ["system", "extra"], ["backend"], ["backend", "install", "--unknown"], ["backend", "remote", "--json"],
             ["backend", "remote", "--release"], ["backend", "remote", "cpu", "vulkan"], ["backend", "remote", "--release", "12"],
             ["backend", "remote", "rocm"], ["backend", "remote", "--release", "b1", "--release", "b2"] })
         {

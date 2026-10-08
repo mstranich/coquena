@@ -1,3 +1,4 @@
+using Coquena.Backends;
 using Coquena.Contracts;
 using Coquena.Downloads;
 using Coquena.Storage;
@@ -29,12 +30,23 @@ public static class DownloadCli
             if (args[0] == "status") { Show(manager.Status(id), output); return 0; }
             if (args[0] is "pause" or "cancel")
             {
-                manager.ControlAsync(id, args[0] == "cancel", cancellation).GetAwaiter().GetResult();
-                output.WriteLine($"{id:D}: {(args[0] == "cancel" ? "cancelación y limpieza completadas" : "pausa guardada")}.");
+                var current = manager.Status(id);
+                var consumer = current.BackendInstall is not null ? new BackendInstaller(manager.StorageHome) : null;
+                manager.ControlAsync(id, args[0] == "cancel", cancellation, consumer is null ? null : consumer.CancelAsync).GetAwaiter().GetResult();
+                var published = consumer is not null && consumer.List().Any(b => b.ServerPath.StartsWith(current.BackendInstall!.Slot + "/", StringComparison.Ordinal));
+                output.WriteLine($"{id:D}: {(args[0] == "cancel" ? published ? "instalación publicada; limpieza completada, sin revertir" : "cancelación y limpieza completadas" : "pausa guardada")}.");
                 if (args[0] == "pause") output.WriteLine($"coquena download resume {id:D}");
                 return 0;
             }
-            _ = manager.Status(id);
+            var operation = manager.Status(id);
+            BackendInstaller? installer = null;
+            OfficialArtifactTransport? official = null;
+            if (transport is null && operation.ResourceKind == "backend" && operation.BackendInstall is not null)
+            {
+                installer = new BackendInstaller(manager.StorageHome);
+                official = new OfficialArtifactTransport(); transport = official;
+            }
+            using var officialLifetime = official;
             if (transport is null)
                 throw new DownloadException("provider-not-integrated", "Proveedor no integrado todavía (006/009); selección y parciales conservados.");
             using var stopped = CancellationTokenSource.CreateLinkedTokenSource(cancellation);
@@ -50,8 +62,14 @@ public static class DownloadCli
                     output.WriteLine($"Range no permite continuar archivo {index + 1}. ¿Reiniciar desde cero? [s/N]");
                     var line = await (input ?? Console.In).ReadLineAsync(token);
                     return line?.Trim().Equals("s", StringComparison.OrdinalIgnoreCase) == true;
-                }, value => Show(value, output), stopped.Token).GetAwaiter().GetResult();
-                if (result is null) { output.WriteLine($"{id:D}: cancelación y limpieza completadas."); return 0; }
+                }, value => Show(value, output), stopped.Token,
+                    installer is null ? null : installer.FinalizeAsync,
+                    installer is null ? null : installer.CancelAsync).GetAwaiter().GetResult();
+                if (result is null)
+                {
+                    var installed = installer is not null && installer.List().Any(b => b.ServerPath.StartsWith(operation.BackendInstall!.Slot + "/", StringComparison.Ordinal));
+                    output.WriteLine($"{id:D}: {(installed ? "instalación y limpieza completadas" : "cancelación y limpieza completadas")}."); return 0;
+                }
                 if (result.State is "paused" or "failed") output.WriteLine($"coquena download resume {id:D}");
                 return result.State == "failed" ? 1 : 0;
             }
