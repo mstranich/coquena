@@ -79,6 +79,7 @@ internal static class ServerRuntimeTests
             Wait(() => Log(first).Contains("ready"));
             Check(start.Started && first.Mode == "detached" && first.ProcessCreated > 0 && File.Exists(home.PathFor(first.IniPath)), "published identity and INI");
             Check(Log(first).Contains("stderr ready") && Log(first).Contains("--metrics"), "stdout/stderr and static flags");
+            Check(first.Port == manager.View(null).Effective["port"].GetInt32() && Log(first).Contains("--port|" + first.Port), "start emits persisted explicit port");
             Check(runtime.Recover("default")?.InstanceId == first.InstanceId, "fresh manager recovers detached");
             ObservabilityTests.Run(home, runtime, first);
             var followId = Guid.NewGuid(); var followCapture = Path.Combine(root, "follow.txt");
@@ -183,6 +184,7 @@ internal static class ServerRuntimeTests
             var restarted = runtime.Restart(null, output); live.Add(restarted); Wait(() => Log(restarted).Contains("ready"));
             Check(restarted.InstanceId != detached.InstanceId && restarted.BackendId == newer.Id && restarted.Mode == "detached", "restart resolves current installed latest");
             Check(Log(restarted).Contains("--no-models-autoload") && Read()?.InstanceId == restarted.InstanceId, "restart applies saved settings");
+            Check(restarted.Port == detached.Port && restarted.Port == manager.View(null).Effective["port"].GetInt32() && Log(restarted).Contains("--port|" + restarted.Port), "restart preserves and emits persisted port");
             Check(!File.Exists(home.PathFor(detached.IniPath)) && File.Exists(home.PathFor(detached.LogPath)), "restart preserves previous log");
 
             store.Update(DocumentKind.Instance, json.InstanceDocument, ContractValidation.Instance, _ => restarted with { ExecutablePath = Path.Combine(root, "unrelated.exe") }, server: "default");

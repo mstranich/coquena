@@ -29,7 +29,7 @@ public static partial class ParameterCatalog
         new("load-on-startup", "boolean", "model", "INI", "Carga al inicio", ["__PRESET_LOAD_ON_STARTUP"]),
         new("stop-timeout", "integer", "model", "INI", "Espera de detención en segundos", ["__PRESET_STOP_TIMEOUT"]),
         new("host", "text", "server", "CLI", "Default Coquena: 127.0.0.1", ["LLAMA_ARG_HOST"]),
-        new("port", "integer", "server", "CLI", "Default Coquena: 8080", ["LLAMA_ARG_PORT"]),
+        new("port", "integer", "server", "CLI", "Default Coquena: 9931", ["LLAMA_ARG_PORT"]),
         new("metrics", "boolean", "server", "CLI", "Default Coquena: true", ["LLAMA_ARG_ENDPOINT_METRICS"]),
         new("models-max", "integer", "server", "CLI", "Máximo de modelos cargados", ["LLAMA_ARG_MODELS_MAX"]),
         new("models-autoload", "boolean", "server", "CLI", "Carga automática del router", ["no-models-autoload", "LLAMA_ARG_MODELS_AUTOLOAD"]),

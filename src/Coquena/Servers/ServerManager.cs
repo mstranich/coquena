@@ -38,7 +38,7 @@ public sealed class ServerManager(Home home, LocalStore? storage = null)
             var config = Config();
             if (config.DefaultServerId is not null)
                 throw new ConfigurationException("Catálogo de servidores ausente con designación existente; no se reemplaza.");
-            var record = new ServerRecord(Guid.NewGuid(), "default", null, [], new() { ["port"] = Scalar("8080") });
+            var record = new ServerRecord(Guid.NewGuid(), "default", null, [], new() { ["port"] = Scalar("9931") });
             Save(new(1, [record]));
             store.UpdateLocked(DocumentKind.Config, Json.ConfigDocument, ContractValidation.Config,
                 _ => config with { DefaultServerId = record.Id });
@@ -71,7 +71,7 @@ public sealed class ServerManager(Home home, LocalStore? storage = null)
 
     private static int NextPort(ServersDocument catalog)
     {
-        var maximum = catalog.Servers.Length == 0 ? 8079 : catalog.Servers.Max(s => s.Parameters["port"].GetInt32());
+        var maximum = catalog.Servers.Length == 0 ? 9930 : catalog.Servers.Max(s => s.Parameters["port"].GetInt32());
         if (maximum >= 65535) throw new ConfigurationException("Puerto máximo 65535: indique un puerto explícito; sin cambios.");
         return maximum + 1;
     }

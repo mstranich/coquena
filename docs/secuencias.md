@@ -668,7 +668,7 @@ C --> CLI : puertos
 alt create con puerto explícito
   CLI -> CLI : validar rango y unicidad
 else asignación automática
-  CLI -> CLI : catálogo vacío: 8080\nen otro caso: máximo + 1
+  CLI -> CLI : catálogo vacío: 9931\nen otro caso: máximo + 1
 end
 alt inválido, colisión explícita o máximo agotado
   CLI --> Usuario : rechazar sin alterar registro anterior
