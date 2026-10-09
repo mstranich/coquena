@@ -1,6 +1,20 @@
 using System.Diagnostics;
 using Coquena;
 
+if (args.Length == 1 && args[0] == "--runtime-child")
+{
+    Console.CancelKeyPress += (_, e) => e.Cancel = true;
+    Thread.Sleep(Timeout.Infinite); return;
+}
+
+if (args.Contains("--models-preset")) { Coquena.Tests.ServerRuntimeTests.Fixture(args); return; }
+if (args.Length == 5 && args[0] == "--runtime-console-signal")
+{ Environment.ExitCode = Coquena.Tests.ServerRuntimeTests.ConsoleSignal(args); return; }
+if (args.Length == 2 && args[0] == "--internal-server-signal")
+{ Environment.ExitCode = Coquena.Servers.ServerRuntime.SignalWorker(Coquena.Storage.Home.Resolve(), Guid.Parse(args[1])); return; }
+if (args.Length is 1 or 2 && args[0] == "--runtime-tests")
+{ Coquena.Tests.ServerRuntimeTests.Run(args.Length == 2 ? Path.GetFullPath(args[1]) : null); return; }
+
 if (args.Length is 1 or 2 && args[0] == "--server-tests")
 {
     Coquena.Tests.ServerTests.Run(args.Length == 2 ? Path.GetFullPath(args[1]) : null);
@@ -97,6 +111,7 @@ Console.WriteLine($"OK: {cases.Length} casos administrados" +
 Coquena.Tests.ContractTests.Run();
 Coquena.Tests.ConfigurationTests.Run(executable);
 Coquena.Tests.ServerTests.Run(executable);
+Coquena.Tests.ServerRuntimeTests.Run(executable);
 Coquena.Tests.StorageTests.Run();
 await Coquena.Tests.BackendTests.Run(executable);
 await Coquena.Tests.DownloadTests.Run(executable);

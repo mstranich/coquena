@@ -28,6 +28,9 @@ public static class ServerCli
             "create" => rest.Length == 1 || rest.Length == 3 && rest[1] == "--port" && int.TryParse(rest[2], out _),
             "default" => rest.Length <= 1 && (rest.Length == 0 || !ServerManager.Reserved.Contains(rest[0]) || rest[0] == "default"),
             "list" or "show" => rest.Length == 0,
+            "start" => rest.Length == 0 || rest.Length == 1 && rest[0] == "-d",
+            "restart" => rest.Length == 0,
+            "stop" => rest.Length == 0 || name is null && rest.Length == 2 && rest[0] == "--id" && Guid.TryParse(rest[1], out var id) && id != Guid.Empty,
             "use" or "unset" => rest.Length == 1,
             "set" => rest.Length == 2,
             "preset" => rest.Length >= 1 && (rest[0] == "list" ? rest.Length == 1 : rest[0] is "add" or "remove" && rest.Length >= 2),
@@ -36,7 +39,30 @@ public static class ServerCli
         if (!valid) return Invalid();
         try
         {
-            manager ??= new ServerManager(Home.Resolve());
+            var home = Home.Resolve();
+            manager ??= new ServerManager(home);
+            if (action is "start" or "stop" or "restart")
+            {
+                var runtime = new ServerRuntime(home);
+                output = TextWriter.Synchronized(output);
+                var interrupt = new ServerInterrupt(output);
+                ConsoleCancelEventHandler handler = (_, e) => { e.Cancel = true; interrupt.Receive(); };
+                Console.CancelKeyPress += handler;
+                try
+                {
+                    if (action == "stop")
+                    {
+                        if (rest.Length == 0) runtime.StopServer(name, output, interrupt);
+                        else runtime.Stop(Guid.Parse(rest[1]), output, interrupt);
+                        return 0;
+                    }
+                    manager.EnsureInitial();
+                    if (action == "restart") { runtime.Restart(name, output, interrupt); return 0; }
+                    var result = runtime.Start(name, rest.Length == 1, output);
+                    return result.Started && rest.Length == 0 ? runtime.Foreground(result.Instance, output, interrupt) : 0;
+                }
+                finally { Console.CancelKeyPress -= handler; }
+            }
             if (action != "create" || !rest[0].Equals("default", StringComparison.OrdinalIgnoreCase)) manager.EnsureInitial();
             switch (action)
             {
@@ -56,7 +82,7 @@ public static class ServerCli
             }
             return 0;
         }
-        catch (Exception e) when (e is ConfigurationException or DownloadException or BackendException or StorageException or ContractException or IOException or UnauthorizedAccessException)
+        catch (Exception e) when (e is ConfigurationException or DownloadException or BackendException or StorageException or ContractException or IOException or UnauthorizedAccessException or System.ComponentModel.Win32Exception)
         { error.WriteLine($"Error: {e.Message} Consulte coquena --help."); return 1; }
 
         int Invalid() { error.WriteLine("Error: comando server o argumentos no reconocidos. Consulte coquena --help."); return 2; }

@@ -96,8 +96,8 @@ public sealed partial class BackendInstaller(Home home, LocalStore? storage = nu
         return parts[1] == "latest" ? new("latest", Origin: "ggml", Variant: parts[0]) : new("fixed", record!.Id);
     }
 
-    // Conservative guard until 012 supplies verified process identity: any saved instance
-    // referencing this backend blocks replacement, including uncertain/stale records.
+    // Recovery and publication share the home writer lease. Verified ended instances
+    // release the build; active or unverifiable identities keep it protected.
     private void NotInUse(Guid id)
     {
         var run = home.PathFor("run");
@@ -107,7 +107,15 @@ public sealed partial class BackendInstaller(Home home, LocalStore? storage = nu
             Home.CheckLinks(area);
             var instance = store.Read(DocumentKind.Instance, Json.InstanceDocument,
                 ContractValidation.Instance, server: Path.GetFileName(area));
-            if (instance?.BackendId == id) Fail("backend-in-use-or-uncertain");
+            if (instance?.BackendId == id)
+            {
+                try
+                {
+                    if (new Coquena.Servers.ServerRuntime(home, store).RecoverLocked(Path.GetFileName(area)) is not null)
+                        Fail("backend-in-use-or-uncertain");
+                }
+                catch (Coquena.Configuration.ConfigurationException) { Fail("backend-in-use-or-uncertain"); }
+            }
         }
     }
 
