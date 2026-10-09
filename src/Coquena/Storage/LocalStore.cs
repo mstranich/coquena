@@ -7,7 +7,7 @@ using Coquena.Contracts;
 
 namespace Coquena.Storage;
 
-public enum DocumentKind { Config, Models, Backends, Parameters, Presets, Servers, Operation, Instance }
+public enum DocumentKind { Config, Models, Backends, Parameters, Presets, Servers, Operation, Instance, LastLog }
 public enum WriteStage { BeforeReplace, AfterReplace }
 // Deliberately no arbitrary text, URLs, paths, names or diagnostics in the journal.
 public enum OperationResult { Cancelled, Installed }
@@ -120,11 +120,11 @@ public sealed class LocalStore
             if (operation is null || operation == Guid.Empty) throw new ArgumentException("GUID de operación requerido.");
             return home.PathFor($"downloads/{operation:D}/operation.json");
         }
-        if (kind == DocumentKind.Instance)
+        if (kind is DocumentKind.Instance or DocumentKind.LastLog)
         {
             if (string.IsNullOrWhiteSpace(server) || server.IndexOfAny(['/', '\\']) >= 0)
                 throw new StorageException("unsafe-path", "Servidor debe ser un solo segmento seguro.");
-            return home.PathFor($"run/{server}/instance.json");
+            return home.PathFor($"run/{server}/{(kind == DocumentKind.Instance ? "instance" : "last-log")}.json");
         }
         return home.PathFor(kind switch
         {

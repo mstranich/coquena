@@ -27,7 +27,8 @@ public static class ServerCli
         {
             "create" => rest.Length == 1 || rest.Length == 3 && rest[1] == "--port" && int.TryParse(rest[2], out _),
             "default" => rest.Length <= 1 && (rest.Length == 0 || !ServerManager.Reserved.Contains(rest[0]) || rest[0] == "default"),
-            "list" or "show" => rest.Length == 0,
+            "list" or "show" or "ps" => rest.Length == 0,
+            "logs" => rest.Length == 0 || rest.Length == 1 && rest[0] == "-f",
             "start" => rest.Length == 0 || rest.Length == 1 && rest[0] == "-d",
             "restart" => rest.Length == 0,
             "stop" => rest.Length == 0 || name is null && rest.Length == 2 && rest[0] == "--id" && Guid.TryParse(rest[1], out var id) && id != Guid.Empty,
@@ -41,6 +42,15 @@ public static class ServerCli
         {
             var home = Home.Resolve();
             manager ??= new ServerManager(home);
+            if (action == "ps") { new ServerRuntime(home).Ps(output); return 0; }
+            if (action == "logs")
+            {
+                var cancelled = 0;
+                ConsoleCancelEventHandler handler = (_, e) => { e.Cancel = true; Interlocked.Exchange(ref cancelled, 1); };
+                Console.CancelKeyPress += handler;
+                try { return new ServerRuntime(home).Logs(name, rest.Length == 1, output, () => Volatile.Read(ref cancelled) != 0); }
+                finally { Console.CancelKeyPress -= handler; }
+            }
             if (action is "start" or "stop" or "restart")
             {
                 var runtime = new ServerRuntime(home);

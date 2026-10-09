@@ -89,9 +89,8 @@ o herencia y parámetros propios; no duplica valores efectivos heredados. El reg
 de instancia bajo run conserva ID, PID, backend/build concretos, escucha efectiva y
 ubicación del log. La definición guarda intención; la instancia registra lo ejecutado.
 Detener elimina el registro activo y su INI, no el último log. La consulta de ese log
-no exige mantener una instancia detenida como activa; la referencia al último log
-se diseña al implementar; la estructura mínima de servidores está acordada en
-[servidores.md](servidores.md#estructura-mínima-de-json-acordada).
+no exige mantener una instancia detenida como activa; la referencia al último log y su retención están concretadas en
+[servidores.md](servidores.md#consulta-de-logs).
 Los registros tienen nombre canónico visible e ID estable. Las referencias conservan
 el ID para sobrevivir a renombres y muestran el nombre para lectura humana; un nombre
 reutilizado no reconecta referencias al registro retirado. El esquema concreto sigue

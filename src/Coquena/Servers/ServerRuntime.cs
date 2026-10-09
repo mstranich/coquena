@@ -26,7 +26,7 @@ public sealed class ServerInterrupt(TextWriter output)
     }
 }
 
-public sealed class ServerRuntime(Home home, LocalStore? storage = null)
+public sealed partial class ServerRuntime(Home home, LocalStore? storage = null)
 {
     private readonly LocalStore store = storage ?? new(home);
     private static readonly ContractJsonContext Json = ContractJsonContext.Default;
@@ -45,12 +45,14 @@ public sealed class ServerRuntime(Home home, LocalStore? storage = null)
             throw new ConfigurationException($"Identidad/rutas inciertas de instancia {instance.InstanceId:D}; no se limpia.");
         _ = home.PathFor(instance.IniPath); _ = home.PathFor(instance.LogPath);
     }
-    private void Clean(string server, InstanceDocument instance)
+    private void Clean(string server, InstanceDocument instance, TextWriter? output = null)
     {
         Paths(server, instance);
         // Deleting INI first makes an interrupted cleanup retryable from the record.
+        RememberLog(server, instance);
         File.Delete(home.PathFor(instance.IniPath));
         File.Delete(home.PathFor($"run/{server}/instance.json"));
+        RetainLogs(server, null, output ?? TextWriter.Null);
     }
     internal InstanceDocument? RecoverLocked(string server)
     {
@@ -78,6 +80,7 @@ public sealed class ServerRuntime(Home home, LocalStore? storage = null)
             return new ServerStartResult(existing, false);
         }
         var plan = Manager.ComposeLocked(name);
+        RetainLogs(name, null, output);
         ProbePort(plan.Parameters["host"].GetString()!, plan.Parameters["port"].GetInt32());
         var id = Guid.NewGuid();
         var ini = $"run/{name}/{id:D}.ini"; var log = $"logs/{name}/{id:D}.log";
@@ -97,6 +100,7 @@ public sealed class ServerRuntime(Home home, LocalStore? storage = null)
                 plan.Parameters["metrics"].GetBoolean(), plan.Server.PresetIds, plan.Presets.ResourceIds, ini, log, child.Created, child.Executable);
             store.UpdateLocked(DocumentKind.Instance, Json.InstanceDocument, ContractValidation.Instance, _ => instance, server: name);
             published = true;
+            RememberLog(name, instance);
             child.Activate();
             foreach (var diagnostic in plan.Presets.Diagnostics) output.WriteLine($"Diagnóstico: {diagnostic}");
             output.WriteLine($"Instancia {id:D}; servidor {name}; PID {child.Pid}; {instance.Host}:{instance.Port}; {instance.Mode}.");
@@ -169,6 +173,7 @@ public sealed class ServerRuntime(Home home, LocalStore? storage = null)
         var instance = store.Exclusive(() => RecoverLocked(server.Name));
         if (instance is null)
         {
+            store.Exclusive(() => { RetainLogs(server.Name, null, output); return true; });
             output.WriteLine($"[Detenido] Servidor {server.Name}: sin instancia activa.");
             output.Flush(); return;
         }
@@ -208,7 +213,7 @@ public sealed class ServerRuntime(Home home, LocalStore? storage = null)
         }
         store.Exclusive(() =>
         {
-            if (Read(server)?.InstanceId == id) Clean(server, instance);
+            if (Read(server)?.InstanceId == id) Clean(server, instance, output);
             return true;
         });
         output.WriteLine($"[Detenido] Instancia {id:D}; log conservado."); output.Flush();
@@ -261,7 +266,7 @@ public sealed class ServerRuntime(Home home, LocalStore? storage = null)
         }
         Drain(int.MaxValue);
         var code = process is null ? 0 : WindowsServerProcess.ExitCode(process);
-        store.Exclusive(() => { if (Read(found.Server)?.InstanceId == instance.InstanceId) Clean(found.Server, instance); return true; });
+        store.Exclusive(() => { if (Read(found.Server)?.InstanceId == instance.InstanceId) Clean(found.Server, instance, output); return true; });
         output.WriteLine($"[Finalizado] Instancia {instance.InstanceId:D}; salida {code}; log conservado.");
         return code == 0 ? 0 : 1;
 

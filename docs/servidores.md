@@ -214,8 +214,37 @@ sin mezclar tasas entre modelos. La futura TUI podrá aprovecharlas, sin adelant
 interrumpe sólo la consulta, no detiene la instancia. Sin nombre consulta el servidor
 predeterminado. Se consulta el log de la ejecución actual o, si el servidor está detenido,
 el de su última ejecución. La retención tiene un límite de tamaño configurable; no se
-acumula un historial ilimitado. El tamaño inicial y el mecanismo de rotación quedan
-pendientes de implementación; detener no elimina el último log disponible.
+acumula un historial ilimitado. El límite inicial es 100 MiB por servidor; detener no elimina el último log disponible.
+
+La política global se guarda como `logRetention: { "maxBytes": 104857600 }` en
+config.json; omitirla usa ese valor inicial. Debe ser un entero positivo. La
+[tarjeta 017](../specs/017-configuracion-retencion-logs/README.md) diseñará los comandos
+para consultarla y ajustarla; esta entrega no agrega esa interfaz.
+
+La limpieza ocurre al iniciar, detener o consultar logs, bajo exclusión de escritura.
+Se retiran primero archivos de ejecuciones antiguas; se protege el log activo y el
+último, incluso cuando exceden el límite. Se informa el exceso sin truncarlos.
+No hay rotación continua durante la ejecución: un log activo puede crecer por encima
+del límite hasta la próxima consulta o detención. Logs muestra hasta los últimos
+64 KiB, omitiendo la primera línea parcial; -f continúa sobre ese mismo archivo,
+sin adjuntarse a una ejecución posterior tras restart.
+
+`run/<servidor>/last-log.json` conserva schemaVersion, serverId, instanceId y logPath.
+Se publica antes de activar el proceso y antes de limpiar el registro activo.
+Su reemplazo es atómico y la referencia se valida contra el servidor y la ruta gestionada.
+Los logs antiguos sin referencia (anteriores a 013) no se eligen por adivinación;
+una instancia activa anterior sí establece la referencia al consultar logs o detener.
+
+Ps verifica identidad y conserva diagnósticos de incertidumbre. Consulta el estado
+por GET /models y las métricas sólo de modelos cargados, por GET /metrics con model
+y autoload=false. Usa nombres de presets del INI de la ejecución, no del catálogo
+modificado después del inicio. No provoca cargas ni mezcla tasas. La consulta tiene
+un plazo de cinco segundos por instancia y respuestas limitadas a 1 MiB; errores,
+modelo no cargado o métricas desactivadas no producen cifras sustitutas ni eliminan
+el registro activo. Se muestran tasas de prompt/generación y contadores reconocidos
+que realmente estén presentes, con sus nombres Prometheus.
+
+Referencia técnica: [API del router llama.cpp b11482](https://github.com/ggml-org/llama.cpp/blob/b11482/tools/server/README.md#routing-requests).
 
 ## Retirar un servidor
 
@@ -344,9 +373,7 @@ no prueba que el proceso siga vivo ni que sea el mismo; el mecanismo de identida
 recuperación debe verificarse al implementar. Inicio y escritura se coordinan para no
 confundir una ejecución real con una publicación parcial del registro.
 
-El límite de logs sigue siendo configurable, pero su valor inicial y representación
-no se inventan en estos ejemplos. El último log se conserva sin mantener una instancia
-detenida como activa; su referencia se concreta al diseñar rotación/limpieza.
+La política de logs se concreta en la sección Consulta de logs; la referencia al último log no es una instancia activa.
 
 ## Recuperación tras un cierre inesperado
 

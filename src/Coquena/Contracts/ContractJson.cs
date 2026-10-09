@@ -145,6 +145,7 @@ public static class ContractValidation
     public static void Config(ConfigDocument value)
     {
         Version(value.SchemaVersion);
+        Require(value.LogRetention is null || value.LogRetention.MaxBytes > 0, "Retención de logs inválida.");
         if (value.DefaultServerId.HasValue) Id(value.DefaultServerId.Value);
         Selection(value.DefaultBackend);
         Require(value.BackendRetention is not null && value.BackendRetention.MaxBuilds >= 1, "Retención inválida.");
