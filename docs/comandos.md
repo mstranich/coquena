@@ -285,12 +285,13 @@ coquena server [<nombre>] preset remove <preset>...
 coquena server [<nombre>] preset list
 coquena server [<nombre>] start [-d]
 coquena server [<nombre>] restart
+coquena server [<nombre>] stop
 coquena server [<nombre>] show
 coquena server [<nombre>] remove
 coquena server [<nombre>] logs [-f]
 coquena server list
 coquena server ps
-coquena server stop <id-instancia>
+coquena server stop --id <id-instancia>
 ~~~
 
 Backend use configura el backend predeterminado de Coquena; sin selector lo muestra.
@@ -311,17 +312,17 @@ La excepción de acción explícita se resuelve por el siguiente token:
 
 - server default sin argumentos muestra la designación predeterminada.
 - server default <nombre> designa un servidor existente (incluido default).
-- server default seguido de use, set, unset, preset, show, remove, logs, start o restart
+- server default seguido de use, set, unset, preset, show, remove, logs, start, stop o restart
   actúa sobre el servidor llamado default, aunque otro sea el predeterminado.
-- Un subcomando global como create, list, ps o stop no es una acción válida después
+- Un subcomando global como create, list o ps no es una acción válida después
   del nombre default; no se reinterpreta como nombre de servidor para adivinar la intención.
 
 Por ejemplo, server default start inicia el llamado default; server default lts designa
 lts como predeterminado. Se interpreta la gramática antes de consultar entidades;
 si el servidor default fue retirado, su acción informa que no existe y no lo recrea.
 Omitir el nombre en use, set,
-unset, preset, show, remove, logs, start o restart dirige la acción al servidor predeterminado. Create, default, list,
-ps y stop tienen su significado propio; no operan implícitamente sobre ese servidor.
+unset, preset, show, remove, logs, start, stop o restart dirige la acción al servidor predeterminado. Create, default, list
+y ps tienen su significado propio; no operan implícitamente sobre ese servidor.
 
 Server use default elimina la selección propia y recupera la herencia del backend
 predeterminado de Coquena. Los selectores mantienen la distinción entre release fijado
@@ -333,7 +334,14 @@ Las identidades y alcance de terceros están en [servidores.md](servidores.md#id
 
 Start utiliza la definición guardada, sin overrides temporales de backend o parámetros;
 -d sólo selecciona el modo. Start sin -d permanece en primer plano. Ps muestra instancias activas y métricas como
-instantánea. Stop detiene sólo el ID indicado. No hay comando de guardar.
+instantánea. Stop detiene la única instancia del servidor indicado o predeterminado;
+`server stop --id <id-instancia>` selecciona una ejecución concreta sin requerir default.
+No se combina nombre con --id ni se acepta el ID posicional. Un servidor existente
+ya detenido informa que no tiene instancia activa y termina correctamente. Un servidor
+o ID ausente, un default no designado o una identidad incierta se diagnostican.
+Stop no crea ni designa un default. No hay comando de guardar.
+El control de Ctrl+C y la espera de parada se describen en
+[servidores.md](servidores.md#inicio-y-detención); la ayuda muestra ambos controles.
 Restart aplica la configuración guardada y, si la selección sigue latest, el build actual
 instalado por backend upgrade. No descarga al reiniciar. Hay una sola instancia activa
 por servidor; un segundo start no crea otra. Restart inicia también un servidor detenido

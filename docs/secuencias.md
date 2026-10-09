@@ -410,8 +410,7 @@ alt selección inválida
   C --> U : explicar; no crear descarga
 else selección válida
   C --> U : informar elección y alternativas
-  C -> I : leer registro previo y seguimiento;
-comprobar uso al reinstalar
+  C -> I : leer registro previo y seguimiento;\ncomprobar uso al reinstalar
   I --> C : snapshot esperado / rechazo por uso
   C -> D : persistir una operación para el conjunto completo
   D --> U : GUID de operación\nla terminal permanece ocupada
@@ -629,7 +628,7 @@ Usuario -> CLI : server [nombre] restart
 CLI -> I : resolver servidor y ejecución activa
 I --> CLI : definición y ejecución (si existe)
 opt hay instancia activa
-  CLI -> A : detener y confirmar terminación
+  CLI -> A : parada ordenada; forzar a los 10 s\no al segundo Ctrl+C; confirmar terminación
   A --> CLI : detenida / fallo
 end
 opt puede continuar (detenido o terminación confirmada)
@@ -653,8 +652,8 @@ end note
 @enduml
 ```
 
-El mecanismo de terminación, detección de salud y exclusión se prueba al implementar;
-el diagrama no fija tiempos ni sustituye las reglas de servidores.md.
+Los mecanismos de detección de salud y exclusión se prueban al implementar;
+la política de parada y las reglas de recuperación se mantienen en servidores.md.
 
 ## Crear o reasignar el puerto de un servidor
 

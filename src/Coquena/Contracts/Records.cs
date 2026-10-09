@@ -33,7 +33,8 @@ public sealed record BackendsDocument(int SchemaVersion, BackendRecord[] Backend
 public sealed record PresetsDocument(int SchemaVersion, PresetRecord[] Presets);
 public sealed record InstanceDocument(int SchemaVersion, Guid InstanceId, Guid ServerId,
     Guid BackendId, string Build, int Pid, string Mode, string Host, int Port,
-    bool Metrics, Guid[] PresetIds, Guid[] ResourceIds, string IniPath, string LogPath);
+    bool Metrics, Guid[] PresetIds, Guid[] ResourceIds, string IniPath, string LogPath,
+    long? ProcessCreated = null, string? ExecutablePath = null);
 public sealed record TransferRecord(string SourcePath, string PartialPath, string DestinationPath,
     long ConfirmedBytes, long? ExpectedSize, ContentIdentity? Identity,
     string? ETag, string? LastModified, string State, ContentIdentity? LocalIntegrity = null,

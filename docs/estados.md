@@ -4,7 +4,7 @@
 
 El estado se deriva de la existencia e identidad del proceso. Salud y modo de ejecución
 son observaciones distintas: no responder a /health no demuestra que el proceso terminó.
-Los tiempos y mecanismos concretos se definen al implementar.
+La política de parada se define en [servidores.md](servidores.md#inicio-y-detención).
 
 ```plantuml
 @startuml
@@ -18,6 +18,9 @@ Activa --> IdentidadIncierta : no se puede verificar identidad
 IdentidadIncierta --> Activa : identidad y proceso vivo confirmados
 IdentidadIncierta --> Terminada : ejecución original confirmada como terminada
 Deteniendo --> Terminada : terminación confirmada
+Deteniendo --> Forzando : pasan 10 s o segundo Ctrl+C
+Forzando --> Terminada : cierre del grupo confirmado
+Forzando --> IdentidadIncierta : cierre no verificable; conservar registro e INI
 Deteniendo --> Activa : fallo de detención; proceso sigue vivo
 Terminada --> [*] : limpiar registro activo e INI; conservar log
 IdentidadIncierta : diagnóstico; no matar procesos ni iniciar sustituto

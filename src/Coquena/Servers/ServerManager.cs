@@ -16,12 +16,12 @@ public sealed class ServerManager(Home home, LocalStore? storage = null)
 {
     private readonly LocalStore store = storage ?? new LocalStore(home);
     private static readonly ContractJsonContext Json = ContractJsonContext.Default;
-    public static readonly string[] Actions = ["use", "set", "unset", "preset", "show", "remove", "logs", "start", "restart"];
-    public static readonly string[] Reserved = ["create", "default", "list", "ps", "stop", .. Actions];
+    public static readonly string[] Actions = ["use", "set", "unset", "preset", "show", "remove", "logs", "start", "stop", "restart"];
+    public static readonly string[] Reserved = ["create", "default", "list", "ps", .. Actions];
     private ServersDocument Catalog() => store.Read(DocumentKind.Servers, Json.ServersDocument, ContractValidation.Servers) ?? new(1, []);
     private ConfigDocument Config() => store.Read(DocumentKind.Config, Json.ConfigDocument, ContractValidation.Config) ?? new(1, null, null, new(5));
     private void Save(ServersDocument document) => store.UpdateLocked(DocumentKind.Servers, Json.ServersDocument, ContractValidation.Servers, _ => document);
-    private ServerRecord Named(string? name)
+    internal ServerRecord Named(string? name)
     {
         var catalog = Catalog();
         return (name is null ? catalog.Servers.SingleOrDefault(s => s.Id == Config().DefaultServerId) :
@@ -186,7 +186,9 @@ public sealed class ServerManager(Home home, LocalStore? storage = null)
 
     // Dependency injection is limited to composition; selection and definitions stay
     // local. The callback consumes the selected concrete build and every preset ID.
-    public ServerStartPlan Compose(string? name, Func<BackendRecord, Guid[], ComposedPresets>? compose = null) => store.Exclusive(() =>
+    public ServerStartPlan Compose(string? name, Func<BackendRecord, Guid[], ComposedPresets>? compose = null) => store.Exclusive(() => ComposeLocked(name, compose));
+
+    internal ServerStartPlan ComposeLocked(string? name, Func<BackendRecord, Guid[], ComposedPresets>? compose = null)
     {
         var view = ViewLocked(Named(name));
         if (view.Diagnostics.Length != 0) throw new ConfigurationException(string.Join(" ", view.Diagnostics));
@@ -209,5 +211,5 @@ public sealed class ServerManager(Home home, LocalStore? storage = null)
         var presets = compose is null ? new ConfigurationManager(home, store).ComposeLocked(view.Backend!, view.Server.PresetIds)
             : compose(view.Backend!, view.Server.PresetIds);
         return new ServerStartPlan(view.Server, view.Backend!, view.Effective, presets);
-    });
+    }
 }

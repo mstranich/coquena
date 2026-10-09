@@ -38,8 +38,7 @@ if (¿la familia requiere dependencias?\n(p. ej. cudart en Windows)) then (sí)
   :Sumar las dependencias\ndel mismo release;
 endif
 if (¿mismo build registrado?) then (sí)
-  :Conservar ID y registro anterior esperado;
-reinstalación forzada;
+  :Conservar ID y registro anterior esperado\nReinstalación forzada;
   if (¿instancia activa o identidad incierta lo usa?) then (sí)
     :Rechazar reemplazo con diagnóstico;
     stop
@@ -132,7 +131,9 @@ if (¿-d?) then (sí)
   :Informar ID y log;\ndevolver prompt;
 else (no)
   :Mostrar salida;
-  :Ctrl+C detiene esta instancia\ny devuelve prompt;
+  :Primer Ctrl+C: confirmar recepción\ny solicitar parada (máximo 10 s);
+  :Segundo Ctrl+C o fin del plazo:\nforzar cierre si sigue viva;
+  :Confirmar terminación, limpiar INI/registro\ny conservar log\nDevolver prompt;
 endif
 stop
 @enduml
@@ -140,7 +141,7 @@ stop
 
 El INI generado vive en el home de Coquena, no en temporales del sistema.
 Cada instancia tiene el suyo; se elimina al detenerla. Los tiempos de salud,
-verificación del proceso y terminación requieren diseño técnico. Las reglas funcionales
+verificación del proceso requieren evidencia técnica. La política de terminación y las reglas funcionales
 de recuperación están acordadas en servidores.md.
 
 ## Detener y consultar instancias
@@ -150,9 +151,13 @@ de recuperación están acordadas en servidores.md.
 actor Usuario
 participant Coquena
 participant "Instancia del backend" as Backend
-Usuario -> Coquena : server stop <id-instancia>
-Coquena -> Coquena : Resolver ejecución registrada
-Coquena -> Backend : Detener esa instancia
+Usuario -> Coquena : server [nombre] stop\no server stop --id <id-instancia>
+Coquena -> Coquena : Resolver servidor explícito/default o ID\ny verificar su única ejecución registrada
+Coquena -> Backend : Solicitar parada ordenada
+alt no termina en 10 s o segundo Ctrl+C
+  Coquena -> Backend : Forzar cierre del grupo de identidad verificada
+end
+Coquena -> Coquena : Confirmar terminación; limpiar registro e INI; conservar log
 Coquena -> Coquena : Conservar definición del servidor
 Coquena --> Usuario : Informar resultado
 @enduml

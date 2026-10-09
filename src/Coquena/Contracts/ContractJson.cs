@@ -210,6 +210,8 @@ public static class ContractValidation
         Require(value.Mode is "foreground" or "detached", "Modo desconocido.");
         Ids(value.PresetIds); Ids(value.ResourceIds);
         Require(value.PresetIds.Length > 0 && value.ResourceIds.Length > 0, "Ejecución sin recursos/presets.");
+        Require(value.ProcessCreated is null || value.ProcessCreated > 0, "Fecha de creación del proceso inválida.");
+        Require(value.ExecutablePath is null || Path.IsPathFullyQualified(value.ExecutablePath), "Ruta de ejecutable no absoluta.");
     }
     public static void Operation(OperationDocument value)
     {

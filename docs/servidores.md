@@ -1,5 +1,15 @@
 # Servidores e instancias
 
+Las rutas de evidencia están parametrizadas. Para reproducir comandos de este documento, definir `$TestRoot` y `$CoquenaHome` con directorios de prueba propios; las ubicaciones originales no se publican.
+
+```powershell
+$TestRoot = Join-Path $env:TEMP "coquena-validation"
+$CoquenaHome = Join-Path $TestRoot "home"
+$TestRootUpper = $TestRoot.ToUpperInvariant()
+$CoquenaHomeLower = $CoquenaHome.ToLowerInvariant()
+New-Item -ItemType Directory -Force $TestRoot | Out-Null
+```
+
 ## Definición persistida
 
 Un servidor reúne una lista explícita de presets, una selección de backend y parámetros
@@ -175,7 +185,19 @@ evitar duplicados incluso entre invocaciones concurrentes.
 Cada inicio genera un INI propio en el home de Coquena y una instancia con ID, backend/build
 concreto, dirección de escucha, PID y log. En primer plano muestra salida; Ctrl+C detiene
 esa instancia. Con `-d` devuelve el prompt y el proceso sobrevive al cierre de la terminal.
-Stop recibe el ID de instancia; no elimina la definición ni detiene otras instancias.
+Stop detiene la única instancia del servidor indicado; sin nombre actúa sobre el
+servidor predeterminado. `server stop --id <id-instancia>` permite seleccionar una
+ejecución concreta. No elimina la definición ni detiene otras instancias.
+Si el servidor existe y ya está detenido, informa que no hay instancia activa y
+termina correctamente. Un nombre/ID ausente, default no designado o identidad
+incierta se diagnostican; stop no crea, recrea ni designa servidores.
+
+Stop, restart y Ctrl+C solicitan una parada ordenada y esperan hasta diez segundos.
+Si la instancia de identidad verificada no termina, se fuerza el cierre de su grupo
+de procesos y se informa. En primer plano se muestra el label de control; el primer
+Ctrl+C confirma su recepción e indica la espera y la posibilidad de forzar. Un segundo
+Ctrl+C fuerza el cierre inmediatamente, sin esperar el plazo. No se limpia el registro
+ni el INI hasta confirmar la terminación; el log se conserva también al forzar.
 
 `server [nombre] restart` detiene y vuelve a iniciar utilizando la definición guardada
 y resolviendo nuevamente su selección de backend. Si sigue `latest` y se hizo un
@@ -298,7 +320,7 @@ Host y metrics omitidos usan los defaults de Coquena. PresetIds vacío permite g
 no iniciar. Un ID ausente conserva la referencia rota, sin enlazar a otra entidad con
 igual nombre. No se copian rutas de modelos ni configuraciones heredadas en servers.json.
 
-Registro de una ejecución bajo run/lts (nombre de archivo todavía propuesto):
+Registro de una ejecución bajo `run/lts/instance.json`:
 
 ```json
 {
@@ -308,6 +330,8 @@ Registro de una ejecución bajo run/lts (nombre de archivo todavía propuesto):
   "backendId": "backend-b10201-id",
   "build": "b10201",
   "pid": 12345,
+  "processCreated": 134043912000000000,
+  "executablePath": "${CoquenaHome}/backends/b10201/llama-server.exe",
   "mode": "detached",
   "host": "127.0.0.1",
   "port": 8081,
@@ -319,7 +343,12 @@ Registro de una ejecución bajo run/lts (nombre de archivo todavía propuesto):
 }
 ```
 
-Las rutas del ejemplo son relativas al home. La ejecución registra recursos efectivos
+Las rutas de INI y log del ejemplo son relativas al home. ExecutablePath registra
+la ruta absoluta del proceso observado en Windows.
+ProcessCreated guarda su fecha de creación FILETIME; ambos campos, el PID y la pertenencia
+al job de esa instancia se verifican antes de reconocerla o enviar señales.
+Un registro anterior sin esos campos conserva identidad incierta; no se completa por PID.
+La ejecución registra recursos efectivos
 para protegerlos aunque luego cambie la definición del servidor o preset. Un PID guardado
 no prueba que el proceso siga vivo ni que sea el mismo; el mecanismo de identidad y
 recuperación debe verificarse al implementar. Inicio y escritura se coordinan para no
