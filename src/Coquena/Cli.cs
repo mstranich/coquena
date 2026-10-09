@@ -4,6 +4,8 @@ public static class Cli
 {
     public static int Run(string[] args, TextWriter output, TextWriter error)
     {
+        if (args.Length > 0 && args[0] is "config" or "preset" or "param")
+            return ConfigurationCli.Run(args[0], args[1..], output, error);
         if (args.Length > 0 && args[0] is "system" or "backend")
             return BackendCli.Run(args, output, error);
         if (args.Length > 0 && args[0] == "download")
@@ -16,6 +18,9 @@ public static class Cli
             output.WriteLine("Coquena — manager de llama.cpp");
             output.WriteLine("Uso: coquena [--help|-h|help] | system | backend <remote|install> [cpu|vulkan|cuda@<mayor>] [--release bNNNN|latest] | backend list | backend use [selector] | download <list|status|pause|resume|cancel>");
             output.WriteLine("Modelos: model download <usuario/repositorio[:cuantización]> | model list");
+            output.WriteLine("Configuración: config show | config set <param> <valor> | config unset <param> [--family F|--model M|--preset P]");
+            output.WriteLine("Presets: preset create <modelo> <nombre> | preset model set <preset> <modelo> | preset list [--model M] | preset <show|remove> <nombre>");
+            output.WriteLine("Parámetros: param list | param show <param> [--backend ID|--version RELEASE [--distribution ORIGEN]]");
             output.WriteLine("Instalación de backends oficiales y modelos públicos HF, con controles locales de descarga.");
             return 0;
         }
