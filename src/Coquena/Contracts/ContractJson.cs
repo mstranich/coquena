@@ -148,6 +148,13 @@ public static class ContractValidation
         if (value.DefaultServerId.HasValue) Id(value.DefaultServerId.Value);
         Selection(value.DefaultBackend);
         Require(value.BackendRetention is not null && value.BackendRetention.MaxBuilds >= 1, "Retención inválida.");
+        if (value.Parameters is not null) Parameters(value.Parameters);
+        if (value.Families is not null)
+            foreach (var pair in value.Families)
+            {
+                Require(Coquena.Backends.BackendCatalog.ValidFamily(pair.Key), "Familia inválida.");
+                Parameters(pair.Value);
+            }
     }
     public static void Backend(BackendRecord value)
     {
