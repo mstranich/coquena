@@ -98,7 +98,7 @@ binario seleccionado y no eliminables del catálogo. Sus defaults propios son:
 | Parámetro | Default |
 |---|---|
 | host | 127.0.0.1 |
-| port | 8080 |
+| port | 9931 |
 | metrics | true |
 
 Cada servidor puede sobrescribirlos. El puerto sigue además las reglas de asignación
@@ -113,14 +113,16 @@ que un binario personalizado la admita; no se descarta silenciosamente.
 Cada servidor registrado tiene un puerto distinto. Al crear, --port permite elegirlo
 explícitamente; se valida su rango y que no pertenezca a otro servidor del catálogo.
 Sin --port, se asigna el mayor puerto registrado más uno; con el catálogo vacío se
-usa 8080. Coquena informa el puerto asignado. El registro guarda ese valor concreto.
+usa 9931, también al crear el default inicial. Coquena informa el puerto asignado.
+El registro guarda ese valor concreto. Los puertos ya persistidos se conservan;
+start y restart emiten explícitamente --port sin migrarlo ni reasignarlo.
 Si se alcanza el máximo 65535 y no puede sumarse uno, se rechaza la creación sin
 crear el registro: no se vuelve al principio ni se buscan huecos, pues puede haber
 puertos reservados. El usuario puede elegir explícitamente otro puerto válido.
 Modificar un puerto también respeta la unicidad entre servidores registrados.
 Server unset port aplica la misma asignación automática: mayor puerto guardado
 en el catálogo más uno, informando el nuevo valor. No rechaza por una colisión
-con 8080 ni vuelve a ese default. Si el máximo guardado es 65535 (2^16 - 1),
+con 9931 ni vuelve a ese default. Si el máximo guardado es 65535 (2^16 - 1),
 rechaza la acción y conserva el puerto anterior; no busca huecos ni reinicia
 la numeración. El cálculo y el guardado deben conservar la unicidad sin perder
 el valor previo si la acción falla.
@@ -315,7 +317,7 @@ la modalidad latest guarda origen/variante. Los nombres actuales se resuelven al
       "backend": null,
       "presetIds": [],
       "parameters": {
-        "port": 8080
+        "port": 9931
       }
     },
     {
@@ -327,7 +329,7 @@ la modalidad latest guarda origen/variante. Los nombres actuales se resuelven al
       },
       "presetIds": ["preset-chat-id"],
       "parameters": {
-        "port": 8081,
+        "port": 9932,
         "metrics": false
       }
     }
@@ -353,7 +355,7 @@ Registro de una ejecución bajo `run/lts/instance.json`:
   "executablePath": "D:\\Coquena\\backends\\b10201\\llama-server.exe",
   "mode": "detached",
   "host": "127.0.0.1",
-  "port": 8081,
+  "port": 9932,
   "metrics": false,
   "presetIds": ["preset-chat-id"],
   "resourceIds": ["model-id", "companion-id"],

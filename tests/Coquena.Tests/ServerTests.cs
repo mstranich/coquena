@@ -21,12 +21,13 @@ internal static class ServerTests
             Check(CliTest(["default", "list"], 2).Length == 0 && !Directory.Exists(root), "invalid grammar before storage");
             CliTest(["create", "default"], 0);
             Check(manager.Default()?.Name == "default", "explicit initial default");
+            Check(manager.View(null).Effective["port"].GetInt32() == 9931, "new catalog starts at 9931");
             Check(manager.View(null).Effective["metrics"].GetBoolean(), "metrics default");
             Check(manager.View(null).Effective["host"].GetString() == "127.0.0.1", "host default");
             Reject(() => manager.Compose(null), "missing backend");
             Check(CliTest(["create", "default"], 1).Length == 0, "duplicate default");
             var lts = manager.Create("lts");
-            Check(lts.Parameters["port"].GetInt32() == 8081, "automatic max plus one");
+            Check(lts.Parameters["port"].GetInt32() == 9932, "automatic max plus one");
             CliTest(["default", "lts"], 0);
             CliTest(["set", "host", "localhost"], 0);
             Check(manager.View("lts").Effective["host"].GetString() == "localhost", "omitted name resolves designation");
@@ -38,8 +39,8 @@ internal static class ServerTests
             Check(manager.View("default").Effective["metrics"].GetBoolean(), "unset static default");
             Reject(() => manager.Create("show"), "reserved name");
             Reject(() => manager.Create("LTS"), "case-insensitive duplicate");
-            Reject(() => manager.Create("collision", 8081), "port collision");
-            Reject(() => manager.Set(null, "port", "8081"), "edit collision");
+            Reject(() => manager.Create("collision", 9932), "port collision");
+            Reject(() => manager.Set(null, "port", "9932"), "edit collision");
             Reject(() => manager.Set(null, "metrics", "yes"), "boolean type");
             Reject(() => manager.Set(null, "threads", "1"), "model parameter rejected");
             Reject(() => manager.Set(null, "models-preset", "custom.ini"), "INI owned by manager");
@@ -56,10 +57,10 @@ internal static class ServerTests
             Reject(() => manager.Set("lts", "port", null), "overflow unset");
             Check(before == File.ReadAllText(home.PathFor("catalogs/servers.json")), "overflow leaves previous document");
             manager.Set("high", "port", "9000");
-            Check(manager.Set("lts", "port", null).Parameters["port"].GetInt32() == 9001, "unset uses catalog max including own");
+            Check(manager.Set("lts", "port", null).Parameters["port"].GetInt32() == 9933, "unset uses catalog max including own");
             Parallel.For(0, 6, i => new ServerManager(home).Create("parallel" + i));
             var ports = manager.List().Select(s => s.Server.Parameters["port"].GetInt32()).ToArray();
-            Check(ports.Distinct().Count() == ports.Length && ports.Max() == 9007, "concurrent allocation unique");
+            Check(ports.Distinct().Count() == ports.Length && ports.Max() == 9939, "concurrent allocation unique");
 
             var backend = new BackendRecord(Guid.NewGuid(), "b11482", "fixture", "ggml", "ggml-org/llama.cpp", "cpu", "cpu", "win-x64", "backends/fixture/server.exe", true);
             Directory.CreateDirectory(Path.GetDirectoryName(home.PathFor(backend.ServerPath))!);
@@ -120,6 +121,11 @@ internal static class ServerTests
             store.Update(DocumentKind.Config, json.ConfigDocument, ContractValidation.Config, old => old! with { DefaultServerId = null });
             manager.EnsureInitial();
             Check(manager.List().Length == 0, "empty persisted catalog not initialized again");
+            Check(manager.Create("legacy", 8080).Parameters["port"].GetInt32() == 8080, "explicit legacy port");
+            manager.EnsureInitial();
+            Check(new ServerManager(home).View("legacy").Effective["port"].GetInt32() == 8080, "persisted legacy port preserved");
+            Check(manager.Set("legacy", "port", null).Parameters["port"].GetInt32() == 8081, "legacy unset remains max plus one below 9931");
+            store.Update(DocumentKind.Servers, json.ServersDocument, ContractValidation.Servers, _ => new(1, []));
             CliTest(["create", "default"], 0);
             Check(manager.Default() is null, "recreating name does not silently select it");
             manager.Default("default");
