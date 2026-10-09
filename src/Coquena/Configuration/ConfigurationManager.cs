@@ -193,7 +193,9 @@ public sealed class ConfigurationManager(Home home, LocalStore? storage = null)
 
     // No server lifecycle or invented CLI export command: 011/012 consume this API.
     // Snapshot under the same writer lease; resolves IDs and paths only at composition.
-    public ComposedPresets Compose(BackendRecord backend, Guid[] presetIds) => store.Exclusive(() =>
+    public ComposedPresets Compose(BackendRecord backend, Guid[] presetIds) => store.Exclusive(() => ComposeLocked(backend, presetIds));
+
+    internal ComposedPresets ComposeLocked(BackendRecord backend, Guid[] presetIds)
     {
         if (presetIds.Length == 0 || presetIds.Distinct().Count() != presetIds.Length)
             throw new ConfigurationException("Se requiere una lista explícita, no vacía y sin duplicados de presets.");
@@ -229,7 +231,7 @@ public sealed class ConfigurationManager(Home home, LocalStore? storage = null)
             resources.Add(model.Id);
         }
         return new ComposedPresets(Render(common, sections), resources.Distinct().ToArray(), diagnostics.Distinct().ToArray());
-    });
+    }
 
     public static string Render(Dictionary<string, string> common,
         IEnumerable<(string Name, Dictionary<string, string> Values)> presets)

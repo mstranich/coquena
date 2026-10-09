@@ -1,0 +1,213 @@
+using System.Globalization;
+using System.Text.Json;
+using Coquena.Backends;
+using Coquena.Configuration;
+using Coquena.Contracts;
+using Coquena.Storage;
+
+namespace Coquena.Servers;
+
+public sealed record ServerView(ServerRecord Server, BackendSelection? Selection, BackendRecord? Backend,
+    Dictionary<string, JsonElement> Effective, PresetRecord?[] Presets, string[] Diagnostics);
+public sealed record ServerStartPlan(ServerRecord Server, BackendRecord Backend,
+    Dictionary<string, JsonElement> Parameters, ComposedPresets Presets);
+
+public sealed class ServerManager(Home home, LocalStore? storage = null)
+{
+    private readonly LocalStore store = storage ?? new LocalStore(home);
+    private static readonly ContractJsonContext Json = ContractJsonContext.Default;
+    public static readonly string[] Actions = ["use", "set", "unset", "preset", "show", "remove", "logs", "start", "restart"];
+    public static readonly string[] Reserved = ["create", "default", "list", "ps", "stop", .. Actions];
+    private ServersDocument Catalog() => store.Read(DocumentKind.Servers, Json.ServersDocument, ContractValidation.Servers) ?? new(1, []);
+    private ConfigDocument Config() => store.Read(DocumentKind.Config, Json.ConfigDocument, ContractValidation.Config) ?? new(1, null, null, new(5));
+    private void Save(ServersDocument document) => store.UpdateLocked(DocumentKind.Servers, Json.ServersDocument, ContractValidation.Servers, _ => document);
+    private ServerRecord Named(string? name)
+    {
+        var catalog = Catalog();
+        return (name is null ? catalog.Servers.SingleOrDefault(s => s.Id == Config().DefaultServerId) :
+            catalog.Servers.SingleOrDefault(s => s.Name.Equals(name, StringComparison.OrdinalIgnoreCase)))
+            ?? throw new ConfigurationException(name is null ? "Servidor predeterminado ausente." : $"Servidor ausente: {name}.");
+    }
+
+    // Only a never-initialized catalog creates the initial default. An empty persisted
+    // catalog is intentional; it must never resurrect a removed definition.
+    public void EnsureInitial() => store.Exclusive(() =>
+    {
+        if (store.Read(DocumentKind.Servers, Json.ServersDocument, ContractValidation.Servers) is null)
+        {
+            var config = Config();
+            if (config.DefaultServerId is not null)
+                throw new ConfigurationException("Catálogo de servidores ausente con designación existente; no se reemplaza.");
+            var record = new ServerRecord(Guid.NewGuid(), "default", null, [], new() { ["port"] = Scalar("8080") });
+            Save(new(1, [record]));
+            store.UpdateLocked(DocumentKind.Config, Json.ConfigDocument, ContractValidation.Config,
+                _ => config with { DefaultServerId = record.Id });
+        }
+        return true;
+    });
+
+    public ServerRecord Create(string name, int? port = null) => store.Exclusive(() =>
+    {
+        if (string.IsNullOrWhiteSpace(name) || name != name.Trim() || name.Any(c => char.IsWhiteSpace(c) || char.IsControl(c) || c is '/' or '\\' or ':') ||
+            (Reserved.Contains(name, StringComparer.OrdinalIgnoreCase) && !name.Equals("default", StringComparison.OrdinalIgnoreCase)))
+            throw new ConfigurationException("Nombre de servidor inválido o reservado.");
+        _ = home.PathFor($"run/{name}/instance.json");
+        var catalog = Catalog();
+        if (catalog.Servers.Any(s => s.Name.Equals(name, StringComparison.OrdinalIgnoreCase)))
+            throw new ConfigurationException($"Servidor ya existente: {name}.");
+        var assigned = port ?? NextPort(catalog);
+        CheckPort(catalog, assigned);
+        var record = new ServerRecord(Guid.NewGuid(), name, null, [], new() { ["port"] = Scalar(assigned.ToString(CultureInfo.InvariantCulture)) });
+        var initial = store.Read(DocumentKind.Servers, Json.ServersDocument, ContractValidation.Servers) is null;
+        var config = Config();
+        if (initial && config.DefaultServerId is not null)
+            throw new ConfigurationException("Catálogo ausente con designación existente.");
+        Save(catalog with { Servers = [.. catalog.Servers, record] });
+        if (initial && name.Equals("default", StringComparison.OrdinalIgnoreCase))
+            store.UpdateLocked(DocumentKind.Config, Json.ConfigDocument, ContractValidation.Config,
+                _ => config with { DefaultServerId = record.Id });
+        return record;
+    });
+
+    private static int NextPort(ServersDocument catalog)
+    {
+        var maximum = catalog.Servers.Length == 0 ? 8079 : catalog.Servers.Max(s => s.Parameters["port"].GetInt32());
+        if (maximum >= 65535) throw new ConfigurationException("Puerto máximo 65535: indique un puerto explícito; sin cambios.");
+        return maximum + 1;
+    }
+    private static void CheckPort(ServersDocument catalog, int port, Guid? except = null)
+    {
+        if (port is < 1 or > 65535 || catalog.Servers.Any(s => s.Id != except && s.Parameters["port"].GetInt32() == port))
+            throw new ConfigurationException("Puerto fuera de rango o ya asignado a otro servidor.");
+    }
+    public ServerRecord? Default(string? name = null) => store.Exclusive(() =>
+    {
+        if (name is null) return Catalog().Servers.SingleOrDefault(s => s.Id == Config().DefaultServerId);
+        var record = Named(name);
+        store.UpdateLocked(DocumentKind.Config, Json.ConfigDocument, ContractValidation.Config,
+            old => (old ?? new(1, null, null, new(5))) with { DefaultServerId = record.Id });
+        return record;
+    });
+    private ServerRecord Change(string? name, Func<ServerRecord, ServersDocument, ServerRecord> change) => store.Exclusive(() =>
+    {
+        var record = Named(name); var catalog = Catalog();
+        var next = change(record, catalog);
+        Save(catalog with { Servers = catalog.Servers.Select(s => s.Id == record.Id ? next : s).ToArray() });
+        return next;
+    });
+    public ServerRecord Use(string? name, string selector) => Change(name, (record, _) =>
+    {
+        var selection = selector == "default" ? null : new BackendInstaller(home, store).Resolve(selector);
+        if (selection?.Kind == "fixed")
+            store.UpdateLocked(DocumentKind.Backends, Json.BackendsDocument, ContractValidation.Backends,
+                old => old! with { Backends = old.Backends.Select(b => b.Id == selection.BackendId ? b with { Pinned = true } : b).ToArray() });
+        return record with { Backend = selection };
+    });
+
+    private static JsonElement Scalar(string value)
+    {
+        using var parsed = JsonDocument.Parse(value);
+        return parsed.RootElement.Clone();
+    }
+    private static JsonElement Text(string value)
+    {
+        // JsonDocument gives an owned scalar without reflection-based serialization.
+        using var stream = new MemoryStream();
+        using (var writer = new Utf8JsonWriter(stream)) writer.WriteStringValue(value);
+        using var parsed = JsonDocument.Parse(stream.ToArray());
+        return parsed.RootElement.Clone();
+    }
+    public ServerRecord Set(string? name, string parameter, string? value) => Change(name, (record, catalog) =>
+    {
+        var key = ParameterCatalog.Canonical(parameter);
+        var definition = ParameterCatalog.Find(key);
+        if (definition?.Application != "server" || key == "models-preset")
+            throw new ConfigurationException("Parámetro ajeno al catálogo de servidor o gestionado por Coquena.");
+        var parameters = new Dictionary<string, JsonElement>(record.Parameters);
+        if (key == "port")
+        {
+            var port = value is null ? NextPort(catalog) : int.TryParse(value, NumberStyles.None, CultureInfo.InvariantCulture, out var number)
+                ? number : throw new ConfigurationException("Puerto entero requerido.");
+            CheckPort(catalog, port, record.Id); parameters[key] = Scalar(port.ToString(CultureInfo.InvariantCulture));
+        }
+        else if (value is null) parameters.Remove(key);
+        else
+        {
+            if (string.IsNullOrWhiteSpace(value) || value.Any(char.IsControl)) throw new ConfigurationException("Valor de servidor inválido.");
+            parameters[key] = definition.Type switch
+            {
+                "boolean" => bool.TryParse(value, out var flag) ? Scalar(flag ? "true" : "false") : throw new ConfigurationException("Valor booleano requerido."),
+                "integer" => int.TryParse(value, NumberStyles.None, CultureInfo.InvariantCulture, out var number) && number > 0
+                    ? Scalar(number.ToString(CultureInfo.InvariantCulture)) : throw new ConfigurationException("Entero positivo requerido."),
+                _ => Text(value)
+            };
+        }
+        return record with { Parameters = parameters };
+    });
+    public ServerRecord Presets(string? name, string[] names, bool add) => Change(name, (record, _) =>
+    {
+        var presets = store.Read(DocumentKind.Presets, Json.PresetsDocument, ContractValidation.Presets)?.Presets ?? [];
+        var ids = names.Select(n => presets.SingleOrDefault(p => p.Name.Equals(n, StringComparison.OrdinalIgnoreCase))?.Id
+            ?? throw new ConfigurationException($"Preset ausente: {n}.")).ToArray();
+        return record with { PresetIds = add ? record.PresetIds.Concat(ids).Distinct().ToArray() : record.PresetIds.Except(ids).ToArray() };
+    });
+    private BackendRecord Resolve(BackendSelection? selection, BackendRecord[] backends)
+    {
+        if (selection is null) throw new ConfigurationException("Selección de backend ausente.");
+        var matches = backends.Where(b => selection.Kind == "fixed" ? b.Id == selection.BackendId :
+            b.Origin == selection.Origin && b.Variant == selection.Variant && b.TracksLatest && b.Platform == "win-x64").ToArray();
+        if (matches.Length != 1) throw new ConfigurationException("Backend seleccionado ausente o ambiguo; no se usa un sustituto.");
+        var backend = matches[0];
+        if (!File.Exists(home.PathFor(backend.ServerPath))) throw new ConfigurationException("Archivo del backend seleccionado ausente.");
+        return backend;
+    }
+    private ServerView ViewLocked(ServerRecord record)
+    {
+        var selection = record.Backend ?? Config().DefaultBackend;
+        var diagnostics = new List<string>(); BackendRecord? backend = null;
+        try { backend = Resolve(selection, store.Read(DocumentKind.Backends, Json.BackendsDocument, ContractValidation.Backends)?.Backends ?? []); }
+        catch (ConfigurationException e) { diagnostics.Add(e.Message); }
+        var presets = store.Read(DocumentKind.Presets, Json.PresetsDocument, ContractValidation.Presets)?.Presets ?? [];
+        var associated = record.PresetIds.Select(id => presets.SingleOrDefault(p => p.Id == id)).ToArray();
+        for (var i = 0; i < associated.Length; i++) if (associated[i] is null) diagnostics.Add($"Preset ausente: {record.PresetIds[i]:D}.");
+        var models = store.Read(DocumentKind.Models, Json.ModelsDocument, ContractValidation.Models)?.Models ?? [];
+        foreach (var preset in associated.OfType<PresetRecord>())
+        {
+            var model = models.SingleOrDefault(m => m.Id == preset.ModelId);
+            if (model is null) diagnostics.Add($"Modelo ausente: {preset.ModelId:D} en {preset.Name}.");
+            else if (model.Files.Any(f => !File.Exists(home.PathFor(f.LocalPath)))) diagnostics.Add($"Archivo de modelo ausente en {preset.Name}.");
+        }
+        var effective = new Dictionary<string, JsonElement> { ["host"] = Text("127.0.0.1"), ["metrics"] = Scalar("true") };
+        foreach (var pair in record.Parameters) effective[pair.Key] = pair.Value;
+        return new(record, selection, backend, effective, associated, diagnostics.ToArray());
+    }
+    public ServerView View(string? name) => store.Exclusive(() => ViewLocked(Named(name)));
+    public ServerView[] List() => store.Exclusive(() => Catalog().Servers.Select(ViewLocked).ToArray());
+
+    // Dependency injection is limited to composition; selection and definitions stay
+    // local. The callback consumes the selected concrete build and every preset ID.
+    public ServerStartPlan Compose(string? name, Func<BackendRecord, Guid[], ComposedPresets>? compose = null) => store.Exclusive(() =>
+    {
+        var view = ViewLocked(Named(name));
+        if (view.Diagnostics.Length != 0) throw new ConfigurationException(string.Join(" ", view.Diagnostics));
+        if (view.Server.PresetIds.Length == 0) throw new ConfigurationException("No se puede iniciar un servidor vacío.");
+        foreach (var pair in view.Effective)
+        {
+            var definition = ParameterCatalog.Find(pair.Key);
+            if (definition?.Application != "server" || definition.Name != pair.Key || pair.Key == "models-preset")
+                throw new ConfigurationException($"Parámetro de servidor inválido: {pair.Key}.");
+            var valid = definition.Type switch
+            {
+                "boolean" => pair.Value.ValueKind is JsonValueKind.True or JsonValueKind.False,
+                "integer" => pair.Value.ValueKind == JsonValueKind.Number && pair.Value.TryGetInt32(out var number) && number > 0,
+                _ => pair.Value.ValueKind == JsonValueKind.String && !string.IsNullOrWhiteSpace(pair.Value.GetString()) && !pair.Value.GetString()!.Any(char.IsControl)
+            };
+            if (!valid) throw new ConfigurationException($"Tipo de parámetro de servidor inválido: {pair.Key}.");
+        }
+        // ConfigurationManager.Compose owns its own lease. Use its locked core here
+        // to keep the entire plan on one consistent catalog snapshot.
+        var presets = compose is null ? new ConfigurationManager(home, store).ComposeLocked(view.Backend!, view.Server.PresetIds)
+            : compose(view.Backend!, view.Server.PresetIds);
+        return new ServerStartPlan(view.Server, view.Backend!, view.Effective, presets);
+    });
+}
