@@ -24,10 +24,13 @@ public sealed record ServerRecord(Guid Id, string Name, [property: JsonIgnore(Co
     Guid[] PresetIds, Dictionary<string, JsonElement> Parameters);
 public sealed record ServersDocument(int SchemaVersion, ServerRecord[] Servers);
 public sealed record BackendRetention(int MaxBuilds);
+public sealed record LogRetention(long MaxBytes);
+public sealed record LastLogDocument(int SchemaVersion, Guid ServerId, Guid InstanceId, string LogPath);
 public sealed record ConfigDocument(int SchemaVersion, Guid? DefaultServerId,
     BackendSelection? DefaultBackend, BackendRetention BackendRetention,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] Dictionary<string, string>? Parameters = null,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] Dictionary<string, Dictionary<string, string>>? Families = null);
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] Dictionary<string, Dictionary<string, string>>? Families = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] LogRetention? LogRetention = null);
 public sealed record ModelsDocument(int SchemaVersion, ModelRecord[] Models);
 public sealed record BackendsDocument(int SchemaVersion, BackendRecord[] Backends);
 public sealed record PresetsDocument(int SchemaVersion, PresetRecord[] Presets);
@@ -64,6 +67,7 @@ public sealed record BackendInstallPlan(string RequestedRelease, Guid BackendId,
 [JsonSerializable(typeof(ServersDocument))]
 [JsonSerializable(typeof(ConfigDocument))]
 [JsonSerializable(typeof(InstanceDocument))]
+[JsonSerializable(typeof(LastLogDocument))]
 [JsonSerializable(typeof(OperationDocument))]
 [JsonSerializable(typeof(ModelsDocument))]
 [JsonSerializable(typeof(BackendsDocument))]

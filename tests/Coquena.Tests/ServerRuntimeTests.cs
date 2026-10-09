@@ -80,6 +80,19 @@ internal static class ServerRuntimeTests
             Check(start.Started && first.Mode == "detached" && first.ProcessCreated > 0 && File.Exists(home.PathFor(first.IniPath)), "published identity and INI");
             Check(Log(first).Contains("stderr ready") && Log(first).Contains("--metrics"), "stdout/stderr and static flags");
             Check(runtime.Recover("default")?.InstanceId == first.InstanceId, "fresh manager recovers detached");
+            ObservabilityTests.Run(home, runtime, first);
+            var followId = Guid.NewGuid(); var followCapture = Path.Combine(root, "follow.txt");
+            using (var follower = WindowsServerProcess.Create(product, ["server", "logs", "-f"], followCapture, followId, root))
+            {
+                follower.Activate();
+                try
+                {
+                    Wait(() => ReadText(followCapture).Contains("ready"));
+                    Send(follower, followId); Wait(() => !ProcessAlive(follower.Pid));
+                    Check(runtime.Recover("default")?.InstanceId == first.InstanceId && !Log(first).Contains("received Ctrl+C"), "real Ctrl+C ends logs follower only");
+                }
+                finally { if (ProcessAlive(follower.Pid)) { using var process = Process.GetProcessById(follower.Pid); process.Kill(true); process.WaitForExit(); } }
+            }
             var duplicates = new List<ServerStartResult>();
             Parallel.For(0, 4, _ =>
             {
@@ -93,6 +106,14 @@ internal static class ServerRuntimeTests
             manager.Default("other");
             Check(Cli(["server", "default", "stop"]).Code == 0, "explicit default name stops named server despite another designation");
             Check(Read() is null && !File.Exists(home.PathFor(first.IniPath)) && Log(first).Contains("graceful exit"), "graceful stop cleans active state and preserves log");
+            Check(Cli(["server", "default", "logs"]).Out.Contains("graceful exit"), "logs available after stop using last reference despite another default");
+            File.AppendAllText(home.PathFor(first.LogPath), new string('x', 70000) + "\nrecent UTF8 á fin\n");
+            var recent = Cli(["server", "default", "logs"]);
+            Check(recent.Code == 0 && recent.Out.Contains("recent UTF8 á fin") && recent.Out.Length < 66000, $"recent logs bounded and UTF8 intact: code={recent.Code}, out={recent.Out}, error={recent.Error}");
+            var logJson = ContractJsonContext.Default.LastLogDocument;
+            store.Update(DocumentKind.LastLog, logJson, _ => { }, old => old! with { ServerId = Guid.NewGuid() }, server: "default");
+            Check(Cli(["server", "default", "logs"]).Code == 1, "last log does not reconnect another server ID");
+            store.Update(DocumentKind.LastLog, logJson, _ => { }, old => old! with { ServerId = first.ServerId }, server: "default");
             Check(runtime.Recover("other")?.InstanceId == second.InstanceId, "stop does not affect another server");
             var byId = runtime.Start("default", true, output).Instance; live.Add(byId); Wait(() => Log(byId).Contains("ready"));
             Check(Cli(["server", "stop"]).Code == 0 && runtime.Recover("other") is null && runtime.Recover("default")?.InstanceId == byId.InstanceId,
@@ -154,6 +175,8 @@ internal static class ServerRuntimeTests
             var cli = Cli(["server", "start", "-d"]); Check(cli.Code == 0, "detached CLI returns prompt");
             var detached = Read()!; live.Add(detached); Wait(() => Log(detached).Contains("ready"));
             Check(runtime.Recover("default")?.InstanceId == detached.InstanceId && !Log(detached).Contains("--metrics"), "child survives CLI exit and disabled metrics");
+            var ps = Cli(["server", "ps"]);
+            Check(ps.Code == 0 && ps.Out.Contains(detached.InstanceId.ToString()) && ps.Out.Contains("desactivadas"), "CLI ps displays verified instance with disabled metrics");
             var newer = backend with { Id = Guid.NewGuid(), Build = "b11483" };
             store.Update(DocumentKind.Backends, json.BackendsDocument, ContractValidation.Backends, _ => new(1, [backend with { TracksLatest = false }, newer]));
             manager.Set(null, "models-autoload", "false");
@@ -167,6 +190,7 @@ internal static class ServerRuntimeTests
             Reject(() => runtime.Stop(restarted.InstanceId, output), "uncertain identity blocks stop");
             Reject(() => runtime.StopServer("default", output), "uncertain identity blocks named stop too");
             Check(ProcessAlive(restarted.Pid) && File.Exists(home.PathFor(restarted.IniPath)), "uncertainty leaves process and files untouched");
+            Check(Cli(["server", "ps"]).Out.Contains("identidad incierta") && ProcessAlive(restarted.Pid), "ps diagnoses uncertain identity without process action");
             store.Update(DocumentKind.Instance, json.InstanceDocument, ContractValidation.Instance, _ => restarted, server: "default");
             runtime.Stop(restarted.InstanceId, output);
 
@@ -197,6 +221,7 @@ internal static class ServerRuntimeTests
             Check(Read() is null && !ProcessAlive(stoppedRestart.Pid) && manager.View(null).Server.PresetIds.Length == 1,
                 "failed restart leaves stopped server configured without substitute");
             Check(Cli(["server", "stop", "invalid"]).Code == 2 && Cli(["server", "restart", "-d"]).Code == 2, "strict new grammar");
+            Check(Cli(["server", "ps", "extra"]).Code == 2 && Cli(["server", "other", "ps"]).Code == 2 && Cli(["server", "logs", "--id", first.InstanceId.ToString()]).Code == 2, "strict observability grammar");
             foreach (var invalid in new string[][]
             {
                 ["server", "stop", first.InstanceId.ToString("D")],
@@ -257,7 +282,13 @@ internal static class ServerRuntimeTests
                 }
                 catch (ConfigurationException) { }
             }
-            if (Directory.Exists(root)) Directory.Delete(root, true);
+            // Terminating a Windows job can release child image mappings after
+            // its root process handle signals exit. Allow bounded cleanup retry.
+            for (var attempt = 0; Directory.Exists(root); attempt++)
+            {
+                try { Directory.Delete(root, true); }
+                catch (Exception e) when (attempt < 30 && e is IOException or UnauthorizedAccessException) { Thread.Sleep(100); }
+            }
         }
 
         InstanceDocument? Read() => store.Read(DocumentKind.Instance, json.InstanceDocument, ContractValidation.Instance, server: "default");

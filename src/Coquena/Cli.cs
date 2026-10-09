@@ -26,6 +26,7 @@ public static class Cli
             output.WriteLine("Servidores: server create <nombre> [--port N] | server default [nombre] | server list | server [nombre] show | server [nombre] use <selector|default>");
             output.WriteLine("Servidor: server [nombre] set <param> <valor> | unset <param> | preset <add|remove> <preset>... | preset list");
             output.WriteLine("Procesos: server [nombre] start [-d] | server [nombre] stop | server stop --id <id-instancia> | server [nombre] restart");
+            output.WriteLine("Consulta: server ps | server [nombre] logs [-f] (Ctrl+C termina sólo el seguimiento)");
             output.WriteLine("Primer plano: Ctrl+C solicita parada (10 s); segundo Ctrl+C fuerza cierre inmediato.");
             output.WriteLine("Instalación de backends oficiales y modelos públicos HF, con controles locales de descarga.");
             return 0;
