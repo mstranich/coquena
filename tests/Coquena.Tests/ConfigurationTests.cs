@@ -252,7 +252,7 @@ internal static class ConfigurationTests
         }
     }
 
-    private static byte[] Fixture(int? shard)
+    internal static byte[] Fixture(int? shard)
     {
         using var stream = new MemoryStream(); using var writer = new BinaryWriter(stream, Encoding.UTF8, true);
         writer.Write("GGUF"u8); writer.Write(3u); writer.Write(1ul); writer.Write(shard.HasValue ? 4ul : 1ul);

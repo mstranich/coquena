@@ -1,6 +1,12 @@
 using System.Diagnostics;
 using Coquena;
 
+if (args.Length is 1 or 2 && args[0] == "--server-tests")
+{
+    Coquena.Tests.ServerTests.Run(args.Length == 2 ? Path.GetFullPath(args[1]) : null);
+    return;
+}
+
 if (args.Length == 1 && args[0] == "--version") { Console.WriteLine("version: 1 (abcdef)"); return; }
 if (args.Length == 2 && args[0] == "--configuration-backend-smoke")
 {
@@ -90,6 +96,7 @@ Console.WriteLine($"OK: {cases.Length} casos administrados" +
 
 Coquena.Tests.ContractTests.Run();
 Coquena.Tests.ConfigurationTests.Run(executable);
+Coquena.Tests.ServerTests.Run(executable);
 Coquena.Tests.StorageTests.Run();
 await Coquena.Tests.BackendTests.Run(executable);
 await Coquena.Tests.DownloadTests.Run(executable);
