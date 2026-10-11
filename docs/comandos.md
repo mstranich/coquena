@@ -1,5 +1,15 @@
 # Comandos de la CLI
 
+Las rutas de evidencia están parametrizadas. Para reproducir comandos de este documento, definir `$TestRoot` y `$CoquenaHome` con directorios de prueba propios; las ubicaciones originales no se publican.
+
+```powershell
+$TestRoot = Join-Path $env:TEMP "coquena-validation"
+$CoquenaHome = Join-Path $TestRoot "home"
+$TestRootUpper = $TestRoot.ToUpperInvariant()
+$CoquenaHomeLower = $CoquenaHome.ToLowerInvariant()
+New-Item -ItemType Directory -Force $TestRoot | Out-Null
+```
+
 Superficie acordada del núcleo, al estilo de SDKMan, FNM o UV para la gestión y de
 Docker para la ejecución. El alcance aplazado y las excepciones por resolver se
 identifican en la lista central; no son requisitos implícitos.
@@ -54,6 +64,17 @@ en primer plano. Ctrl+C pausa sin borrar parciales y muestra el GUID de la opera
 y `coquena download resume <guid>` antes de devolver el prompt. No equivale a
 `download cancel`, que solicita limpiar los parciales.
 
+### Responsabilidades de los comandos
+
+| Grupo | Responsabilidad |
+|---|---|
+| config | Configuración de Coquena |
+| system | Sistema operativo y hardware |
+| param | Catálogo de parámetros: tipos, defaults, opciones y metadatos |
+| preset | Catálogo de presets por modelo y valores del catálogo de parámetros |
+| model | Catálogo de modelos |
+| server | Catálogo de servidores por runtime/backend y presets asociados |
+
 ### `system`
 
 Inspecciona el hardware y la plataforma para informar las opciones de ejecución.
@@ -61,7 +82,7 @@ Inspecciona el hardware y la plataforma para informar las opciones de ejecución
 ```plantuml
 @startmindmap
 * system
-** (inspecciona hardware)
+** probe (inspecciona SO y hardware)
 @endmindmap
 ```
 
@@ -202,11 +223,60 @@ Operaciones terminadas y limpiadas desaparecen de estas vistas; su resultado que
 
 ### `param`
 
-Consulta, importa y exporta el catálogo de parámetros y su disponibilidad.
+Administra el catálogo de parámetros personalizados: creación y edición de definiciones,
+tipos, defaults, enumeraciones, binarios aplicables y rangos de versiones. También permite
+consultar, retirar, importar y exportar definiciones.
+
+Import y export corresponden a [M3](milestones/M3-definiciones-declarativas.md).
+El formato de intercambio será JSON; su sintaxis y resolución de conflictos
+se concretarán según [las reglas declarativas](definiciones-declarativas.md).
+
+Las reglas están en el [catálogo de parámetros](catalogo-de-parametros.md).
+`define` crea una definición y rechaza un nombre existente; `edit` modifica una
+definición existente y rechaza un nombre inexistente. Las opciones omitidas en edit
+conservan su valor actual.
+
+Define y edit comparten estas opciones:
+
+| Opción | Metadato |
+|---|---|
+| `--type integer\|decimal\|string\|boolean\|flag\|enum` | Tipo; flag no recibe valor |
+| `--description <texto>` | Descripción |
+| `--default <valor>` | Valor inicial para formularios |
+| `--alias <alias>` | Alias del parámetro; opción repetible |
+| `--values <valor>` | Valor permitido del enumerado; opción repetible |
+| `--scope model\|server` | Ámbito de asignación |
+| `--target cli\|ini` | Destino de emisión |
+
+Define requiere type, scope y target; los demás metadatos son opcionales. Edit valida
+la definición completa resultante antes de aplicar el cambio.
+
+Las asociaciones se gestionan mediante support. Cada repetición de alias o values
+aporta un elemento de su lista. En edit, indicar la opción reemplaza la lista anterior
+por todos los elementos proporcionados; omitirla conserva la lista actual. Los alias
+que comienzan con guiones se pasan mediante `--alias=<alias>` para distinguirlos de
+opciones del comando:
+
+```text
+coquena param edit ctx-size --alias=-c --alias=--context-size
+coquena param edit device --values cpu --values cuda --values vulkan
+```
+
+Edit admite `--clear-default`, `--clear-description` y `--clear-aliases` para retirar
+esos metadatos. Cada opción de limpieza es excluyente con la opción que asigna el
+mismo metadato en esa invocación. Un enumerado debe conservar al menos un valor
+permitido: para retirar su enumeración hay que cambiar el tipo. El default, si existe,
+debe seguir siendo válido para la definición resultante.
 
 ```plantuml
 @startmindmap
 * param
+** define <parámetro> <opciones de definición>
+** edit <parámetro> <opciones de edición> [--dry-run]
+** remove <parámetro> [--dry-run]
+** support
+*** set <parámetro> [<origen/familia>] [--from V] [--until V] [--dry-run]
+*** remove <parámetro> [<origen/familia>] [--dry-run]
 ** list [--backend <id-backend> | --version <release> [--distribution <origen>]]
 ** show <parámetro> [--backend <id-backend> | --version <release> [--distribution <origen>]]
 ** import <archivo> [--backend <id-backend>]
@@ -214,45 +284,98 @@ Consulta, importa y exporta el catálogo de parámetros y su disponibilidad.
 @endmindmap
 ```
 
+`support set` crea o actualiza una asociación de soporte; `support remove` la retira.
+Omitir origen/familia en set declara soporte para cualquier backend, sujeto a los
+límites de versión indicados. Los rangos se evalúan con el esquema del origen efectivo;
+una versión que no pueda compararse se diagnostica como disponibilidad desconocida.
+`support remove` sin origen/familia retira sólo la asociación general; conserva
+las asociaciones específicas del parámetro.
+Para una excepción local, set y remove aceptan `--backend <id>` en lugar del selector
+origen/familia; ambos selectores son excluyentes. Set reemplaza el rango de la asociación
+seleccionada: omitir from o until deja abierto ese extremo.
+
+La [consulta del impacto](catalogo-de-parametros.md#consulta-del-impacto) permite guardar
+el informe mediante redirección de salida:
+
+```text
+coquena param remove <parámetro> --dry-run > impacto.txt
+```
+
 ### `config`
 
-Consulta y modifica valores de configuración globales o de un ámbito específico.
+Configura Coquena.
 
 ```plantuml
 @startmindmap
 * config
-** show [--family F | --model M | --preset P]
-** set <param> <valor> [ámbito]
-** set <param> --ref <nombre> [ámbito]
-** unset <param> [ámbito]
+** param-reset [--dry-run]
+** backend-retention
+*** show
+*** set <cantidad>
+*** unset
+** log-retention
+*** show
+*** set <tamaño>
+*** unset
+** backends-dir
+*** show
+*** set <ruta>
+*** unset
+** models-dir
+*** show
+*** set <ruta>
+*** unset
 @endmindmap
 ```
 
-`unset` elimina el par clave-valor propio del ámbito indicado, como `delete` en
-JavaScript. No bloquea la herencia: si hay un valor heredado, vuelve a regir; si no,
-la clave deja de emitirse en la sección correspondiente del INI. No modifica el padre.
+La [política de retención](servidores.md#consulta-de-logs) define el límite global,
+las excepciones por servidor y cuándo se aplica una modificación.
 
-Los parámetros que cargan companions aceptan referencias por nombre canónico a su registro en vez
-de una ruta literal. Coquena conserva la referencia y la resuelve a una ruta absoluta al generar
-el INI; CPU/GPU y demás ajustes se configuran con los parámetros del backend.
-`config set <param> --ref <nombre> [ámbito]` guarda una referencia al catálogo.
-El valor posicional y `--ref` son alternativas excluyentes: un valor normal es literal,
-aunque coincida con un nombre registrado. No se usa un prefijo especial como `@`.
-
-Por ejemplo:
+`config backend-retention` consulta, ajusta o restablece el número de builds conservados;
+sus reglas están en [actualizaciones y retención de backends](servidores.md#definición-persistida).
 
 ```text
-coquena config set mmproj --ref ggml-org/Qwen3.8-27B-GGUF#mmproj:BF16 --preset conversacion
-coquena config set temperature 0.7 --preset conversacion
+coquena config backend-retention show
+coquena config backend-retention set 5
+coquena config backend-retention unset
 ```
 
-Coquena no valida la compatibilidad funcional entre modelo y companion ni requiere
-forzar su uso. El backend decide si puede cargar la combinación configurada.
+```text
+coquena config log-retention show
+coquena config log-retention set 200MiB
+coquena config log-retention unset
+```
+
+`backends-dir` y `models-dir` consultan y ajustan los directorios de backends y modelos.
+Show consulta la ubicación efectiva; set guarda una ubicación propia; unset elimina
+ese ajuste y recupera la ubicación predeterminada. Set y unset ofrecen trasladar los
+archivos existentes con las mismas reglas. Las rutas con espacios se pasan entre comillas.
+Las rutas relativas se guardan como relativas y se resuelven desde el home de Coquena.
+Sus reglas están en
+[Directorios gestionados](servidores.md#directorios-gestionados).
+
+```text
+coquena config backends-dir show
+coquena config backends-dir set "${CoquenaHome}/Backends"
+coquena config backends-dir unset
+coquena config models-dir show
+coquena config models-dir set "${TestRoot}/external/Modelos"
+coquena config models-dir set "../Modelos"
+coquena config models-dir unset
+```
+
+`config param-reset` restablece el catálogo de parámetros de fábrica. Sus reglas están
+en el [restablecimiento del catálogo](catalogo-de-parametros.md#restablecimiento-de-fábrica).
+
+```text
+coquena config param-reset --dry-run > impacto-reset.txt
+coquena config param-reset
+```
 
 ### `preset`
 
-Define configuraciones de ejecución de un modelo. Sus companions se eligen mediante
-los parámetros de `config`, no con una lista de asociaciones separada.
+Administra presets asociados a un modelo y sus valores. Las reglas de asignación,
+referencias y clonación están en [Presets](modelos-y-companions.md#presets).
 
 ```plantuml
 @startmindmap
@@ -260,10 +383,21 @@ los parámetros de `config`, no con una lista de asociaciones separada.
 ** create <modelo> <nombre>
 ** clone <preset> <nombre> [--model M]
 ** model set <preset> <modelo>
+** set <preset> <param> <valor>
+** set <preset> <param> --ref <nombre>
+** unset <preset> <param>
 ** list [--model M]
 ** show <preset>
 ** remove <preset>
 @endmindmap
+```
+
+`set` asigna el valor, `unset` lo retira y `show` consulta el preset y sus parámetros.
+El valor posicional y `--ref` son alternativas excluyentes; no se usa un prefijo `@`.
+
+```text
+coquena preset set conversacion temperature 0.7
+coquena preset set conversacion mmproj --ref ggml-org/Qwen3.8-27B-GGUF#mmproj:BF16
 ```
 
 ## Servidores e instancias
@@ -289,6 +423,9 @@ coquena server [<nombre>] stop
 coquena server [<nombre>] show
 coquena server [<nombre>] remove
 coquena server [<nombre>] logs [-f]
+coquena server [<nombre>] log-retention show
+coquena server [<nombre>] log-retention set <tamaño>
+coquena server [<nombre>] log-retention unset
 coquena server list
 coquena server ps
 coquena server stop --id <id-instancia>
@@ -302,8 +439,8 @@ correctamente mediante descarga propia se autoasigna como backend predeterminado
 sin sustituir una selección previa del usuario. Los presets siguen asignándose explícitamente.
 
 Palabras reservadas tras server: create, default, list, ps, stop, use, set, unset,
-preset, show, remove, logs, start y restart. Para preset, las acciones son add, remove
-y list. Un token no reservado tras server identifica un servidor existente y su acción.
+preset, show, remove, logs, log-retention, start y restart. Para preset, las acciones son
+add, remove y list. Para log-retention, son show, set y unset. Un token no reservado tras server identifica un servidor existente y su acción.
 Los nombres de servidores no pueden coincidir con las reservadas, salvo default,
 que también puede crearse explícitamente. Los argumentos se interpretan según su posición:
 server create default crea ese servidor si el nombre está libre; server default default
@@ -312,7 +449,7 @@ La excepción de acción explícita se resuelve por el siguiente token:
 
 - server default sin argumentos muestra la designación predeterminada.
 - server default <nombre> designa un servidor existente (incluido default).
-- server default seguido de use, set, unset, preset, show, remove, logs, start, stop o restart
+- server default seguido de use, set, unset, preset, show, remove, logs, log-retention, start, stop o restart
   actúa sobre el servidor llamado default, aunque otro sea el predeterminado.
 - Un subcomando global como create, list o ps no es una acción válida después
   del nombre default; no se reinterpreta como nombre de servidor para adivinar la intención.
@@ -321,7 +458,7 @@ Por ejemplo, server default start inicia el llamado default; server default lts 
 lts como predeterminado. Se interpreta la gramática antes de consultar entidades;
 si el servidor default fue retirado, su acción informa que no existe y no lo recrea.
 Omitir el nombre en use, set,
-unset, preset, show, remove, logs, start, stop o restart dirige la acción al servidor predeterminado. Create, default, list
+unset, preset, show, remove, logs, log-retention, start, stop o restart dirige la acción al servidor predeterminado. Create, default, list
 y ps tienen su significado propio; no operan implícitamente sobre ese servidor.
 
 Server use default elimina la selección propia y recupera la herencia del backend
@@ -348,6 +485,10 @@ por servidor; un segundo start no crea otra. Restart inicia también un servidor
 y devuelve el prompt sin seguir logs; la nueva instancia queda en segundo plano.
 Los antiguos comandos raíz run, ps y stop no son la superficie acordada.
 
+Log-retention consulta o cambia la política del servidor seleccionado. Show muestra el
+límite efectivo y su origen; set guarda un límite propio y unset recupera el global.
+La [política de retención](servidores.md#consulta-de-logs) define unidades y aplicación.
+
 Preset add asocia presets existentes; remove retira sólo las asociaciones, sin eliminar
 los presets del catálogo. List muestra los asociados al servidor seleccionado. Los cambios
 afectan al próximo inicio, no a instancias activas.
@@ -367,12 +508,11 @@ limpia la designación sin seleccionar otro ni recrear default. No elimina recur
 
 ## Home
 
-El objetivo es separar una ubicación de configuración de otra para los archivos pesados
-gestionados (modelos, companions y backends). Configurar esas ubicaciones se abordará
-en una iteración posterior, dentro de la configuración de Coquena, no del catálogo
-de modelos ni de los parámetros de inferencia. No se define todavía su comando,
-migración. La primera iteración usa un home común con la
+El home contiene configuración, catálogos y estado de ejecución con la
 [estructura acordada](implementacion-catalogo-modelos.md#almacenamiento-local-acordado).
+Las ubicaciones de archivos pesados se ajustan mediante
+[config](#config); sus reglas de resolución y traslado están en
+[directorios gestionados](servidores.md#directorios-gestionados).
 
 No hay comando `init` ni autodetección de directorios junto al ejecutable. Si no se
 define `COQUENA_HOME`, se utiliza `$USERPROFILE\.coquena` en Windows.

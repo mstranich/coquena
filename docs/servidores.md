@@ -10,6 +10,10 @@ $CoquenaHomeLower = $CoquenaHome.ToLowerInvariant()
 New-Item -ItemType Directory -Force $TestRoot | Out-Null
 ```
 
+La modalidad declarativa de [M3](milestones/M3-definiciones-declarativas.md)
+se describe en [su documento funcional](definiciones-declarativas.md). Las reglas
+siguientes describen la gestión persistida por CLI.
+
 ## Definición persistida
 
 Un servidor reúne una lista explícita de presets, una selección de backend y parámetros
@@ -59,6 +63,13 @@ y los usados por instancias activas. Si los protegidos superan el límite, se co
 y se informa; no se rompe una selección o instancia para cumplirlo. Los externos nunca
 se borran físicamente mediante esta política.
 
+`config backend-retention show` consulta el límite efectivo y su origen (inicial o
+propio); `set <cantidad>` guarda un entero positivo y `unset` recupera los cinco builds
+iniciales. La política se guarda en `config.json` como `backendRetention.maxBuilds`.
+Consultar o modificar el límite no borra instalaciones: se aplica tras el próximo
+upgrade exitoso, conservando las protecciones indicadas. Valores inválidos o fallos
+de persistencia no dejan un ajuste parcial.
+
 La sintaxis de defaults, selección de backend y edición incremental está en
 [comandos.md](comandos.md#servidores-e-instancias). Backend use establece la selección
 global; server use default recupera su herencia. Ambos configuran, no descargan ni inician.
@@ -100,7 +111,8 @@ que uno gestionado no crea una colisión de selección: pertenecen a formas de a
 
 El catálogo distingue el ámbito servidor/router del ámbito modelo/inferencia y el
 destino de emisión (CLI o INI). Los valores del servidor no se mezclan automáticamente
-con la herencia de modelos/presets.
+con los valores de los presets. Dos servidores pueden usar el mismo backend con
+parámetros distintos; los valores pertenecen al servidor, no al binario ni a su familia.
 
 `host`, `port` y `metrics` son definiciones estáticas de Coquena, independientes del
 binario seleccionado y no eliminables del catálogo. Sus defaults propios son:
@@ -229,16 +241,50 @@ el de su última ejecución. La retención tiene un límite de tamaño configura
 acumula un historial ilimitado. El límite inicial es 100 MiB por servidor; detener no elimina el último log disponible.
 
 La política global se guarda como `logRetention: { "maxBytes": 104857600 }` en
-config.json; omitirla usa ese valor inicial. Debe ser un entero positivo. La
-[tarjeta 017](../specs/017-configuracion-retencion-logs/README.md) diseñará los comandos
-para consultarla y ajustarla; esta entrega no agrega esa interfaz.
+`config.json`; omitirla usa ese valor inicial. El límite propio se guarda como
+`logRetention` en la definición del servidor, separado de los parámetros de llama-server.
+Omitirlo recupera la política global. `config log-retention` y `server log-retention`
+permiten consultar, ajustar y restablecer estos valores.
+
+Cada servidor puede guardar un límite propio; si no lo tiene, hereda el global.
+El límite global se aplica a cada servidor, no a la suma de logs de todos los servidores.
+Restablecer la política global recupera los 100 MiB iniciales; restablecer la de un
+servidor elimina su override y recupera la herencia global.
+
+Consultar la política muestra el límite efectivo, los bytes exactos, una representación
+legible con unidad binaria y su origen: inicial, global o propio. Cambiar o restablecer
+el límite no elimina archivos inmediatamente; la próxima limpieza usa el nuevo valor.
+
+El tamaño admite bytes (`B` o sin sufijo), unidades decimales y unidades binarias:
+
+| Unidad | Bytes |
+|---|---:|
+| B | 1 |
+| KB | 1 000 |
+| MB | 1 000 000 |
+| GB | 1 000 000 000 |
+| KiB | 1 024 |
+| MiB | 1 048 576 |
+| GiB | 1 073 741 824 |
+
+`100MB` equivale a 100 000 000 bytes; `100MiB`, a 104 857 600 bytes.
+Se admiten fracciones con punto decimal, unidades sin distinguir mayúsculas y
+espacios entre cantidad y unidad: `1.5GiB`, `100mib` y `100 MiB` son válidos.
+El tamaño convertido debe equivaler exactamente a un número entero de bytes;
+no se redondea ni trunca. `0.5KiB` equivale a 512 bytes; `0.1KiB` se rechaza.
+Si contiene espacios, el tamaño se pasa como un único argumento entre comillas:
+`"100 MiB"`. La coma decimal y los separadores de miles no se admiten.
+La unidad sólo expresa la entrada: la política persiste el entero `maxBytes`, sin
+cambiar el formato existente. Un tamaño inválido, no positivo o que exceda la
+capacidad de `maxBytes` se rechaza antes de modificar la configuración. Su rango es
+de 1 a 9 223 372 036 854 775 807 bytes (entero de 64 bits con signo).
 
 La limpieza ocurre al iniciar, detener o consultar logs, bajo exclusión de escritura.
 Se retiran primero archivos de ejecuciones antiguas; se protege el log activo y el
 último, incluso cuando exceden el límite. Se informa el exceso sin truncarlos.
-No hay rotación continua durante la ejecución: un log activo puede crecer por encima
-del límite hasta la próxima consulta o detención. Logs muestra hasta los últimos
-64 KiB, omitiendo la primera línea parcial; -f continúa sobre ese mismo archivo,
+No hay rotación continua: un log protegido puede superar el límite incluso después
+de una limpieza. El límite restringe el historial eliminable, no garantiza una cuota
+estricta de disco. Logs muestra hasta los últimos 64 KiB, omitiendo la primera línea parcial; -f continúa sobre ese mismo archivo,
 sin adjuntarse a una ejecución posterior tras restart.
 
 `run/<servidor>/last-log.json` conserva schemaVersion, serverId, instanceId y logPath.
@@ -276,6 +322,75 @@ esté libre, y designarlo con `server default default` una vez existente. Crear 
 son acciones distintas; la interpretación posicional evita confundir esos nombres con
 subcomandos. Esto no cambia la prohibición de recreación automática.
 
+## Directorios gestionados
+
+Coquena permite consultar y ajustar por separado los directorios de backends y de
+modelos mediante `config backends-dir` y `config models-dir`. El directorio de modelos
+incluye los companions gestionados. Estos ajustes no cambian el home del manager ni
+autorizan mover o adoptar archivos registrados como externos.
+
+Los ajustes admiten rutas absolutas y relativas. Una ruta relativa se conserva como
+tal en la configuración, sin convertirla permanentemente a absoluta. Esto permite
+reubicar el conjunto de directorios conservando su estructura relativa. La ruta
+absoluta efectiva se resuelve al utilizar el ajuste, tomando siempre el home de Coquena
+como base, independientemente del directorio desde el que se invoque la CLI. Por ejemplo,
+`../Modelos` con home `${TestRoot}/external/Coquena` resuelve a `${TestRoot}/external/Modelos`; trasladar el conjunto
+a `${TestRoot}/external/IA` y actualizar el home conserva esa relación.
+
+Los registros de recursos gestionados conservan su ubicación de instalación y las
+rutas de sus archivos relativas a ella. La ubicación, cuando es relativa, se resuelve
+respecto al home. No se reemplaza una ubicación anterior por el ajuste vigente si el
+usuario eligió no trasladar: cada recurso conserva la base donde realmente se instaló.
+Así pueden coexistir ubicaciones antiguas y nuevas y reubicarse junto con el home si
+su relación es relativa. Las ubicaciones absolutas permanecen fijadas a su ruta.
+Las rutas absolutas para ejecutar binarios o generar el INI se resuelven al utilizarlas.
+
+El destino debe ser un directorio utilizable. Si no existe, Coquena lo crea al aplicar
+el cambio; si la ruta apunta a un archivo o no permite las operaciones necesarias,
+rechaza el ajuste. La validación se realiza antes de mover recursos o persistir la
+nueva ubicación. Un rechazo no modifica el ajuste ni los archivos existentes.
+
+Las ubicaciones predeterminadas son `<home>/backends` y `<home>/models`. Show informa
+la ruta efectiva y si procede del default o de un ajuste propio. Unset elimina el ajuste
+y recupera la ruta predeterminada; ofrece el mismo traslado y aplica las mismas reglas
+de bloqueo, fusión y confirmación que set. El home se resuelve conforme a la
+[CLI](comandos.md#home).
+
+Al cambiar un directorio, Coquena pregunta si se trasladan los archivos gestionados
+existentes. Antes de elegir muestra los recursos afectados y las ubicaciones de origen
+y destino. Si se acepta el traslado, mueve los recursos y actualiza sus rutas conservando
+identidades y referencias. Para modelos, una unidad con shards se trata completa.
+
+Si se elige no trasladar, conserva los archivos y sus rutas registradas; la nueva ubicación
+se usa para futuras instalaciones. El catálogo puede contener recursos gestionados en
+distintas ubicaciones y los resuelve por sus rutas guardadas, sin perder su propiedad.
+Cancelar o no disponer de entrada interactiva deja el ajuste y los archivos sin cambios.
+
+Si se elige trasladar y algún recurso afectado está en uso o tiene una descarga
+pendiente, Coquena bloquea el traslado completo antes de mover archivos o cambiar
+el directorio. Muestra los recursos, instancias y operaciones que impiden continuar,
+para que el usuario detenga las instancias o finalice/cancele las descargas primero.
+No detiene procesos ni cancela descargas automáticamente y no realiza un traslado
+parcial de los recursos disponibles.
+
+El traslado fusiona por defecto los archivos con el contenido del directorio destino.
+Antes de comenzar, Coquena analiza todos los archivos y reporta las colisiones, con
+las rutas de origen y destino que se sobrescribirían. Los archivos del destino sin
+colisión se conservan. Si hay colisiones, advierte que la fusión destruirá el contenido
+anterior de esos archivos y solicita una única confirmación para todo el traslado.
+Aceptar autoriza todas las sobrescrituras informadas; cancelar o no obtener respuesta
+deja archivos, rutas registradas y ajuste del directorio sin cambios. No se realizan
+sobrescrituras ni traslados antes de completar el análisis y obtener esa confirmación.
+
+La comprobación de uso incluye los recursos afectados en el destino: la confirmación
+no habilita sobrescribir archivos utilizados por instancias o descargas. Los archivos
+registrados como externos mantienen su protección. Una colisión que aparezca después
+del informe no queda autorizada por la confirmación anterior.
+
+Se recomienda elegir los directorios antes de descargar recursos o preparar servidores.
+Cambiar después está permitido, con la elección de traslado y la advertencia explícita
+del impacto destructivo de la fusión cuando existan colisiones.
+
 ## Persistencia
 
 El formato sigue la [regla de persistencia](implementacion-catalogo-modelos.md#almacenamiento-local-acordado):
@@ -284,15 +399,15 @@ para la salida original del backend. JSONL no define un historial reproducible d
 Las definiciones se guardan en `<home>/catalogs/servers.json`; las selecciones
 predeterminadas y políticas, en `<home>/config.json`. Bajo `<home>/run/<servidor>/`
 se guardan el registro JSON de instancia y su INI; los logs de texto van bajo
-`<home>/logs/<servidor>/`. No se persisten valores heredados resueltos en la definición:
-se calculan al consultar o iniciar. La instancia sí registra el backend/build y
-la escucha efectivos. El esquema exacto y la recuperación requieren pruebas.
+`<home>/logs/<servidor>/`. La definición guarda la selección propia de backend y el
+límite propio de logs, si existen; sus valores predeterminados se resuelven al consultar
+o iniciar. La instancia registra el backend/build y la escucha efectivos. El esquema exacto y la recuperación requieren pruebas.
 
 ### Estructura mínima de JSON acordada
 
 La estructura mínima y el significado de los campos siguientes están acordados; no
 implican iniciar la implementación. Los IDs abreviados son placeholders; su representación,
-validación completa y migraciones se concretan junto con los otros catálogos.
+validación completa se concreta junto con los otros catálogos.
 SchemaVersion versiona el documento de persistencia, no llama.cpp.
 
 Fragmento de config.json (no reemplaza el resto de su configuración):
@@ -308,12 +423,15 @@ Fragmento de config.json (no reemplaza el resto de su configuración):
   },
   "backendRetention": {
     "maxBuilds": 5
+  },
+  "logRetention": {
+    "maxBytes": 104857600
   }
 }
 ```
 
-Servers.json guarda únicamente valores propios y el puerto asignado. Backend null
-representa herencia del predeterminado, no selección automática entre todos los binarios.
+Servers.json guarda valores propios, el puerto asignado y el límite propio de logs si existe.
+Backend null representa herencia del predeterminado, no selección automática entre todos los binarios.
 Una selección concreta usa backendId, tanto para un release fijado como para un externo;
 la modalidad latest guarda origen/variante. Los nombres actuales se resuelven al mostrar.
 
@@ -338,6 +456,9 @@ la modalidad latest guarda origen/variante. Los nombres actuales se resuelven al
         "backendId": "backend-b10201-id"
       },
       "presetIds": ["preset-chat-id"],
+      "logRetention": {
+        "maxBytes": 524288000
+      },
       "parameters": {
         "port": 9932,
         "metrics": false
@@ -349,7 +470,7 @@ la modalidad latest guarda origen/variante. Los nombres actuales se resuelven al
 
 Host y metrics omitidos usan los defaults de Coquena. PresetIds vacío permite guardar,
 no iniciar. Un ID ausente conserva la referencia rota, sin enlazar a otra entidad con
-igual nombre. No se copian rutas de modelos ni configuraciones heredadas en servers.json.
+igual nombre. No se copian rutas de modelos ni valores de presets en servers.json.
 
 Registro de una ejecución bajo `run/lts/instance.json`:
 

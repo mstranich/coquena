@@ -50,7 +50,7 @@ package Backends {
 
 package Modelos {
   class DirectorioDeModelos {
-    ruta <<área gestionada; configuración posterior>>
+    ruta <<área gestionada>>
   }
   class Modelo {
     id <<estable>>
@@ -67,18 +67,10 @@ package Modelos {
   }
 }
 
-package "Configuración (eje backend)" {
-  abstract class Configuracion {
-    valores : parámetro → literal o referencia de archivo
-  }
-  class ConfiguracionGlobal <<única>>
-  class ConfiguracionDeFamilia
-}
-
-package "Configuración (eje modelo)" {
-  class ConfiguracionDeModelo
+package Presets {
   class Preset {
     nombre <<visible al cliente>>
+    valores : parámetro → literal o referencia de archivo
   }
 }
 
@@ -87,6 +79,7 @@ package Ejecución {
     nombre
     parámetros del router
     selección de backend (opcional)
+    límite propio de logs (opcional)
   }
   class Instancia {
     id
@@ -109,17 +102,10 @@ Familia ..> Dispositivo : acelera
 DirectorioDeModelos "1" o-- "*" Modelo : gestionados
 DirectorioDeModelos "1" o-- "*" Companion : gestionados
 
-Configuracion <|-- ConfiguracionGlobal
-Configuracion <|-- ConfiguracionDeFamilia
-Configuracion <|-- ConfiguracionDeModelo
-Configuracion <|-- Preset
-ConfiguracionDeFamilia --> ConfiguracionGlobal : hereda de
-ConfiguracionDeFamilia "0..1" --> "1" Familia
-ConfiguracionDeModelo "1" --> "1" Modelo
-Preset "*" --> "1" ConfiguracionDeModelo : hereda de
-Configuracion "*" --> "*" Companion : referencia en un parámetro
+Preset "*" --> "1" Modelo : configura
+Preset "*" --> "*" Companion : referencia en un parámetro
 
-Servidor "*" --> "0..1" Familia : filtro de selección propia (opcional)
+Servidor "*" --> "1" BackendRegistrado : resuelve al iniciar
 Servidor "*" o-- "*" Preset : ofrece explícitamente
 Instancia "0..1" --> "1" Servidor : activa para
 Instancia "*" --> "1" BackendRegistrado : ejecuta
@@ -133,9 +119,8 @@ end note
 @enduml
 ```
 
-Cada modelo tiene una configuración inicial vacía desde su registro. Es la raíz de
-herencia de sus presets, sin comando adicional ni archivo propio. Vacía significa
-que no tiene valores propios; no que la raíz sea inexistente.
+Las reglas de pertenencia y asignación están en
+[Presets](modelos-y-companions.md#presets).
 
 ## Catálogo y seguimiento: estructura conceptual propuesta
 
@@ -171,67 +156,32 @@ end note
 @enduml
 ```
 
-## Dos ejes de herencia
-
-La configuración se hereda por dos ejes que se encuentran en el INI generado:
+## Parámetros del preset y del servidor
 
 ```plantuml
 @startuml
 left to right direction
-rectangle "Eje backend" {
-  card "Global\n(todos los backends)" as G
-  card "Familia\n(p. ej. cuda@13)" as F
-  G --> F : hereda
-}
-rectangle "Eje modelo" {
-  card "Modelo\n(configuración inicial)" as M
-  card "Preset\n(comportamiento específico)" as P
-  M --> P : hereda
-}
-rectangle "INI generado" {
-  card "[*]" as S
-  card "[nombre-del-preset]" as N
-}
-F --> S : aplana
-P --> N : aplana
-S ..> N : llama-server\nhereda
+card "Modelo" as M
+card "Preset\nvalores del modelo" as P
+card "Servidor\nparámetros del proceso" as S
+card "Backend registrado" as B
+card "INI / argumentos generados" as I
+M <-- P : pertenece a
+S --> P : ofrece
+S --> B : ejecuta
+P --> I : parámetros del modelo
+S --> I : parámetros del servidor
 @enduml
 ```
 
-- **Eje backend:** una configuración aplicable a cualquier backend, especializada por
-  familia. Se vuelca en la sección `[*]`.
-- **Eje modelo:** una configuración inicial del modelo, especializada en presets para un
-  comportamiento concreto (rápido, contexto largo, con o sin companion). Cada preset se
-  vuelca en su propia sección.
-- **Precedencia:** el valor específico de un preset sustituye al mismo parámetro de
-  `[*]`; la documentación actual da prioridad a los argumentos CLI sobre ambos.
-  Coquena evita duplicar en CLI valores configurables por preset y verifica la regla
-  para el release elegido. Coquena emite una sola
-  clave canónica por parámetro y sección, tras aplanar cada eje. Los parámetros que
-  admitan varios valores y los que sólo tengan sentido para el proceso router requieren
-  verificación específica por versión antes de fijar su tratamiento.
-  **No se presume herencia aditiva:** si un parámetro admite una lista, eso no demuestra
-  que repetir su clave en dos ámbitos acumule elementos.
-- **Eliminar un valor (`unset`):** quita sólo el par clave-valor propio del ámbito,
-  sin modificar el padre ni bloquear su herencia. El valor heredado vuelve a regir;
-  si no existe, no se emite la clave en esa sección del INI.
-- **Companions:** se registran independientemente y se referencian mediante parámetros
-  de configuración. El preset hereda o sobrescribe esas referencias; no existe una lista
-  paralela de asociaciones. El render resuelve las referencias efectivas a rutas absolutas.
-  La ubicación CPU/GPU se expresa con los parámetros correspondientes del backend.
-  `config set <param> --ref <nombre>` guarda una referencia; el valor posicional es
-  literal, incluso si coincide con un nombre registrado. Son alternativas excluyentes.
-  La compatibilidad funcional del conjunto queda a cargo del backend; Coquena no
-  necesita un modo forzado para configurar esas referencias.
+Las reglas de valores y referencias del preset están en
+[modelos y companions](modelos-y-companions.md#presets); las del proceso y sus defaults,
+en [servidores](servidores.md#parámetros-del-servidor). El
+[catálogo de parámetros](catalogo-de-parametros.md) determina tipo y aplicabilidad.
 
 ## Aclaraciones
 
 - **Servidor** reúne presets explícitos, backend propio o heredado y parámetros del router. Véase [servidores.md](servidores.md).
-- **Clonar** configuraciones y presets hacia otros modelos o familias es la forma de
-  reutilizar un ajuste fino.
-  En un preset se copian sólo sus valores propios, incluidas las referencias a companions,
-  no los valores heredados ni los archivos. El clon hereda del modelo destino y no queda
-  vinculado al preset origen; cambios posteriores de éste no se propagan al clon.
 - **Propiedad de archivos.** Coquena descarga modelos al directorio gestionado y borra
   sus archivos al retirarlos; un registro externo sólo guarda rutas y nunca autoriza a
   mover o borrar esos archivos. La regla es la misma para backends. Un modelo puede ser
@@ -260,4 +210,4 @@ S ..> N : llama-server\nhereda
 El render recibe la configuración efectiva y las rutas ya resueltas del catálogo.
 No consulta la red. Se propone como función determinista: las mismas entradas producen
 el mismo INI, usando claves canónicas sin guiones. Su implementación y pruebas deben
-cubrir la herencia y las reglas del backend seleccionado.
+cubrir los valores de cada preset y servidor y la aplicabilidad al backend seleccionado.

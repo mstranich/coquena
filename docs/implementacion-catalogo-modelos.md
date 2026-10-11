@@ -384,8 +384,10 @@ visible o alcance, deben volver a revisión antes de incorporarse.
 Estos detalles requieren evidencia y pruebas en su entrega, no nuevas rondas de
 decisiones funcionales salvo que aparezca un impacto visible o una contradicción.
 Las reglas de recursos en uso y retención de backends están en [servidores.md](servidores.md).
-Upgrade de pesos en uso se rechaza; el mecanismo de exclusión y recuperación requiere pruebas. La TUI, separación configurable de ubicaciones y transferencia diferencial
-por bloques quedan para iteraciones posteriores.
+Upgrade de pesos en uso se rechaza; el mecanismo de exclusión y recuperación requiere pruebas.
+La separación configurable de ubicaciones se concreta en las
+[reglas de directorios](servidores.md#directorios-gestionados) y las tarjetas 019/020.
+La TUI y la transferencia diferencial por bloques conservan su alcance posterior.
 
 ## Referencias
 
