@@ -225,7 +225,9 @@ Operaciones terminadas y limpiadas desaparecen de estas vistas; su resultado que
 
 Administra el catálogo de parámetros personalizados: creación y edición de definiciones,
 tipos, defaults, enumeraciones, binarios aplicables y rangos de versiones. También permite
-consultar, retirar, importar y exportar definiciones.
+consultar, retirar, importar y exportar definiciones. Define, edit, remove, support
+y las consultas operan sobre la distribución oficial de llama.cpp, sus builds
+bNNNN y familias CPU, CUDA y Vulkan.
 
 Import y export corresponden a [M3](milestones/M3-definiciones-declarativas.md).
 El formato de intercambio será JSON; su sintaxis y resolución de conflictos
@@ -284,15 +286,17 @@ debe seguir siendo válido para la definición resultante.
 @endmindmap
 ```
 
-`support set` crea o actualiza una asociación de soporte; `support remove` la retira.
-Omitir origen/familia en set declara soporte para cualquier backend, sujeto a los
-límites de versión indicados. Los rangos se evalúan con el esquema del origen efectivo;
-una versión que no pueda compararse se diagnostica como disponibilidad desconocida.
+`support set` crea o actualiza una asociación de soporte oficial; `support remove` la retira.
+Omitir origen/familia en set declara soporte para cualquier backend oficial, sujeto
+a los límites de build indicados. Los rangos se comparan numéricamente como bNNNN;
+otros formatos se rechazan.
 `support remove` sin origen/familia retira sólo la asociación general; conserva
 las asociaciones específicas del parámetro.
-Para una excepción local, set y remove aceptan `--backend <id>` en lugar del selector
+Para una excepción local oficial, set y remove aceptan `--backend <id>` en lugar del selector
 origen/familia; ambos selectores son excluyentes. Set reemplaza el rango de la asociación
-seleccionada: omitir from o until deja abierto ese extremo.
+seleccionada: omitir from o until deja abierto ese extremo. Los selectores de origen
+admitidos son ggml y su alias oficial.
+List/show conservan --distribution para el origen oficial únicamente.
 
 La [consulta del impacto](catalogo-de-parametros.md#consulta-del-impacto) permite guardar
 el informe mediante redirección de salida:

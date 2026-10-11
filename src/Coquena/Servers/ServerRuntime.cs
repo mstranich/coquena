@@ -117,15 +117,18 @@ public sealed partial class ServerRuntime(Home home, LocalStore? storage = null)
         }
         finally { child?.Dispose(); }
     });
-    internal static string[] Arguments(ServerStartPlan plan, string ini)
+    public static string[] Arguments(ServerStartPlan plan, string ini)
     {
         var arguments = new List<string> { "--models-preset", ini };
         foreach (var pair in plan.Parameters.OrderBy(p => p.Key, StringComparer.Ordinal))
         {
             if (pair.Key == "metrics") { if (pair.Value.GetBoolean()) arguments.Add("--metrics"); }
-            else if (pair.Key == "models-autoload") { if (!pair.Value.GetBoolean()) arguments.Add("--no-models-autoload"); }
+            else if (pair.Key == "models-autoload" && ParameterCatalog.Find(pair.Key, plan.Definitions)?.Type == "boolean")
+            { if (!pair.Value.GetBoolean()) arguments.Add("--no-models-autoload"); }
+            else if (ParameterCatalog.Find(pair.Key, plan.Definitions)?.Type == "flag") arguments.Add("--" + pair.Key);
             else { arguments.Add("--" + pair.Key); arguments.Add(pair.Value.ToString()); }
         }
+        arguments.AddRange(plan.Presets.CliArguments ?? []);
         return arguments.ToArray();
     }
     private static void ProbePort(string host, int port)

@@ -10,6 +10,8 @@ public static class ConfigurationCli
     {
         try
         {
+            if (command == "param") return ParameterCli.Run(args, output, error,
+                manager?.Parameters, manager);
             // Check grammar before creating the home or modifying state.
             if (command == "config")
             {
@@ -46,7 +48,7 @@ public static class ConfigurationCli
                     case "show":
                         var view = manager.View(args[1]);
                         ShowPreset(view, output);
-                        ShowValues(view.Effective, view.Own, manager.DefaultBackend(), output);
+                        ShowValues(view.Effective, view.Own, manager.DefaultBackend(), manager.Parameters.List(), output);
                         break;
                     case "list":
                         var entries = manager.List(args.Length == 3 ? args[2] : null);
@@ -54,40 +56,6 @@ public static class ConfigurationCli
                         if (entries.Length == 0) output.WriteLine("Sin presets.");
                         break;
                 }
-                return 0;
-            }
-            if (command == "param")
-            {
-                if (args.Length == 0 || args[0] is not ("list" or "show")) Invalid();
-                var count = args[0] == "show" ? 2 : 1;
-                if (args.Length < count) Invalid();
-                string? release = null, repository = null, backend = null;
-                var seen = new HashSet<string>();
-                for (var i = count; i < args.Length; i += 2)
-                {
-                    if (i + 1 >= args.Length || !seen.Add(args[i])) Invalid();
-                    switch (args[i])
-                    {
-                        case "--backend": backend = args[i + 1]; break;
-                        case "--version": release = args[i + 1]; break;
-                        case "--distribution": repository = args[i + 1]; break;
-                        default: Invalid(); break;
-                    }
-                }
-                if (backend is not null && (release is not null || repository is not null) || repository is not null && release is null) Invalid();
-                if (backend is not null)
-                {
-                    if (!Guid.TryParse(backend, out var id) || id == Guid.Empty) Invalid();
-                    manager ??= new(Home.Resolve());
-                    var record = manager.Backend(id);
-                    repository = record.Repository; release = record.Build;
-                }
-                else if (release is not null) repository ??= "ggml-org/llama.cpp";
-                var definitions = args[0] == "list" ? ParameterCatalog.Definitions :
-                    ParameterCatalog.Find(args[1]) is { } definition ? [definition] : [];
-                foreach (var entry in definitions)
-                    output.WriteLine($"{entry.Name} | {entry.Type} | {entry.Application}/{entry.Destination} | {ParameterCatalog.Availability(entry.Name, repository, release)} | {entry.Description} | alias: {string.Join(", ", entry.Aliases)}");
-                if (definitions.Length == 0) output.WriteLine($"{ParameterCatalog.Canonical(args[1])} | desconocido; sin definición local, no implica rechazo.");
                 return 0;
             }
             Invalid();
@@ -106,10 +74,10 @@ public static class ConfigurationCli
         output.WriteLine($"{view.Preset.Id:D} | {view.Preset.Name} | modelo {view.Model?.Name ?? "ausente"} | modelId {view.Preset.ModelId:D}");
         foreach (var diagnostic in view.Diagnostics) output.WriteLine($"  {diagnostic}");
     }
-    private static void ShowValues(Dictionary<string, string> effective, Dictionary<string, string> own, BackendRecord? backend, TextWriter output)
+    private static void ShowValues(Dictionary<string, string> effective, Dictionary<string, string> own, BackendRecord? backend, ParameterDefinition[] definitions, TextWriter output)
     {
         foreach (var pair in effective.OrderBy(p => p.Key, StringComparer.Ordinal))
-            output.WriteLine($"  {pair.Key} = {pair.Value} | {(own.ContainsKey(pair.Key) ? "propio" : "heredado")} | {ParameterCatalog.Availability(pair.Key, backend)}");
+            output.WriteLine($"  {pair.Key} = {pair.Value} | {(own.ContainsKey(pair.Key) ? "propio" : "heredado")} | {ParameterManager.Availability(ParameterCatalog.Find(pair.Key, definitions), backend)}");
         if (effective.Count == 0) output.WriteLine("  Sin valores.");
     }
 }

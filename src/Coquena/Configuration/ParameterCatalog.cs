@@ -5,7 +5,11 @@ namespace Coquena.Configuration;
 
 public sealed class ConfigurationException(string message) : Exception(message);
 public sealed record ParameterDefinition(string Name, string Type, string Application, string Destination,
-    string Description, string[] Aliases);
+    string Description, string[] Aliases, string? Default = null, string[]? Choices = null,
+    ParameterSupport[]? Support = null);
+public sealed record ParameterSupport(string? Variant = null, Guid? BackendId = null,
+    string? From = null, string? Until = null, bool EvidenceOnly = false);
+public sealed record ParametersDocument(int SchemaVersion, ParameterDefinition[] Definitions);
 
 // Hand-authored, bounded catalog: evidence applies only to official b11482.
 // See specs/010-m1-config-presets-ini/README.md. Missing evidence is never rejection.
@@ -40,18 +44,18 @@ public static partial class ParameterCatalog
     [GeneratedRegex("^[a-zA-Z_][a-zA-Z0-9_.-]*$", RegexOptions.CultureInvariant)]
     private static partial Regex KeyPattern();
 
-    public static ParameterDefinition? Find(string key)
+    public static ParameterDefinition? Find(string key, ParameterDefinition[]? definitions = null)
     {
         key = key.TrimStart('-');
-        return Definitions.SingleOrDefault(d => d.Name == key || d.Aliases.Contains(key, StringComparer.Ordinal));
+        return (definitions ?? Definitions).SingleOrDefault(d => d.Name == key || d.Aliases.Any(a => a.TrimStart('-') == key));
     }
 
-    public static string Canonical(string key)
+    public static string Canonical(string key, ParameterDefinition[]? definitions = null)
     {
         key = key.TrimStart('-');
         if (!KeyPattern().IsMatch(key) || key == "version")
             throw new ConfigurationException("Nombre de parámetro inválido o reservado por el INI.");
-        return Find(key)?.Name ?? key;
+        return Find(key, definitions)?.Name ?? key;
     }
 
     public static string Availability(string key, BackendRecord? backend) =>
@@ -61,10 +65,10 @@ public static partial class ParameterCatalog
         Find(key) is not null && repository is "ggml-org/llama.cpp" or "https://github.com/ggml-org/llama.cpp" && release == "b11482"
             ? "admitido" : "desconocido";
 
-    public static void ModelParameter(string key)
+    public static void ModelParameter(string key, ParameterDefinition[]? definitions = null)
     {
-        var canonical = Canonical(key);
-        if (Find(canonical)?.Application == "server")
+        var canonical = Canonical(key, definitions);
+        if (Find(canonical, definitions)?.Application == "server")
             throw new ConfigurationException($"{canonical} pertenece al servidor/router; se configura en su definición (tarea 011).");
         if (canonical == "model")
             throw new ConfigurationException("El modelo se selecciona mediante preset create o preset model set, con ID estable.");

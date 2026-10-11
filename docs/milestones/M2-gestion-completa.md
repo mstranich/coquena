@@ -44,7 +44,8 @@ al registrar un backend externo ni certifica su compatibilidad.
       ([031](../../specs/031-m2-model-upgrade/README.md)).
 - [ ] Convertir explícitamente externos en instalaciones gestionadas.
       ([032](../../specs/032-m2-transicion-externo-gestionado/README.md)).
-- [ ] Gestionar definiciones y asociaciones de soporte del catálogo de parámetros.
+- [x] Gestionar definiciones y asociaciones de soporte del catálogo de parámetros
+      para la distribución oficial de llama.cpp, con builds bNNNN.
       ([018](../../specs/018-m2-param-define/README.md)).
 - [ ] Restablecer el catálogo de fábrica con impacto y cascada confirmada.
       ([022](../../specs/022-m2-config-param-reset/README.md)).
@@ -71,7 +72,10 @@ del recorrido integrado; su retención de logs conserva su entrega propia.
 Las definiciones YAML y la importación/exportación JSON de parámetros corresponden
 a [M3](M3-definiciones-declarativas.md), fuera de M2. La gestión de descargas
 permanece limitada a releases oficiales; registrar un ejecutable externo local
-no incorpora un proveedor de terceros ni adapta su interfaz.
+no incorpora un proveedor de terceros ni adapta su interfaz. El usuario obtiene el
+runtime manualmente y registra su ejecutable local. Se descarta la gestión de
+repositorios de runtimes de terceros; la asociación manual de parámetros a binarios
+externos queda para una entrega posterior, fuera de 018.
 
 El recorte de M1 también mencionaba TUI, HTTP propio, autenticación HF, fuentes de terceros
 y multiplataforma. Antes de esta planificación se habían aplazado explícitamente.

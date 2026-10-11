@@ -5,6 +5,13 @@
 - Leer docs/README.md y los documentos canónicos del área antes de trabajar.
 - docs/ contiene las reglas funcionales; docs/milestones/ define entregables y alcance.
   specs/ contiene tareas concretas y evidencia, enlazadas a su milestone sin duplicar reglas.
+- La documentación funcional/general describe el comportamiento y las reglas del producto,
+  independientemente de la planificación. No incluir en ella números o estados de tareas,
+  recortes por entrega, dependencias de implementación ni avisos como «queda pendiente
+  de una entrega posterior» o «fuera del alcance de la tarea». Esos datos pertenecen
+  exclusivamente a specs/ y docs/milestones/. Al ajustar el alcance de una tarea, actualizar
+  allí la planificación; cambiar la documentación funcional sólo si cambia una regla del
+  producto, expresándola como comportamiento sin narrar cuándo o en qué tarea se implementará.
 - Reinicio en C# con publicación Native AOT desde la primera entrega, en pasos pequeños
   y comprensibles. No consultar ni depender de legacy.
 - No iniciar código, agregar paquetes, ampliar alcance ni hacer commits sin autorización.

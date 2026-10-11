@@ -32,6 +32,11 @@ if (args.Length is 1 or 2 && args[0] == "--configuration-tests")
     Coquena.Tests.ConfigurationTests.Run(args.Length == 2 ? Path.GetFullPath(args[1]) : null);
     return;
 }
+if (args.Length is 1 or 2 && args[0] == "--parameter-tests")
+{
+    Coquena.Tests.ParameterTests.Run(args.Length == 2 ? Path.GetFullPath(args[1]) : null);
+    return;
+}
 if (args.Length is 2 or 3 && args[0] == "--hf-resolve")
 {
     await Coquena.Tests.ResolutionTests.Live(args[1], args.Length == 3 ? args[2] : null);
@@ -110,6 +115,7 @@ Console.WriteLine($"OK: {cases.Length} casos administrados" +
 
 Coquena.Tests.ContractTests.Run();
 Coquena.Tests.ConfigurationTests.Run(executable);
+Coquena.Tests.ParameterTests.Run(executable);
 Coquena.Tests.RetentionTests.Run(executable);
 Coquena.Tests.ServerTests.Run(executable);
 Coquena.Tests.ServerRuntimeTests.Run(executable);

@@ -8,7 +8,7 @@ using Coquena.Contracts;
 namespace Coquena.Storage;
 
 public enum DocumentKind { Config, Models, Backends, Parameters, Presets, Servers, Operation, Instance, LastLog }
-public enum WriteStage { BeforeReplace, AfterReplace }
+public enum WriteStage { BeforeReplace, AfterReplace, AfterParameterCheckpoint }
 // Deliberately no arbitrary text, URLs, paths, names or diagnostics in the journal.
 public enum OperationResult { Cancelled, Installed }
 public sealed record TransactionEvent(DateTimeOffset At, Guid TransactionId, DocumentKind Document, Guid? RecordId,
@@ -17,7 +17,7 @@ public sealed record TransactionEvent(DateTimeOffset At, Guid TransactionId, Doc
 [JsonSerializable(typeof(TransactionEvent))]
 internal partial class JournalJsonContext : JsonSerializerContext;
 
-public sealed class LocalStore
+public sealed partial class LocalStore
 {
     private const int DefaultJournalBytes = 262144;
     private const int MaxDocumentBytes = 16777216;
@@ -32,7 +32,7 @@ public sealed class LocalStore
     public T? Read<T>(DocumentKind kind, JsonTypeInfo<T> type, Action<T> validate,
         string? server = null, Guid? operation = null) where T : class
     {
-        var bytes = ReadBytes(Location(kind, server, operation));
+        var bytes = TransactionBytes(kind) ?? ReadBytes(Location(kind, server, operation));
         if (bytes is null) return null;
         var value = ContractJson.Read(Encoding.UTF8.GetString(bytes), type, validate);
         CheckRecord(value, operation);
@@ -47,6 +47,7 @@ public sealed class LocalStore
     {
         home.Ensure();
         using var lease = Acquire(cancellation);
+        RecoverParameterTransaction();
         return UpdateLocked(kind, type, validate, change, server, operation, cancellation);
     }
 
@@ -176,6 +177,15 @@ public sealed class LocalStore
     internal T Exclusive<T>(Func<T> action)
     {
         home.Ensure();
+        using var lease = Acquire(default);
+        RecoverParameterTransaction();
+        return action();
+    }
+
+    // Read-only snapshots do not initialize home or checkpoint a pending transaction.
+    internal T Inspect<T>(Func<T> action)
+    {
+        if (!Directory.Exists(home.Root)) return action();
         using var lease = Acquire(default);
         return action();
     }
