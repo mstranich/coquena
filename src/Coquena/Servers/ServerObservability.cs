@@ -31,7 +31,7 @@ public sealed partial class ServerRuntime
     internal void RetainLogs(string server, InstanceDocument? active, TextWriter output)
     {
         var last = Last(server);
-        var limit = store.Read(DocumentKind.Config, Json.ConfigDocument, ContractValidation.Config)?.LogRetention?.MaxBytes ?? DefaultLogBytes;
+        var limit = Manager.RetentionLocked(server).MaxBytes;
         var directory = home.PathFor($"logs/{server}");
         if (!Directory.Exists(directory)) return;
         var files = Directory.GetFiles(directory, "*.log").Select(path => new FileInfo(home.PathFor($"logs/{server}/{Path.GetFileName(path)}")))

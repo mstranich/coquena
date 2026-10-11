@@ -13,30 +13,12 @@ public static class ConfigurationCli
             // Check grammar before creating the home or modifying state.
             if (command == "config")
             {
-                if (args.Length == 0) Invalid();
-                var count = args[0] switch { "show" => 1, "set" => 3, "unset" => 2, _ => throw new ConfigurationException("Acción config inválida.") };
-                if (args.Contains("--ref")) throw new ConfigurationException("Referencias a companions fuera de M1; no se guarda una ruta ficticia.");
-                if (args.Length != count && args.Length != count + 2) Invalid();
-                var scope = new ConfigurationScope();
-                if (args.Length == count + 2)
-                {
-                    if (args[count] is not ("--family" or "--model" or "--preset")) Invalid();
-                    scope = new(args[count][2..], args[count + 1]);
-                }
+                if (args.Length < 2 || args[0] != "log-retention" ||
+                    !(args[1] is "show" or "unset" && args.Length == 2 || args[1] == "set" && args.Length == 3)) Invalid();
+                long? bytes = args[1] == "set" ? LogRetentionPolicy.Parse(args[2]) : null;
                 manager ??= new(Home.Resolve());
-                if (args[0] == "show")
-                {
-                    var values = manager.Show(scope);
-                    output.WriteLine($"Ámbito {scope.Kind} {scope.Name}; valores efectivos de su eje:");
-                    ShowValues(values.Effective, values.Own, manager.DefaultBackend(), output);
-                }
-                else
-                {
-                    var backend = manager.DefaultBackend(); // consult before mutation; malformed state must not produce a partial command
-                    manager.Set(scope, args[1], args[0] == "set" ? args[2] : null);
-                    output.WriteLine($"{ParameterCatalog.Canonical(args[1])}: {(args[0] == "set" ? "valor propio guardado" : "valor propio eliminado; vuelve la herencia")}.");
-                    if (args[0] == "set") output.WriteLine($"Disponibilidad: {ParameterCatalog.Availability(args[1], backend)}.");
-                }
+                if (args[1] != "show") manager.SetRetention(bytes);
+                LogRetentionPolicy.Print(manager.Retention(), output);
                 return 0;
             }
             if (command == "preset")
@@ -44,11 +26,17 @@ public static class ConfigurationCli
                 var valid = args.Length == 3 && args[0] == "create" || args.Length == 1 && args[0] == "list" ||
                     args.Length == 3 && args[0] == "list" && args[1] == "--model" ||
                     args.Length == 2 && args[0] is "show" or "remove" ||
-                    args.Length == 4 && args[0] == "model" && args[1] == "set";
+                    args.Length == 4 && args[0] == "model" && args[1] == "set" ||
+                    args.Length == 4 && args[0] == "set" || args.Length == 3 && args[0] == "unset";
                 if (!valid) Invalid();
                 manager ??= new(Home.Resolve());
                 switch (args[0])
                 {
+                    case "set":
+                    case "unset":
+                        manager.Set(args[1], args[2], args[0] == "set" ? args[3] : null);
+                        output.WriteLine("Valores propios del preset actualizados.");
+                        break;
                     case "create":
                         var created = manager.Create(args[1], args[2]);
                         output.WriteLine($"Preset {created.Name} | {created.Id:D} | modelId {created.ModelId:D}");

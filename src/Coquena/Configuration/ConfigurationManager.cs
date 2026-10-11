@@ -1,12 +1,10 @@
 using System.Text;
-using Coquena.Backends;
 using Coquena.Contracts;
 using Coquena.Models;
 using Coquena.Storage;
 
 namespace Coquena.Configuration;
 
-public sealed record ConfigurationScope(string Kind = "global", string? Name = null);
 public sealed record PresetView(PresetRecord Preset, ModelRecord? Model,
     Dictionary<string, string> Own, Dictionary<string, string> Effective, string[] Diagnostics);
 public sealed record ComposedPresets(string Ini, Guid[] ResourceIds, string[] Diagnostics);
@@ -38,15 +36,6 @@ public sealed class ConfigurationManager(Home home, LocalStore? storage = null)
         store.Read(DocumentKind.Backends, Json.BackendsDocument, ContractValidation.Backends)?.Backends.SingleOrDefault(b => b.Id == id)
         ?? throw new ConfigurationException($"Backend ausente: {id:D}.");
 
-    private static void Scope(ConfigurationScope scope)
-    {
-        if (scope.Kind == "global" && scope.Name is null) return;
-        if (scope.Kind is not ("family" or "model" or "preset") || string.IsNullOrWhiteSpace(scope.Name))
-            throw new ConfigurationException("Ámbito inválido; use un único --family, --model o --preset.");
-        if (scope.Kind == "family" && !BackendCatalog.ValidFamily(scope.Name))
-            throw new ConfigurationException("Familias M1: cpu, vulkan, cuda@<mayor>.");
-    }
-
     // One canonical key per section, including aliases from existing documents.
     private static Dictionary<string, string> Values(Dictionary<string, string>? values)
     {
@@ -62,83 +51,28 @@ public sealed class ConfigurationManager(Home home, LocalStore? storage = null)
         return result;
     }
 
-    private static Dictionary<string, string> Merge(Dictionary<string, string>? parent, Dictionary<string, string>? own)
+    public void Set(string name, string parameter, string? value)
     {
-        var result = Values(parent);
-        foreach (var pair in Values(own)) result[pair.Key] = pair.Value;
-        return result;
-    }
-
-    public (Dictionary<string, string> Own, Dictionary<string, string> Effective) Show(ConfigurationScope scope)
-    {
-        Scope(scope);
-        return store.Exclusive(() =>
-        {
-            var config = Config();
-            if (scope.Kind == "global") return (Values(config.Parameters), Values(config.Parameters));
-            if (scope.Kind == "family")
-            {
-                var own = config.Families?.GetValueOrDefault(scope.Name!);
-                return (Values(own), Merge(config.Parameters, own));
-            }
-            if (scope.Kind == "model")
-            {
-                var model = Named(Models().Models, scope.Name!, m => m.Name);
-                return (Values(model.Parameters), Values(model.Parameters));
-            }
-            var preset = Named(Presets().Presets, scope.Name!, p => p.Name);
-            var parent = Models().Models.SingleOrDefault(m => m.Id == preset.ModelId)
-                ?? throw new ConfigurationException($"Modelo ausente: {preset.ModelId:D}; no se reconecta por nombre.");
-            return (Values(preset.Parameters), Merge(parent.Parameters, preset.Parameters));
-        });
-    }
-
-    public void Set(ConfigurationScope scope, string parameter, string? value)
-    {
-        Scope(scope);
         var key = ParameterCatalog.Canonical(parameter);
         if (value is not null)
         {
             ParameterCatalog.ModelParameter(key);
             ParameterCatalog.Literal(value);
         }
-        store.Exclusive(() =>
+        store.Update(DocumentKind.Presets, Json.PresetsDocument, ContractValidation.Presets, old =>
         {
-            Dictionary<string, string> Change(Dictionary<string, string>? own)
-            {
-                // Remove/replace the target before checking remaining values: unset can
-                // repair a stale literal which cannot be represented by this INI parser.
-                var remaining = (own ?? []).Where(p => ParameterCatalog.Canonical(p.Key) != key).ToDictionary();
-                var next = Values(remaining);
-                if (value is null) next.Remove(key); else next[key] = value;
-                return next;
-            }
-            if (scope.Kind is "global" or "family")
-                store.UpdateLocked(DocumentKind.Config, Json.ConfigDocument, ContractValidation.Config, old =>
-                {
-                    var config = old ?? new(1, null, null, new(5));
-                    if (scope.Kind == "global") return config with { Parameters = Change(config.Parameters) };
-                    var families = new Dictionary<string, Dictionary<string, string>>(config.Families ?? [], StringComparer.Ordinal);
-                    families[scope.Name!] = Change(families.GetValueOrDefault(scope.Name!));
-                    return config with { Families = families };
-                });
-            else if (scope.Kind == "model")
-                store.UpdateLocked(DocumentKind.Models, Json.ModelsDocument, ContractValidation.Models, old =>
-                {
-                    var catalog = old ?? new(1, []);
-                    var model = Named(catalog.Models, scope.Name!, m => m.Name);
-                    return catalog with { Models = catalog.Models.Select(m => m.Id == model.Id ? m with { Parameters = Change(m.Parameters) } : m).ToArray() };
-                });
-            else
-                store.UpdateLocked(DocumentKind.Presets, Json.PresetsDocument, ContractValidation.Presets, old =>
-                {
-                    var catalog = old ?? new(1, []);
-                    var preset = Named(catalog.Presets, scope.Name!, p => p.Name);
-                    return catalog with { Presets = catalog.Presets.Select(p => p.Id == preset.Id ? p with { Parameters = Change(p.Parameters) } : p).ToArray() };
-                });
-            return true;
+            var catalog = old ?? new(1, []);
+            var preset = Named(catalog.Presets, name, p => p.Name);
+            // Removing the target first also permits repairing a stale INI literal.
+            var next = Values(preset.Parameters.Where(p => ParameterCatalog.Canonical(p.Key) != key).ToDictionary());
+            if (value is not null) next[key] = value;
+            return catalog with { Presets = catalog.Presets.Select(p => p.Id == preset.Id ? p with { Parameters = next } : p).ToArray() };
         });
     }
+
+    public RetentionView Retention() => store.Exclusive(() => LogRetentionPolicy.Resolve(Config().LogRetention));
+    public void SetRetention(long? bytes) => store.Update(DocumentKind.Config, Json.ConfigDocument, ContractValidation.Config,
+        old => (old ?? new(1, null, null, new(5))) with { LogRetention = bytes is null ? null : new(bytes.Value) });
 
     public PresetRecord Create(string modelName, string name)
     {
@@ -184,7 +118,7 @@ public sealed class ConfigurationManager(Home home, LocalStore? storage = null)
         return Presets().Presets.Where(p => filter is null || p.ModelId == filter).Select(p =>
         {
             var model = models.SingleOrDefault(m => m.Id == p.ModelId);
-            return new PresetView(p, model, Values(p.Parameters), Merge(model?.Parameters, p.Parameters),
+            return new PresetView(p, model, Values(p.Parameters), Values(p.Parameters),
                 model is null ? [$"Modelo ausente: {p.ModelId:D}; referencia rota."] : []);
         }).ToArray();
     });
@@ -199,8 +133,7 @@ public sealed class ConfigurationManager(Home home, LocalStore? storage = null)
     {
         if (presetIds.Length == 0 || presetIds.Distinct().Count() != presetIds.Length)
             throw new ConfigurationException("Se requiere una lista explícita, no vacía y sin duplicados de presets.");
-        var config = Config();
-        var common = Merge(config.Parameters, config.Families?.GetValueOrDefault(backend.Variant));
+        var common = new Dictionary<string, string>();
         var models = Models().Models;
         var presets = Presets().Presets;
         var sections = new List<(string Name, Dictionary<string, string> Values)>();
@@ -222,8 +155,8 @@ public sealed class ConfigurationManager(Home home, LocalStore? storage = null)
             var inspection = GgufInspection.InspectPaths(paths);
             if (inspection.Status != "complete")
                 throw new ConfigurationException($"Modelo {model.Name}: {inspection.Status}; no se omite el preset {preset.Name}.");
-            var specific = Merge(model.Parameters, preset.Parameters);
-            foreach (var key in Merge(common, specific).Keys)
+            var specific = Values(preset.Parameters);
+            foreach (var key in specific.Keys)
                 if (ParameterCatalog.Availability(key, backend) != "admitido")
                     diagnostics.Add($"{preset.Name}: {key} desconocido para {backend.Repository}/{backend.Build}; se conserva.");
             specific["model"] = inspection.Parts[0].Path; // first shard from verified unit, even if persisted order was edited
