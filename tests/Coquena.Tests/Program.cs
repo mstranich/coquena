@@ -78,7 +78,9 @@ if (args.Length == 2 && args[0] == "--storage-worker")
 }
 
 string[][] cases = [[], ["--help"], ["-h"], ["help"], ["invalid"],
-    ["backend"], ["--json"], ["--help", "extra"], ["invalid", "--help"]];
+    ["backend"], ["--json"], ["--help", "extra"], ["invalid", "--help"],
+    ["system"], ["system", "extra"], ["system", "probe", "extra"],
+    ["system", "probe", "--json"], ["system", "probe", "--help"]];
 var executable = args.Length == 1 ? Path.GetFullPath(args[0]) : null;
 if (args.Length > 1 || (executable is not null && !File.Exists(executable)))
     throw new ArgumentException("Uso: Coquena.Tests [ruta-binario-nativo]");
@@ -114,7 +116,7 @@ foreach (var input in cases)
     void Verify(int code, string stdout, string stderr)
     {
         if (code != expected || (expected == 0
-            ? !stdout.Contains("Uso: coquena") || !stdout.Contains("download") || stderr.Length != 0
+            ? !stdout.Contains("Uso: coquena") || !stdout.Contains("download") || !stdout.Contains("system probe") || stderr.Length != 0
             : stdout.Length != 0 || !stderr.Contains("Error:") || !stderr.Contains("coquena --help")))
             throw new Exception($"Falló [{string.Join(", ", input)}]: code={code}, out={stdout}, err={stderr}");
     }

@@ -53,7 +53,7 @@ al registrar un backend externo ni certifica su compatibilidad.
       ([019](../../specs/019-m2-config-backends-dir/README.md)).
 - [ ] Configurar el directorio de modelos/companions y su traslado opcional.
       ([020](../../specs/020-m2-config-models-dir/README.md)).
-- [ ] Separar el sondeo de SO/hardware mediante system probe.
+- [x] Separar el sondeo de SO/hardware mediante system probe.
       ([021](../../specs/021-m2-system-probe/README.md)).
 - [ ] Clonar presets y completar referencias explícitas a companions.
       ([033](../../specs/033-m2-presets-clone-companions/README.md)).
