@@ -23,6 +23,9 @@ public static class Cli
             output.WriteLine("Configuración: config log-retention show | config log-retention set <tamaño> | config log-retention unset");
             output.WriteLine("Presets: preset set <preset> <param> <valor> | preset unset <preset> <param> | preset create <modelo> <nombre> | preset model set <preset> <modelo> | preset list [--model M] | preset <show|remove> <nombre>");
             output.WriteLine("Parámetros: param list | param show <param> [--backend ID|--version RELEASE [--distribution ORIGEN]]");
+            output.WriteLine("Catálogo oficial: param define <param> --type integer|decimal|string|boolean|flag|enum --scope model|server --target cli|ini [--description TEXTO] [--default VALOR] [--alias=ALIAS]... [--values VALOR]...");
+            output.WriteLine("Edición: param edit <param> [opciones] [--clear-default|--clear-description|--clear-aliases] [--dry-run] | param remove <param> [--dry-run]");
+            output.WriteLine("Soporte: param support set <param> [ggml/FAMILIA|oficial/FAMILIA|--backend ID] [--from bNNNN] [--until bNNNN] [--dry-run] | param support remove <param> [selector|--backend ID] [--dry-run]");
             output.WriteLine("Servidores: server create <nombre> [--port N] | server default [nombre] | server list | server [nombre] show | server [nombre] use <selector|default>");
             output.WriteLine("Servidor: server [nombre] set <param> <valor> | unset <param> | preset <add|remove> <preset>... | preset list");
             output.WriteLine("Procesos: server [nombre] start [-d] | server [nombre] stop | server stop --id <id-instancia> | server [nombre] restart");

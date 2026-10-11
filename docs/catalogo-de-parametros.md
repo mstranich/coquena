@@ -1,24 +1,28 @@
 # Catálogo de parámetros de llama.cpp
 
 Coquena registra los parámetros (flags) de `llama-server` para orientar la configuración.
-Cada backend registrado tiene un catálogo efectivo asociado: el conocimiento oficial que
+El catálogo corresponde a la distribución oficial ggml-org/llama.cpp, sus builds
+bNNNN y familias CPU, CUDA y Vulkan. Las asociaciones generales
+cubren sólo backends oficiales, incluidas las excepciones por ID de instalación.
+
+Cada backend oficial registrado tiene un catálogo efectivo asociado: el conocimiento oficial que
 le corresponda y, si el usuario lo aporta, definiciones específicas de ese binario.
 
 La asociación reutilizable es **origen de la distribución + release + parámetro**.
-El origen omitido equivale a `ggml`, con alias `oficial` (`https://github.com/ggml-org/llama.cpp`);
-para un tercero se declara su repositorio de origen. Una etiqueta amigable no sustituye
-ese identificador. Un mismo número de release en repositorios distintos no identifica
-la misma disponibilidad.
+El origen omitido equivale a `ggml`, con alias `oficial` (`https://github.com/ggml-org/llama.cpp`).
 
 ## Gestión de parámetros personalizados
 
 `param` crea, consulta, edita y elimina definiciones del catálogo. Coquena incluye
 un catálogo inicial de parámetros oficiales; el usuario puede registrar nuevos parámetros
-oficiales y parámetros exclusivos de binarios no oficiales.
+oficiales.
 
 `param define` crea y `param edit` modifica: crear un nombre existente o editar uno
 inexistente se rechaza sin cambios. La edición conserva los metadatos que no se
 modifiquen explícitamente. La [CLI](comandos.md#param) distingue ambas operaciones.
+Si el nombre o sus alias ya tienen asignaciones desconocidas, define comprueba su
+compatibilidad con la nueva definición; las incompatibles o duplicadas se deben
+corregir antes del alta, sin retirarlas implícitamente.
 
 Las definiciones básicas suministradas por Coquena se pueden editar y eliminar con
 las mismas reglas de impacto y confirmación que las creadas por el usuario. `host`,
@@ -46,9 +50,9 @@ Una definición permite especificar y editar:
 Cada definición admite varias asociaciones de soporte, identificadas por origen y
 familia/variante del binario, cada una con su propio rango de versiones. `oficial` y
 `ggml` identifican el mismo origen oficial. Una asociación a `ggml/vulkan` no declara
-soporte para `ggml/cuda` ni para un binario Vulkan de otro origen. Los selectores siguen
+soporte para `ggml/cuda`. Los selectores siguen
 la [identificación de backends](servidores.md#identificación-de-backends); también se
-conserva la asociación a un backend registrado concreto para excepciones locales.
+conserva la asociación a un backend oficial registrado concreto para excepciones locales.
 
 Las asociaciones por origen y familia/variante se pueden definir aunque el binario
 no esté instalado. Son reutilizables al importar o exportar el catálogo y no requieren
@@ -57,9 +61,8 @@ exige que su ID esté registrado al crear o editar esa asociación; una referenc
 quede ausente posteriormente se diagnostica, sin reasignarla a otro backend por nombre.
 
 Una asociación general, sin origen ni familia/variante, declara soporte para cualquier
-backend. Puede tener límites de versión; se comparan según el esquema del origen
-efectivo. Si los límites no pueden interpretarse en ese esquema, la disponibilidad
-se informa como desconocida, sin afirmar incompatibilidad. Sin límites, la asociación
+backend oficial. Puede tener límites de build; se comparan numéricamente como bNNNN.
+Límites de otro formato se rechazan. Sin límites, la asociación
 general no restringe versiones. No crea valores compartidos entre presets o servidores.
 `support remove` sin selector elimina únicamente esa asociación general, conservando
 las asociaciones por origen/familia y las excepciones de backends locales.
@@ -68,6 +71,11 @@ Cuando coinciden asociaciones, prevalece la del backend local concreto, después
 de origen/familia y finalmente la general. Se evalúa el rango de la asociación más
 específica existente para ese backend. Si la versión queda fuera, el parámetro se omite
 con warning; no se recurre a una asociación menos específica que admita esa versión.
+Dentro de CUDA, la variante con toolkit (por ejemplo cuda@13) prevalece sobre la
+asociación de familia cuda. Las excepciones por ID siguen teniendo mayor precedencia.
+El catálogo inicial conserva evidencia para b11482; fuera de ese build la disponibilidad
+es desconocida. Declarar un rango mediante support set expresa soporte explícito y
+permite diagnosticar sus versiones exteriores como no admitidas.
 
 La familia/variante participa en la identificación del binario, no constituye un
 ámbito compartido de valores. El soporte se declara por asociación; no se infiere
@@ -81,19 +89,11 @@ CUDA o Vulkan. Las referencias en uso se diagnostican al editar o eliminar una d
 
 ## Comparación de versiones
 
-Cada origen declara el esquema con el que se comparan sus versiones:
-
-- Builds `bNNNN`: comparación numérica del número de build, no alfabética.
-- Versiones semánticas: comparación conforme a SemVer, incluida la precedencia de
-  versiones preliminares; los metadatos de build no alteran el orden.
-- Etiquetas sin orden definido: sólo coincidencia exacta, sin rangos ni deducción
-  de antigüedad a partir del texto.
-
-El origen oficial usa builds `bNNNN`. Un origen externo declara su esquema; no se
-deduce del aspecto de una etiqueta aislada. Los límites de una asociación deben ser
-válidos para ese esquema. Un rango cuyo límite inferior supera al superior se rechaza
-sin modificar el catálogo. Para etiquetas sin orden, una versión exacta se expresa
-con ambos límites iguales; también puede omitirse toda restricción de versión.
+El catálogo oficial usa builds `bNNNN`: comparación numérica del número de build,
+no alfabética. Los límites de una asociación deben tener ese formato. Un rango cuyo
+límite inferior supera al superior se rechaza sin modificar el catálogo. Ambos
+extremos son inclusivos; límites iguales expresan un build exacto y omitir ambos
+deja el rango abierto.
 
 ## Tipos y evidencia del backend
 
@@ -137,6 +137,8 @@ cascada y solicita confirmación antes de modificar el catálogo.
 Confirmar elimina la definición y sus asignaciones en esos presets y servidores;
 conserva las entidades y sus demás parámetros. Las referencias a modelos o companions
 se retiran como asignaciones, sin eliminar los recursos referenciados ni sus archivos.
+Un preset al que se retira model conserva su ID y queda sin modelo asignado; no puede
+iniciarse hasta recuperar una definición compatible y asignar un modelo.
 Cancelar o no poder obtener la confirmación deja el estado sin cambios. Se aplican las
 [reglas de interacción de la CLI](comandos.md#mapa-por-comando).
 
@@ -260,8 +262,8 @@ CatalogoEfectivo "1" o-- "*" Parametro
 Parametro "1" *-- "*" ValorEnumerado
 
 note right of Disponibilidad
-  General: sin origen ni backend local.
-  Específica: origen y familia/variante,
+  General: cualquier backend oficial.
+  Específica: ggml y familia/variante,
   o backend local concreto; excluyentes.
   Contra un backend concreto, un parámetro
   queda: admitido | no admitido | desconocido.
@@ -277,17 +279,13 @@ end note
   del INI. Los alias (`-c`, `LLAMA_ARG_CTX_SIZE`) se reconocen, pero no son entradas aparte.
   Un parámetro propio de un backend externo no pasa a ser automáticamente válido para
   otros backends, ni siquiera para el oficial.
-- **Vinculación explícita:** al importar definiciones específicas para un backend externo,
-  se declara el origen y el release al que corresponden. Al registrar el binario externo,
-  el usuario declara ese mismo origen; `--version` no verifica su procedencia. Así se puede
-  configurar, por ejemplo, un flag de decodificación especulativa sólo para el binario
-  experimental que lo implementa. Si un release oficial lo adopta después, se declara
-  por separado su disponibilidad oficial.
+- **Vinculación explícita:** se declaran builds y variantes oficiales o una
+  instalación oficial concreta. `--version` por sí solo no certifica procedencia ni parámetros.
 - **Compartir catálogos:** la exportación conserva origen y releases de aplicación;
   no depende del ID local del backend para asociarlos en otra instalación. La vinculación
   a un backend concreto sigue disponible para excepciones y requiere seleccionar el
-  backend local al importar. Declarar un repositorio no autoriza descargas desde él ni
-  lo convierte en una fuente de confianza.
+  backend local al importar. El intercambio JSON corresponde a M3; no habilita la
+  gestión de repositorios de runtimes de terceros.
 - **Disponibilidad y emisión:** la aplicabilidad se evalúa para el binario y versión
   que ejecutará el servidor. Guardar un valor no exige que el preset esté asociado a un
   servidor compatible. `Admitido` permite emitirlo; `no admitido` lo omite con warning,
@@ -305,21 +303,21 @@ end note
 
 `param list` y `param show <parámetro>` admiten dos selectores excluyentes:
 
-- `--backend <id>` consulta el catálogo efectivo del binario registrado: su origen,
+- `--backend <id>` consulta el catálogo efectivo del binario oficial registrado: su origen,
   versión y las excepciones específicas de ese backend.
 - `--version <release> [--distribution <origen>]` consulta las definiciones de esa
   distribución y release, sin excepciones de un backend local. Omitir origen significa
-  oficial. Declarar origen requiere versión en esta consulta.
+  oficial. Sólo se acepta el origen oficial; declararlo requiere versión en esta consulta.
 
 No mezclar `--backend` con versión/distribución. Estas consultas leen los catálogos
 locales; no acceden al repositorio ni descargan binarios. Sin selector no se afirma
-disponibilidad para un backend concreto. Los releases externos no se fuerzan a bNNNN.
+disponibilidad para un backend concreto.
 
 ```text
 coquena param list --backend <id-backend>
 coquena param show ctx-size --backend <id-backend>
 coquena param list --version b1002
-coquena param show <parametro> --distribution <repositorio-origen> --version <release>
+coquena param show <parametro> --distribution ggml --version b11482
 ```
 
 ## Aplicación en Router Mode
@@ -336,6 +334,11 @@ opciones exclusivas del INI, como `load-on-startup` y `stop-timeout`, que no son
 El catálogo debe distinguir estos casos según el origen y release.
 
 Coquena evita duplicar en CLI los valores que configura mediante las secciones de presets.
+Un parámetro de modelo con destino CLI sólo puede emitirse una vez para el proceso:
+todos los presets ofrecidos deben tener la misma asignación. Valores distintos, o
+una asignación presente sólo en algunos presets, se rechazan antes del inicio porque
+no representan las configuraciones independientes. Los parámetros de servidor con
+destino INI se escriben en [*] del archivo de esa instancia.
 Estas reglas se verifican para cada release soportado, no se deducen de `master` para
 versiones anteriores o distribuciones modificadas.
 

@@ -10,7 +10,7 @@ namespace Coquena.Servers;
 public sealed record ServerView(ServerRecord Server, BackendSelection? Selection, BackendRecord? Backend,
     Dictionary<string, JsonElement> Effective, PresetRecord?[] Presets, string[] Diagnostics);
 public sealed record ServerStartPlan(ServerRecord Server, BackendRecord Backend,
-    Dictionary<string, JsonElement> Parameters, ComposedPresets Presets);
+    Dictionary<string, JsonElement> Parameters, ComposedPresets Presets, ParameterDefinition[]? Definitions = null);
 
 public sealed class ServerManager(Home home, LocalStore? storage = null)
 {
@@ -124,8 +124,9 @@ public sealed class ServerManager(Home home, LocalStore? storage = null)
     }
     public ServerRecord Set(string? name, string parameter, string? value) => Change(name, (record, catalog) =>
     {
-        var key = ParameterCatalog.Canonical(parameter);
-        var definition = ParameterCatalog.Find(key);
+        var definitions = new ParameterManager(home, store).Read().Definitions;
+        var key = ParameterCatalog.Canonical(parameter, definitions);
+        var definition = ParameterCatalog.Find(key, definitions);
         if (definition?.Application != "server" || key == "models-preset")
             throw new ConfigurationException("Parámetro ajeno al catálogo de servidor o gestionado por Coquena.");
         var parameters = new Dictionary<string, JsonElement>(record.Parameters);
@@ -138,14 +139,16 @@ public sealed class ServerManager(Home home, LocalStore? storage = null)
         else if (value is null) parameters.Remove(key);
         else
         {
-            if (string.IsNullOrWhiteSpace(value) || value.Any(char.IsControl)) throw new ConfigurationException("Valor de servidor inválido.");
+            ParameterManager.ValidateValue(definition, value);
+            if (key is "host" or "models-max" && string.IsNullOrWhiteSpace(value)) throw new ConfigurationException("Valor de servidor inválido.");
             parameters[key] = definition.Type switch
             {
-                "boolean" => bool.TryParse(value, out var flag) ? Scalar(flag ? "true" : "false") : throw new ConfigurationException("Valor booleano requerido."),
-                "integer" => int.TryParse(value, NumberStyles.None, CultureInfo.InvariantCulture, out var number) && number > 0
-                    ? Scalar(number.ToString(CultureInfo.InvariantCulture)) : throw new ConfigurationException("Entero positivo requerido."),
+                "boolean" => Scalar(value == "1" || bool.TryParse(value, out var flag) && flag ? "true" : "false"),
+                "integer" => Scalar(long.Parse(value, CultureInfo.InvariantCulture).ToString(CultureInfo.InvariantCulture)),
+                "decimal" => Scalar(double.Parse(value, CultureInfo.InvariantCulture).ToString("R", CultureInfo.InvariantCulture)),
                 _ => Text(value)
             };
+            if (key == "models-max" && definition.Type == "integer" && parameters[key].GetInt64() <= 0) throw new ConfigurationException("Entero positivo requerido para models-max.");
         }
         return record with { Parameters = parameters };
     });
@@ -198,23 +201,38 @@ public sealed class ServerManager(Home home, LocalStore? storage = null)
         var view = ViewLocked(Named(name));
         if (view.Diagnostics.Length != 0) throw new ConfigurationException(string.Join(" ", view.Diagnostics));
         if (view.Server.PresetIds.Length == 0) throw new ConfigurationException("No se puede iniciar un servidor vacío.");
+        var definitions = new ParameterManager(home, store).Read().Definitions;
+        var emitted = new Dictionary<string, JsonElement>();
+        var iniValues = new Dictionary<string, string>();
+        var diagnostics = new List<string>();
         foreach (var pair in view.Effective)
         {
-            var definition = ParameterCatalog.Find(pair.Key);
+            var definition = ParameterCatalog.Find(pair.Key, definitions);
             if (definition?.Application != "server" || definition.Name != pair.Key || pair.Key == "models-preset")
                 throw new ConfigurationException($"Parámetro de servidor inválido: {pair.Key}.");
-            var valid = definition.Type switch
-            {
-                "boolean" => pair.Value.ValueKind is JsonValueKind.True or JsonValueKind.False,
-                "integer" => pair.Value.ValueKind == JsonValueKind.Number && pair.Value.TryGetInt32(out var number) && number > 0,
-                _ => pair.Value.ValueKind == JsonValueKind.String && !string.IsNullOrWhiteSpace(pair.Value.GetString()) && !pair.Value.GetString()!.Any(char.IsControl)
-            };
-            if (!valid) throw new ConfigurationException($"Tipo de parámetro de servidor inválido: {pair.Key}.");
+            if (pair.Value.ValueKind is JsonValueKind.Object or JsonValueKind.Array or JsonValueKind.Null or JsonValueKind.Undefined)
+                throw new ConfigurationException($"Tipo de parámetro de servidor inválido: {pair.Key}.");
+            var value = pair.Value.ValueKind == JsonValueKind.String ? pair.Value.GetString()! : pair.Value.ToString();
+            ParameterManager.ValidateValue(definition, value);
+            if (pair.Key == "models-max" && definition.Type == "integer" && (!long.TryParse(value, CultureInfo.InvariantCulture, out var maximum) || maximum <= 0))
+                throw new ConfigurationException("Entero positivo requerido para models-max.");
+            var availability = ParameterManager.Availability(definition, view.Backend);
+            if (availability == "no admitido")
+            { diagnostics.Add($"{view.Server.Name}: {pair.Key} no admitido; se omite con warning y se conserva la asignación."); continue; }
+            if (availability == "desconocido") diagnostics.Add($"{view.Server.Name}: {pair.Key} desconocido; se conserva.");
+            if (definition.Destination == "INI") iniValues[pair.Key] = value;
+            else emitted[pair.Key] = definition.Type == "boolean" ? Scalar(value == "1" || bool.TryParse(value, out var boolean) && boolean ? "true" : "false") : pair.Value;
         }
         // ConfigurationManager.Compose owns its own lease. Use its locked core here
         // to keep the entire plan on one consistent catalog snapshot.
         var presets = compose is null ? new ConfigurationManager(home, store).ComposeLocked(view.Backend!, view.Server.PresetIds)
             : compose(view.Backend!, view.Server.PresetIds);
-        return new ServerStartPlan(view.Server, view.Backend!, view.Effective, presets);
+        if (iniValues.Count > 0)
+        {
+            var block = string.Join("", iniValues.OrderBy(p => p.Key, StringComparer.Ordinal).Select(p => $"{p.Key} = {p.Value}\n"));
+            presets = presets with { Ini = presets.Ini.Replace("[*]\n", "[*]\n" + block, StringComparison.Ordinal) };
+        }
+        presets = presets with { Diagnostics = presets.Diagnostics.Concat(diagnostics).ToArray() };
+        return new ServerStartPlan(view.Server, view.Backend!, emitted, presets, definitions);
     }
 }

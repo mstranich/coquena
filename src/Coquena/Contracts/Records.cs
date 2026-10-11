@@ -18,7 +18,7 @@ public sealed record InstalledFile(string RemotePath, string LocalPath, long Siz
 // One unit, ordered files (first shard first), empty initial model configuration.
 public sealed record ModelRecord(Guid Id, string Name, RemoteSelection Selection,
     InstalledFile[] Files, Dictionary<string, string> Parameters);
-public sealed record PresetRecord(Guid Id, string Name, Guid ModelId,
+public sealed record PresetRecord(Guid Id, string Name, Guid? ModelId,
     Dictionary<string, string> Parameters);
 public sealed record ServerRecord(Guid Id, string Name, [property: JsonIgnore(Condition = JsonIgnoreCondition.Never)] BackendSelection? Backend,
     Guid[] PresetIds, Dictionary<string, JsonElement> Parameters,
@@ -71,4 +71,5 @@ public sealed record BackendInstallPlan(string RequestedRelease, Guid BackendId,
 [JsonSerializable(typeof(ModelsDocument))]
 [JsonSerializable(typeof(BackendsDocument))]
 [JsonSerializable(typeof(PresetsDocument))]
+[JsonSerializable(typeof(Coquena.Configuration.ParametersDocument))]
 public partial class ContractJsonContext : JsonSerializerContext;

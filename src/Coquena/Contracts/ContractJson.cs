@@ -195,7 +195,7 @@ public static class ContractValidation
     }
     public static void Preset(PresetRecord value)
     {
-        Id(value.Id); Text(value.Name); Id(value.ModelId); Parameters(value.Parameters);
+        Id(value.Id); Text(value.Name); if (value.ModelId is { } model) Id(model); Parameters(value.Parameters);
     }
     public static void Instance(InstanceDocument value)
     {

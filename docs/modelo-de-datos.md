@@ -102,7 +102,7 @@ Familia ..> Dispositivo : acelera
 DirectorioDeModelos "1" o-- "*" Modelo : gestionados
 DirectorioDeModelos "1" o-- "*" Companion : gestionados
 
-Preset "*" --> "1" Modelo : configura
+Preset "*" --> "0..1" Modelo : configura
 Preset "*" --> "*" Companion : referencia en un parámetro
 
 Servidor "*" --> "1" BackendRegistrado : resuelve al iniciar
@@ -121,6 +121,9 @@ end note
 
 Las reglas de pertenencia y asignación están en
 [Presets](modelos-y-companions.md#presets).
+La retirada confirmada de la definición model conserva el preset sin esa asignación,
+según la [cascada del catálogo](catalogo-de-parametros.md#eliminación-de-definiciones).
+Para iniciar una instancia debe volver a tener un modelo resoluble.
 
 ## Catálogo y seguimiento: estructura conceptual propuesta
 
