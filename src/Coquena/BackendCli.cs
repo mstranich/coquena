@@ -13,10 +13,10 @@ public static class BackendCli
     {
         if (args.Length >= 2 && args[0] == "backend" && args[1] is "list" or "use" or "install")
             return Installed(args, output, error, inspect, source, cancellation);
-        var system = args.Length == 1 && args[0] == "system";
+        var system = args.Length == 2 && args[0] == "system" && args[1] == "probe";
         if (!system && !TryRemote(args, out _, out _))
         {
-            error.WriteLine("Error: argumentos inválidos. Uso: coquena system | backend remote [cpu|vulkan|cuda@<mayor>] [--release bNNNN|latest]. Consulte coquena --help.");
+            error.WriteLine("Error: argumentos inválidos. Uso: coquena system probe | backend remote [cpu|vulkan|cuda@<mayor>] [--release bNNNN|latest]. Consulte coquena --help.");
             return 2;
         }
         HttpClient? client = null;

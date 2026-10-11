@@ -170,7 +170,7 @@ internal static class BackendTests
             using var output = new StringWriter(); using var error = new StringWriter();
             Check(BackendCli.Run(["backend", "remote"], output, error, () => hardware, new(client), cancel.Token) == 1 && error.ToString().Contains("query-cancelled"), "cancellation typed");
         }
-        foreach (var arguments in new string[][] { ["system", "extra"], ["backend"], ["backend", "install", "--unknown"], ["backend", "remote", "--json"],
+        foreach (var arguments in new string[][] { ["system"], ["system", "extra"], ["system", "probe", "extra"], ["system", "probe", "--json"], ["system", "probe", "--help"], ["backend"], ["backend", "install", "--unknown"], ["backend", "remote", "--json"],
             ["backend", "remote", "--release"], ["backend", "remote", "cpu", "vulkan"], ["backend", "remote", "--release", "12"],
             ["backend", "remote", "rocm"], ["backend", "remote", "--release", "b1", "--release", "b2"] })
         {
@@ -180,7 +180,7 @@ internal static class BackendTests
         using (var output = new StringWriter())
         using (var error = new StringWriter())
         {
-            Check(BackendCli.Run(["system"], output, error, Unknown) == 0 && output.ToString().Contains("unknown") && output.ToString().Contains("no valida un binario"), "system missing evidence honest");
+            Check(BackendCli.Run(["system", "probe"], output, error, Unknown) == 0 && output.ToString().Contains("unknown") && output.ToString().Contains("no valida un binario") && error.ToString().Length == 0, "system probe missing evidence honest");
         }
         using (var fixture = new Fixture(_ => throw new Exception("Unsupported platform must not query provider")))
         using (var client = new HttpClient(fixture))
@@ -192,6 +192,7 @@ internal static class BackendTests
         {
             var start = new ProcessStartInfo(executable) { RedirectStandardOutput = true, RedirectStandardError = true, UseShellExecute = false };
             start.ArgumentList.Add("system");
+            start.ArgumentList.Add("probe");
             using var process = Process.Start(start) ?? throw new Exception("Native system did not start");
             var stdout = process.StandardOutput.ReadToEndAsync(); var stderr = process.StandardError.ReadToEndAsync();
             if (!process.WaitForExit(30_000)) { process.Kill(true); throw new Exception("Native system timeout"); }
