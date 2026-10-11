@@ -77,7 +77,7 @@ public sealed class DownloadManager(Home home, LocalStore? storage = null)
         {
             if (!file.PartialPath.StartsWith(prefix, StringComparison.Ordinal) ||
                 !file.PartialPath.EndsWith(".part", StringComparison.Ordinal) ||
-                !partials.Add(home.PathFor(file.PartialPath)) || !destinations.Add(home.PathFor(file.DestinationPath)) ||
+                !partials.Add(home.PathFor(file.PartialPath)) || !destinations.Add(value.ResourceKind == "model" ? new ModelPaths(home).Destination(value, file) : home.PathFor(file.DestinationPath)) ||
                 !file.DestinationPath.StartsWith(value.ResourceKind == "backend" ? "backends/" : "models/", StringComparison.Ordinal))
                 throw new DownloadException("unsafe-path", "Rutas de operación inválidas o en colisión.");
         }

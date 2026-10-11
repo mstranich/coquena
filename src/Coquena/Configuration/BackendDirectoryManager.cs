@@ -147,7 +147,7 @@ public sealed class BackendDirectoryManager(Home home, LocalStore? storage = nul
         foreach (var b in catalog.Backends.Where(b => b.Origin != "ggml" && Affected(paths.Server(b))))
             blockers.Add($"referencia externa protegida {b.Id:D}: {paths.Server(b)}");
         var models = store.Read(DocumentKind.Models, Json.ModelsDocument, ContractValidation.Models)?.Models ?? [];
-        foreach (var m in models.Where(m => m.Files.Any(f => Affected(home.PathFor(f.LocalPath)))))
+        foreach (var m in models.Where(m => m.Files.Any(f => Affected(new Coquena.Models.ModelPaths(home).File(m, f)))))
             blockers.Add($"modelo protegido {m.Id:D}: {m.Name}");
         if (blockers.Count > 0) throw new ConfigurationException("Traslado completo bloqueado:\n" + string.Join('\n', blockers));
     }

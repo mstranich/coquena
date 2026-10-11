@@ -18,7 +18,8 @@ public sealed record InstalledFile(string RemotePath, string LocalPath, long Siz
     ContentIdentity? Integrity = null, DateTimeOffset? LastWriteUtc = null);
 // One unit, ordered files (first shard first), empty initial model configuration.
 public sealed record ModelRecord(Guid Id, string Name, RemoteSelection Selection,
-    InstalledFile[] Files, Dictionary<string, string> Parameters);
+    InstalledFile[] Files, Dictionary<string, string> Parameters,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? InstallationDirectory = null);
 public sealed record PresetRecord(Guid Id, string Name, Guid? ModelId,
     Dictionary<string, string> Parameters);
 public sealed record ServerRecord(Guid Id, string Name, [property: JsonIgnore(Condition = JsonIgnoreCondition.Never)] BackendSelection? Backend,
@@ -31,7 +32,8 @@ public sealed record LastLogDocument(int SchemaVersion, Guid ServerId, Guid Inst
 public sealed record ConfigDocument(int SchemaVersion, Guid? DefaultServerId,
     BackendSelection? DefaultBackend, BackendRetention BackendRetention,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] LogRetention? LogRetention = null,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? BackendsDirectory = null);
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? BackendsDirectory = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? ModelsDirectory = null);
 public sealed record ModelsDocument(int SchemaVersion, ModelRecord[] Models);
 public sealed record BackendsDocument(int SchemaVersion, BackendRecord[] Backends);
 public sealed record PresetsDocument(int SchemaVersion, PresetRecord[] Presets);
@@ -52,7 +54,8 @@ public sealed record OperationDocument(int SchemaVersion, Guid Id, string Resour
     string? Diagnostic, BackendInstallPlan? BackendInstall = null, ModelInstallPlan? ModelInstall = null);
 
 public sealed record ModelInstallPlan(Guid ModelId, InstalledFile[]? VerifiedFiles = null,
-    int MovedFiles = 0, int MovingFile = -1);
+    int MovedFiles = 0, int MovingFile = -1,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? InstallationDirectory = null);
 
 public sealed record BackendInstallPlan(string RequestedRelease, Guid BackendId,
     BackendRecord? Previous, BackendRecord? PreviousLatest, string Slot,

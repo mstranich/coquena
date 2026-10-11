@@ -147,6 +147,7 @@ public static class ContractValidation
     {
         Version(value.SchemaVersion);
         if (value.BackendsDirectory is not null) Text(value.BackendsDirectory);
+        if (value.ModelsDirectory is not null) Text(value.ModelsDirectory);
         Require(value.LogRetention is null || value.LogRetention.MaxBytes > 0, "Retención de logs inválida.");
         if (value.DefaultServerId.HasValue) Id(value.DefaultServerId.Value);
         Selection(value.DefaultBackend);
@@ -180,6 +181,7 @@ public static class ContractValidation
     public static void Model(ModelRecord value)
     {
         Id(value.Id); Text(value.Name); Remote(value.Selection);
+        if (value.InstallationDirectory is not null) Text(value.InstallationDirectory);
         Require(value.Files is not null && value.Files.Length == value.Selection.Files.Length, "Unidad incompleta.");
         for (var i = 0; i < value.Files!.Length; i++)
         {
@@ -218,6 +220,7 @@ public static class ContractValidation
         {
             Require(value.ResourceKind == "model" && value.ModelSelection is not null && value.BackendInstall is null, "Plan exclusivo de modelo.");
             Id(model.ModelId);
+            if (model.InstallationDirectory is not null) Text(model.InstallationDirectory);
             Require(model.MovedFiles >= 0 && model.MovedFiles <= value.Files.Length &&
                 (model.MovingFile == -1 || model.MovingFile == model.MovedFiles && model.MovingFile < value.Files.Length), "Progreso de publicación inválido.");
             if (model.VerifiedFiles is { } verified)

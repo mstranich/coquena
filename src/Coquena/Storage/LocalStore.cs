@@ -32,7 +32,7 @@ public sealed partial class LocalStore
     public T? Read<T>(DocumentKind kind, JsonTypeInfo<T> type, Action<T> validate,
         string? server = null, Guid? operation = null) where T : class
     {
-        var bytes = BackendDirectoryBytes(kind) ?? TransactionBytes(kind) ?? ReadBytes(Location(kind, server, operation));
+        var bytes = ModelDirectoryBytes(kind) ?? BackendDirectoryBytes(kind) ?? TransactionBytes(kind) ?? ReadBytes(Location(kind, server, operation));
         if (bytes is null) return null;
         var value = ContractJson.Read(Encoding.UTF8.GetString(bytes), type, validate);
         CheckRecord(value, operation);
@@ -49,6 +49,7 @@ public sealed partial class LocalStore
         using var lease = Acquire(cancellation);
         RecoverParameterTransaction();
         RecoverBackendDirectoryTransaction();
+        RecoverModelDirectoryTransaction();
         return UpdateLocked(kind, type, validate, change, server, operation, cancellation);
     }
 
@@ -181,6 +182,7 @@ public sealed partial class LocalStore
         using var lease = Acquire(default);
         RecoverParameterTransaction();
         RecoverBackendDirectoryTransaction();
+        RecoverModelDirectoryTransaction();
         return action();
     }
 
