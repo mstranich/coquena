@@ -35,7 +35,7 @@ public static class DownloadCli
                 var consumer = current.BackendInstall is not null ? new BackendInstaller(manager.StorageHome) : null;
                 var modelConsumer = current.ModelInstall is not null ? new ModelInstaller(manager.StorageHome) : null;
                 manager.ControlAsync(id, args[0] == "cancel", cancellation, consumer is not null ? consumer.CancelAsync : modelConsumer is null ? null : modelConsumer.CancelAsync).GetAwaiter().GetResult();
-                var published = consumer is not null && consumer.List().Any(b => b.ServerPath.StartsWith(current.BackendInstall!.Slot + "/", StringComparison.Ordinal)) ||
+                var published = consumer is not null && consumer.Published(current) ||
                     modelConsumer is not null && modelConsumer.IsInstalled(current.ModelInstall!.ModelId);
                 output.WriteLine($"{id:D}: {(args[0] == "cancel" ? published ? "instalación publicada; limpieza completada, sin revertir" : "cancelación y limpieza completadas" : "pausa guardada")}.");
                 if (args[0] == "pause") output.WriteLine($"coquena download resume {id:D}");
@@ -78,7 +78,7 @@ public static class DownloadCli
                     installer is not null ? installer.CancelAsync : modelInstaller is null ? null : modelInstaller.CancelAsync).GetAwaiter().GetResult();
                 if (result is null)
                 {
-                    var installed = installer is not null && installer.List().Any(b => b.ServerPath.StartsWith(operation.BackendInstall!.Slot + "/", StringComparison.Ordinal)) ||
+                    var installed = installer is not null && installer.Published(operation) ||
                         modelInstaller is not null && modelInstaller.IsInstalled(operation.ModelInstall!.ModelId);
                     output.WriteLine($"{id:D}: {(installed ? "instalación y limpieza completadas" : "cancelación y limpieza completadas")}."); return 0;
                 }

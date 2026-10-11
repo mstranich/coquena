@@ -8,7 +8,8 @@ public sealed record BackendSelection(string Kind, [property: JsonIgnore(Conditi
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? Origin = null, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? Variant = null);
 public sealed record BackendRecord(Guid Id, string Build, string Version, string Origin,
     string Repository, string Variant, string Family, string Platform, string ServerPath,
-    bool TracksLatest = false, bool Pinned = false);
+    bool TracksLatest = false, bool Pinned = false,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? InstallationDirectory = null);
 public sealed record ContentIdentity(string Algorithm, string Domain, string Value);
 public sealed record RemoteFile(string Path, long? Size, ContentIdentity? Identity = null);
 public sealed record RemoteSelection(string Repository, string RequestedRevision,
@@ -29,7 +30,8 @@ public sealed record LogRetention(long MaxBytes);
 public sealed record LastLogDocument(int SchemaVersion, Guid ServerId, Guid InstanceId, string LogPath);
 public sealed record ConfigDocument(int SchemaVersion, Guid? DefaultServerId,
     BackendSelection? DefaultBackend, BackendRetention BackendRetention,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] LogRetention? LogRetention = null);
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] LogRetention? LogRetention = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? BackendsDirectory = null);
 public sealed record ModelsDocument(int SchemaVersion, ModelRecord[] Models);
 public sealed record BackendsDocument(int SchemaVersion, BackendRecord[] Backends);
 public sealed record PresetsDocument(int SchemaVersion, PresetRecord[] Presets);
@@ -54,7 +56,8 @@ public sealed record ModelInstallPlan(Guid ModelId, InstalledFile[]? VerifiedFil
 
 public sealed record BackendInstallPlan(string RequestedRelease, Guid BackendId,
     BackendRecord? Previous, BackendRecord? PreviousLatest, string Slot,
-    string? ServerRelativePath = null, string? Version = null);
+    string? ServerRelativePath = null, string? Version = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? InstallationDirectory = null);
 
 [JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase,
 

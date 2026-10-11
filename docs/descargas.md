@@ -122,10 +122,12 @@ local en JSONL, con retención limitada y sin credenciales ni URLs firmadas. No 
 los JSON de estado ni requiere reproducción de eventos. Pausadas y fallos recuperables conservan su
 operación; una limpieza pendiente no se presenta como terminada.
 
-En la primera iteración preparación y destino están bajo el mismo home y volumen,
-para evitar copiar gigabytes al mover. Un movimiento no vuelve atómica la publicación
-con el índice. Ubicaciones configurables en volúmenes distintos quedan para después:
-requieren copia y verificación antes de eliminar la preparación.
+La preparación permanece bajo el home y la instalación utiliza el destino fijado en
+la operación, aunque cambie después la configuración del directorio. Un movimiento
+no vuelve atómica la publicación con el índice. Si preparación y destino están en
+volúmenes distintos, se copia y verifica el conjunto completo antes de publicarlo;
+la preparación sólo se elimina después de publicar el índice. Una interrupción
+conserva el estado para reanudar o cancelar sin retirar la instalación anterior.
 
 ## Estados y fases
 

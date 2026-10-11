@@ -146,6 +146,7 @@ public static class ContractValidation
     public static void Config(ConfigDocument value)
     {
         Version(value.SchemaVersion);
+        if (value.BackendsDirectory is not null) Text(value.BackendsDirectory);
         Require(value.LogRetention is null || value.LogRetention.MaxBytes > 0, "Retención de logs inválida.");
         if (value.DefaultServerId.HasValue) Id(value.DefaultServerId.Value);
         Selection(value.DefaultBackend);
@@ -154,6 +155,7 @@ public static class ContractValidation
     public static void Backend(BackendRecord value)
     {
         Id(value.Id); Text(value.Build); Text(value.Version); Text(value.Origin);
+        if (value.InstallationDirectory is not null) Text(value.InstallationDirectory);
         Text(value.Repository); Text(value.Variant); Text(value.Family); Text(value.Platform); Text(value.ServerPath);
     }
     public static void Remote(RemoteSelection value)
@@ -234,6 +236,7 @@ public static class ContractValidation
         }
         if (value.BackendInstall is { } plan)
         {
+            if (plan.InstallationDirectory is not null) Text(plan.InstallationDirectory);
             Require(value.ResourceKind == "backend" && value.BackendSelection is not null, "Plan sólo para backend.");
             Id(plan.BackendId); Text(plan.RequestedRelease);
             Require(plan.RequestedRelease == "latest" || plan.RequestedRelease == value.BackendSelection!.Release,

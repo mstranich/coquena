@@ -49,7 +49,7 @@ al registrar un backend externo ni certifica su compatibilidad.
       ([018](../../specs/018-m2-param-define/README.md)).
 - [ ] Restablecer el catálogo de fábrica con impacto y cascada confirmada.
       ([022](../../specs/022-m2-config-param-reset/README.md)).
-- [ ] Configurar el directorio de backends y su traslado opcional.
+- [x] Configurar el directorio de backends y su traslado opcional.
       ([019](../../specs/019-m2-config-backends-dir/README.md)).
 - [ ] Configurar el directorio de modelos/companions y su traslado opcional.
       ([020](../../specs/020-m2-config-models-dir/README.md)).

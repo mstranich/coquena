@@ -13,6 +13,7 @@ public sealed class ConfigurationManager(Home home, LocalStore? storage = null)
 {
     private readonly LocalStore store = storage ?? new LocalStore(home);
     public ParameterManager Parameters => new(home, store);
+    public BackendDirectoryManager BackendDirectory => new(home, store);
     private static readonly ContractJsonContext Json = ContractJsonContext.Default;
     private ConfigDocument Config() => store.Read(DocumentKind.Config, Json.ConfigDocument, ContractValidation.Config) ?? new(1, null, null, new(5));
     private ModelsDocument Models() => store.Read(DocumentKind.Models, Json.ModelsDocument, ContractValidation.Models) ?? new(1, []);

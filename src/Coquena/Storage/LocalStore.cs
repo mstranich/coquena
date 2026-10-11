@@ -32,7 +32,7 @@ public sealed partial class LocalStore
     public T? Read<T>(DocumentKind kind, JsonTypeInfo<T> type, Action<T> validate,
         string? server = null, Guid? operation = null) where T : class
     {
-        var bytes = TransactionBytes(kind) ?? ReadBytes(Location(kind, server, operation));
+        var bytes = BackendDirectoryBytes(kind) ?? TransactionBytes(kind) ?? ReadBytes(Location(kind, server, operation));
         if (bytes is null) return null;
         var value = ContractJson.Read(Encoding.UTF8.GetString(bytes), type, validate);
         CheckRecord(value, operation);
@@ -48,6 +48,7 @@ public sealed partial class LocalStore
         home.Ensure();
         using var lease = Acquire(cancellation);
         RecoverParameterTransaction();
+        RecoverBackendDirectoryTransaction();
         return UpdateLocked(kind, type, validate, change, server, operation, cancellation);
     }
 
@@ -173,12 +174,13 @@ public sealed partial class LocalStore
         }
     }
 
-    // Short coordination only; never hold this lease while doing network I/O.
+    // Local coordination/publication/recovery; never hold this lease for network I/O.
     internal T Exclusive<T>(Func<T> action)
     {
         home.Ensure();
         using var lease = Acquire(default);
         RecoverParameterTransaction();
+        RecoverBackendDirectoryTransaction();
         return action();
     }
 

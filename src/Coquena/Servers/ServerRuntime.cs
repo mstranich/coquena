@@ -94,7 +94,7 @@ public sealed partial class ServerRuntime(Home home, LocalStore? storage = null)
         try
         {
             var arguments = Arguments(plan, home.PathFor(ini));
-            child = WindowsServerProcess.Create(home.PathFor(plan.Backend.ServerPath), arguments, home.PathFor(log), id);
+            child = WindowsServerProcess.Create(new Coquena.Backends.BackendPaths(home).Server(plan.Backend), arguments, home.PathFor(log), id);
             var instance = new InstanceDocument(1, id, plan.Server.Id, plan.Backend.Id, plan.Backend.Build, child.Pid,
                 detached ? "detached" : "foreground", plan.Parameters["host"].GetString()!, plan.Parameters["port"].GetInt32(),
                 plan.Parameters["metrics"].GetBoolean(), plan.Server.PresetIds, plan.Presets.ResourceIds, ini, log, child.Created, child.Executable);

@@ -6,7 +6,8 @@ namespace Coquena;
 
 public static class ConfigurationCli
 {
-    public static int Run(string command, string[] args, TextWriter output, TextWriter error, ConfigurationManager? manager = null)
+    public static int Run(string command, string[] args, TextWriter output, TextWriter error, ConfigurationManager? manager = null,
+        Func<string?>? directoryChoice = null, Func<bool>? directoryOverwrite = null)
     {
         try
         {
@@ -15,6 +16,17 @@ public static class ConfigurationCli
             // Check grammar before creating the home or modifying state.
             if (command == "config")
             {
+                if (args.Length >= 1 && args[0] == "backends-dir")
+                {
+                    if (!(args.Length == 2 && args[1] is "show" or "unset" || args.Length == 3 && args[1] == "set")) Invalid();
+                    manager ??= new(Home.Resolve());
+                    if (args[1] != "show") manager.BackendDirectory.Change(args[1] == "set" ? args[2] : null, output,
+                        directoryChoice ?? (() => Console.IsInputRedirected ? null : Console.ReadLine()),
+                        directoryOverwrite ?? (() => !Console.IsInputRedirected && Console.ReadLine()?.Trim().ToLowerInvariant() is "s" or "si" or "sí"));
+                    var view = manager.BackendDirectory.Show();
+                    output.WriteLine($"{view.EffectivePath} | {(view.Own ? "propio" : "default")} | ubicación: {view.Location}");
+                    return 0;
+                }
                 if (args.Length < 2 || args[0] != "log-retention" ||
                     !(args[1] is "show" or "unset" && args.Length == 2 || args[1] == "set" && args.Length == 3)) Invalid();
                 long? bytes = args[1] == "set" ? LogRetentionPolicy.Parse(args[2]) : null;
@@ -61,7 +73,7 @@ public static class ConfigurationCli
             Invalid();
             return 2;
         }
-        catch (Exception exception) when (exception is ConfigurationException or ContractException or StorageException or IOException or UnauthorizedAccessException)
+        catch (Exception exception) when (exception is ConfigurationException or ContractException or StorageException or IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
         {
             error.WriteLine($"Error: {exception.Message} Consulte coquena --help.");
             return 2;
