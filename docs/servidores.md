@@ -349,6 +349,8 @@ El destino debe ser un directorio utilizable. Si no existe, Coquena lo crea al a
 el cambio; si la ruta apunta a un archivo o no permite las operaciones necesarias,
 rechaza el ajuste. La validación se realiza antes de mover recursos o persistir la
 nueva ubicación. Un rechazo no modifica el ajuste ni los archivos existentes.
+El directorio de backends no puede invadir el home completo ni sus áreas operativas
+de catálogos, descargas, ejecución, logs o modelos.
 
 Las ubicaciones predeterminadas son `<home>/backends` y `<home>/models`. Show informa
 la ruta efectiva y si procede del default o de un ajuste propio. Unset elimina el ajuste
@@ -360,6 +362,17 @@ Al cambiar un directorio, Coquena pregunta si se trasladan los archivos gestiona
 existentes. Antes de elegir muestra los recursos afectados y las ubicaciones de origen
 y destino. Si se acepta el traslado, mueve los recursos y actualiza sus rutas conservando
 identidades y referencias. Para modelos, una unidad con shards se trata completa.
+Para backends, el traslado reúne todas las instalaciones gestionadas, aunque estén
+en distintas ubicaciones: se traslada el directorio completo de cada instalación,
+incluidos DLL, subdirectorios y archivos auxiliares. Las referencias externas y los
+archivos ajenos que estén fuera de esos directorios conservan su ubicación.
+
+El origen se conserva hasta verificar la copia completa y publicar conjuntamente
+el catálogo y la configuración. Una interrupción conserva el estado de recuperación;
+el siguiente comando de escritura reintenta la copia o completa el checkpoint y la
+limpieza según el punto alcanzado. Antes de publicar, los lectores conservan las
+rutas anteriores; después, observan las nuevas rutas conjuntamente. Un fallo posterior
+a la publicación informa que la ubicación está publicada y la limpieza sigue pendiente.
 
 Si se elige no trasladar, conserva los archivos y sus rutas registradas; la nueva ubicación
 se usa para futuras instalaciones. El catálogo puede contener recursos gestionados en
@@ -424,6 +437,7 @@ Fragmento de config.json (no reemplaza el resto de su configuración):
   "backendRetention": {
     "maxBuilds": 5
   },
+  "backendsDirectory": "../Backends",
   "logRetention": {
     "maxBytes": 104857600
   }
@@ -431,6 +445,10 @@ Fragmento de config.json (no reemplaza el resto de su configuración):
 ```
 
 Servers.json guarda valores propios, el puerto asignado y el límite propio de logs si existe.
+BackendsDirectory se omite para utilizar el directorio predeterminado. En el catálogo
+de backends, installationDirectory conserva la ubicación registrada y serverPath es
+relativa a ella. Los registros anteriores sin installationDirectory conservan su
+serverPath relativa al home; no se reinterpretan con el ajuste vigente.
 Backend null representa herencia del predeterminado, no selección automática entre todos los binarios.
 Una selección concreta usa backendId, tanto para un release fijado como para un externo;
 la modalidad latest guarda origen/variante. Los nombres actuales se resuelven al mostrar.

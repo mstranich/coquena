@@ -7,7 +7,7 @@ using Coquena.Storage;
 
 namespace Coquena.Backends;
 
-public enum InstallStage { AfterMove, AfterIndex }
+public enum InstallStage { AfterMove, AfterIndex, AfterCopy }
 
 // Separate slots allow a failed reinstall to leave the previous executable untouched.
 public sealed partial class BackendInstaller(Home home, LocalStore? storage = null,
@@ -15,18 +15,26 @@ public sealed partial class BackendInstaller(Home home, LocalStore? storage = nu
 {
     private readonly LocalStore store = storage ?? new LocalStore(home);
     private static readonly ContractJsonContext Json = ContractJsonContext.Default;
+    private readonly BackendPaths paths = new(home);
     public const long MaxExtractedBytes = 8L * 1024 * 1024 * 1024;
     public const int MaxEntries = 4096;
     public DownloadManager Downloads => new(home, store);
     private BackendsDocument Catalog() => store.Read(DocumentKind.Backends, Json.BackendsDocument,
         ContractValidation.Backends) ?? new(1, []);
     public BackendRecord[] List() => Catalog().Backends;
+    private static string FinalPath(BackendInstallPlan plan) =>
+        (plan.InstallationDirectory is null ? plan.Slot : plan.Slot[9..]) + "/" + plan.ServerRelativePath;
+    public bool Published(OperationDocument operation) => operation.BackendInstall is { } plan &&
+        List().Any(b => b.Id == plan.BackendId && b.ServerPath == FinalPath(plan) && b.InstallationDirectory == plan.InstallationDirectory);
     private OperationDocument Save(OperationDocument value) => store.Update(DocumentKind.Operation,
         Json.OperationDocument, ContractValidation.Operation, _ => value, operation: value.Id);
     private OperationDocument SaveLocked(OperationDocument value) => store.UpdateLocked(DocumentKind.Operation,
         Json.OperationDocument, ContractValidation.Operation, _ => value, operation: value.Id);
 
     public OperationDocument Create(BackendCandidate candidate, string requestedRelease)
+        => store.Exclusive(() => CreateLocked(candidate, requestedRelease));
+
+    private OperationDocument CreateLocked(BackendCandidate candidate, string requestedRelease)
     {
         if (!candidate.Complete || candidate.Platform != "win-x64" || candidate.Artifacts.Length == 0 ||
             !BackendCatalog.ValidFamily(candidate.Variant)) Fail("invalid-selection");
@@ -42,14 +50,15 @@ public sealed partial class BackendInstaller(Home home, LocalStore? storage = nu
         var id = Guid.NewGuid();
         var backend = previous?.Id ?? Guid.NewGuid();
         var slot = $"backends/{backend:D}/{id:D}";
+        var location = store.Read(DocumentKind.Config, Json.ConfigDocument, ContractValidation.Config)?.BackendsDirectory;
         var artifacts = candidate.Artifacts.Select(a => new RemoteFile(a.Name, a.Size)).ToArray();
         var files = artifacts.Select((a, i) => new TransferRecord(a.Path, $"downloads/{id:D}/files/{i}.part",
             $"{slot}/archives/{i}.zip", 0, a.Size, null, null, null, "pending")).ToArray();
         var operation = new OperationDocument(1, id, "backend", $"ggml/{candidate.Variant}:{candidate.Release}", null,
             new("ggml", candidate.Release, candidate.Variant.Split('@')[0], candidate.Variant, candidate.Platform, artifacts),
             files, "pending", "transfer", DateTimeOffset.UtcNow, null,
-            new(requestedRelease, backend, previous, latest, slot));
-        return Downloads.Create(operation);
+            new(requestedRelease, backend, previous, latest, slot, InstallationDirectory: location));
+        return Downloads.CreateLocked(operation);
     }
 
     private static BackendRecord? Current(BackendRecord[] records, string variant)
@@ -92,7 +101,7 @@ public sealed partial class BackendInstaller(Home home, LocalStore? storage = nu
             if (matches.Length > 1) Fail("ambiguous-selector");
             record = matches.SingleOrDefault();
         }
-        if (record is null || !File.Exists(home.PathFor(record.ServerPath))) Fail("backend-absent");
+        if (record is null || !File.Exists(paths.Server(record))) Fail("backend-absent");
         return parts[1] == "latest" ? new("latest", Origin: "ggml", Variant: parts[0]) : new("fixed", record!.Id);
     }
 
@@ -142,30 +151,31 @@ public sealed partial class BackendInstaller(Home home, LocalStore? storage = nu
                 plan = plan with { ServerRelativePath = serverRelative, Version = version };
                 // Ownership marker travels with the directory, before any final slot exists.
                 File.WriteAllText(home.PathFor(relative + "/.coquena-owner"), operation.Id.ToString("D"));
-                if (Directory.Exists(home.PathFor(plan.Slot))) Fail("destination-collision");
+                if (Directory.Exists(paths.Resolve(plan.InstallationDirectory, plan.Slot))) Fail("destination-collision");
                 operation = Save(operation with { BackendInstall = plan, Phase = "publishing" });
             }
             plan = operation.BackendInstall!;
             var prepared = $"downloads/{operation.Id:D}/extracted";
-            var slot = home.PathFor(plan.Slot);
+            var slot = paths.Resolve(plan.InstallationDirectory, plan.Slot);
             // A recovered moved slot is not installed by existence alone.
-            var checkArea = Directory.Exists(slot) ? plan.Slot : prepared;
-            if (File.ReadAllText(home.PathFor(checkArea + "/.coquena-owner")) != operation.Id.ToString("D")) Fail("destination-collision");
-            var observed = await (probe ?? ProbeAsync)(home.PathFor(checkArea + "/" + plan.ServerRelativePath), cancellation);
+            var checkArea = Directory.Exists(slot) ? slot : home.PathFor(prepared);
+            if (File.ReadAllText(Path.Combine(checkArea, ".coquena-owner")) != operation.Id.ToString("D")) Fail("destination-collision");
+            var observed = await (probe ?? ProbeAsync)(Path.Combine(checkArea, plan.ServerRelativePath!), cancellation);
             CheckVersion(observed, selection.Release);
             if (observed != plan.Version) Fail("version-changed");
             cancellation.ThrowIfCancellationRequested();
-            // Short, non-cancellable commit region. No redirection, metadata or probe here.
+            // Local publication, serialized against configuration and process starts.
+            // A cross-volume copy retains preparation; no network I/O occurs here.
             operation = store.Exclusive(() =>
             {
                 var catalog = Catalog();
                 var previous = catalog.Backends.SingleOrDefault(b => b.Id == plan.BackendId);
-                var finalPath = plan.Slot + "/" + plan.ServerRelativePath;
+                var finalPath = FinalPath(plan);
                 var next = new BackendRecord(plan.BackendId, selection.Release, plan.Version!, "ggml", "ggml-org/llama.cpp",
                     selection.Variant, selection.Family, selection.Platform, finalPath,
                     plan.RequestedRelease == "latest" || plan.Previous?.TracksLatest == true,
-                    plan.RequestedRelease != "latest" || plan.Previous?.Pinned == true);
-                var alreadyPublished = previous is not null && previous.ServerPath == finalPath &&
+                    plan.RequestedRelease != "latest" || plan.Previous?.Pinned == true, plan.InstallationDirectory);
+                var alreadyPublished = previous is not null && previous.ServerPath == finalPath && previous.InstallationDirectory == plan.InstallationDirectory &&
                     previous with { TracksLatest = next.TracksLatest, Pinned = next.Pinned } == next;
                 if (!alreadyPublished)
                 {
@@ -176,9 +186,9 @@ public sealed partial class BackendInstaller(Home home, LocalStore? storage = nu
                     if (!Directory.Exists(slot))
                     {
                         Directory.CreateDirectory(Path.GetDirectoryName(slot)!);
-                        Directory.Move(home.PathFor(prepared), slot);
+                        PublishDirectory(home.PathFor(prepared), slot, operation.Id, cancellation);
                     }
-                    else if (Directory.Exists(home.PathFor(prepared))) Fail("destination-collision");
+                    else if (Directory.Exists(home.PathFor(prepared))) VerifyCopy(home.PathFor(prepared), slot);
                     fault?.Invoke(InstallStage.AfterMove);
                     var values = catalog.Backends.Where(b => b.Id != plan.BackendId).Select(b =>
                         plan.RequestedRelease == "latest" && b.Variant == selection.Variant && b.Platform == selection.Platform
@@ -209,17 +219,19 @@ public sealed partial class BackendInstaller(Home home, LocalStore? storage = nu
         ValidatePlan(operation);
         var plan = operation.BackendInstall!;
         var installed = List().SingleOrDefault(b => b.Id == plan.BackendId);
-        if (installed?.ServerPath == plan.Slot + "/" + plan.ServerRelativePath)
+        if (installed?.ServerPath == FinalPath(plan) && installed.InstallationDirectory == plan.InstallationDirectory)
         {
             // Commit already happened. Finish publication/cleanup rather than undo an active index.
             await FinalizeAsync(operation, CancellationToken.None);
             return true;
         }
-        if (Directory.Exists(home.PathFor(plan.Slot)))
+        var slot = paths.Resolve(plan.InstallationDirectory, plan.Slot);
+        if (Directory.Exists(slot))
         {
-            if (File.ReadAllText(home.PathFor(plan.Slot + "/.coquena-owner")) != operation.Id.ToString("D")) Fail("destination-collision");
-            RemoveTree(plan.Slot);
+            if (File.ReadAllText(Path.Combine(slot, ".coquena-owner")) != operation.Id.ToString("D")) Fail("destination-collision");
+            BackendPaths.RemoveOwnedTree(slot);
         }
+        RemoveCopy(slot, operation.Id);
         return false;
     }
 
@@ -229,7 +241,7 @@ public sealed partial class BackendInstaller(Home home, LocalStore? storage = nu
         if (plan.BackendId == Guid.Empty || plan.Slot != $"backends/{plan.BackendId:D}/{operation.Id:D}" ||
             (plan.RequestedRelease != "latest" && plan.RequestedRelease != operation.BackendSelection!.Release) ||
             plan.Previous is not null && plan.Previous.Id != plan.BackendId) Fail("invalid-install-plan");
-        if (plan.ServerRelativePath is not null) _ = home.PathFor(plan.Slot + "/" + plan.ServerRelativePath);
+        if (plan.ServerRelativePath is not null) _ = paths.Resolve(plan.InstallationDirectory, plan.Slot + "/" + plan.ServerRelativePath);
         if ((operation.Phase == "publishing" || operation.Phase == "cleanup" && operation.State != "cancelled") && (plan.Version is null || plan.ServerRelativePath is null)) Fail("invalid-install-plan");
     }
 
@@ -241,16 +253,13 @@ public sealed partial class BackendInstaller(Home home, LocalStore? storage = nu
             store.Exclusive(() =>
             {
                 var installed = Catalog().Backends.SingleOrDefault(b => b.Id == plan.BackendId);
-                if (installed?.ServerPath != plan.Slot + "/" + plan.ServerRelativePath) Fail("stale-cleanup");
+                if (installed?.ServerPath != FinalPath(plan) || installed.InstallationDirectory != plan.InstallationDirectory) Fail("stale-cleanup");
                 if (plan.Previous is { } old && old.ServerPath != installed!.ServerPath)
                 {
                     NotInUse(old.Id);
                     // Old slots only; never recursively remove an arbitrary catalog path.
-                    var prefix = $"backends/{old.Id:D}/";
-                    if (!old.ServerPath.StartsWith(prefix, StringComparison.Ordinal)) Fail("unsafe-old-slot");
-                    var tail = old.ServerPath[prefix.Length..].Split('/');
-                    if (tail.Length < 2 || !Guid.TryParseExact(tail[0], "D", out _)) Fail("unsafe-old-slot");
-                    RemoveTree(prefix + tail[0]);
+                    var oldSlot = paths.Slot(old);
+                    if (Directory.Exists(oldSlot)) BackendPaths.RemoveOwnedTree(oldSlot);
                 }
                 RemovePayload($"downloads/{operation.Id:D}");
                 store.RecordInstallation(operation.Id);
@@ -277,6 +286,57 @@ public sealed partial class BackendInstaller(Home home, LocalStore? storage = nu
             if (Directory.Exists(entry)) RemoveTree(Path.GetRelativePath(home.Root, entry).Replace('\\', '/'));
             else File.Delete(entry);
         }
+    }
+    private void RemoveCopy(string slot, Guid operation)
+    {
+        var stage = slot + ".copy";
+        Home.CheckLinks(stage);
+        if (!Directory.Exists(stage)) return;
+        if (File.ReadAllText(Path.Combine(stage, ".coquena-owner")) != operation.ToString("D")) Fail("destination-collision");
+        BackendPaths.RemoveOwnedTree(stage);
+    }
+    private void PublishDirectory(string prepared, string slot, Guid operation, CancellationToken cancellation)
+    {
+        Home.CheckLinks(slot);
+        if (Path.GetPathRoot(prepared)!.Equals(Path.GetPathRoot(slot), StringComparison.OrdinalIgnoreCase))
+        {
+            try { Directory.Move(prepared, slot); return; }
+            // Mounted volumes and virtual drives can differ even under one root.
+            catch (IOException e) when ((e.HResult & 0xffff) == 17) { }
+        }
+        RemoveCopy(slot, operation);
+        var stage = slot + ".copy";
+        Directory.CreateDirectory(stage);
+        File.WriteAllText(Path.Combine(stage, ".coquena-owner"), operation.ToString("D"));
+        BackendPaths.CheckTree(prepared);
+        foreach (var dir in Directory.GetDirectories(prepared, "*", SearchOption.AllDirectories))
+            Directory.CreateDirectory(Path.Combine(stage, Path.GetRelativePath(prepared, dir)));
+        foreach (var source in Directory.GetFiles(prepared, "*", SearchOption.AllDirectories))
+        {
+            cancellation.ThrowIfCancellationRequested();
+            var destination = Path.Combine(stage, Path.GetRelativePath(prepared, source));
+            if (Path.GetFileName(source) == ".coquena-owner" && Path.GetDirectoryName(source) == prepared) continue;
+            using (var input = new FileStream(source, FileMode.Open, FileAccess.Read, FileShare.Read))
+            using (var output = new FileStream(destination, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+            { input.CopyTo(output); output.Flush(true); }
+            if (Coquena.Configuration.BackendDirectoryManager.Hash(source) != Coquena.Configuration.BackendDirectoryManager.Hash(destination)) Fail("copy-verification-failed");
+        }
+        fault?.Invoke(InstallStage.AfterCopy);
+        VerifyCopy(prepared, stage);
+        Home.CheckLinks(slot);
+        Directory.Move(stage, slot);
+    }
+    private static void VerifyCopy(string source, string destination)
+    {
+        BackendPaths.CheckTree(source); BackendPaths.CheckTree(destination);
+        var files = Directory.GetFiles(source, "*", SearchOption.AllDirectories);
+        if (files.Length != Directory.GetFiles(destination, "*", SearchOption.AllDirectories).Length ||
+            files.Any(p => !File.Exists(Path.Combine(destination, Path.GetRelativePath(source, p))) ||
+                Coquena.Configuration.BackendDirectoryManager.Hash(p) != Coquena.Configuration.BackendDirectoryManager.Hash(Path.Combine(destination, Path.GetRelativePath(source, p)))))
+            Fail("copy-verification-failed");
+        var directories = Directory.GetDirectories(source, "*", SearchOption.AllDirectories);
+        if (directories.Length != Directory.GetDirectories(destination, "*", SearchOption.AllDirectories).Length ||
+            directories.Any(p => !Directory.Exists(Path.Combine(destination, Path.GetRelativePath(source, p))))) Fail("copy-verification-failed");
     }
     private void RemoveTree(string relative)
     {

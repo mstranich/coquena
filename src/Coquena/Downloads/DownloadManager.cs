@@ -88,7 +88,15 @@ public sealed class DownloadManager(Home home, LocalStore? storage = null)
         Paths(selection);
         if (selection.State != "pending" || selection.Files.Any(f => f.ConfirmedBytes != 0 || f.State != "pending"))
             throw new DownloadException("invalid-selection", "Nueva operación debe estar pendiente y sin bytes.");
-        return store.Update(DocumentKind.Operation, Json.OperationDocument, ContractValidation.Operation,
+        return store.Exclusive(() => CreateLocked(selection));
+    }
+
+    internal OperationDocument CreateLocked(OperationDocument selection)
+    {
+        Paths(selection);
+        if (selection.State != "pending" || selection.Files.Any(f => f.ConfirmedBytes != 0 || f.State != "pending"))
+            throw new DownloadException("invalid-selection", "Nueva operación debe estar pendiente y sin bytes.");
+        return store.UpdateLocked(DocumentKind.Operation, Json.OperationDocument, ContractValidation.Operation,
             old => old is null && !Directory.Exists(Area(selection.Id)) ? selection :
                 throw new DownloadException("already-exists", "GUID ya registrado o preparación huérfana; no se sobrescribe."), operation: selection.Id);
     }

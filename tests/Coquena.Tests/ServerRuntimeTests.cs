@@ -50,7 +50,8 @@ internal static class ServerRuntimeTests
         var root = Path.Combine(Path.GetTempPath(), "coquena-runtime-" + Guid.NewGuid());
         var home = new Home(root); var store = new LocalStore(home); var json = ContractJsonContext.Default;
         var manager = new ServerManager(home); var runtime = new ServerRuntime(home); var checks = 0;
-        var backendDirectory = home.PathFor("backends/fixture");
+        var backendId = Guid.NewGuid(); var backendSlot = $"{backendId:D}/{Guid.NewGuid():D}";
+        var backendDirectory = home.PathFor("custom-backends/" + backendSlot);
         var fixtureExecutable = Path.Combine(AppContext.BaseDirectory, "Coquena.Tests.exe");
         var product = executable ?? Path.Combine(AppContext.BaseDirectory, "coquena.exe");
         if (!File.Exists(product)) product = Path.GetFullPath("src/Coquena/bin/Debug/net10.0/coquena.exe");
@@ -63,7 +64,7 @@ internal static class ServerRuntimeTests
             foreach (var source in Directory.GetFiles(AppContext.BaseDirectory))
                 if (Path.GetExtension(source) is ".dll" or ".json" || Path.GetFileName(source) == "Coquena.Tests.exe")
                     File.Copy(source, Path.Combine(backendDirectory, Path.GetFileName(source)), true);
-            var backend = new BackendRecord(Guid.NewGuid(), "b11482", "fixture", "ggml", "ggml-org/llama.cpp", "cpu", "cpu", "win-x64", "backends/fixture/Coquena.Tests.exe", true);
+            var backend = new BackendRecord(backendId, "b11482", "fixture", "ggml", "ggml-org/llama.cpp", "cpu", "cpu", "win-x64", backendSlot + "/Coquena.Tests.exe", true, InstallationDirectory: "custom-backends");
             store.Update(DocumentKind.Backends, json.BackendsDocument, ContractValidation.Backends, _ => new(1, [backend]));
             manager.EnsureInitial(); new Coquena.Backends.BackendInstaller(home).Use("cpu:latest");
             manager.Set(null, "port", FreePort().ToString());
@@ -81,6 +82,10 @@ internal static class ServerRuntimeTests
             Check(Log(first).Contains("stderr ready") && Log(first).Contains("--metrics"), "stdout/stderr and static flags");
             Check(first.Port == manager.View(null).Effective["port"].GetInt32() && Log(first).Contains("--port|" + first.Port), "start emits persisted explicit port");
             Check(runtime.Recover("default")?.InstanceId == first.InstanceId, "fresh manager recovers detached");
+            var directoryState = File.ReadAllText(home.PathFor("catalogs/backends.json"));
+            Reject(() => new BackendDirectoryManager(home).Change("relocated-backends", output, () => "s", () => true), "live server blocks directory transfer");
+            Check(ProcessAlive(first.Pid) && File.ReadAllText(home.PathFor("catalogs/backends.json")) == directoryState &&
+                Directory.Exists(backendDirectory), "blocked live transfer preserves process and installation");
             ObservabilityTests.Run(home, runtime, first);
             var followId = Guid.NewGuid(); var followCapture = Path.Combine(root, "follow.txt");
             using (var follower = WindowsServerProcess.Create(product, ["server", "logs", "-f"], followCapture, followId, root))
@@ -232,6 +237,15 @@ internal static class ServerRuntimeTests
                 ["server", "other", "stop", "--id", first.InstanceId.ToString("D")],
                 ["server", "stop", "--id", first.InstanceId.ToString("D"), "extra"]
             }) Check(Cli(invalid).Code == 2, "stop rejects positional ID, conflicting selectors and malformed flags");
+            File.WriteAllBytes(home.PathFor(model.Files[0].LocalPath), ConfigurationTests.Fixture(null));
+            // The synthetic latest switch above deliberately shared an executable;
+            // restore the real installation before testing directory ownership.
+            store.Update(DocumentKind.Backends, json.BackendsDocument, ContractValidation.Backends, _ => new(1, [backend]));
+            Check(new BackendDirectoryManager(home).Change("relocated-backends", output, () => "s", () => true), "stopped backend transfers as whole directory");
+            backendDirectory = home.PathFor("relocated-backends/" + backendSlot);
+            var movedStart = runtime.Start(null, true, output).Instance; live.Add(movedStart); Wait(() => Log(movedStart).Contains("ready"));
+            Check(movedStart.BackendId == backendId && movedStart.ExecutablePath == Path.Combine(backendDirectory, "Coquena.Tests.exe"), "server starts from moved backend without changing backend identity");
+            runtime.Stop(movedStart.InstanceId, output);
             Console.WriteLine($"OK: {checks} comprobaciones de ciclo de procesos" + (executable is null ? "." : " con CLI nativa."));
 
             void Foreground(bool twice)

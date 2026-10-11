@@ -86,7 +86,7 @@ public static class BackendCli
             if (action == "list")
             {
                 var records = installer.List();
-                foreach (var b in records) output.WriteLine($"{b.Id:D} | {b.Origin}/{b.Variant}:{b.Build} | {b.Platform} | latest={b.TracksLatest} pin={b.Pinned} | {b.ServerPath}");
+                foreach (var b in records) output.WriteLine($"{b.Id:D} | {b.Origin}/{b.Variant}:{b.Build} | {b.Platform} | latest={b.TracksLatest} pin={b.Pinned} | {new BackendPaths(Home.Resolve()).Server(b)}");
                 if (records.Length == 0) output.WriteLine("Sin backends instalados.");
                 return 0;
             }

@@ -166,7 +166,7 @@ public sealed class ServerManager(Home home, LocalStore? storage = null)
             b.Origin == selection.Origin && b.Variant == selection.Variant && b.TracksLatest && b.Platform == "win-x64").ToArray();
         if (matches.Length != 1) throw new ConfigurationException("Backend seleccionado ausente o ambiguo; no se usa un sustituto.");
         var backend = matches[0];
-        if (!File.Exists(home.PathFor(backend.ServerPath))) throw new ConfigurationException("Archivo del backend seleccionado ausente.");
+        if (!File.Exists(new Coquena.Backends.BackendPaths(home).Server(backend))) throw new ConfigurationException("Archivo del backend seleccionado ausente.");
         return backend;
     }
     private ServerView ViewLocked(ServerRecord record)
