@@ -10,6 +10,196 @@ para un tercero se declara su repositorio de origen. Una etiqueta amigable no su
 ese identificador. Un mismo número de release en repositorios distintos no identifica
 la misma disponibilidad.
 
+## Gestión de parámetros personalizados
+
+`param` crea, consulta, edita y elimina definiciones del catálogo. Coquena incluye
+un catálogo inicial de parámetros oficiales; el usuario puede registrar nuevos parámetros
+oficiales y parámetros exclusivos de binarios no oficiales.
+
+`param define` crea y `param edit` modifica: crear un nombre existente o editar uno
+inexistente se rechaza sin cambios. La edición conserva los metadatos que no se
+modifiquen explícitamente. La [CLI](comandos.md#param) distingue ambas operaciones.
+
+Las definiciones básicas suministradas por Coquena se pueden editar y eliminar con
+las mismas reglas de impacto y confirmación que las creadas por el usuario. `host`,
+`port` y `metrics` son la excepción: sus definiciones se protegen y mantienen. Esta
+protección no impide ajustar sus valores en cada servidor.
+
+El [restablecimiento de fábrica](#restablecimiento-de-fábrica) se realiza mediante
+`config param-reset`, como operación de configuración del manager.
+
+Una definición permite especificar y editar:
+
+- Nombre canónico, descripción y alias.
+- Tipo: entero, decimal, texto, booleano, sin valor o enumerado.
+- Valores permitidos para un tipo enumerado y valor predeterminado compatible con el tipo.
+- Ámbito de asignación (modelo o servidor) y destino de emisión (CLI o INI).
+- Binarios/backends a los que corresponde y su aplicabilidad; las vinculaciones se
+  pueden añadir, editar y retirar sin duplicar la definición.
+- Versiones de soporte: límite inferior, límite superior, ambos o ninguno. Omitir el
+  inferior deja abierto el rango hacia versiones anteriores; omitir el superior, hacia
+  versiones futuras. Ambos límites son inclusivos: desde `b1000` hasta `b1200` significa
+  `version >= b1000` y `version <= b1200`. Usar la misma versión en ambos extremos
+  expresa soporte para esa versión exacta. Los límites se interpretan en el esquema
+  de versiones del binario.
+
+Cada definición admite varias asociaciones de soporte, identificadas por origen y
+familia/variante del binario, cada una con su propio rango de versiones. `oficial` y
+`ggml` identifican el mismo origen oficial. Una asociación a `ggml/vulkan` no declara
+soporte para `ggml/cuda` ni para un binario Vulkan de otro origen. Los selectores siguen
+la [identificación de backends](servidores.md#identificación-de-backends); también se
+conserva la asociación a un backend registrado concreto para excepciones locales.
+
+Las asociaciones por origen y familia/variante se pueden definir aunque el binario
+no esté instalado. Son reutilizables al importar o exportar el catálogo y no requieren
+un ID de backend de la instalación de origen. Una asociación a un backend local concreto
+exige que su ID esté registrado al crear o editar esa asociación; una referencia que
+quede ausente posteriormente se diagnostica, sin reasignarla a otro backend por nombre.
+
+Una asociación general, sin origen ni familia/variante, declara soporte para cualquier
+backend. Puede tener límites de versión; se comparan según el esquema del origen
+efectivo. Si los límites no pueden interpretarse en ese esquema, la disponibilidad
+se informa como desconocida, sin afirmar incompatibilidad. Sin límites, la asociación
+general no restringe versiones. No crea valores compartidos entre presets o servidores.
+`support remove` sin selector elimina únicamente esa asociación general, conservando
+las asociaciones por origen/familia y las excepciones de backends locales.
+
+Cuando coinciden asociaciones, prevalece la del backend local concreto, después la
+de origen/familia y finalmente la general. Se evalúa el rango de la asociación más
+específica existente para ese backend. Si la versión queda fuera, el parámetro se omite
+con warning; no se recurre a una asociación menos específica que admita esa versión.
+
+La familia/variante participa en la identificación del binario, no constituye un
+ámbito compartido de valores. El soporte se declara por asociación; no se infiere
+de que dos binarios usen la misma aceleración.
+
+Cambiar una asociación o su rango no cambia el backend de un servidor ni
+elimina valores de presets. La composición usa el backend efectivo y su versión:
+si una definición personalizada declara que el parámetro no aplica a esa ejecución,
+se omite con warning y se conserva su valor guardado. No se deduce aplicabilidad de CPU,
+CUDA o Vulkan. Las referencias en uso se diagnostican al editar o eliminar una definición.
+
+## Comparación de versiones
+
+Cada origen declara el esquema con el que se comparan sus versiones:
+
+- Builds `bNNNN`: comparación numérica del número de build, no alfabética.
+- Versiones semánticas: comparación conforme a SemVer, incluida la precedencia de
+  versiones preliminares; los metadatos de build no alteran el orden.
+- Etiquetas sin orden definido: sólo coincidencia exacta, sin rangos ni deducción
+  de antigüedad a partir del texto.
+
+El origen oficial usa builds `bNNNN`. Un origen externo declara su esquema; no se
+deduce del aspecto de una etiqueta aislada. Los límites de una asociación deben ser
+válidos para ese esquema. Un rango cuyo límite inferior supera al superior se rechaza
+sin modificar el catálogo. Para etiquetas sin orden, una versión exacta se expresa
+con ambos límites iguales; también puede omitirse toda restricción de versión.
+
+## Tipos y evidencia del backend
+
+El tipo de cada parámetro refleja lo que admite el binario, según su documentación,
+ayuda y, cuando sea necesario, su implementación para la versión correspondiente.
+No se deduce del aspecto de un valor aislado ni del formato INI.
+
+La [documentación oficial de presets](https://github.com/ggml-org/llama.cpp/blob/master/docs/preset.md)
+muestra enteros como `ctx-size` y `top-k`, fracciones como `temp` y `min-p`, y booleanos
+representados mediante `1`. Los ejemplos ilustran la representación, pero no constituyen
+un esquema de tipos. La [definición oficial de argumentos](https://github.com/ggml-org/llama.cpp/blob/master/common/arg.cpp)
+confirma que `ctx-size` y `top-k` reciben enteros, mientras `temp`, `top-p` y `min-p`
+se convierten a punto flotante.
+
+Por eso el catálogo distingue entero y decimal; decimal designa un valor numérico
+con parte fraccionaria, no exige usar el tipo `decimal` de C#. Valores y defaults se
+validan conforme al tipo declarado. Las restricciones particulares se obtienen de la
+evidencia del parámetro: no se impone positividad a todos los números ni se interpreta
+todo `0` o `1` como booleano. Para definiciones personalizadas el usuario declara el tipo.
+
+Estas referencias a `master` fundamentan la distinción, no certifican el soporte en
+todos los releases. El catálogo conserva su aplicabilidad por binario y versión.
+
+## Valores predeterminados para formularios
+
+El valor predeterminado de una definición sirve para preasignar el campo al crear
+un preset mediante un formulario de terminal o web. Al guardar el formulario, el valor
+se copia como asignación propia del preset y queda independiente del catálogo.
+Cambiar después el default de la definición no modifica los presets existentes.
+
+El default no es una herencia ni se emite automáticamente al generar la configuración.
+Quitar una asignación elimina ese parámetro del preset, sin restablecer el default
+del catálogo. Esto no modifica los defaults propios del binario para opciones omitidas.
+
+## Eliminación de definiciones
+
+Al eliminar una definición editable en uso, Coquena muestra los presets y
+servidores afectados y las asignaciones que se eliminarán. Advierte del borrado en
+cascada y solicita confirmación antes de modificar el catálogo.
+
+Confirmar elimina la definición y sus asignaciones en esos presets y servidores;
+conserva las entidades y sus demás parámetros. Las referencias a modelos o companions
+se retiran como asignaciones, sin eliminar los recursos referenciados ni sus archivos.
+Cancelar o no poder obtener la confirmación deja el estado sin cambios. Se aplican las
+[reglas de interacción de la CLI](comandos.md#mapa-por-comando).
+
+La operación debe conservar la consistencia entre catálogo y asignaciones ante un fallo;
+no puede dejar un borrado parcial. Las instancias en ejecución conservan su configuración;
+la eliminación afecta a las siguientes composiciones. La protección de las definiciones
+estáticas se mantiene según su ámbito de aplicación.
+
+## Edición con asignaciones incompatibles
+
+Al cambiar el tipo o las opciones de un enumerado, Coquena valida las asignaciones
+existentes contra la nueva definición. Si alguna resulta incompatible, muestra los
+presets y servidores afectados y los valores que se eliminarán, advierte de la cascada
+y solicita confirmación.
+
+Confirmar aplica la edición y elimina únicamente las asignaciones incompatibles;
+las compatibles se conservan. Cancelar o no poder obtener la confirmación conserva
+tanto la definición anterior como todas sus asignaciones. La edición y la cascada
+forman una operación consistente ante fallos, con las mismas garantías de conservación
+de entidades, recursos e instancias activas que la
+[eliminación de definiciones](#eliminación-de-definiciones).
+
+## Consulta del impacto
+
+Las operaciones de edición y eliminación admiten `--dry-run`. Validan la operación
+y calculan su impacto sobre el estado actual sin modificar definiciones, asignaciones
+ni archivos de ejecución y sin solicitar confirmación. Se pueden consultar sin entrada
+interactiva.
+
+El informe muestra la definición y el cambio solicitado, los presets y servidores
+afectados (nombre e ID), los parámetros y valores actuales que se eliminarían, y el
+motivo de cada efecto. Incluye las referencias guardadas cuando el valor es una referencia,
+para permitir revisar y reparar las asignaciones después. Al editar la aplicabilidad,
+distingue las asignaciones conservadas cuyo parámetro dejaría de emitirse con un warning
+en las ejecuciones afectadas de las asignaciones que se borrarían por incompatibilidad.
+Si no hay asignaciones afectadas, lo indica expresamente.
+
+El informe se emite como texto por la salida estándar, sin controles de terminal al
+redirigirla, para que el usuario pueda guardarlo en un archivo. Usa el mismo análisis
+de impacto que la operación real. Ejecutar después sin `--dry-run` recalcula el impacto
+y solicita la confirmación que corresponda: el informe guardado describe el estado
+consultado, no autoriza una modificación posterior.
+
+## Restablecimiento de fábrica
+
+`config param-reset` reemplaza el catálogo por las definiciones de fábrica suministradas
+por la versión instalada de Coquena. Recupera las definiciones iniciales editadas o
+eliminadas y retira las añadidas por el usuario. Mantiene las definiciones protegidas
+`host`, `port` y `metrics`.
+
+Antes de aplicar el cambio, muestra las definiciones que se restablecerán o retirarán
+y el impacto sobre presets y servidores, y solicita confirmación. Conserva las
+asignaciones válidas para el catálogo de fábrica; elimina en cascada las de parámetros
+retirados y las incompatibles con las definiciones restablecidas. Un cambio de default
+no modifica valores asignados. Los cambios de aplicabilidad conservan los valores y
+se diagnostican según las reglas de emisión del catálogo.
+
+Admite `--dry-run` con las [reglas del informe de impacto](#consulta-del-impacto),
+sin escrituras ni confirmación. Cancelar o no poder obtener la confirmación deja todo
+sin cambios. El restablecimiento y la cascada deben conservar la consistencia ante
+fallos; preservan las entidades, archivos referenciados y configuración de instancias
+activas según las garantías de [eliminación](#eliminación-de-definiciones).
+
 ## Ámbito de aplicación
 
 Cada definición distingue servidor/router de modelo/inferencia, además de su destino
@@ -37,7 +227,8 @@ hide empty methods
 
 class Parametro {
   nombre canónico <<clave INI, sin guiones>>
-  tipo : texto | entero | booleano | sin valor | enumerado
+  tipo : entero | decimal | texto | booleano | sin valor | enumerado
+  valor predeterminado (opcional)
   alias corto
   variable de entorno
   descripción
@@ -46,8 +237,9 @@ class Parametro {
 }
 class Disponibilidad {
   evidencia : admite | rechaza
-  desde : build (opcional)
-  hasta : build (opcional, excluido)
+  familia/variante (para asociación por origen)
+  desde : versión (opcional, inclusiva)
+  hasta : versión (opcional, inclusiva)
 }
 class Distribucion {
   repositorio de origen <<identificador>>
@@ -59,7 +251,7 @@ class BackendRegistrado {
 class ValorEnumerado
 
 Parametro "1" *-- "*" Disponibilidad
-Disponibilidad "*" --> "0..1" Distribucion : ámbito por builds
+Disponibilidad "*" --> "0..1" Distribucion : origen + familia/variante + versiones
 Disponibilidad "*" --> "0..1" BackendRegistrado : ámbito exacto
 BackendRegistrado "1" --> "1" Distribucion
 BackendRegistrado "1" --> "1" CatalogoEfectivo
@@ -68,10 +260,13 @@ CatalogoEfectivo "1" o-- "*" Parametro
 Parametro "1" *-- "*" ValorEnumerado
 
 note right of Disponibilidad
-  Exactamente uno de los dos ámbitos.
+  General: sin origen ni backend local.
+  Específica: origen y familia/variante,
+  o backend local concreto; excluyentes.
   Contra un backend concreto, un parámetro
   queda: admitido | no admitido | desconocido.
-  Es consultivo: no impide configurarlo.
+  Se puede guardar el valor en su ámbito.
+  Si no aplica, se omite con warning al lanzar.
 end note
 @enduml
 ```
@@ -93,17 +288,18 @@ end note
   a un backend concreto sigue disponible para excepciones y requiere seleccionar el
   backend local al importar. Declarar un repositorio no autoriza descargas desde él ni
   lo convierte en una fuente de confianza.
-- **Estados consultivos:** `admitido` significa que el catálogo asociado afirma que ese
-  backend acepta el parámetro; `no admitido` requiere evidencia negativa explícita;
-  `desconocido` significa que falta evidencia aplicable. La ausencia de una entrada no
-  prueba que el backend la rechace. Los estados se informan al configurar y al lanzar,
-  sin bloquear la elección explícita del usuario.
-- **Precedencia:** una definición específica del backend prevalece sobre la de su
-  distribución para ese backend. Coquena muestra el conflicto y la definición efectiva;
-  no modifica el catálogo de la distribución ni el de otros backends. Los conflictos
-  entre entradas del mismo ámbito se diagnostican durante la importación.
-- **Configuración de familia:** sirve para *valores* propios del hardware (dispositivo,
-  capas en GPU), no para inferir la disponibilidad de un flag.
+- **Disponibilidad y emisión:** la aplicabilidad se evalúa para el binario y versión
+  que ejecutará el servidor. Guardar un valor no exige que el preset esté asociado a un
+  servidor compatible. `Admitido` permite emitirlo; `no admitido` lo omite con warning,
+  conservando la asignación. `Desconocido` informa falta de evidencia y conserva la
+  elección explícita: ausencia de información no equivale a incompatibilidad declarada.
+- **Precedencia:** las asociaciones siguen el orden backend local, origen/familia y
+  general definido en la gestión del catálogo. Coquena muestra la asociación efectiva;
+  no modifica otras asociaciones. Los conflictos entre entradas del mismo ámbito se
+  diagnostican durante la importación.
+- **Asignación por ámbito:** un parámetro de modelo se asigna en un preset; uno de
+  proceso, en un servidor. La pertenencia a un binario determina su aplicabilidad, no
+  dónde se guarda el valor. La familia de aceleración no es un ámbito de asignación.
 
 ## Consulta del catálogo local
 
@@ -128,23 +324,30 @@ coquena param show <parametro> --distribution <repositorio-origen> --version <re
 
 ## Aplicación en Router Mode
 
-El INI generado es la vía principal para configurar los modelos: `[*]` contiene valores
-comunes y cada sección de preset sus valores específicos. Las claves corresponden a
-argumentos sin los guiones iniciales; Coquena emite el nombre canónico.
+Cada instancia de servidor tiene su propio INI, con una sección por preset que contiene
+sus valores y la ruta del modelo. La sección `[*]` comparte valores únicamente dentro
+de ese archivo: su alcance es la instancia, no todos los servidores de Coquena.
+Los parámetros del servidor se emiten para esa ejecución según su destino CLI/INI.
+Las claves usan el nombre canónico sin los guiones iniciales.
 
 No todo pertenece a esas secciones: el router controla opciones como host, puerto y
 autenticación, que pueden eliminarse o sobrescribirse al cargar un modelo. También hay
 opciones exclusivas del INI, como `load-on-startup` y `stop-timeout`, que no son flags CLI.
 El catálogo debe distinguir estos casos según el origen y release.
 
-La documentación actual establece la precedencia **CLI > sección del preset > `[*]`**.
-Coquena debe evitar duplicar en CLI los valores que desea hacer configurables por preset.
+Coquena evita duplicar en CLI los valores que configura mediante las secciones de presets.
 Estas reglas se verifican para cada release soportado, no se deducen de `master` para
 versiones anteriores o distribuciones modificadas.
 
 Referencia: [Model presets de llama-server](https://github.com/ggml-org/llama.cpp/blob/master/tools/server/README.md#model-presets).
 
 ## Origen del catálogo
+
+La importación/exportación de definiciones de parámetros usa JSON y corresponde
+a [M3](milestones/M3-definiciones-declarativas.md). El YAML de ejecución puede
+referenciar ese archivo opcional; véanse las [reglas declarativas](definiciones-declarativas.md).
+El flujo siguiente es una propuesta de interacción; la fusión y los conflictos
+requieren cerrar sus pendientes antes de implementar.
 
 El catálogo **no se extrae automáticamente**: no hay heurística confiable para inferir
 desde un ejecutable todos sus parámetros y rangos de disponibilidad. Se redacta a partir
@@ -197,3 +400,9 @@ para un parámetro existente o alias duplicado dentro del mismo ámbito). La imp
 parcial **nunca es silenciosa**: requiere la decisión explícita del usuario tras ver el
 diagnóstico. Si no puede interpretarse con seguridad o no queda ninguna entrada
 aplicable, se rechaza entero.
+
+Antes de implementar la importación falta precisar cuándo una definición existente
+constituye un conflicto rechazado y cuándo puede reemplazarse con el análisis de impacto
+y confirmación de la edición. Esa decisión debe mantener las garantías del catálogo
+y de sus asignaciones; no se resuelve implícitamente durante la fusión.
+El formato JSON está acordado; su esquema exacto sigue pendiente.

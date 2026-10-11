@@ -125,7 +125,7 @@ if (¿puerto ocupado?) then (sí)
   :Rechazar sin reasignar puerto;
   stop
 endif
-:Generar INI por instancia\ncon herencia de modelos/presets;
+:Generar INI por instancia\ncon valores del servidor y sus presets;
 :Asignar ID, lanzar backend concreto\ny registrar PID, escucha y log;
 if (¿-d?) then (sí)
   :Informar ID y log;\ndevolver prompt;
@@ -183,20 +183,19 @@ Coquena --> Usuario : Instantánea con IDs y métricas disponibles
 @startuml
 start
 :Usuario indica preset origen,\nnombre nuevo y modelo destino (opcional);
-  :Copiar los valores propios del preset\n(no los heredados);
+:Copiar los valores del preset;
 note right
   Incluye referencias propias a companions,
-  no copia sus archivos ni valores heredados.
+  no copia sus archivos.
   El clon es independiente del preset origen.
 end note
 if (¿nombre válido y libre?) then (no)
   :Rechazar;
   stop
 endif
-:Resolver referencias de companions\nde la configuración efectiva del destino;
-:Guardar el preset\nbajo la configuración del modelo destino;
+:Resolver referencias de companions\ndel preset destino;
+:Guardar el preset\nasociado al modelo destino;
 note right
-  Hereda la configuración del destino.
   Cambios posteriores del preset origen
   no afectan al clon.
 end note
@@ -210,14 +209,14 @@ stop
 ```plantuml
 @startuml
 start
-:config set <param> --ref <nombre>\n[ámbito];
+:preset set <preset> <param>\n--ref <nombre>;
 :Resolver la referencia sin\nconfundirla con una ruta literal;
 if (¿identifica un único registro?) then (no)
   :Rechazar con diagnóstico;
   stop
 endif
 :Guardar referencia por ID estable\nmostrando nombre canónico, no ruta resuelta;
-:Al lanzar, resolver herencia y\ncomprobar archivos efectivos;
+:Al lanzar, comprobar referencias\ny archivos del preset;
 :Emitir las rutas absolutas en el INI;
 stop
 @enduml

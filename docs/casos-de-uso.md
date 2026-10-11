@@ -45,9 +45,10 @@ rectangle Coquena {
   }
   package Configuración {
     usecase "Definir servidor\n(presets, puerto,\nbackend propio o default)" as UC_ID
-    usecase "Editar configuración\nglobal / de familia /\nde modelo" as UC_IG
+    usecase "Configurar políticas y directorios\ndel manager" as UC_IG
+    usecase "Crear / editar / consultar /\neliminar parámetros del catálogo" as UC_PAR
     usecase "Definir / editar /\neliminar preset" as UC_PD
-    usecase "Clonar configuración\no preset" as UC_PC
+    usecase "Clonar preset" as UC_PC
   }
   package "Descargas" {
     usecase "Consultar progreso y filtrar" as UC_DLIST
@@ -87,6 +88,7 @@ Usuario --> UC_CR
 Usuario --> UC_ML
 Usuario --> UC_ID
 Usuario --> UC_IG
+Usuario --> UC_PAR
 Usuario --> UC_PD
 Usuario --> UC_PC
 Usuario --> UC_IS
@@ -115,10 +117,10 @@ end note
 - Modelos: registro, emparejamiento, actualización e integridad en
   [modelos-y-companions.md](modelos-y-companions.md).
 - Descargas: progreso, control y recuperación en [descargas.md](descargas.md).
-- Configuración y presets: herencia y referencias en [modelo-de-datos.md](modelo-de-datos.md#dos-ejes-de-herencia).
+- Presets y servidores: valores y referencias en [modelo-de-datos.md](modelo-de-datos.md#parámetros-del-preset-y-del-servidor).
 - Servidores e instancias: acuerdos y pendientes en [servidores.md](servidores.md).
-- Elegir ubicaciones distintas para configuración y archivos pesados se difiere; no es
-  un caso de uso del catálogo de modelos.
+- Parámetros: definiciones y aplicabilidad en [catálogo de parámetros](catalogo-de-parametros.md).
+- Directorios de backends y modelos: configuración del manager mediante [config](comandos.md#config).
 
 El cliente de inferencia consume llama-server, no una API de Coquena.
 La verificación local no usa red; sólo los casos remotos se relacionan con Hugging Face.

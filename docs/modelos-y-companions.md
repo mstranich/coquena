@@ -73,8 +73,26 @@ por hash. Un nombre retirado puede reutilizarse, sin reconectar referencias rota
 El nombre no es una ruta física ni el nombre del preset. Las configuraciones referencian
 el registro; el INI recibe rutas absolutas. Cada registro tiene un ID interno estable
 para mantener referencias ante renombres. Su esquema concreto sigue pendiente.
-Cada modelo principal obtiene una configuración inicial vacía al registrarse, como
-raíz de herencia de sus presets. No requiere otro comando ni un archivo separado.
+
+## Presets
+
+Cada preset pertenece a un modelo principal y guarda sus propios valores de parámetros.
+Un modelo puede tener varios presets, por ejemplo uno con contexto corto y otro con
+contexto largo. Registrar el modelo no crea valores compartidos que hereden sus presets.
+
+Las definiciones proceden del [catálogo de parámetros](catalogo-de-parametros.md).
+Asignar un valor modifica sólo ese preset; quitarlo elimina la asignación, sin recuperar
+valores globales, por familia ni por modelo. Los parámetros del proceso pertenecen a la
+[definición del servidor](servidores.md#parámetros-del-servidor).
+
+Los companions se eligen mediante parámetros del preset. Una referencia explícita
+se guarda por ID estable y se resuelve a ruta absoluta al generar el INI. Un literal
+continúa siendo literal aunque coincida con el nombre de un registro. Coquena comprueba
+referencias y archivos; la compatibilidad funcional de la combinación la decide el backend.
+
+Clonar un preset copia sus valores y referencias al modelo destino, sin copiar archivos
+ni crear herencia. El clon es independiente: cambios en el origen no se propagan.
+La sintaxis está en [comandos](comandos.md#preset).
 
 ## Disponibilidad, en el núcleo
 
@@ -208,8 +226,8 @@ companion no es su estado sino su relación con los modelos:
 - **Registro:** `model companion add <ruta.gguf> --name <usuario/repositorio#tipo:cuantización> [--try-match]`.
   El tipo está en el nombre, sin `--type`; no configura un preset.
 - **Retiro:** `model companion remove <nombre>` resuelve el registro por su nombre canónico.
-- **Uso:** un parámetro de configuración referencia al companion registrado. El preset
-  puede heredar esa referencia o sobrescribirla; Coquena la resuelve a una ruta absoluta
+- **Uso:** un parámetro del preset referencia al companion registrado. Cada preset
+  guarda su propia referencia; Coquena la resuelve a una ruta absoluta
   en el INI. No hay una segunda lista de asociaciones en el preset.
 - **Compatibilidad funcional:** queda a cargo del backend al cargar la combinación.
   Coquena no la certifica ni bloquea la configuración por esa causa. No hay un modo

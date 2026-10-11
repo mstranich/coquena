@@ -73,7 +73,9 @@ sobre el mismo GGUF.
 - [M1: servidor local](milestones/M1-servidor-local.md): backend, dos modelos, métricas y logs.
 - [M2: gestión completa](milestones/M2-gestion-completa.md): funciones iniciales restantes, después de M1.
 
-Ambos son borradores de planificación. Las tareas concretas se gestionan con LeanSpec
+- [M3: definiciones declarativas](milestones/M3-definiciones-declarativas.md): YAML de servidores y JSON de parámetros.
+
+Los milestones son documentos de planificación. Las tareas concretas se gestionan con LeanSpec
 en specs/; los milestones no se mezclan con ellas en el tablero.
 
 ### Cómo leer y mantener esta documentación
@@ -92,6 +94,7 @@ Los acuerdos de servidores están en [servidores.md](servidores.md); sus pendien
 
 | Documento | Contenido |
 |---|---|
+| [definiciones-declarativas.md](definiciones-declarativas.md) | YAML de ejecución, JSON de parámetros y pendientes de M3 |
 | [servidores.md](servidores.md) | Composición, defaults, instancias y pendientes |
 | [glosario.md](glosario.md) | Vocabulario del dominio |
 | [casos-de-uso.md](casos-de-uso.md) | Actores y casos de uso |
