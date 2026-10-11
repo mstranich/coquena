@@ -12,6 +12,7 @@ public sealed class ModelInstaller(Home home, LocalStore? storage = null,
     Func<long>? availableBytes = null, Action<ModelInstallStage>? fault = null)
 {
     private readonly LocalStore store = storage ?? new LocalStore(home);
+    private readonly ModelPaths paths = new(home);
     private static readonly ContractJsonContext Json = ContractJsonContext.Default;
     public DownloadManager Downloads => new(home, store);
     private ModelsDocument Catalog() => store.Read(DocumentKind.Models, Json.ModelsDocument, ContractValidation.Models) ?? new(1, []);
@@ -32,11 +33,11 @@ public sealed class ModelInstaller(Home home, LocalStore? storage = null,
         var id = Guid.NewGuid();
         var files = selection.Files.Select((f, i) => new TransferRecord(f.Path, $"downloads/{id:D}/files/{i}.part",
             $"models/{selection.Repository}/{f.Path}", 0, f.Size, f.Identity, null, null, "pending")).ToArray();
-        var operation = new OperationDocument(1, id, "model", selected.Name, selection, null, files,
-            "pending", "transfer", DateTimeOffset.UtcNow, null, ModelInstall: new(Guid.NewGuid()));
-        ValidatePlan(operation);
         return store.Exclusive(() =>
         {
+            var operation = new OperationDocument(1, id, "model", selected.Name, selection, null, files,
+                "pending", "transfer", DateTimeOffset.UtcNow, null, ModelInstall: new(Guid.NewGuid(), InstallationDirectory: store.Read(DocumentKind.Config, Json.ConfigDocument, ContractValidation.Config)?.ModelsDirectory));
+            ValidatePlan(operation);
             CheckCollision(operation, Catalog(), allowOwn: false);
             // A persisted plan reserves its name and paths, not a long-lived catalog lease.
             var area = home.PathFor("downloads");
@@ -83,7 +84,7 @@ public sealed class ModelInstaller(Home home, LocalStore? storage = null,
             if (!f.SourcePath.EndsWith(".gguf", StringComparison.OrdinalIgnoreCase) ||
                 f.PartialPath != $"downloads/{operation.Id:D}/files/{i}.part" ||
                 f.DestinationPath != $"models/{selection!.Repository}/{f.SourcePath}" ||
-                !paths.Add(home.PathFor(f.DestinationPath))) Fail("unsafe-install-path");
+                !paths.Add(this.paths.Destination(operation, f))) Fail("unsafe-install-path");
             _ = home.PathFor(f.PartialPath);
         }
     }
@@ -95,12 +96,12 @@ public sealed class ModelInstaller(Home home, LocalStore? storage = null,
         {
             if (allowOwn && record.Id == plan.ModelId) continue;
             if (record.Id == plan.ModelId || record.Name.Equals(operation.Name, StringComparison.OrdinalIgnoreCase) ||
-                record.Files.Any(f => operation.Files.Any(n => n.DestinationPath.Equals(f.LocalPath, StringComparison.OrdinalIgnoreCase))))
+                record.Files.Any(f => operation.Files.Any(n => paths.Destination(operation, n).Equals(paths.File(record, f), StringComparison.OrdinalIgnoreCase))))
                 Fail("model-collision");
         }
         for (var i = 0; i < operation.Files.Length; i++)
         {
-            var target = home.PathFor(operation.Files[i].DestinationPath);
+            var target = paths.Destination(operation, operation.Files[i]);
             if ((File.Exists(target) || Directory.Exists(target)) &&
                 !(allowOwn && (i < plan.MovedFiles || i == plan.MovingFile))) Fail("destination-collision");
         }
@@ -110,11 +111,7 @@ public sealed class ModelInstaller(Home home, LocalStore? storage = null,
     {
         return Catalog().Models.Select(record =>
         {
-            var paths = record.Files.Select(f =>
-            {
-                if (f.LocalPath != $"models/{record.Selection.Repository}/{f.RemotePath}") Fail("unsafe-catalog-path");
-                return home.PathFor(f.LocalPath);
-            }).ToArray();
+            var paths = record.Files.Select(f => this.paths.File(record, f)).ToArray();
             var unit = GgufInspection.InspectPaths(paths);
             var availability = unit.Status switch { "complete" => "available", "incomplete" when paths.Length > 1 => "incomplete",
                 "incomplete" or "read-error" => "inaccessible", _ => "invalid" };
@@ -142,9 +139,9 @@ public sealed class ModelInstaller(Home home, LocalStore? storage = null,
             for (var i = 0; i < operation.Files.Length; i++)
             {
                 var f = operation.Files[i];
-                var partial = home.PathFor(f.PartialPath); var final = home.PathFor(f.DestinationPath);
-                var moved = i < plan.MovedFiles || i == plan.MovingFile && File.Exists(final) && !File.Exists(partial);
-                if (File.Exists(final) && File.Exists(partial)) Fail("destination-collision");
+                var partial = home.PathFor(f.PartialPath); var final = paths.Destination(operation, f);
+                var moved = i < plan.MovedFiles || i == plan.MovingFile && File.Exists(final);
+                if (File.Exists(final) && File.Exists(partial) && !moved) Fail("destination-collision");
                 actual[i] = moved ? final : partial;
                 var stream = new FileStream(actual[i], FileMode.Open, FileAccess.Read, FileShare.Read | FileShare.Delete);
                 handles.Add(stream);
@@ -159,7 +156,7 @@ public sealed class ModelInstaller(Home home, LocalStore? storage = null,
                 else if (f.VerifiedWriteUtc is null || File.GetLastWriteTimeUtc(actual[i]) != f.VerifiedWriteUtc.Value.UtcDateTime)
                     Fail("partial-changed");
             }
-            var logical = operation.Files.Select(f => home.PathFor(f.DestinationPath)).ToArray();
+            var logical = operation.Files.Select(f => paths.Destination(operation, f)).ToArray();
             var map = logical.Select((p, i) => (p, actual[i])).ToDictionary(x => x.p, x => x.Item2, StringComparer.Ordinal);
             var unit = GgufInspection.InspectPaths(logical, cancellation, path => map.TryGetValue(path, out var mapped) ? mapped : path);
             if (unit.Status != "complete" || !unit.Expected.SequenceEqual(logical, StringComparer.Ordinal)) Fail("gguf-" + unit.Status);
@@ -176,7 +173,7 @@ public sealed class ModelInstaller(Home home, LocalStore? storage = null,
                 var catalog = Catalog(); plan = operation.ModelInstall!;
                 CheckCollision(operation, catalog, allowOwn: true);
                 var existing = catalog.Models.SingleOrDefault(m => m.Id == plan.ModelId);
-                var next = new ModelRecord(plan.ModelId, operation.Name, operation.ModelSelection!, plan.VerifiedFiles!, []);
+                var next = new ModelRecord(plan.ModelId, operation.Name, operation.ModelSelection!, plan.VerifiedFiles!.Select(f => plan.InstallationDirectory is null ? f : f with { LocalPath = f.LocalPath[7..] }).ToArray(), [], plan.InstallationDirectory);
                 if (existing is not null)
                 {
                     if (ContractJson.Write(existing, Json.ModelRecord) != ContractJson.Write(next, Json.ModelRecord)) Fail("stale-install-plan");
@@ -185,7 +182,7 @@ public sealed class ModelInstaller(Home home, LocalStore? storage = null,
                 {
                     for (var i = plan.MovedFiles; i < operation.Files.Length; i++)
                     {
-                        var f = operation.Files[i]; var source = home.PathFor(f.PartialPath); var target = home.PathFor(f.DestinationPath);
+                        var f = operation.Files[i]; var source = home.PathFor(f.PartialPath); var target = paths.Destination(operation, f);
                         if (plan.MovingFile != i)
                         {
                             if (File.Exists(target) || Directory.Exists(target)) Fail("destination-collision");
@@ -194,9 +191,9 @@ public sealed class ModelInstaller(Home home, LocalStore? storage = null,
                         }
                         if (File.Exists(source))
                         {
-                            if (File.Exists(target) || Directory.Exists(target)) Fail("destination-collision");
+                            if (Directory.Exists(target)) Fail("destination-collision");
                             Directory.CreateDirectory(Path.GetDirectoryName(target)!);
-                            File.Move(source, target);
+                            PublishFile(source, target);
                             fault?.Invoke(ModelInstallStage.AfterMove);
                         }
                         else if (!File.Exists(target)) Fail("publication-file-missing");
@@ -229,8 +226,7 @@ public sealed class ModelInstaller(Home home, LocalStore? storage = null,
             var count = Math.Max(plan.MovedFiles, plan.MovingFile + 1);
             for (var i = count - 1; i >= 0; i--)
             {
-                var f = operation.Files[i]; var partial = home.PathFor(f.PartialPath); var target = home.PathFor(f.DestinationPath);
-                if (File.Exists(partial) && File.Exists(target)) Fail("destination-collision");
+                var f = operation.Files[i]; var partial = home.PathFor(f.PartialPath); var target = paths.Destination(operation, f);
                 var path = File.Exists(target) ? target : partial;
                 using var held = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read | FileShare.Delete);
                 using var hash = new FileHashSession();
@@ -241,9 +237,10 @@ public sealed class ModelInstaller(Home home, LocalStore? storage = null,
                     if (IsInstalled(plan.ModelId)) Fail("stale-cancellation");
                     if (File.Exists(target))
                     {
-                        if (File.Exists(partial)) Fail("destination-collision");
+                        if (File.Exists(partial) && Coquena.Configuration.ModelDirectoryManager.Hash(partial) != Coquena.Configuration.ModelDirectoryManager.Hash(target)) Fail("destination-collision");
                         Directory.CreateDirectory(Path.GetDirectoryName(partial)!);
-                        File.Move(target, partial);
+                        if (!File.Exists(partial)) PublishFile(target, partial);
+                        File.Delete(target);
                     }
                     plan = plan with { MovedFiles = i, MovingFile = -1 };
                     return SaveLocked(operation with { ModelInstall = plan });
@@ -253,6 +250,27 @@ public sealed class ModelInstaller(Home home, LocalStore? storage = null,
                 ModelInstall = plan with { VerifiedFiles = null } });
         }
         return false;
+    }
+
+    private static void PublishFile(string source, string target)
+    {
+        Home.CheckLinks(source); Home.CheckLinks(target);
+        if (File.Exists(target))
+        {
+            if (Coquena.Configuration.ModelDirectoryManager.Hash(source) != Coquena.Configuration.ModelDirectoryManager.Hash(target)) Fail("destination-collision");
+            return;
+        }
+        var temporary = target + ".coquena-" + Guid.NewGuid().ToString("N") + ".tmp";
+        try
+        {
+            using (var input = new FileStream(source, FileMode.Open, FileAccess.Read, FileShare.Read))
+            using (var output = new FileStream(temporary, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+            { input.CopyTo(output); output.Flush(true); }
+            File.SetLastWriteTimeUtc(temporary, File.GetLastWriteTimeUtc(source));
+            if (Coquena.Configuration.ModelDirectoryManager.Hash(source) != Coquena.Configuration.ModelDirectoryManager.Hash(temporary)) Fail("copy-verification-failed");
+            File.Move(temporary, target);
+        }
+        finally { if (File.Exists(temporary)) File.Delete(temporary); }
     }
 
     private void Cleanup(OperationDocument operation)

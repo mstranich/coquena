@@ -16,14 +16,17 @@ public static class ConfigurationCli
             // Check grammar before creating the home or modifying state.
             if (command == "config")
             {
-                if (args.Length >= 1 && args[0] == "backends-dir")
+                if (args.Length >= 1 && args[0] is "backends-dir" or "models-dir")
                 {
                     if (!(args.Length == 2 && args[1] is "show" or "unset" || args.Length == 3 && args[1] == "set")) Invalid();
                     manager ??= new(Home.Resolve());
-                    if (args[1] != "show") manager.BackendDirectory.Change(args[1] == "set" ? args[2] : null, output,
+                    if (args[1] != "show" && args[0] == "models-dir") manager.ModelDirectory.Change(args[1] == "set" ? args[2] : null, output,
+                        directoryChoice ?? (() => Console.IsInputRedirected ? null : Console.ReadLine()),
+                        directoryOverwrite ?? (() => !Console.IsInputRedirected && Console.ReadLine()?.Trim().ToLowerInvariant() is "s" or "si" or "s�"));
+                    if (args[1] != "show" && args[0] == "backends-dir") manager.BackendDirectory.Change(args[1] == "set" ? args[2] : null, output,
                         directoryChoice ?? (() => Console.IsInputRedirected ? null : Console.ReadLine()),
                         directoryOverwrite ?? (() => !Console.IsInputRedirected && Console.ReadLine()?.Trim().ToLowerInvariant() is "s" or "si" or "sí"));
-                    var view = manager.BackendDirectory.Show();
+                    var view = args[0] == "models-dir" ? manager.ModelDirectory.Show() : manager.BackendDirectory.Show();
                     output.WriteLine($"{view.EffectivePath} | {(view.Own ? "propio" : "default")} | ubicación: {view.Location}");
                     return 0;
                 }

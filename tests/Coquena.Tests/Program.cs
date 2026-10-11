@@ -42,6 +42,11 @@ if (args.Length is 1 or 2 && args[0] == "--backend-directory-tests")
     await Coquena.Tests.BackendDirectoryTests.Run(args.Length == 2 ? Path.GetFullPath(args[1]) : null);
     return;
 }
+if (args.Length is 1 or 2 && args[0] == "--model-directory-tests")
+{
+    await Coquena.Tests.ModelDirectoryTests.Run(args.Length == 2 ? Path.GetFullPath(args[1]) : null);
+    return;
+}
 if (args.Length is 2 or 3 && args[0] == "--hf-resolve")
 {
     await Coquena.Tests.ResolutionTests.Live(args[1], args.Length == 3 ? args[2] : null);
@@ -134,3 +139,5 @@ await Coquena.Tests.ResolutionTests.Run();
 await Coquena.Tests.ModelSourceTests.Run();
 await Coquena.Tests.GgufTests.Run();
 await Coquena.Tests.ModelInstallerTests.Run(executable);
+
+await Coquena.Tests.ModelDirectoryTests.Run(executable);
