@@ -21,15 +21,14 @@ public sealed record ModelRecord(Guid Id, string Name, RemoteSelection Selection
 public sealed record PresetRecord(Guid Id, string Name, Guid ModelId,
     Dictionary<string, string> Parameters);
 public sealed record ServerRecord(Guid Id, string Name, [property: JsonIgnore(Condition = JsonIgnoreCondition.Never)] BackendSelection? Backend,
-    Guid[] PresetIds, Dictionary<string, JsonElement> Parameters);
+    Guid[] PresetIds, Dictionary<string, JsonElement> Parameters,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] LogRetention? LogRetention = null);
 public sealed record ServersDocument(int SchemaVersion, ServerRecord[] Servers);
 public sealed record BackendRetention(int MaxBuilds);
 public sealed record LogRetention(long MaxBytes);
 public sealed record LastLogDocument(int SchemaVersion, Guid ServerId, Guid InstanceId, string LogPath);
 public sealed record ConfigDocument(int SchemaVersion, Guid? DefaultServerId,
     BackendSelection? DefaultBackend, BackendRetention BackendRetention,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] Dictionary<string, string>? Parameters = null,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] Dictionary<string, Dictionary<string, string>>? Families = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] LogRetention? LogRetention = null);
 public sealed record ModelsDocument(int SchemaVersion, ModelRecord[] Models);
 public sealed record BackendsDocument(int SchemaVersion, BackendRecord[] Backends);

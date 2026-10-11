@@ -103,44 +103,36 @@ internal static class ConfigurationTests
             Reject(() => manager.Create(first.Name, "*"), "reserved section");
             Reject(() => manager.Create(first.Name, "default"), "upstream reserved section");
             Reject(() => manager.Create(first.Name, "chat:Q4"), "upstream colon normalization");
-            manager.Set(new(), "-c", "1024");
-            manager.Set(new("family", "cuda@13"), "LLAMA_ARG_CTX_SIZE", "2048");
-            manager.Set(new("model", first.Name), "ctx-size", "4096");
-            manager.Set(new("preset", "chat"), "c", "8192");
-            manager.Set(new("preset", "chat"), "temp", "0.7");
-            manager.Set(new(), "LLAMA_ARG_N_GPU_LAYERS", "all");
-            manager.Set(new("model", second.Name), "load-on-startup", "false");
-            Check(manager.Show(new("family", "cuda@13")).Effective["ctx-size"] == "2048", "family overrides global");
-            Check(manager.View("chat").Effective["ctx-size"] == "8192", "preset overrides model");
-            var overridden = manager.Compose(backend, [chat.Id, coding.Id]).Ini;
-            Check(overridden.Contains("[*]\nctx-size = 2048") && overridden.Contains("[chat]\nctx-size = 8192"), "INI preserves both precedence axes");
-            manager.Set(new("preset", "CHAT"), "LLAMA_ARG_CTX_SIZE", null);
-            Check(manager.View("chat").Effective["ctx-size"] == "4096", "unset restores model inheritance");
-            manager.Set(new("model", first.Name), "c", null);
-            Check(!manager.View("chat").Effective.ContainsKey("ctx-size"), "no copied backend values in model axis");
+            manager.Set("chat", "c", "8192");
+            manager.Set("chat", "temp", "0.7");
+            manager.Set("coding", "load-on-startup", "false");
+            var sameModel = manager.Create(first.Name, "same-model");
+            manager.Set("same-model", "c", "2048");
+            Check(manager.View("chat").Effective["ctx-size"] == "8192" && manager.View("same-model").Effective["ctx-size"] == "2048", "presets of same model independent");
+            manager.Set("CHAT", "LLAMA_ARG_CTX_SIZE", null);
+            Check(!manager.View("chat").Effective.ContainsKey("ctx-size"), "unset removes assignment without inheritance");
+            // Model-level values are never incorporated, even if supplied in stored metadata.
+            store.Update(DocumentKind.Models, ContractJsonContext.Default.ModelsDocument, ContractValidation.Models,
+                _ => new(1, [first with { Parameters = new() { ["ctx-size"] = "9999" } }, second]));
             var ini = manager.Compose(backend, [chat.Id, coding.Id]);
-            Check(ini.Ini.StartsWith("version = 1\n\n[*]\nctx-size = 2048\n"), "version and family axis in global section");
+            Check(ini.Ini.StartsWith("version = 1\n\n[*]\n\n") && !ini.Ini.Contains("9999"), "no shared parameters in composition");
             Check(ini.Ini.Contains("[chat]\nmodel = " + home.PathFor(first.Files[0].LocalPath)), "first shard absolute reference");
             Check(ini.Ini.Contains("[coding]\nload-on-startup = false\nmodel = " + home.PathFor(second.Files[0].LocalPath)), "explicit second preset");
-            Check(ini.Ini.Contains("temperature = 0.7") && !ini.Ini.Contains("temp =") && !ini.Ini.Contains("c ="), "one canonical key");
-            Check(ini.ResourceIds.SequenceEqual(new[] { first.Id, second.Id }), "resource IDs preserve both units");
+            Check(ini.Ini.Contains("temperature = 0.7") && !ini.Ini.Contains("temp ="), "canonical key");
+            Check(ini.ResourceIds.SequenceEqual(new[] { first.Id, second.Id }), "both resources");
             Check(ini.Ini == manager.Compose(backend, [chat.Id, coding.Id]).Ini, "deterministic output");
-            manager.Set(new("family", "cuda@13"), "c", null);
-            Check(manager.Compose(backend, [chat.Id, coding.Id]).Ini.Contains("ctx-size = 1024"), "unset restores global inheritance");
-            manager.Set(new(), "c", null);
-            Check(!manager.Compose(backend, [chat.Id, coding.Id]).Ini.Contains("ctx-size"), "unset removes emission when no parent");
             foreach (var key in new[] { "port", "--host", "LLAMA_ARG_ENDPOINT_METRICS", "models-max", "no-models-autoload", "models-preset", "model", "m" })
-                Reject(() => manager.Set(new("preset", "chat"), key, "1"), "scope/resource boundary " + key);
-            manager.Set(new("preset", "chat"), "future-option", "on");
+                Reject(() => manager.Set("chat", key, "1"), "scope/resource boundary " + key);
+            manager.Set("chat", "future-option", "on");
             var unknown = manager.Compose(backend, [chat.Id]);
             Check(unknown.Ini.Contains("future-option = on") && unknown.Diagnostics.Single().Contains("desconocido"), "unknown kept with warning");
             Check(ParameterCatalog.Availability("ctx-size", backend) == "admitido" &&
                 ParameterCatalog.Availability("ctx-size", backend with { Build = "b11483" }) == "desconocido" &&
                 ParameterCatalog.Availability("ctx-size", backend with { Repository = "other/repo" }) == "desconocido", "evidence bound to exact release/origin");
-            manager.Set(new("preset", "chat"), "future-option", null);
+            manager.Set("chat", "future-option", null);
             foreach (var value in new[] { "x\n[other]", "x#truncated", "x;truncated", " trailing ", "x\0" })
-                Reject(() => manager.Set(new(), "temperature", value), "INI round-trip guard");
-            Reject(() => manager.Set(new(), "bad=key", "x"), "key injection");
+                Reject(() => manager.Set("chat", "temperature", value), "INI round-trip guard");
+            Reject(() => manager.Set("chat", "bad=key", "x"), "key injection");
             Reject(() => manager.Compose(backend, []), "empty explicit list");
             Reject(() => manager.Compose(backend, [chat.Id, chat.Id]), "duplicate selected preset");
             Reject(() => manager.Compose(backend, [Guid.NewGuid()]), "broken preset ID");
@@ -148,9 +140,14 @@ internal static class ConfigurationTests
             Check(saved.Contains("\"maxBuilds\": 7") && saved.Contains(backend.Id.ToString()), "config edits preserve unrelated defaults");
             Check(!File.ReadAllText(home.PathFor("catalogs/presets.json")).Contains("LocalPath") &&
                 File.ReadAllText(home.PathFor("catalogs/presets.json")).Contains(first.Id.ToString()), "stable model ID stored without paths");
-            Parallel.For(0, 8, i => new ConfigurationManager(home).Set(new(), "concurrent-" + i, i.ToString()));
-            Check(manager.Show(new()).Own.Keys.Count(k => k.StartsWith("concurrent-", StringComparison.Ordinal)) == 8, "concurrent writers preserve all updates");
-            for (var i = 0; i < 8; i++) manager.Set(new(), "concurrent-" + i, null);
+            Parallel.For(0, 8, i => new ConfigurationManager(home).Set("chat", "concurrent-" + i, i.ToString()));
+            Check(manager.View("chat").Own.Keys.Count(k => k.StartsWith("concurrent-", StringComparison.Ordinal)) == 8, "concurrent writers preserve all updates");
+            for (var i = 0; i < 8; i++) manager.Set("chat", "concurrent-" + i, null);
+            var beforeFailure = File.ReadAllText(home.PathFor("catalogs/presets.json"));
+            var failingStore = new LocalStore(home, stage => { if (stage == WriteStage.BeforeReplace) throw new IOException("fixture"); });
+            try { new ConfigurationManager(home, failingStore).Set("chat", "temp", "0.2"); throw new Exception("expected write failure"); }
+            catch (IOException) { checks++; }
+            Check(File.ReadAllText(home.PathFor("catalogs/presets.json")) == beforeFailure, "failed preset write preserves assignments and model references");
             manager.ChangeModel("chat", second.Name);
             Check(manager.View("chat").Preset.Id == chat.Id && manager.View("chat").Model!.Id == second.Id &&
                 manager.View("chat").Own["temperature"] == "0.7", "rebind retains preset identity and own values");
@@ -177,12 +174,13 @@ internal static class ConfigurationTests
             // with a fresh process for each call to prove source-generated persistence.
             Cli("preset", "create", first.Name, "native-chat");
             Cli("preset", "create", second.Name, "native-code");
-            Cli("config", "set", "c", "512");
-            Cli("config", "set", "ctx-size", "1024", "--model", first.Name);
-            Cli("config", "set", "c", "2048", "--preset", "native-chat");
-            Check(Cli("preset", "show", "native-chat").Contains("ctx-size = 2048 | propio"), "CLI own override");
-            Cli("config", "unset", "c", "--preset", "native-chat");
-            Check(Cli("config", "show", "--preset", "native-chat").Contains("ctx-size = 1024 | heredado"), "CLI persisted unset inheritance");
+            Cli("preset", "set", "native-chat", "c", "2048");
+            Check(Cli("preset", "show", "native-chat").Contains("ctx-size = 2048 | propio"), "CLI own value");
+            Cli("preset", "unset", "native-chat", "c");
+            Check(!Cli("preset", "show", "native-chat").Contains("ctx-size ="), "CLI persisted unset has no inheritance");
+            BadCli("config", "show");
+            BadCli("config", "unset", "c", "--preset", "native-chat");
+            BadCli("preset", "set", "native-chat", "temperature", "--ref", "missing");
             Cli("preset", "model", "set", "native-code", first.Name);
             Check(Cli("preset", "list", "--model", first.Name).Contains("native-code"), "CLI model filter and rebind");
             Check(Cli("param", "show", "ngl", "--backend", backend.Id.ToString()).Contains("n-gpu-layers") &&
@@ -196,13 +194,13 @@ internal static class ConfigurationTests
             Cli("preset", "remove", "native-code");
             var composed = new ConfigurationManager(home).Compose(backend, [manager.View("native-chat").Preset.Id, replacement.Id]);
             Check(composed.Ini.Contains("[native-chat]") && composed.Ini.Contains("[coding]"), "CLI-to-INI two explicit presets");
-            store.Update(DocumentKind.Config, ContractJsonContext.Default.ConfigDocument, ContractValidation.Config,
-                old => old! with { Parameters = new() { ["temperature"] = "bad#literal" } });
-            manager.Set(new(), "temp", null);
-            Check(manager.Show(new()).Own.Count == 0, "unset repairs stale unsupported literal without parsing it as INI");
-            File.WriteAllText(home.PathFor("config.json"), "{broken");
-            RejectContract(() => manager.Set(new(), "c", "128"));
-            Check(File.ReadAllText(home.PathFor("config.json")) == "{broken", "corruption never replaced with empty config");
+            store.Update(DocumentKind.Presets, ContractJsonContext.Default.PresetsDocument, ContractValidation.Presets,
+                old => old! with { Presets = old.Presets.Select(p => p.Id == chat.Id ? p with { Parameters = new() { ["temperature"] = "bad#literal" } } : p).ToArray() });
+            manager.Set("chat", "temp", null);
+            Check(manager.View("chat").Own.Count == 0, "unset repairs stale unsupported literal");
+            File.WriteAllText(home.PathFor("catalogs/presets.json"), "{broken");
+            RejectContract(() => manager.Set("chat", "c", "128"));
+            Check(File.ReadAllText(home.PathFor("catalogs/presets.json")) == "{broken", "corruption never replaced");
             Console.WriteLine($"OK: {checks} comprobaciones config/presets/INI" + (executable is null ? "." : " con CLI Native AOT."));
         }
         finally { Directory.Delete(root, true); }

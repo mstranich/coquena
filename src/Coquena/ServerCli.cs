@@ -25,6 +25,7 @@ public static class ServerCli
         }
         var valid = action switch
         {
+            "log-retention" => rest.Length == 1 && rest[0] is "show" or "unset" || rest.Length == 2 && rest[0] == "set",
             "create" => rest.Length == 1 || rest.Length == 3 && rest[1] == "--port" && int.TryParse(rest[2], out _),
             "default" => rest.Length <= 1 && (rest.Length == 0 || !ServerManager.Reserved.Contains(rest[0]) || rest[0] == "default"),
             "list" or "show" or "ps" => rest.Length == 0,
@@ -40,6 +41,7 @@ public static class ServerCli
         if (!valid) return Invalid();
         try
         {
+            long? retention = action == "log-retention" && rest[0] == "set" ? LogRetentionPolicy.Parse(rest[1]) : null;
             var home = Home.Resolve();
             manager ??= new ServerManager(home);
             if (action == "ps") { new ServerRuntime(home).Ps(output); return 0; }
@@ -72,6 +74,12 @@ public static class ServerCli
                     return result.Started && rest.Length == 0 ? runtime.Foreground(result.Instance, output, interrupt) : 0;
                 }
                 finally { Console.CancelKeyPress -= handler; }
+            }
+            if (action == "log-retention")
+            {
+                if (rest[0] != "show") manager.SetRetention(name, retention);
+                LogRetentionPolicy.Print(manager.Retention(name), output);
+                return 0;
             }
             if (action != "create" || !rest[0].Equals("default", StringComparison.OrdinalIgnoreCase)) manager.EnsureInitial();
             switch (action)

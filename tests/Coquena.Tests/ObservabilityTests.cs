@@ -49,8 +49,15 @@ internal static class ObservabilityTests
         store.Update(DocumentKind.Instance, json.InstanceDocument, ContractValidation.Instance, _ => instance, server: "default");
         store.Update(DocumentKind.Config, json.ConfigDocument, ContractValidation.Config, old => old! with { LogRetention = new(1) });
         var obsolete = home.PathFor($"logs/default/{Guid.NewGuid():D}.log"); File.WriteAllText(obsolete, "obsolete");
+        var policies = new ServerManager(home);
+        policies.SetRetention(null, 104857600);
+        output.GetStringBuilder().Clear(); runtime.Logs(null, false, output);
+        Check(File.Exists(obsolete), "cleanup uses server override instead of lower global limit");
+        policies.SetRetention(null, 1);
+        Check(File.Exists(obsolete), "setting lower override does not clean immediately");
         output.GetStringBuilder().Clear(); runtime.Logs(null, false, output);
         Check(!File.Exists(obsolete) && File.Exists(home.PathFor(instance.LogPath)) && output.ToString().Contains("protegidos") && output.ToString().Contains("ready"), "retention removes old log and protects active oversized log");
+        policies.SetRetention(null, null);
         var polls = 0; runtime.Logs(null, true, TextWriter.Null, () => ++polls > 2);
         Check(runtime.Recover("default")?.InstanceId == instance.InstanceId, "cancel follow keeps server alive");
         store.Update(DocumentKind.Config, json.ConfigDocument, ContractValidation.Config, old => old! with { LogRetention = null });

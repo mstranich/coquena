@@ -16,7 +16,7 @@ public sealed class ServerManager(Home home, LocalStore? storage = null)
 {
     private readonly LocalStore store = storage ?? new LocalStore(home);
     private static readonly ContractJsonContext Json = ContractJsonContext.Default;
-    public static readonly string[] Actions = ["use", "set", "unset", "preset", "show", "remove", "logs", "start", "stop", "restart"];
+    public static readonly string[] Actions = ["log-retention", "use", "set", "unset", "preset", "show", "remove", "logs", "start", "stop", "restart"];
     public static readonly string[] Reserved = ["create", "default", "list", "ps", .. Actions];
     private ServersDocument Catalog() => store.Read(DocumentKind.Servers, Json.ServersDocument, ContractValidation.Servers) ?? new(1, []);
     private ConfigDocument Config() => store.Read(DocumentKind.Config, Json.ConfigDocument, ContractValidation.Config) ?? new(1, null, null, new(5));
@@ -95,6 +95,11 @@ public sealed class ServerManager(Home home, LocalStore? storage = null)
         Save(catalog with { Servers = catalog.Servers.Select(s => s.Id == record.Id ? next : s).ToArray() });
         return next;
     });
+    public RetentionView Retention(string? name) => store.Exclusive(() => RetentionLocked(name));
+    internal RetentionView RetentionLocked(string? name) => LogRetentionPolicy.Resolve(Config().LogRetention, Named(name).LogRetention);
+    public ServerRecord SetRetention(string? name, long? bytes) => Change(name, (record, _) =>
+        record with { LogRetention = bytes is null ? null : new(bytes.Value) });
+
     public ServerRecord Use(string? name, string selector) => Change(name, (record, _) =>
     {
         var selection = selector == "default" ? null : new BackendInstaller(home, store).Resolve(selector);

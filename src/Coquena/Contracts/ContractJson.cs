@@ -129,6 +129,7 @@ public static class ContractValidation
             Require(server is not null, "Servidor nulo.");
             Id(server!.Id); Text(server.Name); Selection(server.Backend); Ids(server.PresetIds);
             Require(ids.Add(server.Id) && names.Add(server.Name), "Servidor duplicado.");
+            Require(server.LogRetention is null || server.LogRetention.MaxBytes > 0, "Retención de logs inválida.");
             Require(server.Parameters is not null, "parameters requerido.");
             Require(server.Parameters!.TryGetValue("port", out var port) &&
                 port.ValueKind == JsonValueKind.Number && port.TryGetInt32(out var number) &&
@@ -149,13 +150,6 @@ public static class ContractValidation
         if (value.DefaultServerId.HasValue) Id(value.DefaultServerId.Value);
         Selection(value.DefaultBackend);
         Require(value.BackendRetention is not null && value.BackendRetention.MaxBuilds >= 1, "Retención inválida.");
-        if (value.Parameters is not null) Parameters(value.Parameters);
-        if (value.Families is not null)
-            foreach (var pair in value.Families)
-            {
-                Require(Coquena.Backends.BackendCatalog.ValidFamily(pair.Key), "Familia inválida.");
-                Parameters(pair.Value);
-            }
     }
     public static void Backend(BackendRecord value)
     {

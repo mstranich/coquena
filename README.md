@@ -76,7 +76,7 @@ To create a preset and expose it through the initial `default` server, replace
 
 ```powershell
 .\coquena.exe preset create user/repository:quantization my-model
-.\coquena.exe config set ctx-size 2048 --preset my-model
+.\coquena.exe preset set my-model ctx-size 2048
 .\coquena.exe server default preset add my-model
 .\coquena.exe server default start -d
 .\coquena.exe server ps
