@@ -246,14 +246,15 @@ internal static class ModelInstallerTests
             {
                 var result = await Native(executable, root, "model", "list");
                 Check(result.Code == 0 && result.Output.Contains(selected.Name) && result.Output.Contains("available"), "published CLI local list");
-                result = await Native(executable, root, "model", "companion", "download", "owner/repo#mmproj:F16");
-                Check(result.Code == 2, "unimplemented companion not advertised");
+                result = await Native(executable, root, "model", "companion", "download", "owner/repo");
+                Check(result.Code == 1 && result.Output.Contains("invalid-selector"), "native companion requires explicit type before network");
             }
             using var output = new StringWriter(); using var error = new StringWriter();
             Check(ModelCli.Run(["list"], output, error, installer) == 0 && output.ToString().Contains(selected.Name) && error.ToString() == "", "model list adapter no provider");
             foreach (var args in new[] { Array.Empty<string>(), new[] { "verify", "x" }, new[] { "download" }, new[] { "list", "x" }, new[] { "download", "x", "--json" } })
                 Check(ModelCli.Run(args, output, error, installer) == 2, "invalid syntax no work");
             await MenuTests(home, installer, single);
+            await CompanionTests(executable);
             await TransportTests(op);
             Console.WriteLine($"OK: {checks} comprobaciones de descarga/publicación de modelos; fixtures, recuperación y CLI{(executable is null ? "." : " Native AOT.")}");
         }
@@ -264,6 +265,75 @@ internal static class ModelInstallerTests
     {
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellation)
             => Task.FromResult(response(request));
+    }
+    private static async Task CompanionTests(string? executable)
+    {
+        var root = Path.Combine(Path.GetTempPath(), "coquena-companions-" + Guid.NewGuid());
+        var home = new Home(root);
+        var destination = Path.Combine(root, "auxiliary");
+        var storage = new LocalStore(home);
+        storage.Update(DocumentKind.Config, ContractJsonContext.Default.ConfigDocument, ContractValidation.Config,
+            _ => new ConfigDocument(1, null, null, new(5), ModelsDirectory: destination));
+        var installer = new ModelInstaller(home);
+        try
+        {
+            foreach (var type in new[] { "mmproj", "mtp" })
+            {
+                byte[][] payload = [Gguf(0), Gguf(1)];
+                var selected = Selected(payload, quant: "BF16");
+                selected = selected with { Name = "owner/repo#" + type + ":BF16", CompanionType = type,
+                    Selection = selected.Selection with { Files = selected.Selection.Files.Select(f => f with { Path = type + "/" + f.Path }).ToArray() } };
+                var operation = installer.Create(selected);
+                Check(operation.ResourceKind == "companion" && operation.ModelInstall!.InstallationDirectory == destination, "companion plan pins configured directory");
+                Check(installer.Downloads.List("companion").Length == 1 && installer.Downloads.List("model").Length == 0, "download filters distinguish auxiliary units");
+                Fails(() => installer.Create(selected), "model-reserved");
+                var principalCollision = selected with { Name = "owner/repo:BF16", CompanionType = null };
+                Fails(() => installer.Create(principalCollision), "model-reserved");
+                using var stopped = new CancellationTokenSource();
+                var paused = await Run(installer, operation, new Bytes(payload) { Pause = stopped, PauseFile = 1 }, stopped.Token);
+                Check(paused is { State: "paused" } && installer.List().All(m => m.Record.CompanionType != type), "paused auxiliary never publishes incomplete shards");
+                var broken = payload.Select(b => b.ToArray()).ToArray(); broken[1][^1] ^= 1;
+                var failed = await Run(installer, operation, new Bytes(broken));
+                Check(failed is { State: "failed" } && installer.List().All(m => m.Record.CompanionType != type), "auxiliary hash mismatch preserves uninstalled state");
+                await installer.Downloads.ControlAsync(operation.Id, true, beforeCancel: installer.CancelAsync);
+                operation = installer.Create(selected);
+                var interrupted = new ModelInstaller(home, fault: stage => { if (stage == ModelInstallStage.AfterMove) throw new IOException("fixture publication interruption"); });
+                failed = await Run(interrupted, operation, new Bytes(payload));
+                Check(failed is { State: "failed", Phase: "publishing" }, "auxiliary publication interruption remains recoverable");
+                using var resumedOutput = new StringWriter(); using var resumedError = new StringWriter();
+                Check(DownloadCli.Run(["resume", operation.Id.ToString("D")], resumedOutput, resumedError,
+                    installer.Downloads, new NoNetwork()) == 0 && resumedError.ToString().Length == 0, "auxiliary resumes through generic download CLI without network");
+                var installed = installer.List().Single(m => m.Record.CompanionType == type);
+                Check(installed.Record is { Ownership: "managed" } && installed.Record.Name == selected.Name && installed.Availability == "available" &&
+                    installed.Record.Files.All(f => File.Exists(Path.Combine(destination, f.LocalPath))) && installed.Record.Parameters.Count == 0, "typed managed auxiliary publishes all shards in configured directory");
+                Fails(() => installer.Create(principalCollision), "model-collision");
+                if (executable is not null)
+                {
+                    var result = await Native(executable, root, "model", "companion", "list");
+                    Check(result.Code == 0 && result.Output.Contains(selected.Name), "native companion listing");
+                    result = await Native(executable, root, "model", "list");
+                    Check(result.Code == 0 && !result.Output.Contains(selected.Name), "native principal listing excludes auxiliary");
+                }
+            }
+            Check(installer.List().Length == 2 && !File.Exists(home.PathFor("catalogs/presets.json")), "no principal or automatic presets");
+            byte[][] single = [Gguf()];
+            using var handler = new Handler(request =>
+            {
+                var path = request.RequestUri!.AbsolutePath;
+                var json = path.EndsWith("/revision/main") ? $$"""{"id":"owner/menu-aux","sha":"{{Commit}}"}""" :
+                    path.Contains("/tree/") ? $$$"""[{"type":"file","path":"mmproj-F16.gguf","size":{{{single[0].Length}}},"oid":"{{{Commit}}}","lfs":{"oid":"{{{Digest(single[0]).Value}}}","size":{{{single[0].Length}}}}},{"type":"file","path":"Model-Q4_K_M.gguf","size":9999,"oid":"{{{Commit}}}"}]""" :
+                    throw new Exception("README must not be fetched automatically");
+                return new(HttpStatusCode.OK) { Content = new StringContent(json) };
+            });
+            using var client = new HttpClient(handler);
+            var menu = new Menu(0); var transfer = new Bytes(single);
+            using var output = new StringWriter(); using var error = new StringWriter();
+            Check(ModelCli.Run(["companion", "download", "owner/menu-aux#mmproj:F16"], output, error,
+                installer, new HuggingFaceStore(client), transfer, menu, inspector: new ResolutionTests.NamedInspector()) == 0 &&
+                error.ToString().Length == 0 && menu.Options.Count == 1 && transfer.Calls.Count == 1 &&
+                installer.List().Any(m => m.Record.Name == "owner/menu-aux#mmproj:F16"), "companion menu starts only auxiliary download with no second confirmation");
+        }
+        finally { if (Directory.Exists(root)) Directory.Delete(root, true); }
     }
     private sealed class Menu(params int?[] choices) : IModelSelectionInteraction
     {
@@ -296,7 +366,17 @@ internal static class ModelInstallerTests
             bytes.Calls.Count == 1 && menu.Options.Count == 1 && installer.List().Any(m => m.Record.Name == "owner/menu:Q4_K_M"), "menu choice starts download without second confirmation");
         var count = metadata;
         Check(ModelCli.Run(["download", "owner/menu#mmproj:F16"], output, error, installer, source, bytes, menu) == 1 && metadata == count, "companion rejected before metadata");
-        Check(error.ToString().Contains("outside-m1"), "explicit M1 diagnostic");
+        Check(error.ToString().Contains("invalid-selector"), "explicit selector diagnostic");
+        menu = new Menu(1, 2);
+        Check(ModelCli.Run(["companion", "download", "owner/menu#mmproj"], output, error, installer, source,
+            new NoNetwork(), menu, inspector: new ResolutionTests.NamedInspector()) == 0 && installer.Downloads.List().Length == 0,
+            "companion README then cancel creates no operation");
+        Check(menu.Options.Count == 2 && menu.Options.All(o => o.Length == 3 && o[0].Contains("mmproj")), "companion menu excludes principal and repeats after README");
+        menu = new Menu(0, 1);
+        Check(ModelCli.Run(["companion", "download", "owner/menu#mtp"], output, error, installer, source,
+            new NoNetwork(), menu, inspector: new ResolutionTests.NamedInspector()) == 0 &&
+            menu.Options.All(o => o.SequenceEqual(new[] { "Mostrar README", "Cancelar" })) && installer.Downloads.List().Length == 0,
+            "absent auxiliary type exposes only README and cancel at fixed commit");
         return Task.CompletedTask;
     }
     private static async Task TransportTests(OperationDocument operation)

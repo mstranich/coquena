@@ -273,7 +273,10 @@ public static class ContractValidation
         Require(value.Files is { Length: > 0 } && value.Files.All(f => f is not null), "Transferencias requeridas y no nulas.");
         if (value.ModelInstall is { } model)
         {
-            Require(value.ResourceKind == "model" && value.ModelSelection is not null && value.BackendInstall is null, "Plan exclusivo de modelo.");
+            Require((value.ResourceKind is "model" or "companion") && value.ModelSelection is not null && value.BackendInstall is null, "Plan exclusivo de modelo.");
+            var request = Coquena.Models.ModelRequest.Parse(value.Name);
+            Require(request.Quantization is not null && request.Repository == value.ModelSelection!.Repository &&
+                (value.ResourceKind == "companion") == (request.CompanionType is not null), "Nombre y categoría de unidad no corresponden.");
             Id(model.ModelId);
             if (model.InstallationDirectory is not null) Text(model.InstallationDirectory);
             Require(model.MovedFiles >= 0 && model.MovedFiles <= value.Files.Length &&
@@ -328,7 +331,7 @@ public static class ContractValidation
         }
         Require(value.State is "pending" or "downloading" or "paused" or "verifying" or "failed" or
             "completed" or "cancelled", "Estado desconocido.");
-        if (value.ResourceKind == "model")
+        if ((value.ResourceKind is "model" or "companion"))
         {
             Require(value.ModelSelection is not null && value.BackendSelection is null, "Selección de modelo exclusiva.");
             Remote(value.ModelSelection!);

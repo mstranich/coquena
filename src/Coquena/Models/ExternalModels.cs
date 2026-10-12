@@ -43,7 +43,7 @@ public sealed class ExternalModels(Home home)
                     throw new ModelSourceException("invalid-operation-directory", "Directorio de operación desconocido.");
                 var op = store.Read(DocumentKind.Operation, ContractJsonContext.Default.OperationDocument, ContractValidation.Operation, operation: id);
                 if (op is null) throw new ModelSourceException("orphan-operation", "Operación sin plan.");
-                if (op.ResourceKind == "model" && (op.Name.Equals(name, StringComparison.OrdinalIgnoreCase) ||
+                if ((op.ResourceKind is "model" or "companion") && (op.Name.Equals(name, StringComparison.OrdinalIgnoreCase) ||
                     op.Files.Any(f => files.Any(n => paths.Destination(op, f).Equals(n.LocalPath, StringComparison.OrdinalIgnoreCase)))))
                     throw new ModelSourceException("model-reserved", "Nombre o rutas reservados por una descarga.");
             }

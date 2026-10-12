@@ -28,7 +28,7 @@ public sealed class ModelInstaller(Home home, LocalStore? storage = null,
     {
         var request = ModelRequest.Parse(selected.Name);
         var selection = selected.Selection;
-        if (selected.CompanionType is not null || request.CompanionType is not null || request.Quantization is null ||
+        if (selected.CompanionType != request.CompanionType || request.Quantization is null ||
             request.Repository != selection.Repository || !HuggingFaceStore.Hex(selection.Commit, 40)) Fail("invalid-selection");
         ContractValidation.Remote(selection);
         var id = Guid.NewGuid();
@@ -36,7 +36,7 @@ public sealed class ModelInstaller(Home home, LocalStore? storage = null,
             $"models/{selection.Repository}/{f.Path}", 0, f.Size, f.Identity, null, null, "pending")).ToArray();
         return store.Exclusive(() =>
         {
-            var operation = new OperationDocument(1, id, "model", selected.Name, selection, null, files,
+            var operation = new OperationDocument(1, id, selected.CompanionType is null ? "model" : "companion", selected.Name, selection, null, files,
                 "pending", "transfer", DateTimeOffset.UtcNow, null, ModelInstall: new(Guid.NewGuid(), InstallationDirectory: store.Read(DocumentKind.Config, Json.ConfigDocument, ContractValidation.Config)?.ModelsDirectory));
             ValidatePlan(operation);
             CheckCollision(operation, Catalog(), allowOwn: false);
@@ -48,7 +48,7 @@ public sealed class ModelInstaller(Home home, LocalStore? storage = null,
                 if (!Guid.TryParseExact(Path.GetFileName(directory), "D", out var other)) Fail("invalid-operation-directory");
                 var pending = store.Read(DocumentKind.Operation, Json.OperationDocument, ContractValidation.Operation, operation: other);
                 if (pending is null) Fail("orphan-operation");
-                if (pending!.ResourceKind == "model" && (pending.Name.Equals(operation.Name, StringComparison.OrdinalIgnoreCase) ||
+                if ((pending!.ResourceKind is "model" or "companion") && (pending.Name.Equals(operation.Name, StringComparison.OrdinalIgnoreCase) ||
                     pending.Files.Any(f => operation.Files.Any(n => n.DestinationPath.Equals(f.DestinationPath, StringComparison.OrdinalIgnoreCase)))))
                     Fail("model-reserved");
             }
@@ -74,9 +74,9 @@ public sealed class ModelInstaller(Home home, LocalStore? storage = null,
         ContractValidation.Operation(operation);
         var plan = operation.ModelInstall;
         var selection = operation.ModelSelection;
-        if (plan is null || selection is null || operation.ResourceKind != "model" || !HuggingFaceStore.Hex(selection.Commit, 40)) Fail("invalid-install-plan");
+        if (plan is null || selection is null || (operation.ResourceKind is not ("model" or "companion")) || !HuggingFaceStore.Hex(selection.Commit, 40)) Fail("invalid-install-plan");
         var request = ModelRequest.Parse(operation.Name);
-        if (request.CompanionType is not null || request.Quantization is null || request.Repository != selection!.Repository) Fail("invalid-install-plan");
+        if ((operation.ResourceKind == "companion") != (request.CompanionType is not null) || request.Quantization is null || request.Repository != selection!.Repository) Fail("invalid-install-plan");
         var paths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         for (var i = 0; i < operation.Files.Length; i++)
         {
@@ -179,7 +179,7 @@ public sealed class ModelInstaller(Home home, LocalStore? storage = null,
                 var catalog = Catalog(); plan = operation.ModelInstall!;
                 CheckCollision(operation, catalog, allowOwn: true);
                 var existing = catalog.Models.SingleOrDefault(m => m.Id == plan.ModelId);
-                var next = new ModelRecord(plan.ModelId, operation.Name, operation.ModelSelection!, plan.VerifiedFiles!.Select(f => plan.InstallationDirectory is null ? f : f with { LocalPath = f.LocalPath[7..] }).ToArray(), [], plan.InstallationDirectory);
+                var next = new ModelRecord(plan.ModelId, operation.Name, operation.ModelSelection!, plan.VerifiedFiles!.Select(f => plan.InstallationDirectory is null ? f : f with { LocalPath = f.LocalPath[7..] }).ToArray(), [], plan.InstallationDirectory, CompanionType: ModelRequest.Parse(operation.Name).CompanionType);
                 if (existing is not null)
                 {
                     if (ContractJson.Write(existing, Json.ModelRecord) != ContractJson.Write(next, Json.ModelRecord)) Fail("stale-install-plan");

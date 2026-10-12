@@ -15,14 +15,14 @@ public static class ModelCli
         Guid? active = null;
         var companion = args.Length > 0 && args[0] == "companion";
         if (companion) args = args[1..];
-        if (!(args.Length == 1 && args[0] == "list" || !companion && args.Length == 2 && args[0] == "download" ||
+        if (!(args.Length == 1 && args[0] == "list" || args.Length == 2 && args[0] == "download" ||
             args.Length == 4 && args[0] == "add" && args[2] == "--name"))
         { error.WriteLine("Error: argumentos de model inválidos. Consulte coquena --help."); return 2; }
         try
         {
             // Validate before any local or remote side effects.
             var request = args[0] == "download" ? ModelRequest.Parse(args[1]) : null;
-            if (request?.CompanionType is not null) throw new ModelSourceException("outside-m1", "Companions fuera de M1.");
+            if (request is not null && companion != (request.CompanionType is not null)) throw new ModelSourceException("invalid-selector", "Use model download para principales y model companion download con #mmproj o #mtp para auxiliares.");
             installer ??= new ModelInstaller(Home.Resolve());
             if (args[0] == "add")
             {
