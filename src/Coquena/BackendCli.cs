@@ -11,6 +11,8 @@ public static class BackendCli
         Func<HardwareContext>? inspect = null, OfficialBackendSource? source = null,
         CancellationToken cancellation = default)
     {
+        if (args.Length >= 2 && args[0] == "backend" && args[1] == "update")
+            return Update(args, output, error, inspect, source, cancellation);
         if (args.Length >= 2 && args[0] == "backend" && args[1] is "list" or "use" or "install" or "register")
             return Installed(args, output, error, inspect, source, cancellation);
         var system = args.Length == 2 && args[0] == "system" && args[1] == "probe";
@@ -112,6 +114,9 @@ public static class BackendCli
             {
                 var records = installer.List();
                 foreach (var b in records) output.WriteLine($"{b.Id:D} | {Safe(b.Name ?? b.Origin + "/" + b.Variant + ":" + b.Build)} | {b.Ownership} | {b.Repository} | {b.Variant}:{b.Build} | {b.Platform} | latest={b.TracksLatest} pin={b.Pinned} | {Safe(new BackendPaths(Home.Resolve()).Server(b))}");
+                var updater = new BackendUpdater(Home.Resolve());
+                foreach (var b in records.Where(b => b.Ownership == "managed" && b.TracksLatest))
+                    if (updater.Observation(b) is { } observation) ShowUpdate(output, $"{b.Origin}/{b.Variant}:latest", observation);
                 if (records.Length == 0) output.WriteLine("Sin backends instalados.");
                 return 0;
             }
@@ -149,6 +154,52 @@ public static class BackendCli
                 StorageException s => s.Code, ContractException c => c.Code, _ => "installation-not-confirmed" };
             error.WriteLine($"Error: {code}. Consulte coquena --help y download status."); return 1;
         }
+    }
+
+    private static int Update(string[] args, TextWriter output, TextWriter error,
+        Func<HardwareContext>? inspect, OfficialBackendSource? source, CancellationToken cancellation)
+    {
+        if (args.Length is not (2 or 3))
+        { error.WriteLine("Error: argumentos inválidos. Uso: coquena backend update [selector-latest]. Consulte coquena --help."); return 2; }
+        try
+        {
+            using var client = new HttpClient(new HttpClientHandler { AllowAutoRedirect = false }) { Timeout = TimeSpan.FromSeconds(20) };
+            source ??= new(client);
+            using var stopped = CancellationTokenSource.CreateLinkedTokenSource(cancellation);
+            ConsoleCancelEventHandler handler = (_, e) => { e.Cancel = true; stopped.Cancel(); };
+            Console.CancelKeyPress += handler;
+            BackendUpdateResult[] results;
+            try
+            {
+                results = new BackendUpdater(Home.Resolve()).UpdateAsync(args.Length == 3 ? args[2] : null,
+                    (inspect ?? HardwareProbe.Inspect)(), source, stopped.Token).GetAwaiter().GetResult();
+            }
+            finally { Console.CancelKeyPress -= handler; }
+            foreach (var result in results)
+            {
+                if (result.Persisted && result.Observation is { } observation) ShowUpdate(output, result.Selector, observation);
+                if (!result.Persisted || result.Observation?.State == "failed")
+                    error.WriteLine($"Error: {Safe(result.Selector)} — {Safe(result.Error ?? result.Observation!.Diagnostic)}. Consulte coquena --help.");
+            }
+            if (results.Length == 0) output.WriteLine("Sin seguimientos latest oficiales registrados; pins y externos excluidos.");
+            output.WriteLine("Consulta de metadatos; no descarga ni cambia el build instalado o las selecciones fijadas.");
+            return results.Any(r => !r.Persisted || r.Observation?.State == "failed") ? 1 : 0;
+        }
+        catch (Exception e) when (e is BackendException or StorageException or ContractException or IOException or UnauthorizedAccessException or OperationCanceledException)
+        {
+            var code = e switch { BackendException b => b.Code, StorageException s => s.Code,
+                ContractException c => c.Code, OperationCanceledException => "query-cancelled", _ => "update-not-saved" };
+            error.WriteLine($"Error: {code}. Consulte coquena --help.");
+            return code == "invalid-latest-selector" ? 2 : 1;
+        }
+    }
+
+    private static void ShowUpdate(TextWriter output, string selector, BackendUpdateObservation observation)
+    {
+        output.WriteLine($"{Safe(selector)} ({observation.Platform}) | instalado={observation.InstalledBuild} | consulta={observation.CheckedAt:O} | {observation.State} | {Safe(observation.Diagnostic)}");
+        if (observation.Candidate is not { } candidate) return;
+        output.WriteLine($"  Candidato guardado: {candidate.Build} [{candidate.Compatibility}] — {Safe(candidate.Diagnostic)}");
+        foreach (var artifact in candidate.Artifacts) output.WriteLine($"  Artefacto: {artifact.Path} ({artifact.Size} bytes)");
     }
 
     private static bool TryRemote(string[] args, out string? family, out string? release)

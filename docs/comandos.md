@@ -94,6 +94,11 @@ Consulta, instala y registra backends de llama.cpp; también permite retirarlos.
 @endmindmap
 ```
 
+`backend update` consulta todos los seguimientos oficiales `latest` registrados;
+un selector como `oficial/cuda@12:latest` limita la consulta a ese filtro.
+Guarda candidato, fecha y diagnóstico sin descargar ni cambiar instalaciones.
+`backend list` muestra la última consulta guardada del build actual, sin red.
+
 Repetir install fuerza descarga y reinstalación; intención latest/pin y publicación
 siguen [servidores.md](servidores.md) y [descargas.md](descargas.md).
 
@@ -105,7 +110,8 @@ externas no amplían las familias disponibles para descarga oficial.
 
 Update y upgrade sin selector operan sobre todos los seguimientos latest registrados;
 con selector (por ejemplo ggml/cuda@12:latest), sólo sobre ese seguimiento. Releases
-fijados y externos quedan excluidos. Update consulta y guarda novedades; upgrade aplica
+fijados y externos no son selecciones a actualizar. Un pin fija un build específico;
+no bloquea un seguimiento `latest` que comparta ese build. Update guarda novedades; upgrade aplica
 el build detectado, sin seleccionar silenciosamente uno nuevo. El recorrido es por
 unidad: un fallo no impide tratar las demás. No se deduce el alcance del servidor default.
 

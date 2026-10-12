@@ -44,7 +44,20 @@ con el que arrancó. Un upgrade fallido no sustituye al anterior.
 Sin selector, backend update/upgrade recorren todos los seguimientos latest registrados;
 con selector, sólo el indicado. Update guarda el build detectado y upgrade aplica ese
 build, sin resolver silenciosamente una novedad posterior. Releases fijados y externos
-no participan. Un fallo de una unidad no impide tratar las demás.
+no participan como selecciones a actualizar. Un pin fija un build específico;
+no fija ni desactiva el seguimiento `latest`. Si ese build es también el actual de
+un seguimiento `latest`, update consulta ese seguimiento y upgrade puede avanzar
+su build actual, conservando la selección fijada y su instalación protegida.
+Un fallo de una unidad no impide tratar las demás.
+
+Cada consulta guarda su fecha, filtro, build instalado de partida y diagnóstico.
+Una novedad conserva un candidato concreto con sus artefactos y evidencia de
+compatibilidad. Sin build posterior se informa «sin cambios», sin proponer un
+downgrade. Una consulta fallida se informa como tal y deja sin candidato aplicable
+ese seguimiento; no equivale a estar actualizado. Si la instalación o una consulta
+concurrente cambian durante el sondeo, se rechaza guardar un resultado obsoleto.
+`backend list` muestra la última observación guardada que corresponde al build
+actual, sin consultar la red.
 
 Los upgrades conservan los binarios anteriores con un límite configurable: cinco builds
 por distribución, familia y plataforma, contando el actual. Tras un upgrade exitoso,

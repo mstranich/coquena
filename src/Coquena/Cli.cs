@@ -21,6 +21,7 @@ public static class Cli
             output.WriteLine("Uso: coquena [--help|-h|help] | system probe | backend <remote|install> [cpu|vulkan|cuda@<mayor>] [--release bNNNN|latest] | backend list | backend use [selector] | download <list|status|pause|resume|cancel>");
             output.WriteLine("Modelos: model download <usuario/repositorio[:cuantización]> | model list");
             output.WriteLine("Backends externos: backend register <ruta-llama-server> --name <nombre> --family <familia> [--distribution propietario/repositorio]; backend use [selector|nombre-externo]; server [nombre] use <nombre-externo>");
+            output.WriteLine("Novedades: backend update [selector-latest] (todos los seguimientos o [ggml/|oficial/]cpu|vulkan|cuda@<mayor>:latest); backend list muestra la última consulta guardada. No descarga ni instala.");
             output.WriteLine("Configuración: config log-retention show | config log-retention set <tamaño> | config log-retention unset");
             output.WriteLine("Catálogo de fábrica: config param-reset [--dry-run] (requiere confirmación para aplicar)");
             output.WriteLine("Directorios: config models-dir show | set <ruta> | unset; config backends-dir show | set <ruta> | unset (rutas relativas al home; elección interactiva de traslado)");

@@ -22,6 +22,11 @@ if (args.Length is 1 or 2 && args[0] == "--server-tests")
 }
 
 if (args.Length == 1 && args[0] == "--version") { Console.WriteLine("version: 1 (abcdef)"); return; }
+if (args.Length is 1 or 2 && args[0] == "--backend-update-tests")
+{
+    await Coquena.Tests.BackendUpdateTests.Run(args.Length == 2 ? Path.GetFullPath(args[1]) : null);
+    return;
+}
 if (args.Length == 2 && args[0] == "--configuration-backend-smoke")
 {
     await Coquena.Tests.ConfigurationTests.BackendSmoke(args[1]);
@@ -137,6 +142,7 @@ await Coquena.Tests.DownloadTests.Run(executable);
 
 await Coquena.Tests.InstallerTests.Run(executable);
 await Coquena.Tests.ExternalBackendTests.Run(executable);
+await Coquena.Tests.BackendUpdateTests.Run(executable);
 await Coquena.Tests.BackendDirectoryTests.Run(executable);
 await Coquena.Tests.ResolutionTests.Run();
 await Coquena.Tests.ModelSourceTests.Run();
