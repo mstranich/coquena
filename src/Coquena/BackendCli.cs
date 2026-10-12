@@ -11,7 +11,7 @@ public static class BackendCli
         Func<HardwareContext>? inspect = null, OfficialBackendSource? source = null,
         CancellationToken cancellation = default)
     {
-        if (args.Length >= 2 && args[0] == "backend" && args[1] is "list" or "use" or "install")
+        if (args.Length >= 2 && args[0] == "backend" && args[1] is "list" or "use" or "install" or "register")
             return Installed(args, output, error, inspect, source, cancellation);
         var system = args.Length == 2 && args[0] == "system" && args[1] == "probe";
         if (!system && !TryRemote(args, out _, out _))
@@ -76,6 +76,24 @@ public static class BackendCli
         Func<HardwareContext>? inspect, OfficialBackendSource? source, CancellationToken cancellation)
     {
         var action = args[1];
+        string? path = null, name = null, familyDeclared = null, distribution = null;
+        if (action == "register")
+        {
+            if (args.Length < 7) { error.WriteLine("Error: argumentos inválidos. Consulte coquena --help."); return 2; }
+            path = args[2];
+            for (var i = 3; i < args.Length; i += 2)
+            {
+                if (i + 1 >= args.Length) { error.WriteLine("Error: argumentos inválidos. Consulte coquena --help."); return 2; }
+                switch (args[i])
+                {
+                    case "--name" when name is null: name = args[i + 1]; break;
+                    case "--family" when familyDeclared is null: familyDeclared = args[i + 1]; break;
+                    case "--distribution" when distribution is null: distribution = args[i + 1]; break;
+                    default: error.WriteLine("Error: argumentos inválidos. Consulte coquena --help."); return 2;
+                }
+            }
+            if (name is null || familyDeclared is null) { error.WriteLine("Error: argumentos inválidos. Consulte coquena --help."); return 2; }
+        }
         var remote = args.ToArray(); remote[1] = "remote";
         if ((action == "list" && args.Length != 2) || (action == "use" && args.Length is not (2 or 3)) ||
             (action == "install" && !TryRemote(remote, out _, out _)))
@@ -83,10 +101,17 @@ public static class BackendCli
         try
         {
             var installer = new BackendInstaller(Home.Resolve());
+            if (action == "register")
+            {
+                var registered = installer.RegisterAsync(path!, name!, familyDeclared!, distribution, cancellation).GetAwaiter().GetResult();
+                output.WriteLine($"Backend externo: {Safe(registered.Name!)} | {registered.Id:D} | {registered.Repository} | {registered.Variant}:{registered.Build} | {Safe(registered.ServerPath)}");
+                output.WriteLine("Distribución y familia declaradas; el sondeo no certifica procedencia ni aceleración.");
+                return 0;
+            }
             if (action == "list")
             {
                 var records = installer.List();
-                foreach (var b in records) output.WriteLine($"{b.Id:D} | {b.Origin}/{b.Variant}:{b.Build} | {b.Platform} | latest={b.TracksLatest} pin={b.Pinned} | {new BackendPaths(Home.Resolve()).Server(b)}");
+                foreach (var b in records) output.WriteLine($"{b.Id:D} | {Safe(b.Name ?? b.Origin + "/" + b.Variant + ":" + b.Build)} | {b.Ownership} | {b.Repository} | {b.Variant}:{b.Build} | {b.Platform} | latest={b.TracksLatest} pin={b.Pinned} | {Safe(new BackendPaths(Home.Resolve()).Server(b))}");
                 if (records.Length == 0) output.WriteLine("Sin backends instalados.");
                 return 0;
             }
@@ -118,7 +143,7 @@ public static class BackendCli
             }
             finally { Console.CancelKeyPress -= handler; }
         }
-        catch (Exception e) when (e is DownloadException or BackendException or StorageException or ContractException or IOException or UnauthorizedAccessException or OperationCanceledException)
+        catch (Exception e) when (e is DownloadException or BackendException or StorageException or ContractException or IOException or UnauthorizedAccessException or OperationCanceledException or ArgumentException)
         {
             var code = e switch { DownloadException d => d.Code, BackendException b => b.Code,
                 StorageException s => s.Code, ContractException c => c.Code, _ => "installation-not-confirmed" };

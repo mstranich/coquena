@@ -21,7 +21,7 @@ public sealed class BackendPaths(Home home)
             throw new StorageException("unsafe-backend-path", "Ruta de backend fuera de su instalación.");
         return new Home(Root(location)).PathFor(logical[9..]);
     }
-    public string Server(BackendRecord backend) => backend.Origin == "ggml"
+    public string Server(BackendRecord backend) => backend.Ownership == "managed" && backend.Origin == "ggml"
         ? backend.InstallationDirectory is null ? home.PathFor(backend.ServerPath)
             : new Home(Root(backend.InstallationDirectory)).PathFor(backend.ServerPath)
         : Path.IsPathFullyQualified(backend.ServerPath) ? backend.ServerPath

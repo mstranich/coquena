@@ -71,6 +71,8 @@ public static class ContractValidation
     {
         Version(value.SchemaVersion);
         Catalog(value.Backends, Backend, x => x.Id, null);
+        Require(value.Backends.Where(b => b.Name is not null).Select(b => b.Name!).Distinct(StringComparer.OrdinalIgnoreCase).Count() ==
+            value.Backends.Count(b => b.Name is not null), "Nombre externo duplicado.");
     }
     public static void Presets(PresetsDocument value)
     {
@@ -158,6 +160,15 @@ public static class ContractValidation
         Id(value.Id); Text(value.Build); Text(value.Version); Text(value.Origin);
         if (value.InstallationDirectory is not null) Text(value.InstallationDirectory);
         Text(value.Repository); Text(value.Variant); Text(value.Family); Text(value.Platform); Text(value.ServerPath);
+        Require(value.Ownership is "managed" or "external", "Propiedad de backend inválida.");
+        if (value.Ownership == "external")
+        {
+            Require(Coquena.Backends.BackendInstaller.ValidExternalName(value.Name), "Nombre externo inválido.");
+            Require(Coquena.Backends.BackendInstaller.ValidExternalFamily(value.Variant) && value.Family == value.Variant.Split('@')[0], "Familia externa inválida.");
+            Require(Path.IsPathFullyQualified(value.ServerPath) && value.InstallationDirectory is null && !value.TracksLatest && !value.Pinned,
+                "Externo debe conservar ruta absoluta sin gestión ni seguimiento.");
+        }
+        else Require(value.Name is null, "Nombre reservado a externos.");
     }
     public static void Remote(RemoteSelection value)
     {

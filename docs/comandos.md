@@ -107,6 +107,12 @@ Consulta, instala y registra backends de llama.cpp; también permite retirarlos.
 Repetir install fuerza descarga y reinstalación; intención latest/pin y publicación
 siguen [servidores.md](servidores.md) y [descargas.md](descargas.md).
 
+Register sondea el ejecutable local con `--version` y guarda su ruta absoluta sin copiar
+archivos ni cambiar el backend predeterminado. Requiere un nombre único sin `/` ni `:`;
+`default` está reservado. Use selecciona ese nombre sin distinguir mayúsculas.
+La familia y distribución se declaran, no se certifican por el sondeo. Las familias
+externas no amplían las familias disponibles para descarga oficial.
+
 Update y upgrade sin selector operan sobre todos los seguimientos latest registrados;
 con selector (por ejemplo ggml/cuda@12:latest), sólo sobre ese seguimiento. Releases
 fijados y externos quedan excluidos. Update consulta y guarda novedades; upgrade aplica

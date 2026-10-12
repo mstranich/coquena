@@ -24,7 +24,7 @@ OpenVINO y otras familias no se incorporan automáticamente a M2; requieren una
 ampliación de alcance aprobada explícitamente. Esto no redefine la familia declarada
 al registrar un backend externo ni certifica su compatibilidad.
 
-- [ ] Registrar y seleccionar backends externos.
+- [x] Registrar y seleccionar backends externos.
       ([023](../../specs/023-m2-backends-externos/README.md)).
 - [ ] Consultar novedades de seguimientos latest oficiales.
       ([024](../../specs/024-m2-backend-update/README.md)).

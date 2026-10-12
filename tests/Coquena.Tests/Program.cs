@@ -136,6 +136,7 @@ await Coquena.Tests.BackendTests.Run(executable);
 await Coquena.Tests.DownloadTests.Run(executable);
 
 await Coquena.Tests.InstallerTests.Run(executable);
+await Coquena.Tests.ExternalBackendTests.Run(executable);
 await Coquena.Tests.BackendDirectoryTests.Run(executable);
 await Coquena.Tests.ResolutionTests.Run();
 await Coquena.Tests.ModelSourceTests.Run();

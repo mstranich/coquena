@@ -22,6 +22,43 @@ public sealed partial class BackendInstaller(Home home, LocalStore? storage = nu
     private BackendsDocument Catalog() => store.Read(DocumentKind.Backends, Json.BackendsDocument,
         ContractValidation.Backends) ?? new(1, []);
     public BackendRecord[] List() => Catalog().Backends;
+    public static bool ValidExternalName(string? name) => !string.IsNullOrWhiteSpace(name) &&
+        name == name.Trim() && !name.Any(char.IsControl) && !name.Contains('/') && !name.Contains(':') &&
+        !name.Equals("default", StringComparison.OrdinalIgnoreCase);
+    public static bool ValidExternalFamily(string? family) => family is not null && family != "cuda" &&
+        (BackendCatalog.ValidFamily(family) || Regex.IsMatch(family, @"^[a-z][a-z0-9-]*(?:@[1-9][0-9]*)?$", RegexOptions.CultureInvariant));
+
+    public async Task<BackendRecord> RegisterAsync(string server, string name, string family,
+        string? distribution = null, CancellationToken cancellation = default)
+    {
+        if (!ValidExternalName(name)) throw new BackendException("invalid-name", "Nombre externo inválido.");
+        if (!ValidExternalFamily(family)) throw new BackendException("invalid-family", "Familia inválida; CUDA requiere cuda@<mayor>.");
+        var repository = distribution ?? "ggml-org/llama.cpp";
+        if (Coquena.Configuration.ParameterManager.Official(repository)) repository = "ggml-org/llama.cpp";
+        if (!Regex.IsMatch(repository, @"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$", RegexOptions.CultureInvariant) ||
+            repository.Split('/').Any(p => p is "." or ".."))
+            throw new BackendException("invalid-distribution", "Use un repositorio propietario/nombre.");
+        var path = Path.GetFullPath(server);
+        if (!File.Exists(path)) throw new BackendException("backend-absent", "Ejecutable ausente.");
+        var version = await (probe ?? ProbeAsync)(path, cancellation);
+        var matches = VersionPattern().Matches(version);
+        if (version.Length > 65536 || matches.Count != 1)
+            throw new BackendException("invalid-server-version", "Sondeo --version inválido.");
+        var build = "b" + matches[0].Groups["build"].Value;
+        _ = BackendCatalog.BuildNumber(build);
+        cancellation.ThrowIfCancellationRequested();
+        var record = new BackendRecord(Guid.NewGuid(), build, version,
+            repository == "ggml-org/llama.cpp" ? "ggml" : repository, repository, family,
+            family.Split('@')[0], "win-x64", path, Name: name, Ownership: "external");
+        return store.Exclusive(() =>
+        {
+            cancellation.ThrowIfCancellationRequested();
+            if (!File.Exists(path)) throw new BackendException("backend-absent", "Ejecutable ausente.");
+            store.UpdateLocked(DocumentKind.Backends, Json.BackendsDocument, ContractValidation.Backends,
+                old => (old ?? new(1, [])) with { Backends = (old?.Backends ?? []).Append(record).ToArray() });
+            return record;
+        });
+    }
     private static string FinalPath(BackendInstallPlan plan) =>
         (plan.InstallationDirectory is null ? plan.Slot : plan.Slot[9..]) + "/" + plan.ServerRelativePath;
     public bool Published(OperationDocument operation) => operation.BackendInstall is { } plan &&
@@ -41,7 +78,7 @@ public sealed partial class BackendInstaller(Home home, LocalStore? storage = nu
         _ = BackendCatalog.BuildNumber(candidate.Release);
         if (requestedRelease != "latest" && requestedRelease != candidate.Release) Fail("invalid-selection");
         var records = List();
-        var matches = records.Where(b => b.Origin == "ggml" && b.Variant == candidate.Variant &&
+        var matches = records.Where(b => b.Ownership == "managed" && b.Origin == "ggml" && b.Variant == candidate.Variant &&
             b.Platform == candidate.Platform && b.Build == candidate.Release).ToArray();
         if (matches.Length > 1) Fail("ambiguous-installation");
         var previous = matches.SingleOrDefault();
@@ -63,7 +100,7 @@ public sealed partial class BackendInstaller(Home home, LocalStore? storage = nu
 
     private static BackendRecord? Current(BackendRecord[] records, string variant)
     {
-        var matches = records.Where(b => b.Origin == "ggml" && b.Variant == variant &&
+        var matches = records.Where(b => b.Ownership == "managed" && b.Origin == "ggml" && b.Variant == variant &&
             b.Platform == "win-x64" && b.TracksLatest).ToArray();
         if (matches.Length > 1) Fail("ambiguous-latest");
         return matches.SingleOrDefault();
@@ -75,7 +112,7 @@ public sealed partial class BackendInstaller(Home home, LocalStore? storage = nu
         return store.Exclusive(() =>
         {
             var selection = Resolve(selector);
-            if (selection.Kind == "fixed")
+            if (selection.Kind == "fixed" && List().Any(b => b.Id == selection.BackendId && b.Ownership == "managed"))
                 store.UpdateLocked(DocumentKind.Backends, Json.BackendsDocument, ContractValidation.Backends,
                     old => old! with { Backends = old.Backends.Select(b => b.Id == selection.BackendId ? b with { Pinned = true } : b).ToArray() });
             store.UpdateLocked(DocumentKind.Config, Json.ConfigDocument, ContractValidation.Config,
@@ -86,6 +123,13 @@ public sealed partial class BackendInstaller(Home home, LocalStore? storage = nu
 
     public BackendSelection Resolve(string selector)
     {
+        if (!selector.Contains(':') && !selector.Contains('/'))
+        {
+            var external = List().SingleOrDefault(b => b.Ownership == "external" &&
+                string.Equals(b.Name, selector, StringComparison.OrdinalIgnoreCase));
+            if (external is null || !File.Exists(paths.Server(external))) Fail("backend-absent");
+            return new("fixed", external!.Id);
+        }
         if (selector.StartsWith("oficial/", StringComparison.Ordinal)) selector = "ggml/" + selector[8..];
         if (selector.StartsWith("ggml/", StringComparison.Ordinal)) selector = selector[5..];
         var parts = selector.Split(':');
@@ -96,7 +140,7 @@ public sealed partial class BackendInstaller(Home home, LocalStore? storage = nu
         else
         {
             _ = BackendCatalog.BuildNumber(parts[1]);
-            var matches = records.Where(b => b.Origin == "ggml" && b.Variant == parts[0] &&
+            var matches = records.Where(b => b.Ownership == "managed" && b.Origin == "ggml" && b.Variant == parts[0] &&
                 b.Build == parts[1] && b.Platform == "win-x64").ToArray();
             if (matches.Length > 1) Fail("ambiguous-selector");
             record = matches.SingleOrDefault();
@@ -191,7 +235,7 @@ public sealed partial class BackendInstaller(Home home, LocalStore? storage = nu
                     else if (Directory.Exists(home.PathFor(prepared))) VerifyCopy(home.PathFor(prepared), slot);
                     fault?.Invoke(InstallStage.AfterMove);
                     var values = catalog.Backends.Where(b => b.Id != plan.BackendId).Select(b =>
-                        plan.RequestedRelease == "latest" && b.Variant == selection.Variant && b.Platform == selection.Platform
+                        b.Ownership == "managed" && plan.RequestedRelease == "latest" && b.Variant == selection.Variant && b.Platform == selection.Platform
                         ? b with { TracksLatest = false } : b).Append(next).ToArray();
                     store.UpdateLocked(DocumentKind.Backends, Json.BackendsDocument, ContractValidation.Backends, _ => new(1, values));
                     fault?.Invoke(InstallStage.AfterIndex);
