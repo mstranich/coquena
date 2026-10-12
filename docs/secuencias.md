@@ -457,6 +457,50 @@ No se calcula ni verifica SHA-256 para backends. Backend upgrade reutiliza la tr
 y publicación con el build fijado por update; no resuelve latest nuevamente. Tras éxito,
 actualiza el seguimiento y aplica retención sin borrar builds protegidos. No actualiza externos.
 
+### Aplicar el candidato guardado de backend
+
+```plantuml
+@startuml
+actor Usuario as U
+participant CLI
+participant "Backend upgrade" as G
+database "Catálogo y operaciones" as C
+participant Instalador as I
+participant Retención as R
+U -> CLI : backend upgrade [selector-latest]
+CLI -> G : recorrer seguimientos latest oficiales
+loop cada filtro, independiente
+  G -> C : leer build actual y observación guardada
+  alt candidato ausente u obsoleto
+    G --> CLI : diagnóstico: ejecutar update
+  else sin novedades
+    G --> CLI : sin cambios
+  else candidato disponible
+    alt build ya instalado en el mismo filtro
+      G -> I : validar árbol, identidad y --version
+      I --> G : válido / fallo
+      opt válido y catálogo sin cambios
+        G -> C : avanzar latest; conservar ID, pin y archivos
+        G -> R : aplicar límite y protecciones
+      end
+    else build nuevo
+      G -> C : guardar operación con build y artefactos detectados
+      G -> I : transferir, validar y publicar
+      note right of I : Pausa/reanudación/cancelación por GUID.\nSin resolver latest nuevamente.
+      I -> C : comprobar observación y seguimiento antes de publicar
+      opt publicación exitosa
+        I -> R : aplicar límite y protecciones
+      end
+    end
+    R -> C : guardar cola antes de retirar registros
+    R -> R : borrar sólo slots propios sin protección
+    R --> CLI : limpieza completa, pendiente o protegidos sobre límite
+  end
+end
+CLI --> U : resultados por unidad
+@enduml
+```
+
 ### Consultar novedades de backends
 
 ```plantuml

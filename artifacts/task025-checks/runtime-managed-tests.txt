@@ -1,0 +1,2 @@
+OK: 22 comprobaciones de métricas y retención.
+OK: 75 comprobaciones de ciclo de procesos.

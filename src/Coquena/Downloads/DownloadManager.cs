@@ -146,6 +146,23 @@ public sealed class DownloadManager(Home home, LocalStore? storage = null)
         return results.ToArray();
     }
 
+    // Pure snapshot for a caller already holding the home writer lease. Status
+    // may recover an interrupted executor and acquire that lease itself.
+    internal OperationDocument[] SnapshotLocked()
+    {
+        var directory = home.PathFor("downloads");
+        if (!Directory.Exists(directory)) return [];
+        List<OperationDocument> values = [];
+        foreach (var path in Directory.GetDirectories(directory))
+        {
+            Home.CheckLinks(path);
+            if (!Guid.TryParseExact(Path.GetFileName(path), "D", out var id))
+                throw new DownloadException("invalid-operation-directory", "Directorio de operación no reconocido.");
+            values.Add(Read(id));
+        }
+        return values.ToArray();
+    }
+
     public async Task ControlAsync(Guid id, bool cancel, CancellationToken cancellation = default,
         Func<OperationDocument, Task<bool>>? beforeCancel = null)
     {

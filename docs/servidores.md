@@ -60,6 +60,15 @@ un seguimiento `latest`, update consulta ese seguimiento y upgrade puede avanzar
 su build actual, conservando la selección fijada y su instalación protegida.
 Un fallo de una unidad no impide tratar las demás.
 
+Si el candidato ya está instalado como backend gestionado del mismo filtro,
+upgrade verifica el árbol de instalación, su identidad y `llama-server --version`,
+y reutiliza ese registro para avanzar latest. Conserva su ID, pin y archivos,
+incluso si una instancia lo está usando. Una validación fallida conserva el
+seguimiento anterior y se diagnostica; no fuerza una reinstalación implícita.
+Sin observación aplicable del build actual, upgrade solicita ejecutar update.
+Una operación pendiente se continúa por su GUID con `download resume` o se cancela;
+otro upgrade del mismo filtro no crea una descarga duplicada.
+
 Cada consulta guarda su fecha, filtro, build instalado de partida y diagnóstico.
 Una novedad conserva un candidato concreto con sus artefactos y evidencia de
 compatibilidad. Sin build posterior se informa «sin cambios», sin proponer un
@@ -76,9 +85,21 @@ y los usados por instancias activas. Si los protegidos superan el límite, se co
 y se informa; no se rompe una selección o instancia para cumplirlo. Los externos nunca
 se borran físicamente mediante esta política.
 
+Las variantes de una misma familia comparten el límite: un build presente en
+CUDA 12 y CUDA 13 cuenta una vez. Si alguna instalación de ese build está protegida,
+se conserva el build. También se protegen referencias fijadas de servidores,
+identidades de procesos inciertas y recursos de operaciones pendientes.
+La retirada guarda una cola persistente antes de quitar el registro del catálogo;
+si falla el borrado físico, el build actual permanece publicado y la limpieza
+pendiente se reintenta tras otro upgrade exitoso. Una descarga cuyo upgrade ya se
+publicó conserva su GUID hasta completar la limpieza; reanudarlo no vuelve a descargar.
+
 `config backend-retention show` consulta el límite efectivo y su origen (inicial o
 propio); `set <cantidad>` guarda un entero positivo y `unset` recupera los cinco builds
 iniciales. La política se guarda en `config.json` como `backendRetention.maxBuilds`.
+`backendRetention.own` distingue un ajuste propio incluso cuando su valor es cinco;
+un documento anterior sin esa marca conserva el origen inicial para cinco y propio
+para otro valor.
 Consultar o modificar el límite no borra instalaciones: se aplica tras el próximo
 upgrade exitoso, conservando las protecciones indicadas. Valores inválidos o fallos
 de persistencia no dejan un ajuste parcial.

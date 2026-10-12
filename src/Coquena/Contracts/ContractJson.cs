@@ -308,6 +308,16 @@ public static class ContractValidation
                 Require(latest.TracksLatest && latest.Origin == "ggml" && latest.Variant == value.BackendSelection!.Variant &&
                     latest.Platform == value.BackendSelection.Platform, "Seguimiento anterior no corresponde.");
             }
+            if (plan.Upgrade is { } upgrade)
+            {
+                BackendUpdates(new(1, [upgrade]));
+                Require(plan.RequestedRelease == "latest" && plan.Previous is null && plan.PreviousLatest is { } &&
+                    upgrade.BackendId == plan.PreviousLatest.Id && upgrade.InstalledBuild == plan.PreviousLatest.Build &&
+                    upgrade.Origin == value.BackendSelection!.Origin && upgrade.Variant == value.BackendSelection.Variant &&
+                    upgrade.Platform == value.BackendSelection.Platform && upgrade.State == "available" &&
+                    upgrade.Candidate?.Build == value.BackendSelection.Release &&
+                    upgrade.Candidate.Artifacts.SequenceEqual(value.BackendSelection.Artifacts), "Plan upgrade y observación no corresponden.");
+            }
             if (value.Phase == "publishing" || value.Phase == "cleanup" && value.State != "cancelled")
             { Text(plan.ServerRelativePath); Text(plan.Version); }
         }

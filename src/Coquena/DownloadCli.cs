@@ -32,7 +32,7 @@ public static class DownloadCli
             if (args[0] is "pause" or "cancel")
             {
                 var current = manager.Status(id);
-                var consumer = current.BackendInstall is not null ? new BackendInstaller(manager.StorageHome) : null;
+                var consumer = current.BackendInstall is not null ? new BackendInstaller(manager.StorageHome, retentionReport: output.WriteLine) : null;
                 var modelConsumer = current.ModelInstall is not null ? new ModelInstaller(manager.StorageHome) : null;
                 manager.ControlAsync(id, args[0] == "cancel", cancellation, consumer is not null ? consumer.CancelAsync : modelConsumer is null ? null : modelConsumer.CancelAsync).GetAwaiter().GetResult();
                 var published = consumer is not null && consumer.Published(current) ||
@@ -48,7 +48,7 @@ public static class DownloadCli
             HuggingFaceTransport? hf = null;
             if (transport is null && operation.ResourceKind == "backend" && operation.BackendInstall is not null)
             {
-                installer = new BackendInstaller(manager.StorageHome);
+                installer = new BackendInstaller(manager.StorageHome, retentionReport: output.WriteLine);
                 official = new OfficialArtifactTransport(); transport = official;
             }
             using var officialLifetime = official;
