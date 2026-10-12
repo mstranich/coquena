@@ -5,7 +5,7 @@ using Coquena.Storage;
 namespace Coquena.Models;
 
 public enum ModelInstallStage { AfterMove, AfterIndex, BeforeCleanup }
-public sealed record LocalModel(ModelRecord Record, string Availability, bool Changed);
+public sealed record LocalModel(ModelRecord Record, string Availability, bool Changed, string[]? Diagnostics = null);
 
 // Initial acquisition only. No replacement, external transition or update/upgrade.
 public sealed class ModelInstaller(Home home, LocalStore? storage = null,
@@ -15,6 +15,7 @@ public sealed class ModelInstaller(Home home, LocalStore? storage = null,
     private readonly ModelPaths paths = new(home);
     private static readonly ContractJsonContext Json = ContractJsonContext.Default;
     public DownloadManager Downloads => new(home, store);
+    public ModelRecord AddExternal(string path, string name, bool companion = false) => new ExternalModels(home).Add(path, name, companion);
     private ModelsDocument Catalog() => store.Read(DocumentKind.Models, Json.ModelsDocument, ContractValidation.Models) ?? new(1, []);
     internal bool IsInstalled(Guid id) => Catalog().Models.Any(m => m.Id == id);
     private OperationDocument Save(OperationDocument value) => store.Update(DocumentKind.Operation,
@@ -117,10 +118,15 @@ public sealed class ModelInstaller(Home home, LocalStore? storage = null,
                 "incomplete" or "read-error" => "inaccessible", _ => "invalid" };
             var changed = record.Files.Select((f, i) =>
             {
-                var info = new FileInfo(paths[i]);
-                return info.Exists && (info.Length != f.Size || f.LastWriteUtc is { } date && info.LastWriteTimeUtc != date.UtcDateTime);
+                try
+                {
+                    var info = new FileInfo(paths[i]);
+                    return info.Exists && (record.Ownership == "managed" || f.LastWriteUtc is not null) &&
+                        (info.Length != f.Size || f.LastWriteUtc is { } date && info.LastWriteTimeUtc != date.UtcDateTime);
+                }
+                catch (Exception e) when (e is IOException or UnauthorizedAccessException) { return false; }
             }).Any(x => x);
-            return new LocalModel(record, availability, changed);
+            return new LocalModel(record, availability, changed, unit.Diagnostics.Concat(unit.Missing.Select(p => "Archivo ausente: " + p)).ToArray());
         }).ToArray();
     }
 

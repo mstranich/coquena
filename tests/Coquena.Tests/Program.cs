@@ -22,6 +22,11 @@ if (args.Length is 1 or 2 && args[0] == "--server-tests")
 }
 
 if (args.Length == 1 && args[0] == "--version") { Console.WriteLine($"version: {Environment.GetEnvironmentVariable("COQUENA_FIXTURE_BUILD") ?? "1"} (abcdef)"); return; }
+if (args.Length is 1 or 2 && args[0] == "--external-model-tests")
+{
+    Coquena.Tests.ExternalModelTests.Run(args.Length == 2 ? Path.GetFullPath(args[1]) : null);
+    return;
+}
 if (args.Length is 1 or 2 && args[0] == "--backend-upgrade-tests")
 {
     await Coquena.Tests.BackendUpgradeTests.Run(args.Length == 2 ? Path.GetFullPath(args[1]) : null);
@@ -156,3 +161,4 @@ await Coquena.Tests.GgufTests.Run();
 await Coquena.Tests.ModelInstallerTests.Run(executable);
 
 await Coquena.Tests.ModelDirectoryTests.Run(executable);
+Coquena.Tests.ExternalModelTests.Run(executable);

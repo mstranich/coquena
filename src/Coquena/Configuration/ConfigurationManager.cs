@@ -97,7 +97,7 @@ public sealed class ConfigurationManager(Home home, LocalStore? storage = null)
         PresetName(name);
         return store.Exclusive(() =>
         {
-            var model = Named(Models().Models, modelName, m => m.Name);
+            var model = Named(Models().Models.Where(m => m.CompanionType is null), modelName, m => m.Name);
             ModelReference();
             var record = new PresetRecord(Guid.NewGuid(), name, model.Id, []);
             store.UpdateLocked(DocumentKind.Presets, Json.PresetsDocument, ContractValidation.Presets, old =>
@@ -113,7 +113,7 @@ public sealed class ConfigurationManager(Home home, LocalStore? storage = null)
 
     public void ChangeModel(string name, string modelName) => store.Exclusive(() =>
     {
-        var model = Named(Models().Models, modelName, m => m.Name);
+        var model = Named(Models().Models.Where(m => m.CompanionType is null), modelName, m => m.Name);
         ModelReference();
         store.UpdateLocked(DocumentKind.Presets, Json.PresetsDocument, ContractValidation.Presets, old =>
         {
@@ -176,6 +176,7 @@ public sealed class ConfigurationManager(Home home, LocalStore? storage = null)
             ModelReference();
             var model = models.SingleOrDefault(m => m.Id == preset.ModelId)
                 ?? throw new ConfigurationException($"Modelo ausente: {preset.ModelId:D}; referencia rota en {preset.Name}.");
+            if (model.CompanionType is not null) throw new ConfigurationException("Un companion no puede ser el modelo principal de un preset.");
             var paths = model.Files.Select(f => new ModelPaths(home).File(model, f)).ToArray();
             var inspection = GgufInspection.InspectPaths(paths);
             if (inspection.Status != "complete")

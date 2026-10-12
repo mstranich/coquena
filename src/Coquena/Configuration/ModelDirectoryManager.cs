@@ -31,9 +31,9 @@ public sealed class ModelDirectoryManager(Home home, LocalStore? storage = null,
         var overview = store.Inspect(() => (Config(), Models()));
         var target = paths.Root(location);
         output.WriteLine($"Destino: {target} | {(location is null ? "default" : "propio")}");
-        foreach (var model in overview.Item2.Models)
+        foreach (var model in overview.Item2.Models.Where(m => m.Ownership == "managed"))
             foreach (var file in model.Files)
-                output.WriteLine($"{model.Id:D} | {model.Name} | {paths.File(model, file)} -> {paths.Resolve(location, $"models/{model.Selection.Repository}/{file.RemotePath}")}");
+                output.WriteLine($"{model.Id:D} | {model.Name} | {paths.File(model, file)} -> {paths.Resolve(location, $"models/{model.Selection!.Repository}/{file.RemotePath}")}");
         output.WriteLine("¿Trasladar todos los directorios gestionados? [s] trasladar / [n] conservar en origen / [c] cancelar");
         var answer = choice()?.Trim().ToLowerInvariant();
         if (answer is not ("s" or "si" or "sí" or "n" or "no"))
@@ -75,8 +75,8 @@ public sealed class ModelDirectoryManager(Home home, LocalStore? storage = null,
     private ModelDirectoryTransaction Plan(string? location)
     {
         var config = Config(); var catalog = Models();
-        var moves = catalog.Models.SelectMany(model => model.Files.Select(file =>
-            new ModelDirectoryMove(paths.File(model, file), paths.Resolve(location, $"models/{model.Selection.Repository}/{file.RemotePath}"))))
+        var moves = catalog.Models.Where(m => m.Ownership == "managed").SelectMany(model => model.Files.Select(file =>
+            new ModelDirectoryMove(paths.File(model, file), paths.Resolve(location, $"models/{model.Selection!.Repository}/{file.RemotePath}"))))
             .Where(m => !m.Source.Equals(m.Destination, StringComparison.OrdinalIgnoreCase)).ToArray();
         if (moves.Select(m => m.Source).Distinct(StringComparer.OrdinalIgnoreCase).Count() != moves.Length ||
             moves.Select(m => m.Destination).Distinct(StringComparer.OrdinalIgnoreCase).Count() != moves.Length ||
@@ -94,9 +94,12 @@ public sealed class ModelDirectoryManager(Home home, LocalStore? storage = null,
             files.Add(new(m.Source, m.Destination, Hash(m.Source), File.Exists(m.Destination) ? Hash(m.Destination) : null));
         }
         foreach (var d in directories) ValidateDestination(d);
-        var next = catalog with { Models = catalog.Models.Select(model => model with {
+        if (moves.Any(move => catalog.Models.Where(m => m.Ownership == "external").Any(m => m.Files.Any(f =>
+            move.Source.Equals(paths.File(m, f), StringComparison.OrdinalIgnoreCase) || move.Destination.Equals(paths.File(m, f), StringComparison.OrdinalIgnoreCase)))))
+            throw new ConfigurationException("El traslado afecta rutas externas registradas.");
+        var next = catalog with { Models = catalog.Models.Select(model => model.Ownership == "external" ? model : model with {
             InstallationDirectory = location ?? "models",
-            Files = model.Files.Select(file => file with { LocalPath = $"{model.Selection.Repository}/{file.RemotePath}" }).ToArray()
+            Files = model.Files.Select(file => file with { LocalPath = $"{model.Selection!.Repository}/{file.RemotePath}" }).ToArray()
         }).ToArray() };
         return new(1, false, config with { ModelsDirectory = location }, next,
             config, catalog, moves, directories.Order(StringComparer.OrdinalIgnoreCase).ToArray(),

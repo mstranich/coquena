@@ -167,6 +167,14 @@ La sintaxis del nombre es `usuario/repositorio[#tipo]:cuantización`; `#tipo` s�
 aparece en companions. No hay aliases ni `--type`. Las reglas de identidad están en
 [modelos-y-companions.md](modelos-y-companions.md#identificación-en-el-catálogo-local).
 `--name` es obligatorio para externos; no certifica procedencia.
+El alta guarda rutas absolutas y un ID estable, sin copiar ni mover archivos ni crear
+un preset. Para shards estándar se indica el primero; se conserva la lista esperada,
+incluidas las partes ausentes. Una ruta ausente o inaccesible puede registrarse con
+diagnóstico; cabeceras inválidas o contradictorias se rechazan. Una división de nombres
+no convencionales se diagnostica como limitación del registro automático.
+`model list` muestra principales y `model companion list` auxiliares, con propiedad,
+disponibilidad local y avisos de cambios, sin red ni hash completo. Consultar no actualiza
+las observaciones guardadas. Un registro incompleto o inaccesible no puede servirse.
 `--try-match` es opcional, sin valor. Sin él no se consulta la red; si falla, el alta
 local permanece. Emparejar no habilita actualizaciones del externo.
 Si hay candidatos, un menú muestra opciones y razones y permite elegir o cancelar

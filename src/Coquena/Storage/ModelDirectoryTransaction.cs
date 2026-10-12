@@ -32,8 +32,10 @@ public sealed partial class LocalStore
         {
             // The destructive cleanup path must be a recognized old managed slot,
             // reconstructed from the before snapshot rather than trusted verbatim.
-            if (!value.Models.Models.Any(m => m.Files.Any(f => paths.File(m, f).Equals(move.Destination, StringComparison.OrdinalIgnoreCase))) ||
-                !value.BeforeModels.Models.Any(m => m.Files.Any(f => paths.File(m, f).Equals(move.Source, StringComparison.OrdinalIgnoreCase))))
+            if (!value.Models.Models.Any(m => m.Ownership == "managed" && m.Files.Any(f => paths.File(m, f).Equals(move.Destination, StringComparison.OrdinalIgnoreCase))) ||
+                !value.BeforeModels.Models.Any(m => m.Ownership == "managed" && m.Files.Any(f => paths.File(m, f).Equals(move.Source, StringComparison.OrdinalIgnoreCase))) ||
+                value.BeforeModels.Models.Where(m => m.Ownership == "external").Any(m => m.Files.Any(f =>
+                    paths.File(m, f).Equals(move.Source, StringComparison.OrdinalIgnoreCase) || paths.File(m, f).Equals(move.Destination, StringComparison.OrdinalIgnoreCase))))
                 throw new StorageException("unsafe-directory-transaction", "Destino no pertenece al catálogo publicado.");
         }
         return value;

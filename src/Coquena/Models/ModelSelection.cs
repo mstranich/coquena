@@ -14,7 +14,7 @@ public sealed record ModelRequest(string Repository, string? Quantization, strin
         var quant = colon < 0 ? null : selector[(colon + 1)..];
         var hash = unit.IndexOf('#');
         var repo = hash < 0 ? unit : unit[..hash];
-        var type = hash < 0 ? null : unit[(hash + 1)..];
+        var type = hash < 0 ? null : unit[(hash + 1)..].ToLowerInvariant();
         HuggingFaceStore.ValidateRepository(repo);
         if ((quant is not null && !Regex.IsMatch(quant, "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$")) ||
             (type is not null && type is not ("mmproj" or "mtp")))
