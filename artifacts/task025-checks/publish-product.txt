@@ -1,0 +1,3 @@
+  Coquena -> S:\src\github\coquena\src\Coquena\bin\Release\net10.0\win-x64\coquena.dll
+  Generating native code
+  Coquena -> S:\src\github\coquena\artifacts\task025-native\

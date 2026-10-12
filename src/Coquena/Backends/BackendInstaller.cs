@@ -11,7 +11,8 @@ public enum InstallStage { AfterMove, AfterIndex, AfterCopy }
 
 // Separate slots allow a failed reinstall to leave the previous executable untouched.
 public sealed partial class BackendInstaller(Home home, LocalStore? storage = null,
-    Func<string, CancellationToken, Task<string>>? probe = null, Action<InstallStage>? fault = null)
+    Func<string, CancellationToken, Task<string>>? probe = null, Action<InstallStage>? fault = null,
+    Action<string>? retentionReport = null)
 {
     private readonly LocalStore store = storage ?? new LocalStore(home);
     private static readonly ContractJsonContext Json = ContractJsonContext.Default;
@@ -62,7 +63,8 @@ public sealed partial class BackendInstaller(Home home, LocalStore? storage = nu
     private static string FinalPath(BackendInstallPlan plan) =>
         (plan.InstallationDirectory is null ? plan.Slot : plan.Slot[9..]) + "/" + plan.ServerRelativePath;
     public bool Published(OperationDocument operation) => operation.BackendInstall is { } plan &&
-        List().Any(b => b.Id == plan.BackendId && b.ServerPath == FinalPath(plan) && b.InstallationDirectory == plan.InstallationDirectory);
+        List().Any(b => b.Id == plan.BackendId && b.InstallationDirectory == plan.InstallationDirectory &&
+            (plan.ServerRelativePath is null ? b.ServerPath.StartsWith(FinalPath(plan), StringComparison.Ordinal) : b.ServerPath == FinalPath(plan)));
     private OperationDocument Save(OperationDocument value) => store.Update(DocumentKind.Operation,
         Json.OperationDocument, ContractValidation.Operation, _ => value, operation: value.Id);
     private OperationDocument SaveLocked(OperationDocument value) => store.UpdateLocked(DocumentKind.Operation,
@@ -71,7 +73,7 @@ public sealed partial class BackendInstaller(Home home, LocalStore? storage = nu
     public OperationDocument Create(BackendCandidate candidate, string requestedRelease)
         => store.Exclusive(() => CreateLocked(candidate, requestedRelease));
 
-    private OperationDocument CreateLocked(BackendCandidate candidate, string requestedRelease)
+    internal OperationDocument CreateLocked(BackendCandidate candidate, string requestedRelease, BackendUpdateObservation? upgrade = null)
     {
         if (!candidate.Complete || candidate.Platform != "win-x64" || candidate.Artifacts.Length == 0 ||
             !BackendCatalog.ValidFamily(candidate.Variant)) Fail("invalid-selection");
@@ -94,7 +96,7 @@ public sealed partial class BackendInstaller(Home home, LocalStore? storage = nu
         var operation = new OperationDocument(1, id, "backend", $"ggml/{candidate.Variant}:{candidate.Release}", null,
             new("ggml", candidate.Release, candidate.Variant.Split('@')[0], candidate.Variant, candidate.Platform, artifacts),
             files, "pending", "transfer", DateTimeOffset.UtcNow, null,
-            new(requestedRelease, backend, previous, latest, slot, InstallationDirectory: location));
+            new(requestedRelease, backend, previous, latest, slot, InstallationDirectory: location, Upgrade: upgrade));
         return Downloads.CreateLocked(operation);
     }
 
@@ -226,6 +228,7 @@ public sealed partial class BackendInstaller(Home home, LocalStore? storage = nu
                     if (previous != plan.Previous) Fail("stale-install-plan");
                     if (plan.RequestedRelease == "latest" && Current(catalog.Backends, selection.Variant) != plan.PreviousLatest)
                         Fail("stale-latest-plan");
+                    if (plan.Upgrade is { } expected) BackendUpgrader.CheckObservation(store, expected);
                     if (previous is not null) NotInUse(previous.Id);
                     if (!Directory.Exists(slot))
                     {
@@ -294,6 +297,9 @@ public sealed partial class BackendInstaller(Home home, LocalStore? storage = nu
         try
         {
             var plan = operation.BackendInstall!;
+            if (plan.Upgrade is not null)
+                new BackendBuildRetention(home, store).Apply("ggml-org/llama.cpp", operation.BackendSelection!.Family,
+                    operation.BackendSelection.Platform, retentionReport);
             store.Exclusive(() =>
             {
                 var installed = Catalog().Backends.SingleOrDefault(b => b.Id == plan.BackendId);
@@ -441,6 +447,15 @@ public sealed partial class BackendInstaller(Home home, LocalStore? storage = nu
     {
         if (version.Length > 65536 || VersionPattern().Matches(version).Count != 1 ||
             VersionPattern().Match(version).Groups["build"].Value != release[1..]) Fail("invalid-server-version");
+    }
+    internal async Task ValidateInstalledAsync(BackendRecord record, CancellationToken cancellation)
+    {
+        var slot = paths.Slot(record);
+        BackendPaths.CheckTree(slot);
+        if (File.ReadAllText(Path.Combine(slot, ".coquena-owner")) != Path.GetFileName(slot)) Fail("unsafe-installation");
+        var version = await (probe ?? ProbeAsync)(paths.Server(record), cancellation);
+        CheckVersion(version, record.Build);
+        if (version != record.Version) Fail("version-changed");
     }
     public static async Task<string> ProbeAsync(string server, CancellationToken cancellation)
     {

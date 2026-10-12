@@ -7,7 +7,7 @@ using Coquena.Contracts;
 
 namespace Coquena.Storage;
 
-public enum DocumentKind { Config, Models, Backends, Parameters, Presets, Servers, Operation, Instance, LastLog, BackendUpdates }
+public enum DocumentKind { Config, Models, Backends, Parameters, Presets, Servers, Operation, Instance, LastLog, BackendUpdates, BackendRetention }
 public enum WriteStage { BeforeReplace, AfterReplace, AfterParameterCheckpoint }
 // Deliberately no arbitrary text, URLs, paths, names or diagnostics in the journal.
 public enum OperationResult { Cancelled, Installed }
@@ -134,6 +134,7 @@ public sealed partial class LocalStore
             DocumentKind.Config => "config.json", DocumentKind.Models => "catalogs/models.json",
             DocumentKind.Backends => "catalogs/backends.json", DocumentKind.Parameters => "catalogs/parameters.json",
             DocumentKind.BackendUpdates => "catalogs/backend-updates.json",
+            DocumentKind.BackendRetention => "catalogs/backend-retention.json",
             DocumentKind.Presets => "catalogs/presets.json", DocumentKind.Servers => "catalogs/servers.json",
             _ => throw new ArgumentOutOfRangeException(nameof(kind))
         });

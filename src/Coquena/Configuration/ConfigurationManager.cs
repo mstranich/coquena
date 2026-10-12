@@ -82,6 +82,13 @@ public sealed class ConfigurationManager(Home home, LocalStore? storage = null)
     }
 
     public RetentionView Retention() => store.Exclusive(() => LogRetentionPolicy.Resolve(Config().LogRetention));
+    public BackendRetention BackendRetention() => Config().BackendRetention;
+    public void SetBackendRetention(int? count)
+    {
+        if (count is <= 0) throw new ConfigurationException("Se requiere un entero positivo.");
+        store.Update(DocumentKind.Config, Json.ConfigDocument, ContractValidation.Config,
+            old => (old ?? new(1, null, null, new(5))) with { BackendRetention = new(count ?? 5, count.HasValue) });
+    }
     public void SetRetention(long? bytes) => store.Update(DocumentKind.Config, Json.ConfigDocument, ContractValidation.Config,
         old => (old ?? new(1, null, null, new(5))) with { LogRetention = bytes is null ? null : new(bytes.Value) });
 

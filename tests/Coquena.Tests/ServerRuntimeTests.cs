@@ -95,6 +95,38 @@ internal static class ServerRuntimeTests
             Check(Log(first).Contains("stderr ready") && Log(first).Contains("--metrics"), "stdout/stderr and static flags");
             Check(first.Port == manager.View(null).Effective["port"].GetInt32() && Log(first).Contains("--port|" + first.Port), "start emits persisted explicit port");
             Check(runtime.Recover("default")?.InstanceId == first.InstanceId, "fresh manager recovers detached");
+            // Advancing latest through the real upgrade path preserves a verified
+            // active instance and protects its old build even with retention one.
+            var upgradeCatalog = store.Read(DocumentKind.Backends, json.BackendsDocument, ContractValidation.Backends)!;
+            var upgradeConfig = store.Read(DocumentKind.Config, json.ConfigDocument, ContractValidation.Config)!;
+            var upgradeId = Guid.NewGuid(); var upgradeSlot = Guid.NewGuid();
+            var upgradeDirectory = home.PathFor($"backends/{upgradeId:D}/{upgradeSlot:D}"); Directory.CreateDirectory(upgradeDirectory);
+            File.WriteAllText(Path.Combine(upgradeDirectory, ".coquena-owner"), upgradeSlot.ToString("D"));
+            File.WriteAllText(Path.Combine(upgradeDirectory, "llama-server.exe"), "version: 11483 (abcdef)");
+            var upgradeTarget = new BackendRecord(upgradeId, "b11483", "version: 11483 (abcdef)", "ggml", "ggml-org/llama.cpp", "cpu", "cpu", "win-x64",
+                $"backends/{upgradeId:D}/{upgradeSlot:D}/llama-server.exe", Pinned: true);
+            store.Update(DocumentKind.Backends, json.BackendsDocument, ContractValidation.Backends, _ => new(1, [backend, upgradeTarget]));
+            new ConfigurationManager(home).SetBackendRetention(1);
+            store.Update(DocumentKind.BackendUpdates, json.BackendUpdatesDocument, ContractValidation.BackendUpdates, _ => new(1,
+                [new("ggml", "cpu", "win-x64", backend.Id, backend.Build, DateTimeOffset.UtcNow, "available", "fixture",
+                    new("b11483", [new("llama-b11483-bin-win-cpu-x64.zip", 123)], "unknown", "fixture"))]));
+            var upgradeConsumer = new Coquena.Backends.BackendInstaller(home, probe: (path, token) => File.ReadAllTextAsync(path, token));
+            var upgradeResult = new Coquena.Backends.BackendUpgrader(home, consumer: upgradeConsumer).UpgradeAsync("cpu:latest",
+                (_, _) => throw new Exception("Reuse must not transfer")).GetAwaiter().GetResult();
+            var upgradeInstance = runtime.Recover("default");
+            Check(upgradeResult.Single().State == "reused" && upgradeInstance?.InstanceId == first.InstanceId &&
+                upgradeInstance.BackendId == first.BackendId && upgradeInstance.Build == first.Build && ProcessAlive(first.Pid) &&
+                Directory.Exists(backendDirectory), "upgrade keeps live instance and its old build beyond retention limit");
+            Check(new Coquena.Backends.BackendInstaller(home).List().Single(b => b.TracksLatest).Id == upgradeTarget.Id,
+                "upgrade advances future starts while active instance retains its backend");
+            store.Update(DocumentKind.Instance, json.InstanceDocument, ContractValidation.Instance,
+                _ => first with { ProcessCreated = null }, server: "default");
+            new Coquena.Backends.BackendBuildRetention(home).Apply("ggml-org/llama.cpp", "cpu", "win-x64");
+            Check(Directory.Exists(backendDirectory) && new Coquena.Backends.BackendInstaller(home).List().Any(b => b.Id == backend.Id),
+                "uncertain process identity also protects old build");
+            store.Update(DocumentKind.Instance, json.InstanceDocument, ContractValidation.Instance, _ => first, server: "default");
+            store.Update(DocumentKind.Backends, json.BackendsDocument, ContractValidation.Backends, _ => upgradeCatalog);
+            store.Update(DocumentKind.Config, json.ConfigDocument, ContractValidation.Config, _ => upgradeConfig);
             var directoryState = File.ReadAllText(home.PathFor("catalogs/backends.json"));
             Reject(() => new BackendDirectoryManager(home).Change("relocated-backends", output, () => "s", () => true), "live server blocks directory transfer");
             Check(ProcessAlive(first.Pid) && File.ReadAllText(home.PathFor("catalogs/backends.json")) == directoryState &&

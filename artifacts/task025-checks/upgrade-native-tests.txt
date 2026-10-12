@@ -1,0 +1,1 @@
+OK: 51 comprobaciones de upgrade/retenci�n y CLI Native AOT.

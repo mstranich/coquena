@@ -11,6 +11,8 @@ public static class BackendCli
         Func<HardwareContext>? inspect = null, OfficialBackendSource? source = null,
         CancellationToken cancellation = default)
     {
+        if (args.Length >= 2 && args[0] == "backend" && args[1] == "upgrade")
+            return Upgrade(args, output, error, cancellation);
         if (args.Length >= 2 && args[0] == "backend" && args[1] == "update")
             return Update(args, output, error, inspect, source, cancellation);
         if (args.Length >= 2 && args[0] == "backend" && args[1] is "list" or "use" or "install" or "register")
@@ -153,6 +155,34 @@ public static class BackendCli
             var code = e switch { DownloadException d => d.Code, BackendException b => b.Code,
                 StorageException s => s.Code, ContractException c => c.Code, _ => "installation-not-confirmed" };
             error.WriteLine($"Error: {code}. Consulte coquena --help y download status."); return 1;
+        }
+    }
+
+    private static int Upgrade(string[] args, TextWriter output, TextWriter error, CancellationToken cancellation)
+    {
+        if (args.Length is not (2 or 3)) { error.WriteLine("Error: argumentos inválidos. Consulte coquena --help."); return 2; }
+        try
+        {
+            var home = Home.Resolve();
+            var installer = new BackendInstaller(home, retentionReport: output.WriteLine);
+            var results = new BackendUpgrader(home, consumer: installer).UpgradeAsync(args.Length == 3 ? args[2] : null,
+                (operation, token) =>
+                {
+                    var code = DownloadCli.Run(["resume", operation.Id.ToString("D")], output, error, cancellation: token);
+                    return Task.FromResult(code == 0 && installer.Published(operation));
+                }, output.WriteLine, cancellation).GetAwaiter().GetResult();
+            foreach (var result in results)
+            {
+                output.WriteLine($"{result.Selector}: {result.State}{(result.OperationId is { } id ? $" | operación {id:D}" : "")}");
+                if (result.State == "failed") error.WriteLine($"Error: {result.Diagnostic}. Consulte coquena --help y download status.");
+            }
+            if (results.Length == 0) output.WriteLine("Sin seguimientos latest oficiales registrados.");
+            return results.Any(r => r.State is "failed" or "pending") ? 1 : 0;
+        }
+        catch (Exception e) when (e is BackendException or StorageException or ContractException or IOException or UnauthorizedAccessException or OperationCanceledException)
+        {
+            error.WriteLine($"Error: {e.Message} Consulte coquena --help.");
+            return e is BackendException { Code: "invalid-latest-selector" } ? 2 : 1;
         }
     }
 

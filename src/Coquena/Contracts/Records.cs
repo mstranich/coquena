@@ -28,7 +28,9 @@ public sealed record ServerRecord(Guid Id, string Name, [property: JsonIgnore(Co
     Guid[] PresetIds, Dictionary<string, JsonElement> Parameters,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] LogRetention? LogRetention = null);
 public sealed record ServersDocument(int SchemaVersion, ServerRecord[] Servers);
-public sealed record BackendRetention(int MaxBuilds);
+public sealed record BackendRetention(int MaxBuilds,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] bool Own = false);
+public sealed record BackendRetentionJournal(int SchemaVersion, BackendRecord[] Pending);
 public sealed record LogRetention(long MaxBytes);
 public sealed record LastLogDocument(int SchemaVersion, Guid ServerId, Guid InstanceId, string LogPath);
 public sealed record ConfigDocument(int SchemaVersion, Guid? DefaultServerId,
@@ -68,13 +70,15 @@ public sealed record ModelInstallPlan(Guid ModelId, InstalledFile[]? VerifiedFil
 public sealed record BackendInstallPlan(string RequestedRelease, Guid BackendId,
     BackendRecord? Previous, BackendRecord? PreviousLatest, string Slot,
     string? ServerRelativePath = null, string? Version = null,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? InstallationDirectory = null);
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? InstallationDirectory = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] BackendUpdateObservation? Upgrade = null);
 
 [JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase,
 
     WriteIndented = true, RespectRequiredConstructorParameters = true,
     UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow)]
 [JsonSerializable(typeof(BackendRecord))]
+[JsonSerializable(typeof(BackendRetentionJournal))]
 [JsonSerializable(typeof(ModelRecord))]
 [JsonSerializable(typeof(PresetRecord))]
 [JsonSerializable(typeof(ServersDocument))]

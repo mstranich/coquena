@@ -94,10 +94,31 @@ Consulta, instala y registra backends de llama.cpp; también permite retirarlos.
 @endmindmap
 ```
 
+`<selector-latest>` es un marcador de la documentación, no un texto que se escriba
+literalmente. Se sustituye por el seguimiento que se quiere consultar o actualizar,
+con formato `[origen/]variante:latest`: por ejemplo `cpu:latest`,
+`ggml/cuda@12:latest` u `oficial/vulkan:latest`. `ggml` identifica el origen oficial,
+`oficial` es su alias y omitir el origen también selecciona el oficial.
+Los corchetes de la sintaxis indican que el argumento es opcional; tampoco se escriben.
+Si se omite, el comando opera sobre todos los seguimientos oficiales `latest` registrados.
+
+```powershell
+coquena backend update cpu:latest
+coquena backend upgrade ggml/cuda@12:latest
+coquena backend upgrade oficial/vulkan:latest
+coquena backend upgrade
+```
+
 `backend update` consulta todos los seguimientos oficiales `latest` registrados;
 un selector como `oficial/cuda@12:latest` limita la consulta a ese filtro.
 Guarda candidato, fecha y diagnóstico sin descargar ni cambiar instalaciones.
 `backend list` muestra la última consulta guardada del build actual, sin red.
+
+`backend upgrade [selector-latest]` aplica el candidato guardado para el build
+actual. Si ya está instalado, lo valida y reutiliza conservando ID, pin e instancias.
+Una descarga pendiente informa su GUID para `download resume` o `download cancel`.
+Sin un candidato aplicable, solicita `backend update`; sin novedades, no descarga
+ni ejecuta limpieza. La retención se aplica después de un upgrade exitoso.
 
 Repetir install fuerza descarga y reinstalación; intención latest/pin y publicación
 siguen [servidores.md](servidores.md) y [descargas.md](descargas.md).
