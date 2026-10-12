@@ -1,0 +1,27 @@
+OK: 14 casos administrados.
+OK: contratos M1, round-trip y diagnósticos negativos (sin E/S de proveedor).
+OK: 73 comprobaciones config/presets/INI.
+OK: 174 comprobaciones del catálogo de parámetros.
+OK: 49 comprobaciones de políticas de retención.
+OK: 72 comprobaciones de servidores.
+OK: 22 comprobaciones de métricas y retención.
+OK: 72 comprobaciones de ciclo de procesos.
+OK: home, persistencia, escritores concurrentes/procesos, corrupción, fallos y JSONL limitado.
+OK: 184 comprobaciones de backends (fixtures sin binarios/pesos, metadatos simulados).
+Operación 69a51e42-f7c7-43e4-bacf-809ca698fdf4 en primer plano.
+69a51e42-f7c7-43e4-bacf-809ca698fdf4 | model | fixture | paused/transfer
+  file0.gguf: 3/6 bytes | paused | models/fixture/file0.gguf
+  Total: 3/6 bytes
+coquena download resume 69a51e42-f7c7-43e4-bacf-809ca698fdf4
+Operación dd9df726-0545-40a7-9784-148294572699 en primer plano.
+dd9df726-0545-40a7-9784-148294572699: cancelación y limpieza completadas.
+OK: download 53 assertions; HTTP fixtures, foreground and cross-process controls.
+OK: 52 comprobaciones de instalación/reinstalación de backends.
+OK: 26 comprobaciones de backends externos.
+OK: 47 comprobaciones de backend update.
+OK: 96 comprobaciones de directorios de backends (traslado, fusión, recuperación y volúmenes).
+OK: 217 comprobaciones 015, metadata, resolución, HTTP acotado y selección Google.
+OK: 168 comprobaciones HF/selección; sin pesos, GUID ni persistencia.
+OK: 127 comprobaciones GGUF/integridad.
+OK: 118 comprobaciones de descarga/publicación de modelos; fixtures, recuperación y CLI.
+OK: 64 comprobaciones de directorio de modelos.

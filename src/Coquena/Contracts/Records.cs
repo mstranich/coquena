@@ -38,6 +38,12 @@ public sealed record ConfigDocument(int SchemaVersion, Guid? DefaultServerId,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? ModelsDirectory = null);
 public sealed record ModelsDocument(int SchemaVersion, ModelRecord[] Models);
 public sealed record BackendsDocument(int SchemaVersion, BackendRecord[] Backends);
+public sealed record BackendUpdateCandidate(string Build, RemoteFile[] Artifacts,
+    string Compatibility, string Diagnostic);
+public sealed record BackendUpdateObservation(string Origin, string Variant, string Platform,
+    Guid BackendId, string InstalledBuild, DateTimeOffset CheckedAt, string State,
+    string Diagnostic, BackendUpdateCandidate? Candidate);
+public sealed record BackendUpdatesDocument(int SchemaVersion, BackendUpdateObservation[] Updates);
 public sealed record PresetsDocument(int SchemaVersion, PresetRecord[] Presets);
 public sealed record InstanceDocument(int SchemaVersion, Guid InstanceId, Guid ServerId,
     Guid BackendId, string Build, int Pid, string Mode, string Host, int Port,
@@ -78,6 +84,7 @@ public sealed record BackendInstallPlan(string RequestedRelease, Guid BackendId,
 [JsonSerializable(typeof(OperationDocument))]
 [JsonSerializable(typeof(ModelsDocument))]
 [JsonSerializable(typeof(BackendsDocument))]
+[JsonSerializable(typeof(BackendUpdatesDocument))]
 [JsonSerializable(typeof(PresetsDocument))]
 [JsonSerializable(typeof(Coquena.Configuration.ParametersDocument))]
 public partial class ContractJsonContext : JsonSerializerContext;

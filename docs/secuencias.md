@@ -457,6 +457,48 @@ No se calcula ni verifica SHA-256 para backends. Backend upgrade reutiliza la tr
 y publicación con el build fijado por update; no resuelve latest nuevamente. Tras éxito,
 actualiza el seguimiento y aplica retención sin borrar builds protegidos. No actualiza externos.
 
+### Consultar novedades de backends
+
+```plantuml
+@startuml
+actor Usuario as U
+participant CLI
+participant "Consulta de backends" as UP
+database "Catálogo local" as C
+participant "Releases oficiales" as R
+U -> CLI : backend update [selector-latest]
+CLI -> UP : consultar seguimientos latest
+UP -> C : leer filtros, builds actuales\ny observaciones previas
+C --> UP : snapshot de seguimientos oficiales
+loop cada seguimiento seleccionado
+  UP -> R : resolver latest dentro del filtro registrado
+  alt novedad disponible
+    R --> UP : build concreto, artefactos y compatibilidad
+  else sin build posterior
+    R --> UP : sin cambios
+  else fallo remoto
+    R --> UP : diagnóstico; sin candidato aplicable
+  end
+  UP -> C : comprobar snapshot y guardar observación
+  alt seguimiento u observación modificados
+    C --> UP : rechazar resultado obsoleto
+  else publicación válida
+    C --> UP : fecha, filtro y resultado guardados
+  end
+  UP --> CLI : resultado de la unidad; continuar con las demás
+end
+CLI --> U : resultados y diagnósticos
+note over UP,C
+  No descarga ni cambia el build instalado.
+  Un pin fija un build; no desactiva latest.
+  Las selecciones fijadas y externos no se consultan.
+end note
+@enduml
+```
+
+Las condiciones y efectos de la consulta se definen en
+[servidores.md](servidores.md#definición-persistida).
+
 ## 6. Pausar, recuperar y reanudar una transferencia
 
 ```plantuml

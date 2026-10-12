@@ -79,6 +79,45 @@ public static class ContractValidation
         Version(value.SchemaVersion);
         Catalog(value.Presets, Preset, x => x.Id, x => x.Name);
     }
+    public static void BackendUpdates(BackendUpdatesDocument value)
+    {
+        Version(value.SchemaVersion);
+        Require(value.Updates is not null, "Observaciones requeridas.");
+        var filters = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var update in value.Updates!)
+        {
+            Require(update is not null, "Observación nula.");
+            Require(update!.Origin == "ggml" && update.Platform == "win-x64" &&
+                update.Variant is not null && Coquena.Backends.BackendCatalog.ValidFamily(update.Variant), "Filtro oficial inválido.");
+            Require(filters.Add($"{update.Origin}/{update.Variant}/{update.Platform}"), "Seguimiento duplicado.");
+            Id(update.BackendId); OfficialBuild(update.InstalledBuild);
+            Require(update.CheckedAt != default && update.CheckedAt.Offset == TimeSpan.Zero, "Fecha UTC requerida.");
+            Text(update.Diagnostic);
+            Require(update.State is "available" or "unchanged" or "failed", "Estado de consulta inválido.");
+            Require((update.State == "available") == (update.Candidate is not null), "Candidato sólo para novedades.");
+            if (update.Candidate is not { } candidate) continue;
+            OfficialBuild(candidate.Build);
+            Require(Coquena.Backends.BackendCatalog.BuildNumber(candidate.Build) >
+                Coquena.Backends.BackendCatalog.BuildNumber(update.InstalledBuild), "El candidato debe ser posterior al instalado.");
+            Require(candidate.Compatibility is "compatible" or "unknown" or "incompatible", "Compatibilidad inválida.");
+            Text(candidate.Diagnostic);
+            Require(candidate.Artifacts is { Length: > 0 and <= 2 }, "Artefactos requeridos.");
+            var names = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var artifact in candidate.Artifacts!)
+            {
+                Require(artifact is not null && !string.IsNullOrWhiteSpace(artifact.Path) && artifact.Path.Length <= 256 &&
+                    !artifact.Path.Any(c => char.IsControl(c) || c is '/' or '\\') &&
+                    artifact.Size is >= 0 && artifact.Identity is null, "Artefacto oficial inválido.");
+                Require(names.Add(artifact!.Path), "Artefacto duplicado.");
+            }
+        }
+    }
+    private static void OfficialBuild(string build)
+    {
+        Text(build);
+        try { _ = Coquena.Backends.BackendCatalog.BuildNumber(build); }
+        catch (Coquena.Backends.BackendException) { Require(false, "Build oficial inválido."); }
+    }
     private static void Catalog<T>(T[]? entries, Action<T> validate, Func<T, Guid> id, Func<T, string>? name) where T : class
     {
         Require(entries is not null, "Catálogo requerido.");
