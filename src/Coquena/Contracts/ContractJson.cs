@@ -246,6 +246,25 @@ public static class ContractValidation
             Text(file.LocalPath); Require(file.Size >= 0, "Tamaño negativo."); Identity(file.Integrity);
         }
         Parameters(value.Parameters);
+        if (value.IntegrityCheck is { } check)
+        {
+            Require(check.CheckedAt != default && check.Files is not null && check.Files.Length == value.Files.Length,
+                "Observación de integridad incompleta.");
+            Require(!check.SetBaseline || value.Ownership == "external", "Base local sólo para externos.");
+            Require(check.Status is "verified" or "baseline-set" or "no-reference" or "mismatch" or "read-error" or "missing-file" or "changed-during-read",
+                "Resultado de integridad inválido.");
+            for (var i = 0; i < check.Files!.Length; i++)
+            {
+                var file = check.Files[i];
+                Require(file is not null, "Resultado de archivo nulo.");
+                Text(file!.LocalPath);
+                Require(file!.Status is "verified" or "baseline-set" or "no-reference" or "mismatch" or "read-error" or "missing-file" or "changed-during-read",
+                    "Resultado por archivo inválido.");
+                Require(file.Observed is null || Coquena.Models.FileIntegrity.Comparable(file.Observed), "Hash observado inválido.");
+                Require(file.Status is not ("verified" or "baseline-set" or "no-reference" or "mismatch") || file.Observed is not null,
+                    "Resultado sin lectura completa.");
+            }
+        }
     }
     private static void Parameters(Dictionary<string, string>? values)
     {

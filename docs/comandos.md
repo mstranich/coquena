@@ -238,6 +238,15 @@ No reparan ni reemplazan referencias. Sin referencia, informan que no pueden ver
 no establecen una base automáticamente. Reglas en
 [integridad local](modelos-y-companions.md#integridad-local).
 
+`model refresh <nombre>` y `model companion refresh <nombre>` actualizan tamaño y
+fecha de los archivos legibles y vuelven a evaluar disponibilidad. Conservan las
+observaciones anteriores de los archivos inaccesibles y todas las referencias de
+integridad. El listado muestra el último resultado de integridad y su fecha; esa
+observación histórica no sustituye la comprobación actual de disponibilidad.
+Verify informa cada archivo y el conjunto; devuelve código 0 al comparar con éxito
+o establecer una base completa, y 1 si faltan archivos/referencias, hay discrepancias
+o la lectura falla o cambia. Refresh devuelve 1 si la unidad no está disponible.
+
 En externos, `verify <nombre> --set-baseline` calcula y registra SHA-256 de los bytes
 actuales como base local. Advierte que no certifica procedencia ni corrección original.
 Es una acción explícita distinta de comparar; sin el flag nunca reemplaza la referencia.

@@ -132,7 +132,7 @@ internal static class ExternalModelTests
         finally { Directory.Delete(root, true); }
     }
 
-    private static byte[] Fixture(int? index = null, int count = 1)
+    internal static byte[] Fixture(int? index = null, int count = 1)
     {
         using var stream = new MemoryStream(); using var writer = new BinaryWriter(stream, Encoding.UTF8, true);
         writer.Write(0x46554747u); writer.Write(3u); writer.Write(1ul); writer.Write(index.HasValue ? 4ul : 1ul);

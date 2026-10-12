@@ -16,6 +16,9 @@ public sealed class ModelInstaller(Home home, LocalStore? storage = null,
     private static readonly ContractJsonContext Json = ContractJsonContext.Default;
     public DownloadManager Downloads => new(home, store);
     public ModelRecord AddExternal(string path, string name, bool companion = false) => new ExternalModels(home).Add(path, name, companion);
+    public LocalModel Refresh(string name, bool companion = false) => new LocalModelMaintenance(home).Refresh(name, companion);
+    public Task<ModelRecord> VerifyAsync(string name, bool companion = false, bool setBaseline = false, CancellationToken cancellation = default)
+        => new LocalModelMaintenance(home).VerifyAsync(name, companion, setBaseline, cancellation);
     private ModelsDocument Catalog() => store.Read(DocumentKind.Models, Json.ModelsDocument, ContractValidation.Models) ?? new(1, []);
     internal bool IsInstalled(Guid id) => Catalog().Models.Any(m => m.Id == id);
     private OperationDocument Save(OperationDocument value) => store.Update(DocumentKind.Operation,

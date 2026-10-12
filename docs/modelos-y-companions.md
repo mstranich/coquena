@@ -381,6 +381,13 @@ externo, no una verificación exitosa contra otra referencia. Lecturas fallidas 
 detectados durante la lectura no producen una base completa exitosa. En gestionados
 se rechaza el flag: no se rebasan los hashes establecidos al descargar.
 
+La base se publica para la unidad completa: si falla una parte, se conservan todas
+las referencias anteriores. El resultado distingue la creación explícita de base
+de una comparación exitosa. La observación registra fecha, resultado del conjunto
+y resultados por archivo; conserva además la fecha de establecimiento de la base
+externa aunque se realicen comparaciones posteriores. Ni esa observación ni refresh
+cambian el seguimiento remoto.
+
 Seguimiento remoto e integridad tienen propósitos distintos, pero pueden compartir
 algoritmo cuando corresponda. No se inventa un hash corto ni se confunden commit,
 identificador Git, ETag y hash de los bytes. Verify nunca establece una base por omisión.

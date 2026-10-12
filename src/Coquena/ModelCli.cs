@@ -16,6 +16,8 @@ public static class ModelCli
         var companion = args.Length > 0 && args[0] == "companion";
         if (companion) args = args[1..];
         if (!(args.Length == 1 && args[0] == "list" || args.Length == 2 && args[0] == "download" ||
+            args.Length == 2 && args[0] is "refresh" or "verify" ||
+            args.Length == 3 && args[0] == "verify" && args[2] == "--set-baseline" ||
             args.Length == 4 && args[0] == "add" && args[2] == "--name"))
         { error.WriteLine("Error: argumentos de model inválidos. Consulte coquena --help."); return 2; }
         try
@@ -24,6 +26,30 @@ public static class ModelCli
             var request = args[0] == "download" ? ModelRequest.Parse(args[1]) : null;
             if (request is not null && companion != (request.CompanionType is not null)) throw new ModelSourceException("invalid-selector", "Use model download para principales y model companion download con #mmproj o #mtp para auxiliares.");
             installer ??= new ModelInstaller(Home.Resolve());
+            if (args[0] == "refresh")
+            {
+                var entry = installer.Refresh(args[1], companion);
+                output.WriteLine($"Observaciones locales actualizadas: {entry.Record.RefreshedAt:O}");
+                Show(entry);
+                return entry.Availability == "available" ? 0 : 1;
+            }
+            if (args[0] == "verify")
+            {
+                var baseline = args.Length == 3;
+                if (baseline) output.WriteLine("Aviso: la base local sólo detecta cambios posteriores; no certifica procedencia ni corrección original.");
+                using var stoppedVerify = CancellationTokenSource.CreateLinkedTokenSource(cancellation);
+                ConsoleCancelEventHandler verifyHandler = (_, e) => { e.Cancel = true; stoppedVerify.Cancel(); };
+                Console.CancelKeyPress += verifyHandler;
+                try
+                {
+                    var record = installer.VerifyAsync(args[1], companion, baseline, stoppedVerify.Token).GetAwaiter().GetResult();
+                    var check = record.IntegrityCheck!;
+                    output.WriteLine($"{record.Name} | integridad {check.Status} | {check.CheckedAt:O}");
+                    foreach (var file in check.Files) output.WriteLine($"  {file.LocalPath} | {file.Status} | {file.Diagnostic}");
+                    return check.Status is "verified" or "baseline-set" ? 0 : 1;
+                }
+                finally { Console.CancelKeyPress -= verifyHandler; }
+            }
             if (args[0] == "add")
             {
                 var record = installer.AddExternal(args[1], args[3], companion);
@@ -76,6 +102,7 @@ public static class ModelCli
             output.WriteLine($"{entry.Record.Id:D} | {entry.Record.Name} | {entry.Record.Ownership} | commit {entry.Record.Selection?.Commit ?? "no aplica"} | {entry.Availability}");
             foreach (var file in entry.Record.Files) output.WriteLine($"  {file.LocalPath} | {(entry.Record.Ownership == "external" && file.LastWriteUtc is null ? "tamaño no observado" : $"{file.Size} bytes")}");
             if (entry.Changed) output.WriteLine("  Aviso: tamaño/fecha cambiaron; no se redefine integridad.");
+            if (entry.Record.IntegrityCheck is { } check) output.WriteLine($"  Última integridad: {check.Status} | {check.CheckedAt:O}");
             foreach (var diagnostic in entry.Diagnostics ?? []) output.WriteLine("  " + diagnostic);
             if (entry.Availability != "available") output.WriteLine("  No servible: revisar rutas, lectura y cabeceras GGUF; no se reparan archivos externos.");
         }
