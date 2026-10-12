@@ -13,7 +13,10 @@ public static class ModelCli
         IRemoteGgufInspector? inspector = null)
     {
         Guid? active = null;
-        if (!(args.Length == 1 && args[0] == "list" || args.Length == 2 && args[0] == "download"))
+        var companion = args.Length > 0 && args[0] == "companion";
+        if (companion) args = args[1..];
+        if (!(args.Length == 1 && args[0] == "list" || !companion && args.Length == 2 && args[0] == "download" ||
+            args.Length == 4 && args[0] == "add" && args[2] == "--name"))
         { error.WriteLine("Error: argumentos de model inválidos. Consulte coquena --help."); return 2; }
         try
         {
@@ -21,16 +24,18 @@ public static class ModelCli
             var request = args[0] == "download" ? ModelRequest.Parse(args[1]) : null;
             if (request?.CompanionType is not null) throw new ModelSourceException("outside-m1", "Companions fuera de M1.");
             installer ??= new ModelInstaller(Home.Resolve());
+            if (args[0] == "add")
+            {
+                var record = installer.AddExternal(args[1], args[3], companion);
+                output.WriteLine($"Registrado externo: {record.Id:D} | {record.Name}");
+                Show(installer.List().Single(m => m.Record.Id == record.Id));
+                return 0;
+            }
             if (args[0] == "list")
             {
-                var entries = installer.List();
-                foreach (var entry in entries)
-                {
-                    output.WriteLine($"{entry.Record.Id:D} | {entry.Record.Name} | {entry.Availability} | commit {entry.Record.Selection.Commit}");
-                    foreach (var file in entry.Record.Files) output.WriteLine($"  {file.LocalPath} | {file.Size} bytes");
-                    if (entry.Changed) output.WriteLine("  Aviso: tamaño/fecha cambiaron; no se redefine integridad.");
-                }
-                if (entries.Length == 0) output.WriteLine("Sin modelos instalados.");
+                var entries = installer.List().Where(m => companion ? m.Record.CompanionType is not null : m.Record.CompanionType is null).ToArray();
+                foreach (var entry in entries) Show(entry);
+                if (entries.Length == 0) output.WriteLine(companion ? "Sin companions registrados." : "Sin modelos instalados.");
                 return 0;
             }
             using var stopped = CancellationTokenSource.CreateLinkedTokenSource(cancellation);
@@ -58,13 +63,21 @@ public static class ModelCli
             }
             finally { Console.CancelKeyPress -= handler; }
         }
-        catch (Exception e) when (e is ModelSourceException or DownloadException or StorageException or ContractException or IOException or UnauthorizedAccessException or OperationCanceledException)
+        catch (Exception e) when (e is ModelSourceException or DownloadException or StorageException or ContractException or IOException or UnauthorizedAccessException or OperationCanceledException or ArgumentException or NotSupportedException)
         {
             var code = e switch { ModelSourceException s => s.Code, DownloadException d => d.Code, StorageException s => s.Code,
                 ContractException c => c.Code, OperationCanceledException => "selection-interrupted", _ => "model-io-failed" };
-            error.WriteLine($"Error: {code}. Consulte coquena --help.");
+            error.WriteLine($"Error: {code}. {e.Message} Consulte coquena --help.");
             if (active is { } id) output.WriteLine($"coquena download resume {id:D}");
             return 1;
+        }
+        void Show(LocalModel entry)
+        {
+            output.WriteLine($"{entry.Record.Id:D} | {entry.Record.Name} | {entry.Record.Ownership} | commit {entry.Record.Selection?.Commit ?? "no aplica"} | {entry.Availability}");
+            foreach (var file in entry.Record.Files) output.WriteLine($"  {file.LocalPath} | {(entry.Record.Ownership == "external" && file.LastWriteUtc is null ? "tamaño no observado" : $"{file.Size} bytes")}");
+            if (entry.Changed) output.WriteLine("  Aviso: tamaño/fecha cambiaron; no se redefine integridad.");
+            foreach (var diagnostic in entry.Diagnostics ?? []) output.WriteLine("  " + diagnostic);
+            if (entry.Availability != "available") output.WriteLine("  No servible: revisar rutas, lectura y cabeceras GGUF; no se reparan archivos externos.");
         }
     }
 

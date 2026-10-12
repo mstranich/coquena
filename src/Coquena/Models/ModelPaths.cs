@@ -23,7 +23,8 @@ public sealed class ModelPaths(Home home)
     }
     public string File(ModelRecord model, InstalledFile file)
     {
-        var logical = $"models/{model.Selection.Repository}/{file.RemotePath}";
+        if (model.Ownership == "external") return Path.GetFullPath(file.LocalPath);
+        var logical = $"models/{model.Selection!.Repository}/{file.RemotePath}";
         if (file.LocalPath != (model.InstallationDirectory is null ? logical : logical[7..]))
             throw new StorageException("unsafe-model-path", "Ruta de modelo fuera de su unidad gestionada.");
         return model.InstallationDirectory is null ? home.PathFor(file.LocalPath)

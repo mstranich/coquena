@@ -19,9 +19,11 @@ public sealed record RemoteSelection(string Repository, string RequestedRevision
 public sealed record InstalledFile(string RemotePath, string LocalPath, long Size,
     ContentIdentity? Integrity = null, DateTimeOffset? LastWriteUtc = null);
 // One unit, ordered files (first shard first), empty initial model configuration.
-public sealed record ModelRecord(Guid Id, string Name, RemoteSelection Selection,
+public sealed record ModelRecord(Guid Id, string Name, RemoteSelection? Selection,
     InstalledFile[] Files, Dictionary<string, string> Parameters,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? InstallationDirectory = null);
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? InstallationDirectory = null,
+    string Ownership = "managed",
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? CompanionType = null);
 public sealed record PresetRecord(Guid Id, string Name, Guid? ModelId,
     Dictionary<string, string> Parameters);
 public sealed record ServerRecord(Guid Id, string Name, [property: JsonIgnore(Condition = JsonIgnoreCondition.Never)] BackendSelection? Backend,

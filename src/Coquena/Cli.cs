@@ -20,6 +20,7 @@ public static class Cli
             output.WriteLine("Coquena — manager de llama.cpp");
             output.WriteLine("Uso: coquena [--help|-h|help] | system probe | backend <remote|install> [cpu|vulkan|cuda@<mayor>] [--release bNNNN|latest] | backend list | backend use [selector] | download <list|status|pause|resume|cancel>");
             output.WriteLine("Modelos: model download <usuario/repositorio[:cuantización]> | model list");
+            output.WriteLine("Modelos externos: model add <ruta.gguf> --name <usuario/repositorio:cuantización>; model companion add <ruta.gguf> --name <usuario/repositorio#mmproj|mtp:cuantización>; model companion list (alta local sin copia, red ni hash completo).");
             output.WriteLine("Backends externos: backend register <ruta-llama-server> --name <nombre> --family <familia> [--distribution propietario/repositorio]; backend use [selector|nombre-externo]; server [nombre] use <nombre-externo>");
             output.WriteLine("Novedades: backend update [selector-latest] (todos los seguimientos o [ggml/|oficial/]cpu|vulkan|cuda@<mayor>:latest); backend list muestra la última consulta guardada. No descarga ni instala.");
             output.WriteLine("Configuración: config log-retention show | config log-retention set <tamaño> | config log-retention unset");

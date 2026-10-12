@@ -151,6 +151,8 @@ public static class GgufInspection
         }
         var headers = parts.Where(p => p.Header is not null).Select(p => p.Header!).ToArray();
         if (headers.Select(h => h.Version).Distinct().Count() > 1) Invalid("Versiones GGUF contradictorias.");
+        if (headers.Where(h => h.FileTypeId.HasValue).Select(h => h.FileTypeId).Distinct().Count() > 1)
+            Invalid("Cuantizaciones GGUF contradictorias entre partes.");
         foreach (var key in new[] { "general.architecture", "general.name", "general.basename", "general.uuid" })
             if (headers.Where(h => h.Hints.ContainsKey(key)).Select(h => h.Hints[key]).Distinct(StringComparer.Ordinal).Count() > 1)
                 Invalid($"Metadato compartido contradictorio: {key}.");

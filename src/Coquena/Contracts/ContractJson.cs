@@ -230,14 +230,19 @@ public static class ContractValidation
     }
     public static void Model(ModelRecord value)
     {
-        Id(value.Id); Text(value.Name); Remote(value.Selection);
+        Id(value.Id); Text(value.Name);
+        Require(value.Ownership is "managed" or "external", "Propiedad de modelo inválida.");
+        Require(value.CompanionType is null or "mmproj" or "mtp", "Tipo de companion inválido.");
+        if (value.Ownership == "managed") Remote(value.Selection!);
+        else Require(value.Selection is null && value.InstallationDirectory is null, "Externo con instalación o seguimiento gestionado.");
         if (value.InstallationDirectory is not null) Text(value.InstallationDirectory);
-        Require(value.Files is not null && value.Files.Length == value.Selection.Files.Length, "Unidad incompleta.");
+        Require(value.Files is { Length: > 0 } && (value.Selection is null || value.Files.Length == value.Selection.Files.Length), "Unidad incompleta.");
         for (var i = 0; i < value.Files!.Length; i++)
         {
             var file = value.Files[i];
             Require(file is not null, "Archivo instalado nulo.");
-            Require(file!.RemotePath == value.Selection.Files[i].Path, "Orden/correspondencia de unidad inválido.");
+            Require(value.Selection is null ? file!.RemotePath == "" && Path.IsPathFullyQualified(file.LocalPath)
+                : file!.RemotePath == value.Selection.Files[i].Path, "Orden/correspondencia de unidad inválido.");
             Text(file.LocalPath); Require(file.Size >= 0, "Tamaño negativo."); Identity(file.Integrity);
         }
         Parameters(value.Parameters);
