@@ -20,6 +20,7 @@ internal static class ParameterTests
         {
             Check(manager.List().Length == 22 && !Directory.Exists(root), "factory read does not initialize home");
             Check(!manager.ChangeDefinition("ctx-size", d => d with { Description = "consulta" }, "descripción", true, report, () => throw new Exception("dry-run prompted")) && !Directory.Exists(root), "dry-run without home performs no writes");
+            Check(!manager.Reset(true, report, () => throw new Exception("reset dry-run prompted")) && !Directory.Exists(root), "reset dry-run without home performs no writes");
             var model = new ModelRecord(Guid.NewGuid(), "fixture/model:Q4", new("fixture/model", "main", new string('a', 40), [new("fixture.gguf", null)]),
                 [new("fixture.gguf", "models/fixture/model/fixture.gguf", 0)], []);
             var path = home.PathFor(model.Files[0].LocalPath); Directory.CreateDirectory(Path.GetDirectoryName(path)!); File.WriteAllBytes(path, ConfigurationTests.Fixture(null));
@@ -232,11 +233,90 @@ internal static class ParameterTests
             File.WriteAllText(home.PathFor("catalogs/parameters.json"), corrupt.Replace("\"schemaVersion\": 1", "\"schemaVersion\": 99"));
             Reject(() => manager.List(), "corrupt catalog not replaced by factory");
             File.WriteAllText(home.PathFor("catalogs/parameters.json"), corrupt);
+            // A single reset combines removals, restored definitions and incompatible
+            // assignments across all entities, using the same publication boundary.
+            manager.ChangeDefinition("ctx-size", d => d with { Type = "string", Default = "edited", Aliases = ["context-custom"] }, "tipo", false, report, () => true);
+            config.Set("one", "ctx-size", "invalid-integer"); config.Set("two", "ctx-size", "2048");
+            manager.ChangeDefinition("temp", _ => null, "retirar", false, report, () => true);
+            config.Set("one", "temp", "0.4");
+            config.Set("two", "temp", "invalid-decimal");
+            config.Set("one", "toggle", "true"); servers.Set("first", "scope-change", "5");
+            manager.Support("ctx-size", new(From: "b11483", Until: "b11483"), false, false, report);
+            store.Update(DocumentKind.Servers, json.ServersDocument, ContractValidation.Servers, old => old! with
+            { Servers = old.Servers.Select(s => s.Name == "second" ? s with { Backend = new("fixed", other.Id), PresetIds = [one.Id, two.Id] } : s).ToArray() });
+            state = State();
+            var resetImpact = ResetCli(0, "--dry-run");
+            Check(State() == state && resetImpact.Contains("invalid-integer") && resetImpact.Contains("Recuperar: temp") &&
+                resetImpact.Contains("first") && resetImpact.Contains("second"), "reset redirected impact covers restoration and multiple entities without writes");
+            Check(resetImpact.Contains("Conservar/disponibilidad desconocida") && resetImpact.Contains("2048"), "reset applicability change reports preserved assignment separately from cascade");
+            ResetCli(2, "--unknown"); ResetCli(2, "--dry-run", "--dry-run");
+            Check(State() == state, "reset invalid grammar preserves state");
+            using var cancelled = new StringWriter();
+            Check(!manager.Reset(false, cancelled, () => false) && State() == state, "reset cancellation preserves all catalogs");
+            ResetCli(2); Check(State() == state, "reset requires interactive input even through CLI");
+            using var appliedReport = new StringWriter();
+            Check(manager.Reset(false, appliedReport, () => true) && appliedReport.ToString().StartsWith(resetImpact, StringComparison.Ordinal), "reset dry-run and real operation share impact");
+            Check(ContractJson.Write(new(1, manager.List()), json.ParametersDocument) == ContractJson.Write(ParameterManager.Factory(), json.ParametersDocument), "reset restores exact bundled factory catalog");
+            Check(!config.View("one").Own.ContainsKey("ctx-size") && config.View("two").Own["ctx-size"] == "2048" &&
+                config.View("one").Own["temperature"] == "0.4" && !config.View("one").Own.ContainsKey("toggle") &&
+                !config.View("two").Own.ContainsKey("temperature") &&
+                !servers.View("first").Server.Parameters.ContainsKey("scope-change"), "reset removes only retired or incompatible assignments and preserves restored compatible values");
+            Check(config.List().Length == 2 && servers.List().Length == 2 && config.List().All(p => p.Preset.ModelId is null) &&
+                File.ReadAllBytes(path).SequenceEqual(modelBytes) && File.ReadAllText(instances) == "active fixture", "reset preserves entities resources active files and does not restore removed model assignments");
+            var resetConfirmations = 0;
+            Check(!manager.Reset(false, report, () => false), "unchanged factory still requires confirmation");
+            manager.Reset(false, report, () => { resetConfirmations++; if (resetConfirmations == 1) config.Set("two", "ctx-size", "3072"); return true; });
+            Check(resetConfirmations == 2 && config.View("two").Own["ctx-size"] == "3072", "reset recalculates and reconfirms after concurrent assignment change");
+            foreach (var stage in new[] { WriteStage.BeforeReplace, WriteStage.AfterReplace, WriteStage.AfterParameterCheckpoint })
+            {
+                manager.Define(new("reset-custom", "integer", "model", "INI", "", [], Choices: [], Support: []));
+                config.Set("one", "reset-custom", "1");
+                store.Update(DocumentKind.Servers, json.ServersDocument, ContractValidation.Servers, old => old! with
+                { Servers = old.Servers.Select(s => s with { Parameters = s.Parameters.Append(new("reset-custom", JsonSerializer.SerializeToElement(3, json.Int32))).ToDictionary() }).ToArray() });
+                state = State();
+                var fault = new ParameterManager(home, new LocalStore(home, observed => { if (observed == stage) throw new IOException("reset publication fault"); }));
+                try { fault.Reset(false, report, () => true); throw new Exception("expected reset failure"); }
+                catch (StorageException e) { Check(e.Published == (stage != WriteStage.BeforeReplace), "reset publication status " + stage); }
+                catch (IOException) when (stage == WriteStage.BeforeReplace) { Check(true, "reset failure precedes publication"); }
+                if (stage == WriteStage.BeforeReplace)
+                {
+                    Check(State() == state, "reset failure before commit preserves state");
+                    manager.Reset(false, report, () => true);
+                }
+                else Check(new ParameterManager(home).Find("reset-custom") is null &&
+                    store.Read(DocumentKind.Presets, json.PresetsDocument, ContractValidation.Presets)!.Presets.All(p => !p.Parameters.ContainsKey("reset-custom")) &&
+                    store.Read(DocumentKind.Servers, json.ServersDocument, ContractValidation.Servers)!.Servers.All(s => !s.Parameters.ContainsKey("reset-custom")), "reset committed catalogs consistent after fault " + stage);
+                config.Set("two", "ctx-size", "2048");
+                Check(!File.Exists(home.PathFor("catalogs/parameter-transaction.json")), "reset next writer recovers checkpoint " + stage);
+            }
             Console.WriteLine($"OK: {checks} comprobaciones del catálogo de parámetros" + (executable is null ? "." : " con CLI nativa."));
         }
         finally { if (Directory.Exists(root)) Directory.Delete(root, true); }
 
         string Availability(string name, string build, string variant = "cuda@13") => ParameterManager.Availability(manager.Find(name), backend: null, "ggml", build, variant);
+        string ResetCli(int expected, params string[] options)
+        {
+            using var output = new StringWriter(); using var error = new StringWriter();
+            int code; string stdout; string stderr;
+            if (executable is null)
+            {
+                code = ConfigurationCli.Run("config", ["param-reset", .. options], output, error, config,
+                    parameterConfirmation: () => throw new ConfigurationException("Se requiere entrada interactiva."));
+                stdout = output.ToString(); stderr = error.ToString();
+            }
+            else
+            {
+                var start = new ProcessStartInfo(executable) { UseShellExecute = false, RedirectStandardInput = true, RedirectStandardOutput = true, RedirectStandardError = true };
+                start.Environment["COQUENA_HOME"] = root;
+                foreach (var arg in new[] { "config", "param-reset" }.Concat(options)) start.ArgumentList.Add(arg);
+                using var process = Process.Start(start)!; process.StandardInput.Close();
+                var result = process.StandardOutput.ReadToEndAsync(); var diagnostic = process.StandardError.ReadToEndAsync();
+                if (!process.WaitForExit(10000)) { process.Kill(true); throw new Exception("Reset CLI timeout"); }
+                code = process.ExitCode; stdout = result.GetAwaiter().GetResult(); stderr = diagnostic.GetAwaiter().GetResult();
+            }
+            Check(code == expected && (expected == 0 ? stderr.Length == 0 : stderr.Contains("Error:")), "reset CLI: " + stderr);
+            return stdout;
+        }
         string State() => string.Join("\n", new[] { "catalogs/parameters.json", "catalogs/presets.json", "catalogs/servers.json" }.Select(p => File.Exists(home.PathFor(p)) ? File.ReadAllText(home.PathFor(p)) : "absent"));
         void Check(bool condition, string message) { checks++; if (!condition) throw new Exception("Parameters: " + message); }
         void Reject(Action action, string message)

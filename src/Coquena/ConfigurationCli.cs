@@ -7,7 +7,7 @@ namespace Coquena;
 public static class ConfigurationCli
 {
     public static int Run(string command, string[] args, TextWriter output, TextWriter error, ConfigurationManager? manager = null,
-        Func<string?>? directoryChoice = null, Func<bool>? directoryOverwrite = null)
+        Func<string?>? directoryChoice = null, Func<bool>? directoryOverwrite = null, Func<bool>? parameterConfirmation = null)
     {
         try
         {
@@ -16,6 +16,13 @@ public static class ConfigurationCli
             // Check grammar before creating the home or modifying state.
             if (command == "config")
             {
+                if (args.Length >= 1 && args[0] == "param-reset")
+                {
+                    if (!(args.Length == 1 || args.Length == 2 && args[1] == "--dry-run")) Invalid();
+                    manager ??= new(Home.Resolve());
+                    manager.Parameters.Reset(args.Length == 2, output, parameterConfirmation ?? (() => ParameterCli.Confirm(output)));
+                    return 0;
+                }
                 if (args.Length >= 1 && args[0] is "backends-dir" or "models-dir")
                 {
                     if (!(args.Length == 2 && args[1] is "show" or "unset" || args.Length == 3 && args[1] == "set")) Invalid();
