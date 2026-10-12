@@ -213,7 +213,10 @@ companions cuando no hay candidatos del tipo indicado.
 No encola companions. `model companion download` es otra invocación independiente,
 incluso otro día. Usa `usuario/repositorio#tipo[:cuantización]` y el mismo menú de
 selección, README y cancelación, limitado al tipo auxiliar indicado. Descargarlo no
-descarga el principal ni lo asocia automáticamente a un preset. `list`, `refresh`,
+descarga el principal ni lo asocia automáticamente a un preset.
+La operación se identifica como companion en `download list --companion` y puede
+pausarse, reanudarse o cancelarse mediante su GUID. Sus archivos se publican como una
+unidad completa en el directorio de modelos configurado. `list`, `refresh`,
 `update`, `upgrade` y `remove` aplican las mismas reglas que en modelos, sobre companions.
 Sin nombre, `model update` revisa todos los gestionados del catálogo, incluidos companions,
 y `model upgrade` aplica sus planes resueltos; los subcomandos de `companion` limitan

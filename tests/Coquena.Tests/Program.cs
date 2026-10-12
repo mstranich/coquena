@@ -74,9 +74,9 @@ if (args.Length == 2 && args[0] == "--hf-store")
     return;
 }
 
-if (args.Length == 2 && args[0] == "--model-install-tests")
+if (args.Length is 1 or 2 && args[0] == "--model-install-tests")
 {
-    await Coquena.Tests.ModelInstallerTests.Run(Path.GetFullPath(args[1]));
+    await Coquena.Tests.ModelInstallerTests.Run(args.Length == 2 ? Path.GetFullPath(args[1]) : null);
     return;
 }
 

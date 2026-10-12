@@ -32,7 +32,7 @@ al registrar un backend externo ni certifica su compatibilidad.
       ([025](../../specs/025-m2-backend-upgrade/README.md)).
 - [x] Registrar modelos y companions externos.
       ([026](../../specs/026-m2-registro-modelos-externos/README.md)).
-- [ ] Descargar y catalogar companions gestionados.
+- [x] Descargar y catalogar companions gestionados.
       ([027](../../specs/027-m2-descarga-companions/README.md)).
 - [ ] Actualizar observaciones locales y verificar integridad de modelos/companions.
       ([028](../../specs/028-m2-refresh-integridad-local/README.md)).
