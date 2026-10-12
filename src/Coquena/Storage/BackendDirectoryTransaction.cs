@@ -32,8 +32,8 @@ public sealed partial class LocalStore
         {
             // The destructive cleanup path must be a recognized old managed slot,
             // reconstructed from the before snapshot rather than trusted verbatim.
-            if (!value.Backends.Backends.Any(b => b.Origin == "ggml" && paths.Slot(b).Equals(move.Destination, StringComparison.OrdinalIgnoreCase)) ||
-                !value.BeforeBackends.Backends.Any(b => b.Origin == "ggml" && paths.Slot(b).Equals(move.Source, StringComparison.OrdinalIgnoreCase)))
+            if (!value.Backends.Backends.Any(b => b.Ownership == "managed" && b.Origin == "ggml" && paths.Slot(b).Equals(move.Destination, StringComparison.OrdinalIgnoreCase)) ||
+                !value.BeforeBackends.Backends.Any(b => b.Ownership == "managed" && b.Origin == "ggml" && paths.Slot(b).Equals(move.Source, StringComparison.OrdinalIgnoreCase)))
                 throw new StorageException("unsafe-directory-transaction", "Destino no pertenece al catálogo publicado.");
         }
         return value;

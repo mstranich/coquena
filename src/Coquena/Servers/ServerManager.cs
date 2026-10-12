@@ -105,7 +105,7 @@ public sealed class ServerManager(Home home, LocalStore? storage = null)
         var selection = selector == "default" ? null : new BackendInstaller(home, store).Resolve(selector);
         if (selection?.Kind == "fixed")
             store.UpdateLocked(DocumentKind.Backends, Json.BackendsDocument, ContractValidation.Backends,
-                old => old! with { Backends = old.Backends.Select(b => b.Id == selection.BackendId ? b with { Pinned = true } : b).ToArray() });
+                old => old! with { Backends = old.Backends.Select(b => b.Id == selection.BackendId && b.Ownership == "managed" ? b with { Pinned = true } : b).ToArray() });
         return record with { Backend = selection };
     });
 
@@ -163,7 +163,7 @@ public sealed class ServerManager(Home home, LocalStore? storage = null)
     {
         if (selection is null) throw new ConfigurationException("Selección de backend ausente.");
         var matches = backends.Where(b => selection.Kind == "fixed" ? b.Id == selection.BackendId :
-            b.Origin == selection.Origin && b.Variant == selection.Variant && b.TracksLatest && b.Platform == "win-x64").ToArray();
+            b.Ownership == "managed" && b.Origin == selection.Origin && b.Variant == selection.Variant && b.TracksLatest && b.Platform == "win-x64").ToArray();
         if (matches.Length != 1) throw new ConfigurationException("Backend seleccionado ausente o ambiguo; no se usa un sustituto.");
         var backend = matches[0];
         if (!File.Exists(new Coquena.Backends.BackendPaths(home).Server(backend))) throw new ConfigurationException("Archivo del backend seleccionado ausente.");

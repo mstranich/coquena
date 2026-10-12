@@ -31,7 +31,7 @@ public sealed class BackendDirectoryManager(Home home, LocalStore? storage = nul
         var overview = store.Inspect(() => (Config(), Backends()));
         var target = paths.Root(location);
         output.WriteLine($"Destino: {target} | {(location is null ? "default" : "propio")}");
-        foreach (var b in overview.Item2.Backends.Where(b => b.Origin == "ggml"))
+        foreach (var b in overview.Item2.Backends.Where(b => b.Ownership == "managed" && b.Origin == "ggml"))
             output.WriteLine($"{b.Id:D} | {b.Variant}:{b.Build} | {paths.Slot(b)} -> {paths.Resolve(location, SlotLogical(b))}");
         output.WriteLine("¿Trasladar todos los directorios gestionados? [s] trasladar / [n] conservar en origen / [c] cancelar");
         var answer = choice()?.Trim().ToLowerInvariant();
@@ -74,7 +74,7 @@ public sealed class BackendDirectoryManager(Home home, LocalStore? storage = nul
     private BackendDirectoryTransaction Plan(string? location)
     {
         var config = Config(); var catalog = Backends();
-        var moves = catalog.Backends.Where(b => b.Origin == "ggml")
+        var moves = catalog.Backends.Where(b => b.Ownership == "managed" && b.Origin == "ggml")
             .Select(b => new BackendDirectoryMove(paths.Slot(b), paths.Resolve(location, SlotLogical(b))))
             .Where(m => !m.Source.Equals(m.Destination, StringComparison.OrdinalIgnoreCase)).ToArray();
         foreach (var m in moves)
@@ -107,7 +107,7 @@ public sealed class BackendDirectoryManager(Home home, LocalStore? storage = nul
         }
         foreach (var d in directories) ValidateDestination(d);
         CheckUsage(catalog, moves);
-        var next = catalog with { Backends = catalog.Backends.Select(b => b.Origin == "ggml"
+        var next = catalog with { Backends = catalog.Backends.Select(b => b.Ownership == "managed" && b.Origin == "ggml"
             ? b with { InstallationDirectory = location ?? "backends", ServerPath = b.InstallationDirectory is null ? b.ServerPath[9..] : b.ServerPath } : b).ToArray() };
         return new(1, false, config with { BackendsDirectory = location }, next,
             config, catalog, moves, directories.Order(StringComparer.OrdinalIgnoreCase).ToArray(),
@@ -144,7 +144,7 @@ public sealed class BackendDirectoryManager(Home home, LocalStore? storage = nul
             else if (op?.Files.Any(f => Affected(home.PathFor(f.DestinationPath))) == true)
                 blockers.Add($"descarga en destino {op.Id:D}: {op.Name}");
         }
-        foreach (var b in catalog.Backends.Where(b => b.Origin != "ggml" && Affected(paths.Server(b))))
+        foreach (var b in catalog.Backends.Where(b => (b.Ownership == "external" || b.Origin != "ggml") && Affected(paths.Server(b))))
             blockers.Add($"referencia externa protegida {b.Id:D}: {paths.Server(b)}");
         var models = store.Read(DocumentKind.Models, Json.ModelsDocument, ContractValidation.Models)?.Models ?? [];
         foreach (var m in models.Where(m => m.Files.Any(f => Affected(new Coquena.Models.ModelPaths(home).File(m, f)))))

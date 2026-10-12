@@ -76,6 +76,19 @@ internal static class ServerRuntimeTests
             new ConfigurationManager(home).Create("fixture/model:Q4", "chat"); manager.Presets(null, ["chat"], true);
             using var output = new StringWriter();
 
+            var externalInstaller = new Coquena.Backends.BackendInstaller(home,
+                probe: (_, _) => Task.FromResult("version: 11482 (abcdef)"));
+            var external = externalInstaller.RegisterAsync(Path.Combine(backendDirectory, "Coquena.Tests.exe"), "runtime-external", "cpu").GetAwaiter().GetResult();
+            manager.Use(null, "runtime-external");
+            var externalInstance = runtime.Start(null, true, output).Instance; live.Add(externalInstance);
+            Wait(() => Log(externalInstance).Contains("ready"));
+            Check(externalInstance.BackendId == external.Id && externalInstance.ExecutablePath == external.ServerPath, "external start uses registered executable and ID");
+            var externalRestart = runtime.Restart(null, output); live.Add(externalRestart);
+            Wait(() => Log(externalRestart).Contains("ready"));
+            Check(externalRestart.BackendId == external.Id && externalRestart.InstanceId != externalInstance.InstanceId, "external restart preserves backend identity");
+            runtime.StopServer(null, output);
+            manager.Use(null, "default");
+
             var start = runtime.Start(null, true, output); var first = start.Instance; live.Add(first);
             Wait(() => Log(first).Contains("ready"));
             Check(start.Started && first.Mode == "detached" && first.ProcessCreated > 0 && File.Exists(home.PathFor(first.IniPath)), "published identity and INI");

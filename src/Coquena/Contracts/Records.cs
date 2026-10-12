@@ -9,7 +9,9 @@ public sealed record BackendSelection(string Kind, [property: JsonIgnore(Conditi
 public sealed record BackendRecord(Guid Id, string Build, string Version, string Origin,
     string Repository, string Variant, string Family, string Platform, string ServerPath,
     bool TracksLatest = false, bool Pinned = false,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? InstallationDirectory = null);
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? InstallationDirectory = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? Name = null,
+    string Ownership = "managed");
 public sealed record ContentIdentity(string Algorithm, string Domain, string Value);
 public sealed record RemoteFile(string Path, long? Size, ContentIdentity? Identity = null);
 public sealed record RemoteSelection(string Repository, string RequestedRevision,
