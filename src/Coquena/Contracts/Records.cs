@@ -18,12 +18,17 @@ public sealed record RemoteSelection(string Repository, string RequestedRevision
     string Commit, RemoteFile[] Files);
 public sealed record InstalledFile(string RemotePath, string LocalPath, long Size,
     ContentIdentity? Integrity = null, DateTimeOffset? LastWriteUtc = null);
+public sealed record LocalFileCheck(string LocalPath, string Status, ContentIdentity? Observed, string? Diagnostic);
+public sealed record LocalIntegrityCheck(DateTimeOffset CheckedAt, string Status, bool SetBaseline, LocalFileCheck[] Files);
 // One unit, ordered files (first shard first), empty initial model configuration.
 public sealed record ModelRecord(Guid Id, string Name, RemoteSelection? Selection,
     InstalledFile[] Files, Dictionary<string, string> Parameters,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? InstallationDirectory = null,
     string Ownership = "managed",
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? CompanionType = null);
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? CompanionType = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] LocalIntegrityCheck? IntegrityCheck = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] DateTimeOffset? RefreshedAt = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] DateTimeOffset? BaselineAt = null);
 public sealed record PresetRecord(Guid Id, string Name, Guid? ModelId,
     Dictionary<string, string> Parameters);
 public sealed record ServerRecord(Guid Id, string Name, [property: JsonIgnore(Condition = JsonIgnoreCondition.Never)] BackendSelection? Backend,

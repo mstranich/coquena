@@ -251,7 +251,7 @@ internal static class ModelInstallerTests
             }
             using var output = new StringWriter(); using var error = new StringWriter();
             Check(ModelCli.Run(["list"], output, error, installer) == 0 && output.ToString().Contains(selected.Name) && error.ToString() == "", "model list adapter no provider");
-            foreach (var args in new[] { Array.Empty<string>(), new[] { "verify", "x" }, new[] { "download" }, new[] { "list", "x" }, new[] { "download", "x", "--json" } })
+            foreach (var args in new[] { Array.Empty<string>(), new[] { "verify" }, new[] { "download" }, new[] { "list", "x" }, new[] { "download", "x", "--json" } })
                 Check(ModelCli.Run(args, output, error, installer) == 2, "invalid syntax no work");
             await MenuTests(home, installer, single);
             await CompanionTests(executable);

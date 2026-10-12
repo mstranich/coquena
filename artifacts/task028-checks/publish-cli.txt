@@ -1,0 +1,5 @@
+  Determinando los proyectos que se van a restaurar...
+  Todos los proyectos están actualizados para la restauración.
+  Coquena -> S:\src\github\coquena\src\Coquena\bin\Release\net10.0\win-x64\coquena.dll
+  Generating native code
+  Coquena -> S:\src\github\coquena\artifacts\task028-native\
