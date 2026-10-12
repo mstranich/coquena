@@ -21,6 +21,7 @@ public static class Cli
             output.WriteLine("Uso: coquena [--help|-h|help] | system probe | backend <remote|install> [cpu|vulkan|cuda@<mayor>] [--release bNNNN|latest] | backend list | backend use [selector] | download <list|status|pause|resume|cancel>");
             output.WriteLine("Modelos: model download <usuario/repositorio[:cuantización]> | model list");
             output.WriteLine("Configuración: config log-retention show | config log-retention set <tamaño> | config log-retention unset");
+            output.WriteLine("Catálogo de fábrica: config param-reset [--dry-run] (requiere confirmación para aplicar)");
             output.WriteLine("Directorios: config models-dir show | set <ruta> | unset; config backends-dir show | set <ruta> | unset (rutas relativas al home; elección interactiva de traslado)");
             output.WriteLine("Presets: preset set <preset> <param> <valor> | preset unset <preset> <param> | preset create <modelo> <nombre> | preset model set <preset> <modelo> | preset list [--model M] | preset <show|remove> <nombre>");
             output.WriteLine("Parámetros: param list | param show <param> [--backend ID|--version RELEASE [--distribution ORIGEN]]");

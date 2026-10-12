@@ -130,10 +130,10 @@ public static class ParameterCli
     }
     private static string? One(Dictionary<string, List<string>> values, string key) => values.TryGetValue(key, out var list) ? list.Single() : null;
     private static Guid Id(string text) => Guid.TryParse(text, out var id) && id != Guid.Empty ? id : throw new ConfigurationException("ID de backend inválido.");
-    private static bool Confirm(TextWriter output)
+    internal static bool Confirm(TextWriter output)
     {
-        if (Console.IsInputRedirected) throw new ConfigurationException("Se requiere entrada interactiva para confirmar la cascada; estado conservado.");
-        output.Write("¿Aplicar la cascada? [s/N]: "); output.Flush();
+        if (Console.IsInputRedirected) throw new ConfigurationException("Se requiere entrada interactiva para confirmar la operación; estado conservado.");
+        output.Write("¿Aplicar la operación? [s/N]: "); output.Flush();
         return Console.ReadLine()?.Trim().ToLowerInvariant() is "s" or "si" or "sí";
     }
     private static void Invalid() => throw new ConfigurationException("Argumentos inválidos.");
