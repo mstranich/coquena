@@ -94,6 +94,15 @@ Consulta, instala y registra backends de llama.cpp; también permite retirarlos.
 @endmindmap
 ```
 
+`backend uninstall <id-backend>` retira el ID mostrado por `backend list`, incluso
+si está fijado o seleccionado, siempre que no esté en uso. `model remove <nombre>` y
+`model companion remove <nombre>` retiran sólo su ámbito. Informan bytes efectivamente
+liberados por intento, archivos eliminados y pendientes con sus causas. Repetir el comando
+reintenta una retirada parcial; ésta devuelve error hasta completarse. Los externos
+conservan todos sus archivos. Las referencias guardadas permanecen rotas, sin reasignación.
+Operaciones de instalación o actualización pendientes deben reanudarse o cancelarse
+antes de retirar el recurso reservado.
+
 `<selector-latest>` es un marcador de la documentación, no un texto que se escriba
 literalmente. Se sustituye por el seguimiento que se quiere consultar o actualizar,
 con formato `[origen/]variante:latest`: por ejemplo `cpu:latest`,

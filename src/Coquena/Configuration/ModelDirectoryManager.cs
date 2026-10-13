@@ -111,6 +111,7 @@ public sealed class ModelDirectoryManager(Home home, LocalStore? storage = null,
         var blockers = new List<string>();
         bool Affected(string file) => moves.Any(m => BackendPaths.Within(file, m.Source) || BackendPaths.Within(file, m.Destination));
         var affected = catalog.Models.Where(m => m.Files.Any(f => Affected(paths.File(m, f)))).Select(m => m.Id).ToHashSet();
+        ResourceRemoval.CheckPending(home, store, affected.ToArray());
         var run = home.PathFor("run");
         if (Directory.Exists(run)) foreach (var area in Directory.GetDirectories(run))
         {

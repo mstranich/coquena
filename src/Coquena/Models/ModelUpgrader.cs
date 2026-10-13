@@ -23,12 +23,14 @@ public sealed partial class ModelInstaller
 
     internal static void CheckUpgradeMutation(Home home, LocalStore store, Guid id)
     {
+        ResourceRemoval.CheckPending(home, store, [id]);
         if (new DownloadManager(home, store).SnapshotLocked().Any(op => (op.ModelInstall?.Previous ?? op.ModelInstall?.ExternalPrevious)?.Id == id))
             throw new ModelSourceException("upgrade-pending", "Reanude o cancele la operación antes de modificar el registro.");
     }
 
     private void CheckUsage(ModelRecord previous)
     {
+        ResourceRemoval.CheckPending(home, store, [previous.Id]);
         foreach (var area in Directory.GetDirectories(home.PathFor("run")))
         {
             Home.CheckLinks(area);

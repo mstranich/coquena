@@ -200,6 +200,14 @@ public static class ContractValidation
         if (value.InstallationDirectory is not null) Text(value.InstallationDirectory);
         Text(value.Repository); Text(value.Variant); Text(value.Family); Text(value.Platform); Text(value.ServerPath);
         Require(value.Ownership is "managed" or "external", "Propiedad de backend inválida.");
+        Require(!value.RemovalPending || value.Ownership == "managed", "Retirada física sólo para gestionados.");
+        if (value.OwnedFiles is { } owned)
+        {
+            Require(value.Ownership == "managed" && owned.Length > 0 && owned.Distinct(StringComparer.OrdinalIgnoreCase).Count() == owned.Length, "Inventario de backend inválido.");
+            foreach (var file in owned)
+                Require(!string.IsNullOrWhiteSpace(file) && !Path.IsPathRooted(file) && !file.Contains('\\') &&
+                    !file.Contains(':') && !file.Any(char.IsControl) && file.Split('/').All(p => p.Length > 0 && p is not ("." or "..")), "Ruta de inventario inválida.");
+        }
         if (value.Ownership == "external")
         {
             Require(Coquena.Backends.BackendInstaller.ValidExternalName(value.Name), "Nombre externo inválido.");
@@ -232,6 +240,7 @@ public static class ContractValidation
     {
         Id(value.Id); Text(value.Name);
         Require(value.Ownership is "managed" or "external", "Propiedad de modelo inválida.");
+        Require(!value.RemovalPending || value.Ownership == "managed", "Retirada física sólo para gestionados.");
         Require(value.CompanionType is null or "mmproj" or "mtp", "Tipo de companion inválido.");
         if (value.Ownership == "managed") Remote(value.Selection!);
         else Require(value.Selection is null && value.InstallationDirectory is null, "Externo con instalación o seguimiento gestionado.");
@@ -431,7 +440,12 @@ public static class ContractValidation
                     upgrade.Candidate.Artifacts.SequenceEqual(value.BackendSelection.Artifacts), "Plan upgrade y observación no corresponden.");
             }
             if (value.Phase == "publishing" || value.Phase == "cleanup" && value.State != "cancelled")
-            { Text(plan.ServerRelativePath); Text(plan.Version); }
+            {
+                Text(plan.ServerRelativePath); Text(plan.Version);
+                Require(plan.OwnedFiles is { Length: > 0 } && plan.OwnedFiles.Contains(plan.ServerRelativePath!), "Inventario de instalación requerido antes de publicar.");
+                Backend(new(plan.BackendId, value.BackendSelection!.Release, plan.Version!, "ggml", "ggml-org/llama.cpp",
+                    value.BackendSelection.Variant, value.BackendSelection.Family, value.BackendSelection.Platform, plan.Slot + "/" + plan.ServerRelativePath, OwnedFiles: plan.OwnedFiles));
+            }
         }
         Require(value.State is "pending" or "downloading" or "paused" or "verifying" or "failed" or
             "completed" or "cancelled", "Estado desconocido.");

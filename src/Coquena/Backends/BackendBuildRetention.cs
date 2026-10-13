@@ -23,7 +23,7 @@ public sealed class BackendBuildRetention(Home home, LocalStore? storage = null)
         Json.BackendRetentionJournal, Validate, _ => new(1, pending));
     private bool Protected(BackendRecord record, BackendRecord[] records)
     {
-        if (record.TracksLatest || record.Pinned) return true;
+        if (record.RemovalPending || record.TracksLatest || record.Pinned) return true;
         var config = store.Read(DocumentKind.Config, Json.ConfigDocument, ContractValidation.Config);
         if (config?.DefaultBackend?.BackendId == record.Id) return true;
         if ((store.Read(DocumentKind.Servers, Json.ServersDocument, ContractValidation.Servers)?.Servers ?? [])

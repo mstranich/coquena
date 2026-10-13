@@ -168,6 +168,7 @@ public sealed partial class ModelInstaller(Home home, LocalStore? storage = null
             var unit = GgufInspection.InspectPaths(paths);
             var availability = unit.Status switch { "complete" => "available", "incomplete" when paths.Length > 1 => "incomplete",
                 "incomplete" or "read-error" => "inaccessible", _ => "invalid" };
+            if (record.RemovalPending) availability = "removal-pending";
             var changed = record.Files.Select((f, i) =>
             {
                 try

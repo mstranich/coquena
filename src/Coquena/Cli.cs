@@ -18,6 +18,7 @@ public static class Cli
             (args.Length == 1 && args[0] is "--help" or "-h" or "help"))
         {
             output.WriteLine("Coquena — manager de llama.cpp");
+            output.WriteLine("Retirada: backend uninstall <id-backend> | model remove <nombre> | model companion remove <nombre>; bloquea instancias activas, conserva referencias rotas y archivos externos. Repetir reintenta una retirada parcial.");
             output.WriteLine("Uso: coquena [--help|-h|help] | system probe | backend <remote|install> [cpu|vulkan|cuda@<mayor>] [--release bNNNN|latest] | backend list | backend use [selector] | download <list|status|pause|resume|cancel>");
             output.WriteLine("Companions: model companion download <usuario/repositorio#mmproj|mtp[:cuantización]> | model companion list (selección independiente, sin asociación automática a presets).");
             output.WriteLine("Modelos: model download <usuario/repositorio[:cuantización]> | model list");

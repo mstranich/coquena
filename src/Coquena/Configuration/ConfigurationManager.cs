@@ -242,6 +242,7 @@ public sealed class ConfigurationManager(Home home, LocalStore? storage = null)
 
     private GgufUnit Inspect(ModelRecord resource, string parameter, List<string> diagnostics)
     {
+        if (resource.RemovalPending) diagnostics.Add($"{parameter}: {resource.Name}: retirada parcial pendiente; no servible.");
         var inspection = GgufInspection.InspectPaths(resource.Files.Select(f => new ModelPaths(home).File(resource, f)).ToArray());
         if (inspection.Status != "complete") diagnostics.Add($"{parameter}: {resource.Name}: {inspection.Status}; no servible.");
         return inspection;
@@ -274,6 +275,7 @@ public sealed class ConfigurationManager(Home home, LocalStore? storage = null)
             var model = models.SingleOrDefault(m => m.Id == preset.ModelId)
                 ?? throw new ConfigurationException($"Modelo ausente: {preset.ModelId:D}; referencia rota en {preset.Name}.");
             if (model.CompanionType is not null) throw new ConfigurationException("Un companion no puede ser el modelo principal de un preset.");
+            ResourceRemoval.CheckPending(home, store, [model.Id]);
             var paths = model.Files.Select(f => new ModelPaths(home).File(model, f)).ToArray();
             var inspection = GgufInspection.InspectPaths(paths);
             if (inspection.Status != "complete")
@@ -291,6 +293,7 @@ public sealed class ConfigurationManager(Home home, LocalStore? storage = null)
                 var resource = models.SingleOrDefault(m => m.Id == binding.Value)
                     ?? throw new ConfigurationException($"{preset.Name}: {binding.Key}: recurso {binding.Value:D} ausente; referencia rota.");
                 var boundInspection = Inspect(resource, binding.Key, diagnostics);
+                ResourceRemoval.CheckPending(home, store, [resource.Id]);
                 if (boundInspection.Status != "complete")
                     throw new ConfigurationException($"{preset.Name}: {binding.Key}: {resource.Name}: {boundInspection.Status}; no se omite el preset.");
                 var path = boundInspection.Parts[0].Path;

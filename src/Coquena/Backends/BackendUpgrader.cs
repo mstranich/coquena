@@ -66,6 +66,8 @@ public sealed class BackendUpgrader(Home home, LocalStore? storage = null, Backe
                     cancellation.ThrowIfCancellationRequested();
                     CheckObservation(store, observation);
                     var records = Records();
+                    if (records.Any(b => b.RemovalPending && (b.Id == baseline.Id || b.Id == previousTarget?.Id)))
+                        throw new StorageException("removal-pending", "Reintente uninstall antes de upgrade.");
                     if (records.SingleOrDefault(b => b.Id == baseline.Id) != baseline || records.Count(b => b.TracksLatest && b.Origin == baseline.Origin &&
                         b.Variant == baseline.Variant && b.Platform == baseline.Platform) != 1) throw new DownloadException("stale-latest-plan", "El seguimiento cambió.");
                     if (new DownloadManager(home, store).SnapshotLocked().Any(o => o.BackendInstall?.Upgrade is { } u && u.Origin == baseline.Origin &&

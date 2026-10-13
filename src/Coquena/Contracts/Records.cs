@@ -11,7 +11,24 @@ public sealed record BackendRecord(Guid Id, string Build, string Version, string
     bool TracksLatest = false, bool Pinned = false,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? InstallationDirectory = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? Name = null,
-    string Ownership = "managed");
+    string Ownership = "managed", string[]? OwnedFiles = null, bool RemovalPending = false)
+{
+    // Inventories are values across serialization/recovery, not array identities.
+    public bool Equals(BackendRecord? other) => other is not null && Id == other.Id && Build == other.Build &&
+        Version == other.Version && Origin == other.Origin && Repository == other.Repository && Variant == other.Variant &&
+        Family == other.Family && Platform == other.Platform && ServerPath == other.ServerPath && TracksLatest == other.TracksLatest &&
+        Pinned == other.Pinned && InstallationDirectory == other.InstallationDirectory && Name == other.Name && Ownership == other.Ownership &&
+        RemovalPending == other.RemovalPending && (OwnedFiles is null ? other.OwnedFiles is null : other.OwnedFiles is not null && OwnedFiles.SequenceEqual(other.OwnedFiles));
+    public override int GetHashCode()
+    {
+        var hash = new HashCode();
+        hash.Add(Id); hash.Add(Build); hash.Add(Version); hash.Add(Origin); hash.Add(Repository); hash.Add(Variant);
+        hash.Add(Family); hash.Add(Platform); hash.Add(ServerPath); hash.Add(TracksLatest); hash.Add(Pinned);
+        hash.Add(InstallationDirectory); hash.Add(Name); hash.Add(Ownership); hash.Add(RemovalPending);
+        if (OwnedFiles is not null) foreach (var file in OwnedFiles) hash.Add(file);
+        return hash.ToHashCode();
+    }
+}
 public sealed record ContentIdentity(string Algorithm, string Domain, string Value);
 public sealed record RemoteFile(string Path, long? Size, ContentIdentity? Identity = null);
 public sealed record RemoteSelection(string Repository, string RequestedRevision,
@@ -37,7 +54,8 @@ public sealed record ModelRecord(Guid Id, string Name, RemoteSelection? Selectio
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] DateTimeOffset? RefreshedAt = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] DateTimeOffset? BaselineAt = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] InformativeMatch? InformativeMatch = null,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] ModelUpdateObservation? Update = null);
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] ModelUpdateObservation? Update = null,
+    bool RemovalPending = false);
 public sealed record PresetRecord(Guid Id, string Name, Guid? ModelId,
     Dictionary<string, string> Parameters,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] Dictionary<string, Guid>? Bindings = null);
@@ -91,7 +109,8 @@ public sealed record BackendInstallPlan(string RequestedRelease, Guid BackendId,
     BackendRecord? Previous, BackendRecord? PreviousLatest, string Slot,
     string? ServerRelativePath = null, string? Version = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? InstallationDirectory = null,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] BackendUpdateObservation? Upgrade = null);
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] BackendUpdateObservation? Upgrade = null,
+    string[]? OwnedFiles = null);
 
 [JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase,
 

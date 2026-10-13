@@ -155,6 +155,8 @@ public sealed partial class BackendInstaller(Home home, LocalStore? storage = nu
     // release the build; active or unverifiable identities keep it protected.
     private void NotInUse(Guid id)
     {
+        if (Catalog().Backends.Any(b => b.Id == id && b.RemovalPending))
+            throw new DownloadException("removal-pending", "Reintente backend uninstall antes de modificar la instalación.");
         var run = home.PathFor("run");
         if (!Directory.Exists(run)) return;
         foreach (var area in Directory.GetDirectories(run))
@@ -197,6 +199,8 @@ public sealed partial class BackendInstaller(Home home, LocalStore? storage = nu
                 plan = plan with { ServerRelativePath = serverRelative, Version = version };
                 // Ownership marker travels with the directory, before any final slot exists.
                 File.WriteAllText(home.PathFor(relative + "/.coquena-owner"), operation.Id.ToString("D"));
+                plan = plan with { OwnedFiles = Directory.GetFiles(home.PathFor(relative), "*", SearchOption.AllDirectories)
+                    .Select(f => Path.GetRelativePath(home.PathFor(relative), f).Replace('\\', '/')).Order(StringComparer.Ordinal).ToArray() };
                 if (Directory.Exists(paths.Resolve(plan.InstallationDirectory, plan.Slot))) Fail("destination-collision");
                 operation = Save(operation with { BackendInstall = plan, Phase = "publishing" });
             }
@@ -220,7 +224,7 @@ public sealed partial class BackendInstaller(Home home, LocalStore? storage = nu
                 var next = new BackendRecord(plan.BackendId, selection.Release, plan.Version!, "ggml", "ggml-org/llama.cpp",
                     selection.Variant, selection.Family, selection.Platform, finalPath,
                     plan.RequestedRelease == "latest" || plan.Previous?.TracksLatest == true,
-                    plan.RequestedRelease != "latest" || plan.Previous?.Pinned == true, plan.InstallationDirectory);
+                    plan.RequestedRelease != "latest" || plan.Previous?.Pinned == true, plan.InstallationDirectory, OwnedFiles: plan.OwnedFiles);
                 var alreadyPublished = previous is not null && previous.ServerPath == finalPath && previous.InstallationDirectory == plan.InstallationDirectory &&
                     previous with { TracksLatest = next.TracksLatest, Pinned = next.Pinned } == next;
                 if (!alreadyPublished)

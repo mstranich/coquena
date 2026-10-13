@@ -96,6 +96,8 @@ internal static class InstallerTests
             operation = installer.Create(Candidate(dependencies, "b4", "cuda@12"), "b4");
             await Run(installer, operation, new(dependencies));
             Check(installer.List().Any(b => b.Variant == "cuda@12" && b.Build == "b4"), "multi-artifact backend published");
+            var inventory = installer.List().Single(b => b.Build == "b4").OwnedFiles!;
+            Check(inventory.Contains("cudart.dll") && inventory.Any(f => f.EndsWith("llama-server.exe")) && inventory.Contains(".coquena-owner"), "inventory includes every artifact and installation marker");
 
             // Crash after directory movement; resume uses fixed selection and no network.
             foreach (var stage in new[] { InstallStage.AfterMove, InstallStage.AfterIndex })
