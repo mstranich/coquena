@@ -16,6 +16,7 @@ public static class ModelCli
         var companion = args.Length > 0 && args[0] == "companion";
         if (companion) args = args[1..];
         if (!(args.Length == 1 && args[0] == "list" || args.Length == 2 && args[0] == "download" ||
+            args.Length is 1 or 2 && args[0] == "update" ||
             args.Length == 2 && args[0] is "refresh" or "verify" ||
             args.Length == 3 && args[0] == "verify" && args[2] == "--set-baseline" ||
             args.Length is 4 or 5 && args[0] == "add" && args[2] == "--name" &&
@@ -27,6 +28,42 @@ public static class ModelCli
             var request = args[0] == "download" ? ModelRequest.Parse(args[1]) : null;
             if (request is not null && companion != (request.CompanionType is not null)) throw new ModelSourceException("invalid-selector", "Use model download para principales y model companion download con #mmproj o #mtp para auxiliares.");
             installer ??= new ModelInstaller(Home.Resolve());
+            if (args[0] == "update")
+            {
+                var units = installer.Updates.Scope(args.Length == 2 ? args[1] : null, companion);
+                using var updateClient = source is null ? HuggingFaceStore.CreateClient() : null;
+                source ??= new(updateClient!);
+                using var stoppedUpdate = CancellationTokenSource.CreateLinkedTokenSource(cancellation);
+                ConsoleCancelEventHandler updateHandler = (_, e) => { e.Cancel = true; stoppedUpdate.Cancel(); };
+                Console.CancelKeyPress += updateHandler;
+                var failed = false;
+                try
+                {
+                    foreach (var unit in units)
+                    {
+                        if (stoppedUpdate.IsCancellationRequested) { failed = true; break; }
+                        if (unit.Ownership == "external") { output.WriteLine($"{unit.Name} | no aplica: externo sin seguimiento."); continue; }
+                        try
+                        {
+                            var checkedUnit = installer.Updates.CheckAsync(unit, source, interaction ?? new Interaction(output), stoppedUpdate.Token, inspector).GetAwaiter().GetResult();
+                            var update = checkedUnit.Update!;
+                            output.WriteLine($"{unit.Name} | {update.State} | intento {update.LastAttempt:O} | último éxito {update.LastSuccess:O} | {update.Diagnostic}");
+                            if (update.State == "query-failed") output.WriteLine($"  Observación anterior: {update.LastSuccessfulState ?? "sin consulta exitosa"} | {update.LastSuccessfulDiagnostic}; plan anterior no es comprobación actual.");
+                            if (update.Plan is { } plan)
+                            {
+                                output.WriteLine($"  Plan: {plan.TargetName} @ {plan.Target.Commit}");
+                                foreach (var action in plan.Actions) output.WriteLine($"  {action.TargetPath} | {action.Action} | origen {action.SourcePath ?? "nuevo contenido"}");
+                            }
+                            failed |= update.State is "query-failed" or "intervention-required" or "orphaned";
+                        }
+                        catch (Exception e) when (e is ModelSourceException or StorageException or ContractException or IOException or UnauthorizedAccessException)
+                        { output.WriteLine($"{unit.Name} | error por unidad: {e.Message}"); failed = true; }
+                    }
+                    if (units.Length == 0) output.WriteLine("Sin unidades registradas en el ámbito solicitado.");
+                    return failed ? 1 : 0;
+                }
+                finally { Console.CancelKeyPress -= updateHandler; }
+            }
             if (args[0] == "refresh")
             {
                 var entry = installer.Refresh(args[1], companion);
@@ -126,6 +163,8 @@ public static class ModelCli
             if (entry.Record.IntegrityCheck is { } check) output.WriteLine($"  Última integridad: {check.Status} | {check.CheckedAt:O}");
             if (entry.Record.InformativeMatch is { } match)
                 output.WriteLine($"  Equivalencia informativa: {match.Candidate.Repository}@{match.Candidate.Commit} | {string.Join(", ", match.Candidate.Files.Select(f => f.Path))} | no certificada; sin seguimiento");
+            if (entry.Record.Update is { } update)
+                output.WriteLine($"  Seguimiento: {update.State} | último intento {update.LastAttempt:O} | último éxito {update.LastSuccess:O} | {update.Diagnostic}");
             foreach (var diagnostic in entry.Diagnostics ?? []) output.WriteLine("  " + diagnostic);
             if (entry.Availability != "available") output.WriteLine("  No servible: revisar rutas, lectura y cabeceras GGUF; no se reparan archivos externos.");
         }

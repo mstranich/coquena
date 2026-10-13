@@ -37,6 +37,11 @@ if (args.Length is 1 or 2 && args[0] == "--external-matching-tests")
     Coquena.Tests.ExternalMatchingTests.Run(args.Length == 2 ? Path.GetFullPath(args[1]) : null);
     return;
 }
+if (args.Length is 1 or 2 && args[0] == "--model-update-tests")
+{
+    await Coquena.Tests.ModelUpdateTests.Run(args.Length == 2 ? Path.GetFullPath(args[1]) : null);
+    return;
+}
 if (args.Length is 1 or 2 && args[0] == "--backend-upgrade-tests")
 {
     await Coquena.Tests.BackendUpgradeTests.Run(args.Length == 2 ? Path.GetFullPath(args[1]) : null);
@@ -174,3 +179,4 @@ await Coquena.Tests.ModelDirectoryTests.Run(executable);
 Coquena.Tests.ExternalModelTests.Run(executable);
 await Coquena.Tests.LocalIntegrityTests.Run(executable);
 Coquena.Tests.ExternalMatchingTests.Run(executable);
+await Coquena.Tests.ModelUpdateTests.Run(executable);

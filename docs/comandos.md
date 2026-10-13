@@ -233,6 +233,15 @@ Sin nombre, `model update` revisa todos los gestionados del catálogo, incluidos
 y `model upgrade` aplica sus planes resueltos; los subcomandos de `companion` limitan
 el alcance a companions. Externos no reciben seguimiento ni actualización. Los problemas
 de una unidad se informan sin impedir tratar las demás; no hay publicación global atómica.
+La consulta muestra `unchanged`, `update-available`, `intervention-required`,
+`query-failed` u `orphaned`, el último intento y el último éxito. Un plan indica
+el commit objetivo y, por archivo, reutilización o descarga. Si hay varias
+correspondencias o posibles sucesores, el menú permite elegir un conjunto completo
+o cancelar; sin entrada interactiva conserva el seguimiento sin resolver.
+Una consulta fallida conserva la observación y el plan anteriores, identificados
+como históricos. `model list` y `model companion list` muestran el resultado
+guardado sin consultar la red. Las reglas están en
+[seguimiento de gestionados](modelos-y-companions.md#seguimiento-y-actualización-de-gestionados).
 `model verify <nombre>` y `model companion verify <nombre>` leen todos los archivos
 de la unidad y comparan SHA-256 completos con las referencias registradas, sin red.
 No reparan ni reemplazan referencias. Sin referencia, informan que no pueden verificar;

@@ -38,7 +38,7 @@ al registrar un backend externo ni certifica su compatibilidad.
       ([028](../../specs/028-m2-refresh-integridad-local/README.md)).
 - [ ] Intentar emparejamiento remoto opcional de externos.
       ([029](../../specs/029-m2-emparejamiento-externos/README.md)).
-- [ ] Detectar y resolver novedades de modelos/companions.
+- [x] Detectar y resolver novedades de modelos/companions.
       ([030](../../specs/030-m2-model-update/README.md)).
 - [ ] Aplicar planes de actualización, renombres y reubicaciones.
       ([031](../../specs/031-m2-model-upgrade/README.md)).

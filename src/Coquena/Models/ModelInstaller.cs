@@ -15,6 +15,7 @@ public sealed class ModelInstaller(Home home, LocalStore? storage = null,
     private readonly ModelPaths paths = new(home);
     private static readonly ContractJsonContext Json = ContractJsonContext.Default;
     public DownloadManager Downloads => new(home, store);
+    public ModelUpdater Updates => new(home);
     public ModelRecord AddExternal(string path, string name, bool companion = false) => new ExternalModels(home).Add(path, name, companion);
     public void SaveInformativeMatch(ModelRecord original, InformativeMatch match)
         => new ExternalModels(home).SaveMatch(original, match);
