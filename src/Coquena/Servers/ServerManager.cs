@@ -69,6 +69,28 @@ public sealed class ServerManager(Home home, LocalStore? storage = null)
         return record;
     });
 
+    public ServerRecord Remove(string? name) => store.Exclusive(() =>
+    {
+        var record = Named(name);
+        var instance = store.Read(DocumentKind.Instance, Json.InstanceDocument, ContractValidation.Instance, server: record.Name);
+        if (instance is not null)
+        {
+            using var process = WindowsServerProcess.Verified(instance, out var ended);
+            if (!ended)
+            {
+                if (instance.ServerId != record.Id)
+                    throw new ConfigurationException($"Identidad incierta de instancia {instance.InstanceId:D}; servidor distinto, no se retira.");
+                throw new ConfigurationException($"Detenga instancia {instance.InstanceId:D} antes de retirar el servidor.");
+            }
+        }
+        var catalog = Catalog(); var config = Config();
+        var remaining = catalog with { Servers = catalog.Servers.Where(s => s.Id != record.Id).ToArray() };
+        if (config.DefaultServerId == record.Id)
+            store.CommitServerRemovalLocked(remaining, config with { DefaultServerId = null });
+        else Save(remaining);
+        return record;
+    });
+
     private static int NextPort(ServersDocument catalog)
     {
         var maximum = catalog.Servers.Length == 0 ? 9930 : catalog.Servers.Max(s => s.Parameters["port"].GetInt32());
@@ -184,7 +206,7 @@ public sealed class ServerManager(Home home, LocalStore? storage = null)
         {
             var model = models.SingleOrDefault(m => m.Id == preset.ModelId);
             if (model is null) diagnostics.Add($"Modelo ausente: {preset.ModelId:D} en {preset.Name}.");
-            else if (model.Files.Any(f => !File.Exists(home.PathFor(f.LocalPath)))) diagnostics.Add($"Archivo de modelo ausente en {preset.Name}.");
+            else if (model.Files.Any(f => !File.Exists(new Coquena.Models.ModelPaths(home).File(model, f)))) diagnostics.Add($"Archivo de modelo ausente en {preset.Name}.");
         }
         var effective = new Dictionary<string, JsonElement> { ["host"] = Text("127.0.0.1"), ["metrics"] = Scalar("true") };
         foreach (var pair in record.Parameters) effective[pair.Key] = pair.Value;

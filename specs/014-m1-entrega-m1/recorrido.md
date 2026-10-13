@@ -1,7 +1,8 @@
 # Recorrido M1 — Windows x64
 
 Guía del recorrido verificado el 9 de octubre de 2026. Consultar el estado,
-evidencia y límites en [la tarjeta 014](README.md).
+evidencia y límites en [la tarjeta 014](README.md). Los comandos de esta guía
+usan la sintaxis vigente; la evidencia histórica conserva las invocaciones originales.
 Requiere Windows x64, backend oficial CUDA 13 b11482, 32 GiB de RAM y, para
 la configuración de prueba, NVIDIA RTX 3080 Ti de 12 GiB. No requiere .NET
 para ejecutar el paquete Native AOT.
@@ -23,7 +24,7 @@ D:\Coquena. No ejecutar los pasos de creación dos veces sobre los mismos nombre
 ```powershell
 $env:COQUENA_HOME = 'D:\Coquena'
 $coquena = '.\coquena.exe'
-& $coquena system
+& $coquena system probe
 & $coquena backend install cuda@13 --release b11482
 & $coquena model download google/gemma-4-26B-A4B-it-qat-q4_0-gguf:Q4_0
 & $coquena model download prism-ml/Ternary-Bonsai-27B-gguf:Q2_0
@@ -42,11 +43,11 @@ rendimiento efectivos deben comprobarse con inferencia.
 
 ```powershell
 & $coquena preset create google/gemma-4-26B-A4B-it-qat-q4_0-gguf:Q4_0 m1-gemma
-& $coquena config set ctx-size 2048 --preset m1-gemma
-& $coquena config set n-gpu-layers 20 --preset m1-gemma
+& $coquena preset set m1-gemma ctx-size 2048
+& $coquena preset set m1-gemma n-gpu-layers 20
 & $coquena preset create prism-ml/Ternary-Bonsai-27B-gguf:Q2_0 m1-bonsai
-& $coquena config set ctx-size 2048 --preset m1-bonsai
-& $coquena config set n-gpu-layers all --preset m1-bonsai
+& $coquena preset set m1-bonsai ctx-size 2048
+& $coquena preset set m1-bonsai n-gpu-layers all
 & $coquena server create m1-acceptance --port 18080
 & $coquena server m1-acceptance use ggml/cuda@13:b11482
 & $coquena server m1-acceptance set models-max 1

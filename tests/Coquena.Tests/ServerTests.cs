@@ -84,6 +84,36 @@ internal static class ServerTests
             var plan = manager.Compose(null);
             Check(plan.Backend.Id == backend.Id && plan.Presets.Ini.Contains("[chat]") && plan.Presets.Ini.Contains("[code]"), "real composition every preset");
             Check(plan.Presets.ResourceIds.SequenceEqual(new[] { model.Id }), "effective resource IDs");
+            // Server views must resolve the same ownership/base rules as INI composition.
+            foreach (var location in new[] { "relocated-models", Path.Combine(root, "absolute-models") })
+            {
+                Check(new ModelDirectoryManager(home).Change(location, TextWriter.Null, () => "s", () => true), "move managed model to " + location);
+                var moved = store.Read(DocumentKind.Models, json.ModelsDocument, ContractValidation.Models)!.Models.Single();
+                var movedPath = new Coquena.Models.ModelPaths(home).File(moved, moved.Files[0]);
+                Check(manager.View(null).Diagnostics.Length == 0 && manager.List().Single(s => s.Server.Name == "default").Diagnostics.Length == 0,
+                    "show/list resolve managed installation base");
+                Check(manager.Compose(null).Presets.Ini.Contains(movedPath), "server composition resolves relocated model path");
+                Check(CliTest(["show"], 0).Contains("chat"), "CLI show after relocation");
+                File.Move(movedPath, movedPath + ".absent");
+                Check(manager.View(null).Diagnostics.Any(d => d.Contains("Archivo de modelo ausente")), "relocated missing file diagnosed");
+                Reject(() => manager.Compose(null), "relocated missing file blocks composition");
+                File.Move(movedPath + ".absent", movedPath);
+                Check(new ModelDirectoryManager(home).Change(null, TextWriter.Null, () => "s", () => true), "return managed model to default");
+            }
+            var externalPath = Path.Combine(root, "external.gguf");
+            File.WriteAllBytes(externalPath, ConfigurationTests.Fixture(null));
+            var externalModel = new Coquena.Models.ExternalModels(home).Add(externalPath, "fixture/external:BF16");
+            var externalPreset = config.Create(externalModel.Name, "external-model");
+            manager.Presets("lts", [externalPreset.Name], true);
+            Check(manager.View("lts").Diagnostics.Length == 0 && manager.Compose("lts").Presets.Ini.Contains(externalPath), "external principal resolves absolute path");
+            Check(CliTest(["lts", "show"], 0).Contains("external-model") && CliTest(["list"], 0).Contains("lts"), "CLI external show/list");
+            File.Move(externalPath, externalPath + ".absent");
+            Check(manager.View("lts").Diagnostics.Any(d => d.Contains("Archivo de modelo ausente")), "missing external diagnosed without unsafe-path error");
+            Reject(() => manager.Compose("lts"), "missing external blocks composition");
+            File.Move(externalPath + ".absent", externalPath);
+            manager.Presets("lts", [externalPreset.Name], false);
+            config.Remove(externalPreset.Name);
+            store.Update(DocumentKind.Models, json.ModelsDocument, ContractValidation.Models, old => old! with { Models = old.Models.Where(m => m.Id != externalModel.Id).ToArray() });
             var own = manager.Use(null, "oficial/cpu:latest");
             Check(own.Backend is { Kind: "latest", Origin: "ggml", Variant: "cpu" }, "latest intention normalized");
             manager.Use(null, "cpu:b11482");

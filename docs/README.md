@@ -29,9 +29,10 @@ descargas; su librería no está elegida. Una Web GUI para hardware remoto es un
 
 ## Alcance de este análisis
 
-Esta carpeta contiene el análisis funcional y una guía de implementación del catálogo
-para trabajo futuro delegable. No hay implementación todavía: la guía distingue los
-acuerdos funcionales, los mecanismos técnicos propuestos y las decisiones pendientes.
+Esta carpeta contiene las reglas funcionales y una guía de implementación del catálogo.
+La guía distingue los acuerdos funcionales, los mecanismos técnicos propuestos y las
+decisiones pendientes. La cobertura del ejecutable y su evidencia se registran en
+las tarjetas y milestones.
 
 Coquena se implementará en **C# con publicación Native AOT**, en pasos pequeños y revisables por quien mantiene
 Coquena. El orden de revisión es: backends y catálogo de parámetros; configuración y

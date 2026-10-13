@@ -1,12 +1,13 @@
 # M2 — Completar la gestión de catálogos
 
-**Estado:** borrador. **Depende de:** [M1](M1-servidor-local.md).
+**Estado:** aceptado el 13 de octubre de 2026. **Depende de:** [M1](M1-servidor-local.md).
 
 ## Objetivo
 
 Segundo entregable: ampliar el recorrido ejecutable de M1 con las funciones del alcance
 inicial que se recortaron para conseguir primero un servidor útil. Mantener C#/.NET 10,
-Native AOT y las reglas canónicas. Borrador: no autoriza implementación.
+Native AOT y las reglas canónicas. La evidencia de aceptación está en
+[la entrega integrada](../../specs/035-m2-entrega-integrada/README.md).
 
 ## Referencias
 
@@ -26,9 +27,9 @@ al registrar un backend externo ni certifica su compatibilidad.
 
 - [x] Registrar y seleccionar backends externos.
       ([023](../../specs/023-m2-backends-externos/README.md)).
-- [ ] Consultar novedades de seguimientos latest oficiales.
+- [x] Consultar novedades de seguimientos latest oficiales.
       ([024](../../specs/024-m2-backend-update/README.md)).
-- [ ] Aplicar upgrades de backends y retención de builds.
+- [x] Aplicar upgrades de backends y retención de builds.
       ([025](../../specs/025-m2-backend-upgrade/README.md)).
 - [x] Registrar modelos y companions externos.
       ([026](../../specs/026-m2-registro-modelos-externos/README.md)).
@@ -36,7 +37,7 @@ al registrar un backend externo ni certifica su compatibilidad.
       ([027](../../specs/027-m2-descarga-companions/README.md)).
 - [x] Actualizar observaciones locales y verificar integridad de modelos/companions.
       ([028](../../specs/028-m2-refresh-integridad-local/README.md)).
-- [ ] Intentar emparejamiento remoto opcional de externos.
+- [x] Intentar emparejamiento remoto opcional de externos.
       ([029](../../specs/029-m2-emparejamiento-externos/README.md)).
 - [x] Detectar y resolver novedades de modelos/companions.
       ([030](../../specs/030-m2-model-update/README.md)).
@@ -48,20 +49,22 @@ al registrar un backend externo ni certifica su compatibilidad.
 - [x] Gestionar definiciones y asociaciones de soporte del catálogo de parámetros
       para la distribución oficial de llama.cpp, con builds bNNNN.
       ([018](../../specs/018-m2-param-define/README.md)).
-- [ ] Restablecer el catálogo de fábrica con impacto y cascada confirmada.
+- [x] Restablecer el catálogo de fábrica con impacto y cascada confirmada.
       ([022](../../specs/022-m2-config-param-reset/README.md)).
 - [x] Configurar el directorio de backends y su traslado opcional.
       ([019](../../specs/019-m2-config-backends-dir/README.md)).
-- [ ] Configurar el directorio de modelos/companions y su traslado opcional.
+- [x] Configurar el directorio de modelos/companions y su traslado opcional.
       ([020](../../specs/020-m2-config-models-dir/README.md)).
 - [x] Separar el sondeo de SO/hardware mediante system probe.
       ([021](../../specs/021-m2-system-probe/README.md)).
 - [x] Clonar presets y completar referencias explícitas a companions.
       ([033](../../specs/033-m2-presets-clone-companions/README.md)).
-- [ ] Retirar recursos con protección de propiedad, uso y referencias.
+- [x] Retirar recursos con protección de propiedad, uso y referencias.
       ([034](../../specs/034-m2-retirada-recursos/README.md)).
-- [ ] Auditar cobertura CLI, ejecutar regresión M1 y preparar el entregable integrado.
+- [x] Auditar cobertura CLI, ejecutar regresión M1 y preparar el entregable integrado.
       ([035](../../specs/035-m2-entrega-integrada/README.md)).
+      Incluye la recuperación autorizada de la retirada de definiciones de servidores,
+      omitida entre las entregas, y la corrección de rutas de principales externos/trasladados.
 
 Las tarjetas concretan las entregas de esta lista y sus dependencias reales. Se reutilizan
 la persistencia, las transferencias y la ejecución del recorrido M1. La separación de
@@ -86,8 +89,8 @@ milestone de todas las funciones iniciales; no elegir su librería ni anticiparl
 
 ## Aceptación propuesta
 
-- [ ] Segundo ejecutable publicado Native AOT, con funciones aceptadas y sin comandos ficticios.
-- [ ] Recorrido M1 sigue funcionando.
-- [ ] Actualizaciones conservan identidad, propiedad, revisión fijada y recuperación acordadas.
-- [ ] Externos no reciben actualizaciones ni eliminación física.
-- [ ] Pruebas funcionales y de fallos, más publicación/ejecución nativa verificadas.
+- [x] Segundo ejecutable publicado Native AOT, con funciones aceptadas y sin comandos ficticios.
+- [x] Recorrido M1 sigue funcionando.
+- [x] Actualizaciones conservan identidad, propiedad, revisión fijada y recuperación acordadas.
+- [x] Externos no reciben actualizaciones ni eliminación física.
+- [x] Pruebas funcionales y de fallos, más publicación/ejecución nativa verificadas.

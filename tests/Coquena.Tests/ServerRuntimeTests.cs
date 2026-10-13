@@ -112,6 +112,10 @@ internal static class ServerRuntimeTests
             var start = runtime.Start(null, true, output); var first = start.Instance; live.Add(first);
             Wait(() => Log(first).Contains("ready"));
             Check(start.Started && first.Mode == "detached" && first.ProcessCreated > 0 && File.Exists(home.PathFor(first.IniPath)), "published identity and INI");
+            var removalBefore = File.ReadAllText(home.PathFor("catalogs/servers.json"));
+            var activeRemoval = Cli(["server", "default", "remove"]);
+            Check(activeRemoval.Code == 1 && activeRemoval.Error.Contains(first.InstanceId.ToString("D")) &&
+                File.ReadAllText(home.PathFor("catalogs/servers.json")) == removalBefore && ProcessAlive(first.Pid), "server remove blocks active execution without stopping it");
             Check(Log(first).Contains("stderr ready") && Log(first).Contains("--metrics"), "stdout/stderr and static flags");
             Check(first.Port == manager.View(null).Effective["port"].GetInt32() && Log(first).Contains("--port|" + first.Port), "start emits persisted explicit port");
             Check(runtime.Recover("default")?.InstanceId == first.InstanceId, "fresh manager recovers detached");
@@ -149,6 +153,9 @@ internal static class ServerRuntimeTests
                 "upgrade advances future starts while active instance retains its backend");
             store.Update(DocumentKind.Instance, json.InstanceDocument, ContractValidation.Instance,
                 _ => first with { ProcessCreated = null }, server: "default");
+            var uncertainRemoval = Cli(["server", "default", "remove"]);
+            Check(uncertainRemoval.Code == 1 && uncertainRemoval.Error.Contains("incierta") && File.ReadAllText(home.PathFor("catalogs/servers.json")) == removalBefore,
+                "server remove protects uncertain instance identity");
             new Coquena.Backends.BackendBuildRetention(home).Apply("ggml-org/llama.cpp", "cpu", "win-x64");
             Check(Directory.Exists(backendDirectory) && new Coquena.Backends.BackendInstaller(home).List().Any(b => b.Id == backend.Id),
                 "uncertain process identity also protects old build");
@@ -341,6 +348,25 @@ internal static class ServerRuntimeTests
             var movedStart = runtime.Start(null, true, output).Instance; live.Add(movedStart); Wait(() => Log(movedStart).Contains("ready"));
             Check(movedStart.BackendId == backendId && movedStart.ExecutablePath == Path.Combine(backendDirectory, "Coquena.Tests.exe"), "server starts from moved backend without changing backend identity");
             runtime.Stop(movedStart.InstanceId, output);
+            var removalRace = manager.Create("removal-race", FreePort()); manager.Presets(removalRace.Name, ["chat"], true);
+            ServerStartResult? raceInstance = null; var removed = false;
+            using (var removalBarrier = new Barrier(2))
+            {
+                Parallel.Invoke(
+                    () => { removalBarrier.SignalAndWait(); try { raceInstance = new ServerRuntime(home).Start(removalRace.Name, true, TextWriter.Null); } catch (ConfigurationException) { } },
+                    () => { removalBarrier.SignalAndWait(); try { manager.Remove(removalRace.Name); removed = true; } catch (ConfigurationException) { } });
+            }
+            Check(removed != (raceInstance is not null), "start/remove serialize: definition removed or execution protected");
+            if (raceInstance is not null)
+            {
+                live.Add(raceInstance.Instance); runtime.Stop(raceInstance.Instance.InstanceId, output);
+                manager.Remove(removalRace.Name);
+            }
+            Check(manager.List().All(s => s.Server.Id != removalRace.Id), "race cleanup retires only target definition");
+            var stoppedLog = File.ReadAllText(home.PathFor(movedStart.LogPath));
+            Check(Cli(["server", "default", "remove"]).Code == 0 && manager.Default() is null &&
+                File.ReadAllText(home.PathFor(movedStart.LogPath)) == stoppedLog && File.Exists(home.PathFor(model.Files[0].LocalPath)),
+                "CLI stopped removal clears designation and preserves logs/model");
             Console.WriteLine($"OK: {checks} comprobaciones de ciclo de procesos" + (executable is null ? "." : " con CLI nativa."));
 
             void Foreground(bool twice)

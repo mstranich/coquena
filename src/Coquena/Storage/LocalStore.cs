@@ -8,7 +8,7 @@ using Coquena.Contracts;
 namespace Coquena.Storage;
 
 public enum DocumentKind { Config, Models, Backends, Parameters, Presets, Servers, Operation, Instance, LastLog, BackendUpdates, BackendRetention }
-public enum WriteStage { BeforeReplace, AfterReplace, AfterParameterCheckpoint }
+public enum WriteStage { BeforeReplace, AfterReplace, AfterParameterCheckpoint, AfterServerCheckpoint }
 // Deliberately no arbitrary text, URLs, paths, names or diagnostics in the journal.
 public enum OperationResult { Cancelled, Installed }
 public sealed record TransactionEvent(DateTimeOffset At, Guid TransactionId, DocumentKind Document, Guid? RecordId,
@@ -32,7 +32,7 @@ public sealed partial class LocalStore
     public T? Read<T>(DocumentKind kind, JsonTypeInfo<T> type, Action<T> validate,
         string? server = null, Guid? operation = null) where T : class
     {
-        var bytes = ModelDirectoryBytes(kind) ?? BackendDirectoryBytes(kind) ?? TransactionBytes(kind) ?? ReadBytes(Location(kind, server, operation));
+        var bytes = ServerRemovalBytes(kind) ?? ModelDirectoryBytes(kind) ?? BackendDirectoryBytes(kind) ?? TransactionBytes(kind) ?? ReadBytes(Location(kind, server, operation));
         if (bytes is null) return null;
         var value = ContractJson.Read(Encoding.UTF8.GetString(bytes), type, validate);
         CheckRecord(value, operation);
@@ -47,6 +47,7 @@ public sealed partial class LocalStore
     {
         home.Ensure();
         using var lease = Acquire(cancellation);
+        RecoverServerRemovalTransaction();
         RecoverParameterTransaction();
         RecoverBackendDirectoryTransaction();
         RecoverModelDirectoryTransaction();
@@ -182,6 +183,7 @@ public sealed partial class LocalStore
     {
         home.Ensure();
         using var lease = Acquire(default);
+        RecoverServerRemovalTransaction();
         RecoverParameterTransaction();
         RecoverBackendDirectoryTransaction();
         RecoverModelDirectoryTransaction();
