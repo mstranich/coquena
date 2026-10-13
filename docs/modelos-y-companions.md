@@ -268,6 +268,13 @@ con opción de cancelar el emparejamiento. Elegir uno guarda la equivalencia inf
 seleccionada, sin certificar identidad de bytes o revisión ni cambiar automáticamente
 el nombre del registro. Cancelar deja el registro local concretado, sin emparejamiento.
 El registro local se persiste antes de presentar ese menú; no se exige elegir un candidato.
+Sin terminal interactiva se omite el intento. Las consultas se limitan a metadatos del
+repositorio declarado, con un presupuesto de 30 segundos y hasta 128 candidatos en el
+menú. Se comparan rol y cuantización candidatos por nombre remoto, número de archivos y
+tamaños por parte, descartando contradicciones conocidas con la cabecera local. No se
+descargan pesos ni se calculan hashes completos para emparejar. La equivalencia conserva
+los archivos remotos, la revisión consultada, las razones y la fecha de selección por
+separado del seguimiento gestionado; el listado la identifica como no certificada.
 No reconstruye procedencia exhaustivamente ni habilita update/upgrade del externo.
 Una descarga gestionada posterior deja intactos los archivos externos.
 

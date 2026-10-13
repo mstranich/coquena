@@ -22,7 +22,7 @@ public static class Cli
             output.WriteLine("Companions: model companion download <usuario/repositorio#mmproj|mtp[:cuantización]> | model companion list (selección independiente, sin asociación automática a presets).");
             output.WriteLine("Modelos: model download <usuario/repositorio[:cuantización]> | model list");
             output.WriteLine("Observación local: model [companion] refresh <nombre>; integridad SHA-256: model [companion] verify <nombre> [--set-baseline] (base explícita sólo para externos, sin red).");
-            output.WriteLine("Modelos externos: model add <ruta.gguf> --name <usuario/repositorio:cuantización>; model companion add <ruta.gguf> --name <usuario/repositorio#mmproj|mtp:cuantización>; model companion list (alta local sin copia, red ni hash completo).");
+            output.WriteLine("Modelos externos: model add <ruta.gguf> --name <usuario/repositorio:cuantización> [--try-match]; model companion add <ruta.gguf> --name <usuario/repositorio#mmproj|mtp:cuantización> [--try-match]; model companion list (alta local sin copia ni hash completo; red sólo con --try-match, selección informativa explícita).");
             output.WriteLine("Backends externos: backend register <ruta-llama-server> --name <nombre> --family <familia> [--distribution propietario/repositorio]; backend use [selector|nombre-externo]; server [nombre] use <nombre-externo>");
             output.WriteLine("Novedades: backend update [selector-latest] (todos los seguimientos o [ggml/|oficial/]cpu|vulkan|cuda@<mayor>:latest); backend list muestra la última consulta guardada. No descarga ni instala.");
             output.WriteLine("Configuración: config log-retention show | config log-retention set <tamaño> | config log-retention unset");

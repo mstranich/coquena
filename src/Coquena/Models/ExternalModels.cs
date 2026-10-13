@@ -5,6 +5,18 @@ namespace Coquena.Models;
 
 public sealed class ExternalModels(Home home)
 {
+    public void SaveMatch(ModelRecord original, InformativeMatch match)
+    {
+        var store = new LocalStore(home);
+        store.Update(DocumentKind.Models, ContractJsonContext.Default.ModelsDocument, ContractValidation.Models, catalog =>
+        {
+            var current = catalog?.Models.SingleOrDefault(m => m.Id == original.Id);
+            if (current is null || ContractJson.Write(current, ContractJsonContext.Default.ModelRecord) !=
+                ContractJson.Write(original, ContractJsonContext.Default.ModelRecord))
+                throw new ModelSourceException("model-changed", "El registro cambió durante la selección; no se guarda equivalencia.");
+            return catalog! with { Models = catalog.Models.Select(m => m.Id == original.Id ? m with { InformativeMatch = match } : m).ToArray() };
+        });
+    }
     public ModelRecord Add(string path, string name, bool companion = false)
     {
         var request = ModelRequest.Parse(name);
