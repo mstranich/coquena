@@ -150,6 +150,7 @@ public sealed class ModelUpdater(Home home)
         }
         return store.Update(DocumentKind.Models, Json.ModelsDocument, ContractValidation.Models, document =>
         {
+            ModelInstaller.CheckUpgradeMutation(home, store, original.Id);
             var current = document?.Models.SingleOrDefault(m => m.Id == original.Id);
             if (current is null || ContractJson.Write(current, Json.ModelRecord) != ContractJson.Write(original, Json.ModelRecord))
                 throw new ModelSourceException("model-changed", "Unidad modificada durante consulta; no se guarda observación obsoleta.");

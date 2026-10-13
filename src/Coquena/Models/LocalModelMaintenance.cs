@@ -15,6 +15,7 @@ public sealed class LocalModelMaintenance(Home home, Action<int>? afterRead = nu
 
     private ModelRecord Save(ModelRecord original, ModelRecord updated) => store.Exclusive(() =>
     {
+        ModelInstaller.CheckUpgradeMutation(home, store, original.Id);
         var catalog = Catalog();
         var current = catalog.Models.SingleOrDefault(m => m.Id == original.Id);
         if (current is null || ContractJson.Write(current, Json.ModelRecord) != ContractJson.Write(original, Json.ModelRecord))

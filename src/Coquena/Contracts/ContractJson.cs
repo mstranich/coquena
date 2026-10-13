@@ -347,6 +347,29 @@ public static class ContractValidation
             Require(request.Quantization is not null && request.Repository == value.ModelSelection!.Repository &&
                 (value.ResourceKind == "companion") == (request.CompanionType is not null), "Nombre y categoría de unidad no corresponden.");
             Id(model.ModelId);
+            if (model.Previous is { } previousModel)
+            {
+                Model(previousModel);
+                Require(previousModel.Id == model.ModelId && previousModel.Ownership == "managed" &&
+                    previousModel.Update is { State: "update-available", Plan: not null } &&
+                    ContractJson.Write(previousModel.Update.Plan.Target, ContractJsonContext.Default.RemoteSelection) ==
+                        ContractJson.Write(value.ModelSelection!, ContractJsonContext.Default.RemoteSelection) &&
+                    previousModel.Update.Plan.TargetName == value.Name &&
+                    previousModel.InstallationDirectory == model.InstallationDirectory,
+                    "Upgrade no corresponde al plan resuelto ni a la instalación anterior.");
+                if (model.RollbackFiles is { } rollback)
+                {
+                    Require(rollback.Length == previousModel.Files.Length, "Respaldo sin unidad anterior completa.");
+                    for (var i = 0; i < rollback.Length; i++)
+                        Require(rollback[i] is not null && rollback[i].RemotePath == previousModel.Files[i].RemotePath &&
+                            rollback[i].LocalPath == previousModel.Files[i].LocalPath && rollback[i].Size >= 0 &&
+                            Coquena.Models.FileIntegrity.Comparable(rollback[i].Integrity) && rollback[i].LastWriteUtc is not null,
+                            "Referencia de respaldo inválida.");
+                }
+                if (value.Phase == "publishing" || value.Phase == "cleanup" && value.State != "cancelled")
+                    Require(model.RollbackFiles is not null, "Upgrade publicado sin respaldo anterior.");
+            }
+            else Require(model.RollbackFiles is null, "Respaldo sólo para upgrade.");
             if (model.InstallationDirectory is not null) Text(model.InstallationDirectory);
             Require(model.MovedFiles >= 0 && model.MovedFiles <= value.Files.Length &&
                 (model.MovingFile == -1 || model.MovingFile == model.MovedFiles && model.MovingFile < value.Files.Length), "Progreso de publicación inválido.");

@@ -7,8 +7,8 @@ namespace Coquena.Models;
 public enum ModelInstallStage { AfterMove, AfterIndex, BeforeCleanup }
 public sealed record LocalModel(ModelRecord Record, string Availability, bool Changed, string[]? Diagnostics = null);
 
-// Initial acquisition only. No replacement, external transition or update/upgrade.
-public sealed class ModelInstaller(Home home, LocalStore? storage = null,
+// Initial acquisition and pinned managed upgrades; external transitions are separate.
+public sealed partial class ModelInstaller(Home home, LocalStore? storage = null,
     Func<long>? availableBytes = null, Action<ModelInstallStage>? fault = null)
 {
     private readonly LocalStore store = storage ?? new LocalStore(home);
@@ -67,6 +67,7 @@ public sealed class ModelInstaller(Home home, LocalStore? storage = null,
     public void CheckSpace(OperationDocument operation)
     {
         if (operation.ModelInstall is null || operation.Phase is "publishing" or "cleanup") return;
+        if (operation.ModelInstall.Previous is not null) { CheckUpgradeSpace(operation); return; }
         decimal required = 0;
         foreach (var f in operation.Files)
             if (f.ExpectedSize is long size) required += Math.Max(0, size - f.ConfirmedBytes);
@@ -138,6 +139,7 @@ public sealed class ModelInstaller(Home home, LocalStore? storage = null,
 
     public async Task<OperationDocument?> FinalizeAsync(OperationDocument operation, CancellationToken cancellation)
     {
+        if (operation.ModelInstall?.Previous is not null) return await FinalizeUpgradeAsync(operation, cancellation);
         ValidatePlan(operation);
         if (operation.Phase == "cleanup") { Cleanup(operation); return null; }
         var recovering = operation.Phase == "publishing";
@@ -228,6 +230,7 @@ public sealed class ModelInstaller(Home home, LocalStore? storage = null,
     // operation-owned, hash-checked files to preparation before generic cleanup can run.
     public async Task<bool> CancelAsync(OperationDocument operation)
     {
+        if (operation.ModelInstall?.Previous is not null) return await CancelUpgradeAsync(operation);
         ValidatePlan(operation);
         if (Catalog().Models.Any(m => m.Id == operation.ModelInstall!.ModelId))
         { await FinalizeAsync(operation, CancellationToken.None); return true; }

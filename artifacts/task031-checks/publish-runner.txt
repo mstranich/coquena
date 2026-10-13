@@ -1,0 +1,6 @@
+  Determinando los proyectos que se van a restaurar...
+  Todos los proyectos están actualizados para la restauración.
+  Coquena -> S:\src\github\coquena\src\Coquena\bin\Release\net10.0\win-x64\coquena.dll
+  Coquena.Tests -> S:\src\github\coquena\tests\Coquena.Tests\bin\Release\net10.0\win-x64\Coquena.Tests.dll
+  Generating native code
+  Coquena.Tests -> S:\src\github\coquena\artifacts\task031-tests-native\

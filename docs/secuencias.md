@@ -308,7 +308,7 @@ I --> UG : datos
 alt externo, candidato ambiguo, plan obsoleto o unidad en uso
   UG --> CLI : rechazar aplicación; explicar acción necesaria
 else plan aplicable
-  UG -> I : persistir operación y conjunto objetivo fijado
+  UG -> I : persistir operación y conjunto objetivo fijado\nreservar unidad frente a start y cambios del registro
   I --> UG : operación creada / error
   opt operación persistida correctamente
     UG --> CLI : GUID de operación
@@ -354,6 +354,8 @@ else plan aplicable
         La instalación anterior sigue activa.
       end note
     else conjunto verificado
+      UG -> F : respaldar archivos anteriores completos\nregistrar hashes observados para recuperación
+      UG -> I : guardar respaldos y progreso recuperable
       UG -> F : aplicar archivos y renombres al destino remoto reflejado\nsin sobrescribir archivos ajenos
       F --> UG : preparado para activar / fallo o inconsistencia
       opt destino preparado sin errores

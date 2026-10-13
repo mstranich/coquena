@@ -40,8 +40,9 @@ al registrar un backend externo ni certifica su compatibilidad.
       ([029](../../specs/029-m2-emparejamiento-externos/README.md)).
 - [x] Detectar y resolver novedades de modelos/companions.
       ([030](../../specs/030-m2-model-update/README.md)).
-- [ ] Aplicar planes de actualización, renombres y reubicaciones.
+- [x] Aplicar planes de actualización, renombres y reubicaciones.
       ([031](../../specs/031-m2-model-upgrade/README.md)).
+      Implementación aprobada y validada con Native AOT win-x64.
 - [ ] Convertir explícitamente externos en instalaciones gestionadas.
       ([032](../../specs/032-m2-transicion-externo-gestionado/README.md)).
 - [x] Gestionar definiciones y asociaciones de soporte del catálogo de parámetros

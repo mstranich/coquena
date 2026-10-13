@@ -250,9 +250,26 @@ El [administrador de descargas](descargas.md) define los contratos de transferen
 
 La preparación acordada es `downloads/<guid>/operation.json` y `files/`, según
 [descargas.md](descargas.md#área-de-preparación-acordada). Está separada del destino
-instalado y en el mismo volumen en la primera iteración. La disposición del catálogo
-instalado está acordada en la sección 2; el protocolo recuperable sigue pendiente.
+instalado. Cada unidad conserva su ubicación registrada; la publicación admite otro
+volumen mediante copia verificada. La disposición del catálogo instalado está acordada
+en la sección 2.
 No exigir symlinks.
+
+El plan de publicación conserva en `operation.json` el registro instalado de partida,
+los archivos objetivo verificados, el índice del movimiento confirmado y el movimiento
+en curso. El GUID reserva la unidad frente a start hasta completar o cancelar el trabajo;
+la creación de la reserva y el inicio de una instancia usan la misma exclusión de escritores.
+Las consultas que modifican el registro esperan la resolución de esa operación.
+Los archivos reutilizados se copian a preparación tras contrastar su SHA-256 local.
+Antes de sustituir rutas se conserva una copia completa de los archivos anteriores en
+`downloads/<guid>/previous/`, con hashes de los bytes observados para recuperación;
+esos hashes no sustituyen las referencias de integridad del catálogo anterior.
+Cada reemplazo usa una copia temporal identificada por el GUID en el volumen destino.
+Sólo se permiten destinos libres o pertenecientes al registro de partida.
+Una publicación interrumpida se completa al reanudar; cancelar restaura los archivos
+anteriores si el índice aún no cambió. Después del cambio de índice, cancelar completa
+la limpieza y conserva la instalación publicada. Se eliminan únicamente archivos propios
+comprobados; una limpieza pendiente mantiene el GUID y su diagnóstico.
 
 ```plantuml
 @startuml
