@@ -21,6 +21,7 @@ public static class Cli
             output.WriteLine("Uso: coquena [--help|-h|help] | system probe | backend <remote|install> [cpu|vulkan|cuda@<mayor>] [--release bNNNN|latest] | backend list | backend use [selector] | download <list|status|pause|resume|cancel>");
             output.WriteLine("Companions: model companion download <usuario/repositorio#mmproj|mtp[:cuantización]> | model companion list (selección independiente, sin asociación automática a presets).");
             output.WriteLine("Modelos: model download <usuario/repositorio[:cuantización]> | model list");
+            output.WriteLine("Nombre externo ocupado: ofrece transición explícita tras verificar la descarga; conserva ID/referencias y archivos externos. Reanudar/cancelar mediante download y su GUID.");
             output.WriteLine("Actualizaciones: model update [nombre-modelo] (global incluye companions) | model companion update [nombre-companion]; consulta metadatos y guarda planes de commit fijo, sin modificar pesos.");
             output.WriteLine("Observación local: model [companion] refresh <nombre>; integridad SHA-256: model [companion] verify <nombre> [--set-baseline] (base explícita sólo para externos, sin red).");
             output.WriteLine("Modelos externos: model add <ruta.gguf> --name <usuario/repositorio:cuantización> [--try-match]; model companion add <ruta.gguf> --name <usuario/repositorio#mmproj|mtp:cuantización> [--try-match]; model companion list (alta local sin copia ni hash completo; red sólo con --try-match, selección informativa explícita).");

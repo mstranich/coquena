@@ -347,6 +347,13 @@ public static class ContractValidation
             Require(request.Quantization is not null && request.Repository == value.ModelSelection!.Repository &&
                 (value.ResourceKind == "companion") == (request.CompanionType is not null), "Nombre y categoría de unidad no corresponden.");
             Id(model.ModelId);
+            if (model.ExternalPrevious is { } external)
+            {
+                Model(external);
+                Require(model.Previous is null && model.RollbackFiles is null && external.Ownership == "external" &&
+                    external.Id == model.ModelId && external.Name.Equals(value.Name, StringComparison.OrdinalIgnoreCase) &&
+                    external.CompanionType == request.CompanionType, "Transición externa incompatible.");
+            }
             if (model.Previous is { } previousModel)
             {
                 Model(previousModel);

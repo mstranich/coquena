@@ -83,7 +83,8 @@ public sealed record ModelInstallPlan(Guid ModelId, InstalledFile[]? VerifiedFil
     int MovedFiles = 0, int MovingFile = -1,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? InstallationDirectory = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] ModelRecord? Previous = null,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] InstalledFile[]? RollbackFiles = null);
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] InstalledFile[]? RollbackFiles = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] ModelRecord? ExternalPrevious = null);
 
 public sealed record BackendInstallPlan(string RequestedRelease, Guid BackendId,
     BackendRecord? Previous, BackendRecord? PreviousLatest, string Slot,

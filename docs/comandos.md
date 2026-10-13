@@ -193,11 +193,17 @@ canónico. No se descargan companions como efecto secundario.
 Si ese nombre está ocupado por un externo, ofrecer su transición explícita a gestionado;
 publicar sólo tras verificar la descarga, conservando ID y referencias y sin tocar los
 archivos externos. Cancelar o fallar mantiene el externo. Otras colisiones se rechazan.
+La propuesta permite descargar y pasar a gestión o conservar el externo y cancelar;
+rechazarla o llegar a fin de entrada no crea una operación. Una vez aceptada, el GUID
+permite `download resume` o `download cancel`. Mientras la operación esté pendiente,
+se bloquean el inicio de instancias y los cambios de metadatos de esa unidad; si ya
+se publicó, cancelar completa la limpieza y conserva la instalación gestionada.
 Antes de crear la operación presenta un único menú repetible:
 
 - **Con cuantización:** descargar la selección indicada, mostrar README o cancelar.
 - **Sin cuantización:** una opción «Descargar <variante>» por candidato, mostrar README
-  o cancelar. Elegir una variante inicia la descarga, sin una segunda confirmación.
+  o cancelar. Elegir una variante inicia la descarga; si su nombre está ocupado por
+  un externo, se presenta la propuesta de transición explícita descrita arriba.
 - Mostrar README consulta la documentación del repositorio en la revisión resuelta y
   vuelve al mismo menú. No descarga pesos; si falla o no existe, informa y vuelve.
 - Cancelar en este menú no crea GUID, trabajo ni parciales; no es Ctrl+C de una descarga

@@ -290,6 +290,11 @@ Sólo al publicar se cambia su propiedad y rutas a la instalación gestionada, c
 su ID y las referencias de presets/configuración. Fallos o interrupciones previas no
 retiran el externo. Nunca borrar, mover ni adoptar sus archivos originales.
 Antes de publicar, comprobar que el registro de partida no cambió durante la operación.
+La operación reserva la unidad hasta reanudarla o cancelarla: no puede iniciarse una
+instancia que la use ni modificar sus metadatos mientras está pendiente. Si una
+instancia ya usa el externo, detenerla antes de comenzar la transición. El destino
+gestionado no puede coincidir con las rutas externas originales. Cancelar después
+de publicar conserva la instalación gestionada y completa la limpieza de preparación.
 
 ## Seguimiento y actualización de gestionados
 

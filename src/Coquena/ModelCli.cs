@@ -173,7 +173,20 @@ public static class ModelCli
                 interaction ??= new Interaction(output);
                 var selected = new ModelSelectionMenu(source, inspector).SelectAsync(request!, interaction, stopped.Token).GetAwaiter().GetResult();
                 if (selected is null) { output.WriteLine("Selección cancelada; no se creó operación."); return 0; }
-                var operation = installer.Create(selected);
+                var previous = installer.ExternalTransition(selected.Name);
+                if (previous is not null)
+                {
+                    interaction.Show($"{previous.Name} está registrado como externo. La descarga verificada conservará su ID y referencias; los archivos externos quedarán intactos.");
+                    int? choice;
+                    do
+                    {
+                        choice = interaction.IsInteractive ? interaction.ChooseAsync(
+                            ["Descargar y pasar a gestión de Coquena", "Conservar externo y cancelar"], stopped.Token).GetAwaiter().GetResult() : null;
+                        if (choice is not null && choice is not (0 or 1)) interaction.Show("Opción inválida.");
+                    } while (choice is not null && choice is not (0 or 1));
+                    if (choice != 0) { output.WriteLine("Transición cancelada; externo conservado sin crear operación."); return 0; }
+                }
+                var operation = installer.Create(selected, previous);
                 active = operation.Id;
                 output.WriteLine($"Operación {operation.Id:D} en primer plano.");
                 using var provider = transport is null ? new HuggingFaceTransport() : null;

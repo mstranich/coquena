@@ -43,7 +43,7 @@ al registrar un backend externo ni certifica su compatibilidad.
 - [x] Aplicar planes de actualización, renombres y reubicaciones.
       ([031](../../specs/031-m2-model-upgrade/README.md)).
       Implementación aprobada y validada con Native AOT win-x64.
-- [ ] Convertir explícitamente externos en instalaciones gestionadas.
+- [x] Convertir explícitamente externos en instalaciones gestionadas.
       ([032](../../specs/032-m2-transicion-externo-gestionado/README.md)).
 - [x] Gestionar definiciones y asociaciones de soporte del catálogo de parámetros
       para la distribución oficial de llama.cpp, con builds bNNNN.

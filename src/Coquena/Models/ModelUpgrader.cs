@@ -10,21 +10,21 @@ public sealed partial class ModelInstaller
     private static string Snapshot(ModelRecord record) => ContractJson.Write(record, Json.ModelRecord);
     private static bool Equal(string a, string b) => a.Equals(b, StringComparison.OrdinalIgnoreCase);
     private string Backup(OperationDocument operation, int index) => home.PathFor($"downloads/{operation.Id:D}/previous/{index}.gguf");
-    internal bool Published(OperationDocument operation) => (operation.ModelInstall?.Previous is null || operation.ModelInstall.VerifiedFiles is not null) && Catalog().Models.Any(m => m.Id == operation.ModelInstall!.ModelId &&
+    internal bool Published(OperationDocument operation) => operation.ModelInstall?.Previous is null ? InstallPublished(operation) : operation.ModelInstall.VerifiedFiles is not null && Catalog().Models.Any(m => m.Id == operation.ModelInstall!.ModelId &&
         (operation.ModelInstall.Previous is null || m.Selection?.Commit == operation.ModelSelection!.Commit &&
             Snapshot(m) == Snapshot(NextUpgrade(operation))));
 
     internal static void CheckUpgradeReservations(Home home, LocalStore store, Guid[] ids)
     {
         foreach (var op in new DownloadManager(home, store).SnapshotLocked())
-            if (op.ModelInstall?.Previous is { } previous && ids.Contains(previous.Id))
-                throw new Coquena.Configuration.ConfigurationException($"Upgrade pendiente {op.Id:D} de {previous.Name}; reanude o cancele antes de iniciar.");
+            if ((op.ModelInstall?.Previous ?? op.ModelInstall?.ExternalPrevious) is { } previous && ids.Contains(previous.Id))
+                throw new Coquena.Configuration.ConfigurationException($"{(op.ModelInstall!.ExternalPrevious is null ? "Upgrade" : "Transición")} pendiente {op.Id:D} de {previous.Name}; reanude o cancele antes de iniciar.");
     }
 
     internal static void CheckUpgradeMutation(Home home, LocalStore store, Guid id)
     {
-        if (new DownloadManager(home, store).SnapshotLocked().Any(op => op.ModelInstall?.Previous?.Id == id))
-            throw new ModelSourceException("upgrade-pending", "Reanude o cancele el upgrade antes de modificar el registro.");
+        if (new DownloadManager(home, store).SnapshotLocked().Any(op => (op.ModelInstall?.Previous ?? op.ModelInstall?.ExternalPrevious)?.Id == id))
+            throw new ModelSourceException("upgrade-pending", "Reanude o cancele la operación antes de modificar el registro.");
     }
 
     private void CheckUsage(ModelRecord previous)
