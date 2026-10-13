@@ -75,12 +75,32 @@ internal static class ServerRuntimeTests
             store.Update(DocumentKind.Models, json.ModelsDocument, ContractValidation.Models, _ => new(1, [model]));
             new ConfigurationManager(home).Create("fixture/model:Q4", "chat"); manager.Presets(null, ["chat"], true);
             using var output = new StringWriter();
+            var companion = model with { Id = Guid.NewGuid(), Name = "fixture/companion#mmproj:BF16", CompanionType = "mmproj",
+                Selection = model.Selection! with { Repository = "fixture/companion" },
+                Files = [model.Files[0] with { LocalPath = "models/fixture/companion/single.gguf" }] };
+            store.Update(DocumentKind.Models, json.ModelsDocument, ContractValidation.Models, _ => new(1, [model, companion]));
+            new ConfigurationManager(home).Bind("chat", "mmproj", companion.Name);
+            try { runtime.Start(null, true, output); throw new Exception("Expected unavailable companion blocker"); }
+            catch (ConfigurationException) { checks++; }
+            Check(runtime.Recover("default") is null, "missing bound companion cannot publish an instance");
+            Directory.CreateDirectory(Path.GetDirectoryName(home.PathFor(companion.Files[0].LocalPath))!);
+            File.WriteAllBytes(home.PathFor(companion.Files[0].LocalPath), ConfigurationTests.Fixture(null));
 
             var externalInstaller = new Coquena.Backends.BackendInstaller(home,
                 probe: (_, _) => Task.FromResult("version: 11482 (abcdef)"));
             var external = externalInstaller.RegisterAsync(Path.Combine(backendDirectory, "Coquena.Tests.exe"), "runtime-external", "cpu").GetAwaiter().GetResult();
             manager.Use(null, "runtime-external");
             var externalInstance = runtime.Start(null, true, output).Instance; live.Add(externalInstance);
+            Check(externalInstance.ResourceIds.Contains(companion.Id) && File.ReadAllText(home.PathFor(externalInstance.IniPath)).Contains("mmproj = " + home.PathFor(companion.Files[0].LocalPath)), "native start persists companion identity and generated path");
+            var companionWithPlan = companion with { Update = new(DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, "update-available", "fixture",
+                "update-available", new(companion.Selection!, companion.Selection! with { Commit = new string('b', 40) }, companion.Name,
+                    [new("single.gguf", null, "download")], false)) };
+            store.Update(DocumentKind.Models, json.ModelsDocument, ContractValidation.Models, _ => new(1, [model, companionWithPlan]));
+            try { new Coquena.Models.ModelInstaller(home).CreateUpgrade(companionWithPlan); throw new Exception("Expected live companion blocker"); }
+            catch (Coquena.Downloads.DownloadException e)
+            { Check(e.Code == "model-in-use" && e.Message.Contains(externalInstance.InstanceId.ToString("D")), "bound companion upgrade blocked by live resource ID"); }
+            // Later fixture catalog replacements deliberately exercise retained broken IDs.
+            new ConfigurationManager(home).Set("chat", "mmproj", null);
             Wait(() => Log(externalInstance).Contains("ready"));
             Check(externalInstance.BackendId == external.Id && externalInstance.ExecutablePath == external.ServerPath, "external start uses registered executable and ID");
             var externalRestart = runtime.Restart(null, output); live.Add(externalRestart);

@@ -105,6 +105,19 @@ internal static class ConfigurationTests
             Reject(() => manager.Create(first.Name, "chat:Q4"), "upstream colon normalization");
             manager.Set("chat", "c", "8192");
             manager.Set("chat", "temp", "0.7");
+            var cloned = manager.Clone("CHAT", "cloned");
+            Check(cloned.Id != chat.Id && cloned.ModelId == first.Id && cloned.Parameters["temperature"] == "0.7", "clone copies values and model with new ID");
+            manager.Set("chat", "temp", "0.8");
+            Check(manager.View("cloned").Own["temperature"] == "0.7", "source edits do not propagate to clone");
+            manager.Set("cloned", "c", null);
+            Check(manager.View("chat").Own["ctx-size"] == "8192", "clone unset does not affect source");
+            var reboundClone = manager.Clone("chat", "rebound-clone", second.Name);
+            Check(reboundClone.ModelId == second.Id && reboundClone.Parameters["ctx-size"] == "8192", "clone model override preserves values");
+            Reject(() => manager.Clone("chat", "CLONED"), "clone duplicate case insensitive");
+            Reject(() => manager.Clone("missing", "unused"), "clone missing source");
+            Reject(() => manager.Clone("chat", "unused", "missing"), "clone missing destination model");
+            Reject(() => manager.Clone("chat", "default"), "clone reserved name");
+            manager.Set("chat", "temp", "0.7");
             manager.Set("coding", "load-on-startup", "false");
             var sameModel = manager.Create(first.Name, "same-model");
             manager.Set("same-model", "c", "2048");
@@ -149,6 +162,77 @@ internal static class ConfigurationTests
             catch (IOException) { checks++; }
             Check(File.ReadAllText(home.PathFor("catalogs/presets.json")) == beforeFailure, "failed preset write preserves assignments and model references");
             manager.ChangeModel("chat", second.Name);
+            // Bindings identify catalog units, never infer references from literal text.
+            var companion = Model("fixture/projector:BF16", ["proj-00001-of-00002.gguf", "proj-00002-of-00002.gguf"]) with
+            { Name = "fixture/projector#mmproj:BF16", CompanionType = "mmproj" };
+            foreach (var (file, index) in companion.Files.Select((f, i) => (f, i)))
+            {
+                var path = home.PathFor(file.LocalPath); Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+                File.WriteAllBytes(path, Fixture(index));
+            }
+            store.Update(DocumentKind.Models, ContractJsonContext.Default.ModelsDocument, ContractValidation.Models, _ => new(1, [first, second, companion]));
+            manager.Bind("chat", "mmproj", companion.Name);
+            manager.Bind("same-model", "mmproj", companion.Name);
+            var boundClone = manager.Clone("chat", "bound-clone", first.Name);
+            Check(boundClone.Bindings!["mmproj"] == companion.Id && boundClone.ModelId == first.Id, "clone copies binding IDs with model override");
+            var bound = manager.Compose(backend, [chat.Id, sameModel.Id]);
+            Check(bound.Ini.Contains("mmproj = " + home.PathFor(companion.Files[0].LocalPath)) && bound.ResourceIds.Count(id => id == companion.Id) == 1, "shared companion resolves first shard and one resource ID");
+            Reject(() => manager.Bind("chat", "temperature", companion.Name), "number cannot be bound");
+            Reject(() => manager.Bind("chat", "host", companion.Name), "server parameter cannot be bound");
+            Reject(() => manager.Bind("chat", "mmproj", "missing"), "binding needs registered resource");
+            Reject(() => manager.Bind("chat", "model", companion.Name), "companion cannot be principal");
+            manager.Set("chat", "mmproj", "literal-projector");
+            Check(manager.View("chat").Preset.Bindings!.Count == 0 && manager.View("bound-clone").Preset.Bindings!["mmproj"] == companion.Id, "set replaces only source binding without altering clone");
+            manager.Bind("chat", "mmproj", companion.Name);
+            Check(!manager.View("chat").Own.ContainsKey("mmproj"), "bind replaces literal");
+            manager.Set("chat", "model-draft", second.Name);
+            Check(!manager.Compose(backend, [chat.Id]).ResourceIds.Contains(first.Id), "literal matching a catalog name never becomes a resource reference");
+            manager.Set("chat", "model-draft", null);
+            var bindingSnapshot = File.ReadAllText(home.PathFor("catalogs/presets.json"));
+            try { new ConfigurationManager(home, failingStore).Bind("chat", "model-draft", second.Name); throw new Exception("expected binding write failure"); }
+            catch (IOException) { checks++; }
+            Check(File.ReadAllText(home.PathFor("catalogs/presets.json")) == bindingSnapshot, "binding write failure preserves complete preset catalog");
+            try { new ConfigurationManager(home, failingStore).Clone("chat", "failed-clone"); throw new Exception("expected clone write failure"); }
+            catch (IOException) { checks++; }
+            Check(File.ReadAllText(home.PathFor("catalogs/presets.json")) == bindingSnapshot, "clone write failure does not publish a partial clone");
+            File.Delete(home.PathFor(companion.Files[1].LocalPath));
+            Check(manager.View("chat").Diagnostics.Any(d => d.Contains("no servible")), "view diagnoses missing companion shard and retains preset");
+            Reject(() => manager.Compose(backend, [chat.Id]), "missing companion shard blocks composition");
+            File.WriteAllBytes(home.PathFor(companion.Files[1].LocalPath), Fixture(1));
+            var relocatedPath = "models/fixture/renamed/proj-00001-of-00002.gguf";
+            var relocatedSecond = "models/fixture/renamed/proj-00002-of-00002.gguf";
+            Directory.CreateDirectory(Path.GetDirectoryName(home.PathFor(relocatedPath))!);
+            File.Move(home.PathFor(companion.Files[0].LocalPath), home.PathFor(relocatedPath));
+            File.Move(home.PathFor(companion.Files[1].LocalPath), home.PathFor(relocatedSecond));
+            companion = companion with { Name = "fixture/renamed#mmproj:BF16", Selection = companion.Selection! with { Repository = "fixture/renamed" }, Files =
+                [companion.Files[0] with { LocalPath = relocatedPath }, companion.Files[1] with { LocalPath = relocatedSecond }] };
+            store.Update(DocumentKind.Models, ContractJsonContext.Default.ModelsDocument, ContractValidation.Models, _ => new(1, [first, second, companion]));
+            Check(manager.Compose(backend, [boundClone.Id]).Ini.Contains(home.PathFor(relocatedPath)), "rename and relocation resolve stable ID to current first shard");
+            manager.Parameters.Define(new("mmproj", "string", "model", "INI", "Projector path", ["mm"], Choices: [], Support: []));
+            manager.Bind("chat", "mm", companion.Name);
+            using var impact = new StringWriter();
+            manager.Parameters.ChangeDefinition("mmproj", d => d with { Aliases = [] }, "fixture edit", false, impact, () => true);
+            Check(manager.View("chat").Preset.Bindings!.ContainsKey("mmproj"), "binding canonical identity survives alias edit");
+            manager.Parameters.ChangeDefinition("mmproj", d => d with { Support = [new(From: "b11483")] }, "fixture edit", false, impact, () => true);
+            File.Delete(home.PathFor(relocatedSecond));
+            var omitted = manager.Compose(backend, [chat.Id]);
+            Check(!omitted.Ini.Contains("mmproj =") && !omitted.ResourceIds.Contains(companion.Id) && omitted.Diagnostics.Any(d => d.Contains("no admitido")), "unsupported binding omitted before file checks with stored ID retained");
+            File.WriteAllBytes(home.PathFor(relocatedSecond), Fixture(1));
+            manager.Parameters.ChangeDefinition("mmproj", d => d with { Support = [] }, "fixture edit", false, impact, () => true);
+            store.Update(DocumentKind.Models, ContractJsonContext.Default.ModelsDocument, ContractValidation.Models, _ => new(1, [first, second]));
+            Check(manager.View("chat").Diagnostics.Any(d => d.Contains("referencia rota")), "missing ID retained with diagnostic");
+            Reject(() => manager.Compose(backend, [chat.Id]), "broken companion reference rejects composition");
+            var replacementCompanion = companion with { Id = Guid.NewGuid() };
+            store.Update(DocumentKind.Models, ContractJsonContext.Default.ModelsDocument, ContractValidation.Models, _ => new(1, [first, second, replacementCompanion]));
+            Reject(() => manager.Compose(backend, [chat.Id]), "same name replacement cannot reconnect old ID");
+            manager.Parameters.ChangeDefinition("mmproj", d => d with { Type = "integer" }, "fixture edit", true, impact);
+            Check(impact.ToString().Contains(companion.Id.ToString()) && manager.View("chat").Preset.Bindings!.ContainsKey("mmproj"), "dry run reports bound ID without cascade mutation");
+            manager.Parameters.ChangeDefinition("mmproj", d => d with { Type = "integer" }, "fixture edit", false, impact, () => false);
+            Check(manager.View("chat").Preset.Bindings!.ContainsKey("mmproj"), "declined cascade retains binding");
+            manager.Parameters.ChangeDefinition("mmproj", d => d with { Type = "integer" }, "fixture edit", false, impact, () => true);
+            Check(manager.View("chat").Preset.Bindings!.Count == 0 && manager.View("bound-clone").Preset.Bindings!.Count == 0, "confirmed incompatible type cascades IDs without deleting presets");
+            manager.Parameters.ChangeDefinition("mmproj", _ => null, "fixture edit", false, impact, () => true);
+            store.Update(DocumentKind.Models, ContractJsonContext.Default.ModelsDocument, ContractValidation.Models, _ => new(1, [first, second]));
             Check(manager.View("chat").Preset.Id == chat.Id && manager.View("chat").Model!.Id == second.Id &&
                 manager.View("chat").Own["temperature"] == "0.7", "rebind retains preset identity and own values");
             manager.ChangeModel("chat", first.Name);
@@ -175,6 +259,19 @@ internal static class ConfigurationTests
             Cli("preset", "create", first.Name, "native-chat");
             Cli("preset", "create", second.Name, "native-code");
             Cli("preset", "set", "native-chat", "c", "2048");
+            Cli("preset", "clone", "native-chat", "native-clone");
+            Cli("preset", "clone", "native-chat", "native-rebound", "--model", second.Name);
+            Cli("preset", "bind", "native-chat", "model-draft", second.Name);
+            Check(Cli("preset", "show", "native-chat").Contains(second.Id.ToString()), "CLI shows persisted binding ID");
+            Cli("preset", "clone", "native-chat", "native-bound-clone");
+            Cli("preset", "unset", "native-chat", "model-draft");
+            Check(manager.View("native-bound-clone").Preset.Bindings!["model-draft"] == second.Id && manager.View("native-chat").Preset.Bindings!.Count == 0, "CLI unset removes source binding with clone preserved");
+            Cli("preset", "bind", "native-chat", "model", first.Name);
+            BadCli("preset", "bind", "native-chat", "temperature", second.Name);
+            Check(manager.View("native-clone").Preset.ModelId == first.Id && manager.View("native-rebound").Preset.ModelId == second.Id, "CLI clone persists selected model");
+            BadCli("preset", "clone", "native-chat", "NATIVE-CLONE");
+            BadCli("preset", "clone", "native-chat", "unused", "--model");
+            BadCli("preset", "clone", "native-chat", "unused", "--wrong", second.Name);
             Check(Cli("preset", "show", "native-chat").Contains("ctx-size = 2048 | propio"), "CLI own value");
             Cli("preset", "unset", "native-chat", "c");
             Check(!Cli("preset", "show", "native-chat").Contains("ctx-size ="), "CLI persisted unset has no inheritance");
@@ -190,7 +287,7 @@ internal static class ConfigurationTests
             BadCli("config", "set", "temperature", "--ref", "missing");
             BadCli("config", "show", "--model", first.Name, "--preset", "native-chat");
             BadCli("param", "list", "--backend", backend.Id.ToString(), "--version", "b11482");
-            BadCli("preset", "clone", "chat", "clone");
+            BadCli("preset", "clone", "chat");
             Cli("preset", "remove", "native-code");
             var composed = new ConfigurationManager(home).Compose(backend, [manager.View("native-chat").Preset.Id, replacement.Id]);
             Check(composed.Ini.Contains("[native-chat]") && composed.Ini.Contains("[coding]"), "CLI-to-INI two explicit presets");

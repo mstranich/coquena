@@ -85,7 +85,8 @@ Asignar un valor modifica sólo ese preset; quitarlo elimina la asignación, sin
 valores globales, por familia ni por modelo. Los parámetros del proceso pertenecen a la
 [definición del servidor](servidores.md#parámetros-del-servidor).
 
-Los companions se eligen mediante parámetros del preset. Una referencia explícita
+Los companions y modelos auxiliares se eligen mediante `preset bind`, indicando el
+parámetro que recibe su ruta y el nombre del recurso registrado. El vínculo
 se guarda por ID estable y se resuelve a ruta absoluta al generar el INI. Un literal
 continúa siendo literal aunque coincida con el nombre de un registro. Coquena comprueba
 referencias y archivos; la compatibilidad funcional de la combinación la decide el backend.
@@ -93,6 +94,20 @@ referencias y archivos; la compatibilidad funcional de la combinación la decide
 Clonar un preset copia sus valores y referencias al modelo destino, sin copiar archivos
 ni crear herencia. El clon es independiente: cambios en el origen no se propagan.
 La sintaxis está en [comandos](comandos.md#preset).
+
+Un vínculo admite parámetros sin definición o definidos como texto de ámbito modelo;
+no modifica su tipo en el catálogo. La definición de texto expresa el argumento que
+recibirá el backend; la asignación del preset distingue literal de vínculo. Los alias
+se normalizan a la identidad del parámetro. Un vínculo puede seleccionar un modelo
+principal como auxiliar, por ejemplo para un argumento de borrador; `bind model`
+selecciona exclusivamente el principal del preset y conserva sus demás asignaciones.
+La configuración de métodos de especulación es independiente del vínculo a archivos:
+no se deduce un método ni compatibilidad a partir del tipo o nombre del recurso.
+
+La composición respeta la aplicabilidad del catálogo al backend seleccionado: un
+parámetro no admitido se omite con aviso, conservando su vínculo guardado. Sólo los
+recursos emitidos forman parte de esa ejecución y de sus protecciones de uso. Los
+parámetros con soporte desconocido se conservan y sus referencias se comprueban.
 
 ## Disponibilidad, en el núcleo
 

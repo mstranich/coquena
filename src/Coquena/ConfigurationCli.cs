@@ -67,11 +67,16 @@ public static class ConfigurationCli
                     args.Length == 3 && args[0] == "list" && args[1] == "--model" ||
                     args.Length == 2 && args[0] is "show" or "remove" ||
                     args.Length == 4 && args[0] == "model" && args[1] == "set" ||
-                    args.Length == 4 && args[0] == "set" || args.Length == 3 && args[0] == "unset";
+                    args.Length == 4 && args[0] is "set" or "bind" && args[3] != "--ref" || args.Length == 3 && args[0] == "unset" ||
+                    (args.Length == 3 || args.Length == 5 && args[3] == "--model") && args[0] == "clone";
                 if (!valid) Invalid();
                 manager ??= new(Home.Resolve());
                 switch (args[0])
                 {
+                    case "bind":
+                        manager.Bind(args[1], args[2], args[3]);
+                        output.WriteLine("Vínculo del preset actualizado por ID; ruta resuelta al ejecutar.");
+                        break;
                     case "set":
                     case "unset":
                         manager.Set(args[1], args[2], args[0] == "set" ? args[3] : null);
@@ -80,6 +85,10 @@ public static class ConfigurationCli
                     case "create":
                         var created = manager.Create(args[1], args[2]);
                         output.WriteLine($"Preset {created.Name} | {created.Id:D} | modelId {created.ModelId:D}");
+                        break;
+                    case "clone":
+                        var clone = manager.Clone(args[1], args[2], args.Length == 5 ? args[4] : null);
+                        output.WriteLine($"Preset {clone.Name} | {clone.Id:D} | modelId {clone.ModelId:D}; clon independiente.");
                         break;
                     case "model": manager.ChangeModel(args[2], args[3]); output.WriteLine("Modelo del preset actualizado; valores propios conservados."); break;
                     case "remove": manager.Remove(args[1]); output.WriteLine("Preset retirado; referencias existentes conservan su ID."); break;
@@ -111,6 +120,8 @@ public static class ConfigurationCli
     {
         output.WriteLine($"{view.Preset.Id:D} | {view.Preset.Name} | modelo {view.Model?.Name ?? "ausente"} | modelId {view.Preset.ModelId:D}");
         foreach (var diagnostic in view.Diagnostics) output.WriteLine($"  {diagnostic}");
+        foreach (var binding in view.Preset.Bindings ?? [])
+            output.WriteLine($"  {binding.Key} -> {view.BoundResources?.GetValueOrDefault(binding.Key) ?? "ausente"} | {binding.Value:D} | vínculo por ID");
     }
     private static void ShowValues(Dictionary<string, string> effective, Dictionary<string, string> own, BackendRecord? backend, ParameterDefinition[] definitions, TextWriter output)
     {

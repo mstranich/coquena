@@ -138,7 +138,14 @@ public sealed class ParameterManager(Home home, LocalStore? storage = null)
         Validate(next); ValidateLocalReferences(definition);
         var presets = store.Read(DocumentKind.Presets, Json.PresetsDocument, ContractValidation.Presets)?.Presets ?? [];
         var servers = store.Read(DocumentKind.Servers, Json.ServersDocument, ContractValidation.Servers)?.Servers ?? [];
-        foreach (var p in presets) CheckExisting(p.Name, p.Parameters, "model");
+        foreach (var p in presets)
+        {
+            CheckExisting(p.Name, p.Parameters, "model");
+            var bindings = (p.Bindings ?? []).Where(b => ParameterCatalog.Canonical(b.Key, next.Definitions) == definition.Name).ToArray();
+            if (bindings.Length > 1 || bindings.Length > 0 && (!ConfigurationManager.CanBind(definition) ||
+                p.Parameters.Keys.Any(k => ParameterCatalog.Canonical(k, next.Definitions) == definition.Name)))
+                throw new ConfigurationException($"{p.Name}: vínculos existentes incompatibles o duplicados para {definition.Name}.");
+        }
         foreach (var s in servers) CheckExisting(s.Name, s.Parameters.ToDictionary(p => p.Key,
             p => p.Value.ValueKind == JsonValueKind.String ? p.Value.GetString()! : p.Value.ToString()), "server");
         store.UpdateLocked(DocumentKind.Parameters, Json.ParametersDocument, Validate, _ => next);
@@ -250,6 +257,21 @@ public sealed class ParameterManager(Home home, LocalStore? storage = null)
         var newPresets = presets?.Presets.Select(p =>
         {
             var values = Cascade(p.Parameters, "preset", p.Name, p.Id, "model");
+            var bindings = new Dictionary<string, Guid>(p.Bindings ?? []);
+            foreach (var binding in (p.Bindings ?? []).Where(b => Identity(b.Key) == definition.Name))
+            {
+                if (next is null || !ConfigurationManager.CanBind(next))
+                {
+                    effects.Add($"Eliminar | preset {p.Name} | {p.Id:D} | {binding.Key} -> {binding.Value:D} | vínculo guardado; definición retirada/incompatible.");
+                    bindings.Remove(binding.Key); removed = true; presetChanged = true;
+                }
+                else if (binding.Key != definition.Name)
+                {
+                    bindings.Remove(binding.Key);
+                    if (!bindings.TryAdd(definition.Name, binding.Value)) throw new ConfigurationException("Vínculos duplicados por alias.");
+                    presetChanged = true;
+                }
+            }
             var modelId = p.ModelId;
             if (definition.Name == "model" && modelId is { } id && (next is null || next.Type != "reference" || next.Application != "model"))
             {
@@ -257,7 +279,7 @@ public sealed class ParameterManager(Home home, LocalStore? storage = null)
                 modelId = null; removed = true; presetChanged = true;
             }
             if (!p.Parameters.SequenceEqual(values)) presetChanged = true;
-            return p with { Parameters = values, ModelId = modelId };
+            return p with { Parameters = values, ModelId = modelId, Bindings = p.Bindings is null ? null : bindings };
         }).ToArray();
         var newServers = servers?.Servers.Select(s =>
         {
@@ -268,6 +290,9 @@ public sealed class ParameterManager(Home home, LocalStore? storage = null)
             if (!values.Keys.SequenceEqual(s.Parameters.Keys)) serverChanged = true;
             foreach (var preset in presets?.Presets.Where(p => s.PresetIds.Contains(p.Id)) ?? [])
             {
+                foreach (var binding in (preset.Bindings ?? []).Where(b => Identity(b.Key) == definition.Name))
+                    if (next is null || !ConfigurationManager.CanBind(next))
+                        effects.Add($"Servidor afectado | {s.Name} | {s.Id:D} | preset {preset.Name} | {preset.Id:D} | {binding.Key} -> {binding.Value:D} | se retira el vínculo; recurso conservado.");
                 foreach (var value in preset.Parameters.Where(v => Identity(v.Key) == definition.Name))
                     if (next is null || !Compatible(next, value.Value, "model"))
                         effects.Add($"Servidor afectado | {s.Name} | {s.Id:D} | preset {preset.Name} | {preset.Id:D} | {value.Key} = {value.Value} | se retira la asignación del preset; se conserva la asociación del servidor.");
@@ -284,6 +309,8 @@ public sealed class ParameterManager(Home home, LocalStore? storage = null)
                 var emission = availability switch { "no admitido" => "omitir con warning", "admitido" => "emitir", _ => "disponibilidad desconocida" };
                 foreach (var preset in presets?.Presets.Where(p => s.PresetIds.Contains(p.Id)) ?? [])
                 {
+                    foreach (var binding in (preset.Bindings ?? []).Where(b => Identity(b.Key) == definition.Name))
+                        if (ConfigurationManager.CanBind(next)) effects.Add($"Conservar/{emission} | preset {preset.Name} | {preset.Id:D} | {binding.Key} -> {binding.Value:D} | servidor {s.Name} | {s.Id:D} | backend {backend.Id:D}/{backend.Build}.");
                     foreach (var value in preset.Parameters.Where(v => Identity(v.Key) == definition.Name))
                         if (Compatible(next, value.Value, "model")) effects.Add($"Conservar/{emission} | preset {preset.Name} | {preset.Id:D} | {value.Key} = {value.Value} | servidor {s.Name} | {s.Id:D} | backend {backend.Id:D}/{backend.Build}.");
                     if (definition.Name == "model" && preset.ModelId is { } resource && next.Type == "reference" && next.Application == "model")

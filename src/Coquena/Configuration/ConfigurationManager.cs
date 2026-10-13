@@ -6,7 +6,8 @@ using Coquena.Storage;
 namespace Coquena.Configuration;
 
 public sealed record PresetView(PresetRecord Preset, ModelRecord? Model,
-    Dictionary<string, string> Own, Dictionary<string, string> Effective, string[] Diagnostics);
+    Dictionary<string, string> Own, Dictionary<string, string> Effective, string[] Diagnostics,
+    Dictionary<string, string>? BoundResources = null);
 public sealed record ComposedPresets(string Ini, Guid[] ResourceIds, string[] Diagnostics, string[]? CliArguments = null);
 
 public sealed class ConfigurationManager(Home home, LocalStore? storage = null)
@@ -75,11 +76,63 @@ public sealed class ConfigurationManager(Home home, LocalStore? storage = null)
                 // Removing the target first also permits repairing a stale INI literal.
                 var next = Values(preset.Parameters.Where(p => ParameterCatalog.Canonical(p.Key, definitions) != key).ToDictionary());
                 if (value is not null) next[key] = value;
-                return catalog with { Presets = catalog.Presets.Select(p => p.Id == preset.Id ? p with { Parameters = next } : p).ToArray() };
+                var bindings = (preset.Bindings ?? []).Where(p => ParameterCatalog.Canonical(p.Key, definitions) != key).ToDictionary();
+                return catalog with { Presets = catalog.Presets.Select(p => p.Id == preset.Id ? p with { Parameters = next, Bindings = bindings } : p).ToArray() };
             });
             return true;
         });
     }
+
+    internal static bool CanBind(ParameterDefinition? definition) => definition is null || definition is { Type: "string", Application: "model" };
+
+    private Dictionary<string, Guid> Bindings(PresetRecord preset, ParameterDefinition[] definitions)
+    {
+        var result = new Dictionary<string, Guid>(StringComparer.Ordinal);
+        var literalKeys = preset.Parameters.Keys.Select(k => ParameterCatalog.Canonical(k, definitions)).ToHashSet();
+        foreach (var pair in preset.Bindings ?? [])
+        {
+            var key = ParameterCatalog.Canonical(pair.Key, definitions);
+            ParameterCatalog.ModelParameter(key, definitions);
+            if (!CanBind(ParameterCatalog.Find(key, definitions)))
+                throw new ConfigurationException($"{key}: el vínculo requiere un parámetro de texto de ámbito modelo o sin definición.");
+            if (literalKeys.Contains(key) || !result.TryAdd(key, pair.Value))
+                throw new ConfigurationException($"Asignaciones duplicadas para {key}; literal y vínculo son excluyentes.");
+        }
+        return result;
+    }
+
+    public void Bind(string name, string parameter, string resourceName) => store.Exclusive(() =>
+    {
+        var definitions = Parameters.Read().Definitions;
+        var key = ParameterCatalog.Canonical(parameter, definitions);
+        if (key == "model")
+        {
+            ModelReference();
+            var model = Named(Models().Models.Where(m => m.CompanionType is null), resourceName, m => m.Name);
+            store.UpdateLocked(DocumentKind.Presets, Json.PresetsDocument, ContractValidation.Presets, old =>
+            {
+                var catalog = old ?? new(1, []);
+                var preset = Named(catalog.Presets, name, p => p.Name);
+                return catalog with { Presets = catalog.Presets.Select(p => p.Id == preset.Id ? p with { ModelId = model.Id } : p).ToArray() };
+            });
+            return true;
+        }
+        ParameterCatalog.ModelParameter(key, definitions);
+        if (!CanBind(ParameterCatalog.Find(key, definitions)))
+            throw new ConfigurationException($"{key}: el vínculo requiere un parámetro de texto de ámbito modelo o sin definición.");
+        var resource = Named(Models().Models, resourceName, m => m.Name);
+        store.UpdateLocked(DocumentKind.Presets, Json.PresetsDocument, ContractValidation.Presets, old =>
+        {
+            var catalog = old ?? new(1, []);
+            var preset = Named(catalog.Presets, name, p => p.Name);
+            var literals = preset.Parameters.Where(p => ParameterCatalog.Canonical(p.Key, definitions) != key).ToDictionary();
+            var bindings = Bindings(preset with { Parameters = literals,
+                Bindings = (preset.Bindings ?? []).Where(p => ParameterCatalog.Canonical(p.Key, definitions) != key).ToDictionary() }, definitions);
+            bindings[key] = resource.Id;
+            return catalog with { Presets = catalog.Presets.Select(p => p.Id == preset.Id ? p with { Parameters = Values(literals), Bindings = bindings } : p).ToArray() };
+        });
+        return true;
+    });
 
     public RetentionView Retention() => store.Exclusive(() => LogRetentionPolicy.Resolve(Config().LogRetention));
     public BackendRetention BackendRetention() => Config().BackendRetention;
@@ -108,6 +161,32 @@ public sealed class ConfigurationManager(Home home, LocalStore? storage = null)
                 return catalog with { Presets = [.. catalog.Presets, record] };
             });
             return record;
+        });
+    }
+
+    public PresetRecord Clone(string sourceName, string name, string? modelName = null)
+    {
+        PresetName(name);
+        return store.Exclusive(() =>
+        {
+            var source = Named(Presets().Presets, sourceName, p => p.Name);
+            var modelId = source.ModelId;
+            if (modelName is not null)
+            {
+                ModelReference();
+                modelId = Named(Models().Models.Where(m => m.CompanionType is null), modelName, m => m.Name).Id;
+            }
+            var clone = source with { Id = Guid.NewGuid(), Name = name, ModelId = modelId,
+                Parameters = new Dictionary<string, string>(source.Parameters),
+                Bindings = source.Bindings is null ? null : new Dictionary<string, Guid>(source.Bindings) };
+            store.UpdateLocked(DocumentKind.Presets, Json.PresetsDocument, ContractValidation.Presets, old =>
+            {
+                var catalog = old ?? new(1, []);
+                if (catalog.Presets.Any(p => p.Name.Equals(name, StringComparison.OrdinalIgnoreCase)))
+                    throw new ConfigurationException($"Preset ya existente: {name}.");
+                return catalog with { Presets = [.. catalog.Presets, clone] };
+            });
+            return clone;
         });
     }
 
@@ -141,14 +220,32 @@ public sealed class ConfigurationManager(Home home, LocalStore? storage = null)
     public PresetView[] List(string? modelName = null) => store.Exclusive(() =>
     {
         var models = Models().Models;
+        var definitions = Parameters.Read().Definitions;
         Guid? filter = modelName is null ? null : Named(models, modelName, m => m.Name).Id;
         return Presets().Presets.Where(p => filter is null || p.ModelId == filter).Select(p =>
         {
             var model = models.SingleOrDefault(m => m.Id == p.ModelId);
-            return new PresetView(p, model, Values(p.Parameters), Values(p.Parameters),
-                model is null ? [p.ModelId is null ? "Preset sin asignación de modelo." : $"Modelo ausente: {p.ModelId:D}; referencia rota."] : []);
+            var diagnostics = new List<string>();
+            var boundResources = new Dictionary<string, string>();
+            if (model is null) diagnostics.Add(p.ModelId is null ? "Preset sin asignación de modelo." : $"Modelo ausente: {p.ModelId:D}; referencia rota.");
+            else Inspect(model, "model", diagnostics);
+            foreach (var binding in Bindings(p, definitions))
+            {
+                var resource = models.SingleOrDefault(m => m.Id == binding.Value);
+                boundResources[binding.Key] = resource?.Name ?? "ausente";
+                if (resource is null) diagnostics.Add($"{binding.Key}: recurso {binding.Value:D} ausente; referencia rota.");
+                else Inspect(resource, binding.Key, diagnostics);
+            }
+            return new PresetView(p, model, NormalizeValues(p.Parameters, definitions), NormalizeValues(p.Parameters, definitions), diagnostics.ToArray(), boundResources);
         }).ToArray();
     });
+
+    private GgufUnit Inspect(ModelRecord resource, string parameter, List<string> diagnostics)
+    {
+        var inspection = GgufInspection.InspectPaths(resource.Files.Select(f => new ModelPaths(home).File(resource, f)).ToArray());
+        if (inspection.Status != "complete") diagnostics.Add($"{parameter}: {resource.Name}: {inspection.Status}; no servible.");
+        return inspection;
+    }
 
     public PresetView View(string name) => Named(List(), name, p => p.Preset.Name);
 
@@ -182,6 +279,26 @@ public sealed class ConfigurationManager(Home home, LocalStore? storage = null)
             if (inspection.Status != "complete")
                 throw new ConfigurationException($"Modelo {model.Name}: {inspection.Status}; no se omite el preset {preset.Name}.");
             var specific = Values(preset.Parameters);
+            foreach (var binding in Bindings(preset, definitions))
+            {
+                var definition = ParameterCatalog.Find(binding.Key, definitions);
+                var availability = ParameterManager.Availability(definition, backend);
+                if (availability == "no admitido")
+                {
+                    diagnostics.Add($"{preset.Name}: {binding.Key} no admitido; se omite con warning y se conserva el vínculo.");
+                    continue;
+                }
+                var resource = models.SingleOrDefault(m => m.Id == binding.Value)
+                    ?? throw new ConfigurationException($"{preset.Name}: {binding.Key}: recurso {binding.Value:D} ausente; referencia rota.");
+                var boundInspection = Inspect(resource, binding.Key, diagnostics);
+                if (boundInspection.Status != "complete")
+                    throw new ConfigurationException($"{preset.Name}: {binding.Key}: {resource.Name}: {boundInspection.Status}; no se omite el preset.");
+                var path = boundInspection.Parts[0].Path;
+                if (definition is not null) ParameterManager.ValidateValue(definition, path);
+                else ParameterCatalog.Literal(path);
+                specific[binding.Key] = path;
+                resources.Add(resource.Id);
+            }
             foreach (var key in specific.Keys.ToArray())
             {
                 var availability = ParameterManager.Availability(ParameterCatalog.Find(key, definitions), backend);
