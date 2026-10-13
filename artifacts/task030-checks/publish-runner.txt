@@ -1,0 +1,7 @@
+  Determinando los proyectos que se van a restaurar...
+  Se ha restaurado S:\src\github\coquena\tests\Coquena.Tests\Coquena.Tests.csproj (en 178 ms).
+  1 de 2 proyectos están actualizados para la restauración.
+  Coquena -> S:\src\github\coquena\src\Coquena\bin\Release\net10.0\win-x64\coquena.dll
+  Coquena.Tests -> S:\src\github\coquena\tests\Coquena.Tests\bin\Release\net10.0\win-x64\Coquena.Tests.dll
+  Generating native code
+  Coquena.Tests -> S:\src\github\coquena\artifacts\task030-tests-native\

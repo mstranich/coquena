@@ -21,6 +21,12 @@ public sealed record InstalledFile(string RemotePath, string LocalPath, long Siz
 public sealed record LocalFileCheck(string LocalPath, string Status, ContentIdentity? Observed, string? Diagnostic);
 public sealed record LocalIntegrityCheck(DateTimeOffset CheckedAt, string Status, bool SetBaseline, LocalFileCheck[] Files);
 public sealed record InformativeMatch(RemoteSelection Candidate, string[] Reasons, DateTimeOffset SelectedAt);
+public sealed record ModelUpdateAction(string TargetPath, string? SourcePath, string Action);
+public sealed record ModelUpdatePlan(RemoteSelection Installed, RemoteSelection Target,
+    string TargetName, ModelUpdateAction[] Actions, bool ExplicitChoice);
+public sealed record ModelUpdateObservation(DateTimeOffset LastAttempt, DateTimeOffset? LastSuccess,
+    string State, string Diagnostic, string? LastSuccessfulState, ModelUpdatePlan? Plan,
+    RemoteSelection? Followed = null, string? LastSuccessfulDiagnostic = null, string? FollowedName = null);
 // One unit, ordered files (first shard first), empty initial model configuration.
 public sealed record ModelRecord(Guid Id, string Name, RemoteSelection? Selection,
     InstalledFile[] Files, Dictionary<string, string> Parameters,
@@ -30,7 +36,8 @@ public sealed record ModelRecord(Guid Id, string Name, RemoteSelection? Selectio
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] LocalIntegrityCheck? IntegrityCheck = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] DateTimeOffset? RefreshedAt = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] DateTimeOffset? BaselineAt = null,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] InformativeMatch? InformativeMatch = null);
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] InformativeMatch? InformativeMatch = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] ModelUpdateObservation? Update = null);
 public sealed record PresetRecord(Guid Id, string Name, Guid? ModelId,
     Dictionary<string, string> Parameters);
 public sealed record ServerRecord(Guid Id, string Name, [property: JsonIgnore(Condition = JsonIgnoreCondition.Never)] BackendSelection? Backend,
@@ -89,6 +96,7 @@ public sealed record BackendInstallPlan(string RequestedRelease, Guid BackendId,
 [JsonSerializable(typeof(BackendRecord))]
 [JsonSerializable(typeof(BackendRetentionJournal))]
 [JsonSerializable(typeof(ModelRecord))]
+[JsonSerializable(typeof(RemoteSelection))]
 [JsonSerializable(typeof(PresetRecord))]
 [JsonSerializable(typeof(ServersDocument))]
 [JsonSerializable(typeof(ConfigDocument))]

@@ -252,6 +252,49 @@ public static class ContractValidation
             foreach (var reason in match.Reasons!) Text(reason);
         }
 
+        if (value.Update is { } update)
+        {
+            Require(value.Ownership == "managed" && update.LastAttempt != default, "Consulta sólo para gestionados.");
+            Require(update.State is "unchanged" or "update-available" or "intervention-required" or "query-failed" or "orphaned", "Estado de consulta inválido.");
+            Text(update.Diagnostic);
+            Require(update.LastSuccess is null || update.LastSuccess != default, "Fecha de éxito inválida.");
+            Require(update.LastSuccess is null ? update.LastSuccessfulState is null :
+                update.LastSuccessfulState is "unchanged" or "update-available" or "intervention-required" or "orphaned", "Observación anterior inválida.");
+            if (update.LastSuccessfulDiagnostic is not null) Text(update.LastSuccessfulDiagnostic);
+            void Pinned(RemoteSelection selection)
+            {
+                Remote(selection);
+                Coquena.Models.HuggingFaceStore.ValidateRepository(selection.Repository);
+                Require(Coquena.Models.HuggingFaceStore.Hex(selection.Commit, 40), "Selección sin commit fijo.");
+                foreach (var file in selection.Files) Coquena.Models.HuggingFaceStore.ValidatePath(file.Path);
+            }
+            if (update.Followed is { } followed) Pinned(followed);
+            if (update.FollowedName is { } followedName)
+            {
+                var tracking = Coquena.Models.ModelRequest.Parse(followedName);
+                Require(update.Followed is not null && tracking.Repository == update.Followed.Repository &&
+                    tracking.CompanionType == value.CompanionType && tracking.Quantization is not null, "Nombre seguido inválido.");
+            }
+            if (update.Plan is { } plan)
+            {
+                Pinned(plan.Installed); Pinned(plan.Target); Text(plan.TargetName);
+                var request = Coquena.Models.ModelRequest.Parse(plan.TargetName);
+                Require(request.Repository == plan.Target.Repository && request.CompanionType == value.CompanionType && request.Quantization is not null,
+                    "Nombre destino incompatible con unidad.");
+                Require(ContractJson.Write(plan.Installed, ContractJsonContext.Default.RemoteSelection) ==
+                    ContractJson.Write(value.Selection!, ContractJsonContext.Default.RemoteSelection), "Plan de otra instalación.");
+                Require(plan.Actions is not null && plan.Actions.Length == plan.Target.Files.Length, "Plan incompleto.");
+                for (var i = 0; i < plan.Actions!.Length; i++)
+                {
+                    var action = plan.Actions[i];
+                    Require(action is not null && action.TargetPath == plan.Target.Files[i].Path, "Acción sin correspondencia.");
+                    Coquena.Models.HuggingFaceStore.ValidatePath(action!.TargetPath);
+                    Require(action.Action is "reuse" or "download", "Acción inválida.");
+                    Require(action.Action == "download" ? action.SourcePath is null :
+                        plan.Installed.Files.Any(f => f.Path == action.SourcePath && Coquena.Models.ModelUpdateComparer.Same(f.Identity, plan.Target.Files[i].Identity)), "Reutilización sin identidad exacta.");
+                }
+            }
+        }
         Parameters(value.Parameters);
         if (value.IntegrityCheck is { } check)
         {
