@@ -80,6 +80,7 @@ public sealed partial class ServerRuntime(Home home, LocalStore? storage = null)
             return new ServerStartResult(existing, false);
         }
         var plan = Manager.ComposeLocked(name);
+        Coquena.Models.ModelInstaller.CheckUpgradeReservations(home, store, plan.Presets.ResourceIds);
         RetainLogs(name, null, output);
         ProbePort(plan.Parameters["host"].GetString()!, plan.Parameters["port"].GetInt32());
         var id = Guid.NewGuid();

@@ -28,6 +28,7 @@ public static class Cli
             output.WriteLine("Novedades: backend update [selector-latest] (todos los seguimientos o [ggml/|oficial/]cpu|vulkan|cuda@<mayor>:latest); backend list muestra la última consulta guardada. No descarga ni instala.");
             output.WriteLine("Configuración: config log-retention show | config log-retention set <tamaño> | config log-retention unset");
             output.WriteLine("Actualización: backend upgrade [selector-latest] aplica el candidato guardado por update; reutiliza un build instalado tras validarlo. No cambia pins ni instancias activas.");
+            output.WriteLine("Modelos: model upgrade [nombre] | model companion upgrade [nombre] aplica planes resueltos por update, con commit fijo; bloqueo en uso, reanudación/cancelación por GUID.");
             output.WriteLine("Builds: config backend-retention show | set <cantidad> | unset (inicial: 5 por distribución/familia/plataforma; limpieza sólo tras upgrade exitoso).");
             output.WriteLine("Catálogo de fábrica: config param-reset [--dry-run] (requiere confirmación para aplicar)");
             output.WriteLine("Directorios: config models-dir show | set <ruta> | unset; config backends-dir show | set <ruta> | unset (rutas relativas al home; elección interactiva de traslado)");

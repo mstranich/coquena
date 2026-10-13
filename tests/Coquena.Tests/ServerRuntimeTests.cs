@@ -95,6 +95,14 @@ internal static class ServerRuntimeTests
             Check(Log(first).Contains("stderr ready") && Log(first).Contains("--metrics"), "stdout/stderr and static flags");
             Check(first.Port == manager.View(null).Effective["port"].GetInt32() && Log(first).Contains("--port|" + first.Port), "start emits persisted explicit port");
             Check(runtime.Recover("default")?.InstanceId == first.InstanceId, "fresh manager recovers detached");
+            var modelTarget = model.Selection! with { Commit = new string('b', 40) };
+            var modelWithPlan = model with { Update = new(DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, "update-available", "fixture",
+                "update-available", new(model.Selection!, modelTarget, model.Name, [new("single.gguf", null, "download")], false)) };
+            store.Update(DocumentKind.Models, json.ModelsDocument, ContractValidation.Models, _ => new(1, [modelWithPlan]));
+            try { new Coquena.Models.ModelInstaller(home).CreateUpgrade(modelWithPlan); throw new Exception("Expected live model blocker"); }
+            catch (Coquena.Downloads.DownloadException e)
+            { Check(e.Code == "model-in-use" && e.Message.Contains(first.InstanceId.ToString("D")), "model upgrade blocks verified live instance before download"); }
+            store.Update(DocumentKind.Models, json.ModelsDocument, ContractValidation.Models, _ => new(1, [model]));
             // Advancing latest through the real upgrade path preserves a verified
             // active instance and protects its old build even with retention one.
             var upgradeCatalog = store.Read(DocumentKind.Backends, json.BackendsDocument, ContractValidation.Backends)!;
@@ -178,6 +186,28 @@ internal static class ServerRuntimeTests
             var alreadyStopped = Cli(["server", "other", "stop"]);
             Check(alreadyStopped.Code == 0 && alreadyStopped.Out.Contains("sin instancia activa"), "named stop is idempotent for stopped server");
             Check(Cli(["server", "missing", "stop"]).Code == 1, "missing named server is diagnosed");
+
+            store.Update(DocumentKind.Models, json.ModelsDocument, ContractValidation.Models, _ => new(1, [modelWithPlan]));
+            Coquena.Contracts.OperationDocument? reservedUpgrade = null;
+            ServerStartResult? racedStart = null;
+            using (var race = new Barrier(2))
+            {
+                Parallel.Invoke(
+                    () => { race.SignalAndWait(); try { racedStart = new ServerRuntime(home).Start("default", true, TextWriter.Null); } catch (ConfigurationException) { } },
+                    () => { race.SignalAndWait(); try { reservedUpgrade = new Coquena.Models.ModelInstaller(home).CreateUpgrade(modelWithPlan); } catch (Coquena.Downloads.DownloadException e) when (e.Code == "model-in-use") { } });
+            }
+            Check((reservedUpgrade is null) != (racedStart is null), "start/upgrade race has exactly one winner under common lease");
+            if (racedStart is not null)
+            {
+                live.Add(racedStart.Instance); Wait(() => Log(racedStart.Instance).Contains("ready"));
+                runtime.Stop(racedStart.Instance.InstanceId, output);
+            }
+            if (reservedUpgrade is not null)
+            {
+                var upgradeInstaller = new Coquena.Models.ModelInstaller(home);
+                upgradeInstaller.Downloads.ControlAsync(reservedUpgrade.Id, true, beforeCancel: upgradeInstaller.CancelAsync).GetAwaiter().GetResult();
+            }
+            store.Update(DocumentKind.Models, json.ModelsDocument, ContractValidation.Models, _ => new(1, [model]));
 
             var consoleId = Guid.NewGuid(); var consoleLog = Path.Combine(root, "detached-console.txt");
             int consolePid;

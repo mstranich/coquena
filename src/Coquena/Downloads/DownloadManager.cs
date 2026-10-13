@@ -262,6 +262,8 @@ public sealed class DownloadManager(Home home, LocalStore? storage = null)
         }
         try
         {
+            if (value.ModelInstall?.Previous is not null)
+                value = await new ModelInstaller(home, store).PrepareUpgradeAsync(value, stopped.Token);
             if (finalize is not null && value.Phase is "publishing" or "cleanup")
                 return await finalize(value, stopped.Token);
             value = Save(value with { State = "downloading", Phase = "transfer", Diagnostic = null, UpdatedAt = DateTimeOffset.UtcNow });

@@ -1,0 +1,33 @@
+OK: 14 casos administrados y 14 casos del ejecutable publicado.
+OK: contratos M1, round-trip y diagnósticos negativos (sin E/S de proveedor).
+OK: 73 comprobaciones config/presets/INI con CLI Native AOT.
+OK: 174 comprobaciones del catálogo de parámetros con CLI nativa.
+OK: 49 comprobaciones de políticas de retención con CLI Native AOT.
+OK: 72 comprobaciones de servidores con CLI nativa.
+OK: 22 comprobaciones de métricas y retención.
+OK: 77 comprobaciones de ciclo de procesos con CLI nativa.
+OK: home, persistencia, escritores concurrentes/procesos, corrupción, fallos y JSONL limitado.
+OK: 185 comprobaciones de backends (fixtures sin binarios/pesos, metadatos simulados).
+Operación 6f3e66c5-3c29-4b8b-a256-3f60667efadb en primer plano.
+6f3e66c5-3c29-4b8b-a256-3f60667efadb | model | fixture | paused/transfer
+  file0.gguf: 3/6 bytes | paused | models/fixture/file0.gguf
+  Total: 3/6 bytes
+coquena download resume 6f3e66c5-3c29-4b8b-a256-3f60667efadb
+Operación 1a7f5a07-d635-4fe2-9a30-80c7a6d4a77e en primer plano.
+1a7f5a07-d635-4fe2-9a30-80c7a6d4a77e: cancelación y limpieza completadas.
+OK: download 54 assertions; HTTP fixtures, foreground and cross-process controls.
+OK: 56 comprobaciones de instalación/reinstalación de backends.
+OK: 32 comprobaciones de backends externos.
+OK: 52 comprobaciones de backend update.
+OK: 51 comprobaciones de upgrade/retención y CLI Native AOT.
+OK: 103 comprobaciones de directorios de backends (traslado, fusión, recuperación y volúmenes).
+OK: 217 comprobaciones 015, metadata, resolución, HTTP acotado y selección Google.
+OK: 168 comprobaciones HF/selección; sin pesos, GUID ni persistencia.
+OK: 127 comprobaciones GGUF/integridad.
+OK: 160 comprobaciones de descarga/publicación de modelos; fixtures, recuperación y CLI Native AOT.
+OK: 66 comprobaciones de directorio de modelos.
+OK: 44 comprobaciones de modelos externos.
+OK: 28 comprobaciones de refresh/integridad local.
+OK: 24 comprobaciones de emparejamiento externo.
+OK: 49 comprobaciones de model update.
+OK: 101 comprobaciones upgrade modelos.

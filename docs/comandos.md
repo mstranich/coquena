@@ -191,6 +191,11 @@ Si hay candidatos, un menú muestra opciones y razones y permite elegir o cancel
 el empate. Cancelar conserva el registro local; elegir guarda sólo equivalencia informativa.
 Sin terminal interactiva, el alta se conserva sin emparejamiento ni consultas remotas.
 `update` guarda novedades y `upgrade` aplica la revisión detectada sólo a gestionados.
+Upgrade muestra el GUID y el commit fijado de cada operación. Si se interrumpe, se
+continúa con `download resume <guid>`; `download cancel <guid>` conserva la instalación
+anterior o termina la limpieza si la nueva ya fue publicada. Mientras exista la
+operación de upgrade, se bloquea iniciar una instancia que use esa unidad y modificar
+su registro mediante update, refresh o verify; primero se reanuda o cancela el trabajo.
 
 `model download usuario/repositorio[:cuantización]` selecciona una unidad completa.
 Omitir cuantización conserva el menú acordado; al elegirla se determina el nombre

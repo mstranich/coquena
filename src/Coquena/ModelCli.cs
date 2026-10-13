@@ -16,7 +16,7 @@ public static class ModelCli
         var companion = args.Length > 0 && args[0] == "companion";
         if (companion) args = args[1..];
         if (!(args.Length == 1 && args[0] == "list" || args.Length == 2 && args[0] == "download" ||
-            args.Length is 1 or 2 && args[0] == "update" ||
+            args.Length is 1 or 2 && args[0] is "update" or "upgrade" ||
             args.Length == 2 && args[0] is "refresh" or "verify" ||
             args.Length == 3 && args[0] == "verify" && args[2] == "--set-baseline" ||
             args.Length is 4 or 5 && args[0] == "add" && args[2] == "--name" &&
@@ -28,6 +28,47 @@ public static class ModelCli
             var request = args[0] == "download" ? ModelRequest.Parse(args[1]) : null;
             if (request is not null && companion != (request.CompanionType is not null)) throw new ModelSourceException("invalid-selector", "Use model download para principales y model companion download con #mmproj o #mtp para auxiliares.");
             installer ??= new ModelInstaller(Home.Resolve());
+            if (args[0] == "upgrade")
+            {
+                var units = installer.Updates.Scope(args.Length == 2 ? args[1] : null, companion);
+                using var stoppedUpgrade = CancellationTokenSource.CreateLinkedTokenSource(cancellation);
+                ConsoleCancelEventHandler upgradeHandler = (_, e) => { e.Cancel = true; stoppedUpgrade.Cancel(); };
+                Console.CancelKeyPress += upgradeHandler;
+                using var provider = transport is null ? new HuggingFaceTransport() : null;
+                var failed = false;
+                try
+                {
+                    foreach (var unit in units)
+                    {
+                        if (stoppedUpgrade.IsCancellationRequested) break;
+                        if (unit.Ownership == "external") { output.WriteLine($"{unit.Name} | no aplica: externo."); continue; }
+                        if (unit.Update is not { State: "update-available", Plan: not null })
+                        {
+                            output.WriteLine($"{unit.Name} | {unit.Update?.State ?? "sin plan; ejecutar update"}");
+                            failed |= unit.Update?.State != "unchanged";
+                            continue;
+                        }
+                        Guid? operationId = null;
+                        try
+                        {
+                            var operation = installer.CreateUpgrade(unit); operationId = operation.Id;
+                            output.WriteLine($"{unit.Name} | operación {operation.Id:D} @ {operation.ModelSelection!.Commit}");
+                            var result = installer.Downloads.RunAsync(operation.Id, transport ?? provider!, progress: o => DownloadCli.Show(o, output),
+                                cancellation: stoppedUpgrade.Token, finalize: installer.FinalizeAsync, beforeCancel: installer.CancelAsync).GetAwaiter().GetResult();
+                            if (result is null) output.WriteLine($"{unit.Name} | upgrade y limpieza completados.");
+                            else { output.WriteLine($"coquena download resume {operation.Id:D}"); failed |= result.State == "failed"; }
+                        }
+                        catch (Exception e) when (e is DownloadException or StorageException or ContractException or IOException or UnauthorizedAccessException or ModelSourceException)
+                        {
+                            output.WriteLine($"{unit.Name} | fallo por unidad: {e.Message}"); failed = true;
+                            if (operationId is { } id) output.WriteLine($"coquena download resume {id:D}");
+                        }
+                    }
+                    if (units.Length == 0) output.WriteLine("Sin unidades registradas en el ámbito solicitado.");
+                    return failed ? 1 : 0;
+                }
+                finally { Console.CancelKeyPress -= upgradeHandler; }
+            }
             if (args[0] == "update")
             {
                 var units = installer.Updates.Scope(args.Length == 2 ? args[1] : null, companion);
