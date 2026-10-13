@@ -28,7 +28,7 @@ public static class ServerCli
             "log-retention" => rest.Length == 1 && rest[0] is "show" or "unset" || rest.Length == 2 && rest[0] == "set",
             "create" => rest.Length == 1 || rest.Length == 3 && rest[1] == "--port" && int.TryParse(rest[2], out _),
             "default" => rest.Length <= 1 && (rest.Length == 0 || !ServerManager.Reserved.Contains(rest[0]) || rest[0] == "default"),
-            "list" or "show" or "ps" => rest.Length == 0,
+            "list" or "show" or "ps" or "remove" => rest.Length == 0,
             "logs" => rest.Length == 0 || rest.Length == 1 && rest[0] == "-f",
             "start" => rest.Length == 0 || rest.Length == 1 && rest[0] == "-d",
             "restart" => rest.Length == 0,
@@ -44,6 +44,12 @@ public static class ServerCli
             long? retention = action == "log-retention" && rest[0] == "set" ? LogRetentionPolicy.Parse(rest[1]) : null;
             var home = Home.Resolve();
             manager ??= new ServerManager(home);
+            if (action == "remove")
+            {
+                var removed = manager.Remove(name);
+                output.WriteLine($"Servidor retirado: {removed.Name} ({removed.Id:D}); recursos y logs conservados.");
+                return 0;
+            }
             if (action == "ps") { new ServerRuntime(home).Ps(output); return 0; }
             if (action == "logs")
             {

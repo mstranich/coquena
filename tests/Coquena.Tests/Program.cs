@@ -9,6 +9,8 @@ if (args.Length == 1 && args[0] == "--runtime-child")
 
 if (args.Length is 1 or 2 && args[0] == "--removal-tests")
 { Coquena.Tests.RemovalTests.Run(args.Length == 2 ? Path.GetFullPath(args[1]) : null); return; }
+if (args.Length is 1 or 2 && args[0] == "--server-removal-tests")
+{ Coquena.Tests.ServerRemovalTests.Run(args.Length == 2 ? Path.GetFullPath(args[1]) : null); return; }
 
 if (args.Contains("--models-preset")) { Coquena.Tests.ServerRuntimeTests.Fixture(args); return; }
 if (args.Length == 5 && args[0] == "--runtime-console-signal")
@@ -169,6 +171,7 @@ Coquena.Tests.ConfigurationTests.Run(executable);
 Coquena.Tests.ParameterTests.Run(executable);
 Coquena.Tests.RetentionTests.Run(executable);
 Coquena.Tests.ServerTests.Run(executable);
+Coquena.Tests.ServerRemovalTests.Run(executable);
 Coquena.Tests.ServerRuntimeTests.Run(executable);
 Coquena.Tests.StorageTests.Run();
 await Coquena.Tests.BackendTests.Run(executable);

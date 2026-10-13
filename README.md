@@ -47,7 +47,7 @@ depend on your selections.
 
 ```powershell
 .\coquena.exe --help
-.\coquena.exe system
+.\coquena.exe system probe
 .\coquena.exe backend remote
 .\coquena.exe backend install
 ```

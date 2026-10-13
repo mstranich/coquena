@@ -35,7 +35,7 @@ public static class Cli
             output.WriteLine("Catálogo de fábrica: config param-reset [--dry-run] (requiere confirmación para aplicar)");
             output.WriteLine("Directorios: config models-dir show | set <ruta> | unset; config backends-dir show | set <ruta> | unset (rutas relativas al home; elección interactiva de traslado)");
             output.WriteLine("Presets: preset set <preset> <param> <valor> | preset bind <preset> <param> <recurso> | preset unset <preset> <param> | preset create <modelo> <nombre> | preset clone <preset> <nombre> [--model M] | preset model set <preset> <modelo> | preset list [--model M] | preset <show|remove> <nombre>");
-            output.WriteLine("Parámetros: param list | param show <param> [--backend ID|--version RELEASE [--distribution ORIGEN]]");
+            output.WriteLine("Parámetros: param list [--backend ID|--version RELEASE [--distribution ORIGEN]] | param show <param> [--backend ID|--version RELEASE [--distribution ORIGEN]]");
             output.WriteLine("Catálogo oficial: param define <param> --type integer|decimal|string|boolean|flag|enum --scope model|server --target cli|ini [--description TEXTO] [--default VALOR] [--alias=ALIAS]... [--values VALOR]...");
             output.WriteLine("Edición: param edit <param> [opciones] [--clear-default|--clear-description|--clear-aliases] [--dry-run] | param remove <param> [--dry-run]");
             output.WriteLine("Soporte: param support set <param> [ggml/FAMILIA|oficial/FAMILIA|--backend ID] [--from bNNNN] [--until bNNNN] [--dry-run] | param support remove <param> [selector|--backend ID] [--dry-run]");
@@ -44,6 +44,7 @@ public static class Cli
             output.WriteLine("Procesos: server [nombre] start [-d] | server [nombre] stop | server stop --id <id-instancia> | server [nombre] restart");
             output.WriteLine("Retención: server [nombre] log-retention show | set <tamaño> | unset (inicial: 100 MiB; admite B, KB/MB/GB, KiB/MiB/GiB)");
             output.WriteLine("Consulta: server ps | server [nombre] logs [-f] (Ctrl+C termina sólo el seguimiento)");
+            output.WriteLine("Retirada de servidor: server [nombre] remove (sólo detenido; conserva recursos asociados y logs)");
             output.WriteLine("Primer plano: Ctrl+C solicita parada (10 s); segundo Ctrl+C fuerza cierre inmediato.");
             output.WriteLine("Instalación de backends oficiales y modelos públicos HF, con controles locales de descarga.");
             return 0;
