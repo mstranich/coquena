@@ -169,7 +169,7 @@ else candidatos disponibles
   alt otra colisión, transición cancelada o error local
     C --> U : explicar; no iniciar descarga
   else nombre libre o transición aceptada
-    C -> D : crear operación con selección y commit fijados\nsin companions
+    C -> D : crear operación con selección y commit fijados\nsin companions; transición reserva unidad sin uso activo
     D --> U : GUID de operación\nla terminal queda ocupada
     loop cada archivo de la unidad
       D -> HF : descargar archivo del commit fijado
@@ -190,7 +190,7 @@ else candidatos disponibles
       D -> D : detener escritores; guardar fallo y parciales
       D --> U : no instalada; GUID y comando resume\ndevolver prompt
     else conjunto completo y verificado
-      D -> I : coordinar destino y catálogo\ncomprobar nombre libre o externo de partida vigente\nen transición conservar ID y referencias
+      D -> I : coordinar destino y catálogo\ncomprobar nombre libre o externo de partida vigente\nen transición conservar ID y referencias\nsin usar destinos externos originales
       I --> D : instalación registrada / conflicto / error
       opt publicación y limpieza completadas
         D -> D : registrar resultado en log\ny eliminar downloads/<guid> incluido JSON

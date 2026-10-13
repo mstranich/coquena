@@ -49,3 +49,41 @@ Mantener cada entrega acotada; enlazar las reglas canónicas en vez de copiarlas
 - Comprobar dependencias en ese camino antes de adoptarlas; no posponer AOT al final.
 - Informar cambios, verificaciones realmente ejecutadas, limitaciones y siguiente paso.
 - No presentar un borrador, un diagrama válido o una compilación como funcionalidad terminada.
+
+## Reporte de hallazgos para Code Review
+
+Al entregar una tarea, incluir en el chat un reporte orientado a hallazgos que merecen
+evaluación; la evidencia en la tarjeta no sustituye este reporte. Su propósito es
+facilitar la revisión del código y evaluar consecuencias funcionales, técnicas y de
+escalabilidad, además de informar las pruebas ejecutadas. Las decisiones tomadas son
+contexto del hallazgo, no una lista de tareas pendientes.
+
+- Distinguir decisiones resueltas por los requisitos, sin consecuencias que requieran
+  seguimiento, de hallazgos que revelan restricciones, contradicciones, asunciones o
+  posibilidades de mejora. Informar brevemente las primeras; desarrollar los segundos
+  sin presentar toda decisión de implementación como un problema.
+- Para cada hallazgo, incluir un título concreto, qué se observó, cómo quedó implementado,
+  el fundamento de la decisión (documentación canónica, código existente o asunción
+  propia), su impacto y qué queda por evaluar. Distinguir hechos comprobados de riesgos
+  o hipótesis; que las pruebas pasen no demuestra que la política elegida sea la deseada.
+- Las dudas pueden aparecer durante el trabajo. Consultar primero la documentación,
+  la tarjeta y sus dependencias; si no resuelven una decisión que afecta comportamiento
+  o alcance, preguntar y detener sólo el trabajo afectado. El reporte final no sustituye
+  esa consulta ni convierte una asunción en una regla aprobada.
+- Explicar los cambios en documentación funcional: qué problema revelan y si aclaran
+  una regla existente o incorporan una decisión nueva. No adaptar las reglas al código
+  sin señalarlo expresamente para su evaluación.
+- Considerar el milestone actual y los siguientes documentados, incluso cuando sólo
+  declaren intenciones y todavía no tengan tareas definidas. Señalar decisiones que
+  puedan condicionar su evolución; distinguir impactos comprobados de riesgos o
+  hipótesis. Ese horizonte no autoriza anticipar funciones ni ampliar la tarea.
+- Describir el problema antes de proponer una solución. Un hallazgo no es automáticamente
+  una tarea ni un compromiso: primero se evalúa si merece seguimiento en un registro
+  de hallazgos separado de LeanSpec. Varios hallazgos pueden analizarse juntos y alimentar
+  una propuesta común que luego origine una única tarea o las entregas necesarias.
+- Señalar relaciones entre hallazgos cuando ayuden a ese análisis. No crear registros,
+  propuestas o tarjetas ni absorber su implementación sin autorización; el reporte
+  deja las cuestiones disponibles para evaluación y no constituye otro backlog de tareas.
+- Ajustar el detalle a lo encontrado. Si no hubo hallazgos relevantes, indicarlo brevemente;
+  no inventar dudas ni tareas para completar el reporte. Cerrar la entrega indicando
+  validación ejecutada, limitaciones y estado de revisión/commit.

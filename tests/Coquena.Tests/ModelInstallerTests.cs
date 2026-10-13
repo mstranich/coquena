@@ -255,10 +255,130 @@ internal static class ModelInstallerTests
                 Check(ModelCli.Run(args, output, error, installer) == 2, "invalid syntax no work");
             await MenuTests(home, installer, single);
             await CompanionTests(executable);
+            await TransitionTests(executable);
             await TransportTests(op);
             Console.WriteLine($"OK: {checks} comprobaciones de descarga/publicación de modelos; fixtures, recuperación y CLI{(executable is null ? "." : " Native AOT.")}");
         }
         finally { if (Directory.Exists(root)) Directory.Delete(root, recursive: true); }
+    }
+
+    private static async Task TransitionTests(string? executable)
+    {
+        var root = Path.Combine(Path.GetTempPath(), "coquena-transition-" + Guid.NewGuid());
+        var home = new Home(root); var installer = new ModelInstaller(home); var store = new LocalStore(home);
+        var json = ContractJsonContext.Default;
+        try
+        {
+            foreach (var type in new string?[] { null, "mmproj", "mtp" })
+            {
+                var destination = type == "mmproj" ? Path.Combine(root, "configured-models") : null;
+                store.Update(DocumentKind.Config, json.ConfigDocument, ContractValidation.Config,
+                    _ => new(1, null, null, new(5), ModelsDirectory: destination));
+                byte[][] payload = type == "mtp" ? [Gguf(0), Gguf(1)] : [Gguf()];
+                var selected = Selected(payload, "owner/transition-" + (type ?? "main"));
+                if (type is not null) selected = selected with { Name = selected.Name.Replace(":", "#" + type + ":"), CompanionType = type };
+                var externalPath = Path.Combine(root, "original-" + (type ?? "main"), Path.GetFileName(selected.Selection.Files[0].Path));
+                Directory.CreateDirectory(Path.GetDirectoryName(externalPath)!);
+                for (var i = 0; i < payload.Length; i++) File.WriteAllBytes(Path.Combine(Path.GetDirectoryName(externalPath)!, Path.GetFileName(selected.Selection.Files[i].Path)), payload[i]);
+                var previous = installer.AddExternal(externalPath, selected.Name, type is not null);
+                previous = previous with { Parameters = new() { ["temperature"] = "0.4" } };
+                store.Update(DocumentKind.Models, json.ModelsDocument, ContractValidation.Models,
+                    d => d! with { Models = d.Models.Select(m => m.Id == previous.Id ? previous : m).ToArray() });
+                var preset = new PresetRecord(Guid.NewGuid(), "reference-" + (type ?? "main"), previous.Id, []);
+                store.Update(DocumentKind.Presets, json.PresetsDocument, ContractValidation.Presets,
+                    d => new(1, (d?.Presets ?? []).Append(preset).ToArray()));
+                Fails(() => installer.Create(selected), "model-collision");
+                var instance = new InstanceDocument(1, Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), "fixture", Environment.ProcessId,
+                    "detached", "127.0.0.1", 9931, false, [preset.Id], [previous.Id], "run/fixture/a.ini", "logs/fixture/a.log");
+                store.Update(DocumentKind.Instance, json.InstanceDocument, ContractValidation.Instance, _ => instance, server: "fixture");
+                Fails(() => installer.Create(selected, previous), "model-in-use");
+                File.Delete(home.PathFor("run/fixture/instance.json"));
+                var operation = installer.Create(selected, previous);
+                Check(operation.ModelInstall!.ExternalPrevious == previous && operation.ModelInstall.ModelId == previous.Id, "transition captures stable ID and original snapshot");
+                try { installer.Refresh(selected.Name, type is not null); throw new Exception("Expected pending transition"); }
+                catch (ModelSourceException e) { Check(e.Code == "upgrade-pending", "metadata mutations blocked during reserved transition"); }
+                Fails(() => installer.Create(selected, previous), "model-reserved");
+                using var stop = new CancellationTokenSource();
+                var paused = await Run(installer, operation, new Bytes(payload) { Pause = stop, PauseFile = payload.Length - 1 }, stop.Token);
+                Check(paused is { State: "paused" } && installer.ExternalTransition(selected.Name)?.Id == previous.Id, "pause keeps external even with partially transferred shards");
+                await installer.Downloads.ControlAsync(operation.Id, true, beforeCancel: installer.CancelAsync);
+                Check(installer.ExternalTransition(selected.Name)?.Id == previous.Id && File.ReadAllBytes(externalPath).SequenceEqual(payload[0]), "cancel before publication preserves external bytes and catalog");
+
+                operation = installer.Create(selected, previous);
+                var broken = payload.Select(b => b.ToArray()).ToArray(); broken[^1][^1] ^= 1;
+                var failed = await Run(installer, operation, new Bytes(broken));
+                Check(failed is { State: "failed" } && installer.ExternalTransition(selected.Name)?.Id == previous.Id, "digest failure never converts external");
+                await installer.Downloads.ControlAsync(operation.Id, true, beforeCancel: installer.CancelAsync);
+
+                operation = installer.Create(selected, previous);
+                var interrupted = new ModelInstaller(home, fault: s => { if (s == ModelInstallStage.AfterMove) throw new IOException("transition move interruption"); });
+                failed = await Run(interrupted, operation, new Bytes(payload));
+                Check(failed is { Phase: "publishing", State: "failed" } && installer.ExternalTransition(selected.Name)?.Id == previous.Id, "publication interruption keeps original record");
+                await installer.Downloads.ControlAsync(operation.Id, true, beforeCancel: installer.CancelAsync);
+                Check(operation.Files.All(f => !File.Exists(new ModelPaths(home).Destination(operation, f))) && File.Exists(externalPath), "cancel publication removes only prepared managed files");
+
+                operation = installer.Create(selected, previous);
+                failed = await Run(interrupted, operation, new Bytes(payload));
+                if (executable is null) await Run(installer, failed!, new NoNetwork());
+                else
+                {
+                    var result = await Native(executable, root, "download", "resume", operation.Id.ToString("D"));
+                    Check(result.Code == 0, "native CLI resumes persisted transition without fetching weights: " + result.Output);
+                }
+                var managed = installer.List().Single(m => m.Record.Id == previous.Id).Record;
+                Check(managed.Ownership == "managed" && managed.Selection?.Commit == Commit && managed.Parameters["temperature"] == "0.4" && managed.CompanionType == type, "complete transition preserves values and category");
+                Check(managed.InstallationDirectory == destination && managed.Files.All(f => File.Exists(new ModelPaths(home).File(managed, f))), "transition honors pinned configured directory");
+                Check(store.Read(DocumentKind.Presets, json.PresetsDocument, ContractValidation.Presets)!.Presets.Single(p => p.Id == preset.Id).ModelId == previous.Id, "preset references survive transition");
+                for (var i = 0; i < payload.Length; i++) Check(File.ReadAllBytes(previous.Files[i].LocalPath).SequenceEqual(payload[i]), "every original external shard stays intact");
+                Fails(() => installer.Create(selected, previous), "stale-transition-plan");
+            }
+            store.Update(DocumentKind.Config, json.ConfigDocument, ContractValidation.Config, _ => new(1, null, null, new(5)));
+
+            byte[][] single = [Gguf()]; var selection = Selected(single, "owner/stale-transition");
+            var missing = installer.AddExternal(Path.Combine(root, "missing.gguf"), selection.Name);
+            var op = installer.Create(selection, missing);
+            store.Update(DocumentKind.Models, json.ModelsDocument, ContractValidation.Models,
+                d => d! with { Models = d.Models.Select(m => m.Id == missing.Id ? m with { Parameters = new() { ["temperature"] = "0.8" } } : m).ToArray() });
+            var stale = await Run(installer, op, new Bytes(single));
+            Check(stale?.Diagnostic == "stale-transition-plan" && installer.ExternalTransition(selection.Name)!.Parameters["temperature"] == "0.8" && !File.Exists(home.PathFor(op.Files[0].DestinationPath)), "stale snapshot rejected before publication, missing original need not be read");
+            await installer.Downloads.ControlAsync(op.Id, true, beforeCancel: installer.CancelAsync);
+
+            selection = Selected(single, "owner/overlap-transition");
+            var samePath = home.PathFor("models/" + selection.Selection.Repository + "/" + selection.Selection.Files[0].Path);
+            Directory.CreateDirectory(Path.GetDirectoryName(samePath)!); File.WriteAllBytes(samePath, single[0]);
+            var overlap = installer.AddExternal(samePath, selection.Name);
+            Fails(() => installer.Create(selection, overlap), "destination-collision");
+            Check(File.ReadAllBytes(samePath).SequenceEqual(single[0]), "consent never adopts or overwrites an external path inside managed root");
+
+            selection = Selected(single, "owner/menu-transition");
+            var menuExternal = installer.AddExternal(Path.Combine(root, "menu-missing.gguf"), selection.Name);
+            using var client = new HttpClient(new Handler(request => new(HttpStatusCode.OK) { Content = new StringContent(
+                request.RequestUri!.AbsolutePath.EndsWith("/revision/main") ? $$"""{"id":"owner/menu-transition","sha":"{{Commit}}"}""" :
+                $$$"""[{"type":"file","path":"sub/Model-Q4_K_M.gguf","size":{{{single[0].Length}}},"oid":"{{{Commit}}}","lfs":{"oid":"{{{Digest(single[0]).Value}}}","size":{{{single[0].Length}}}}}]""") }));
+            using var output = new StringWriter(); using var error = new StringWriter();
+            foreach (var rejected in new int?[] { 1, null })
+            {
+                var menu = new Menu(0, rejected);
+                Check(ModelCli.Run(["download", selection.Name], output, error, installer, new(client), new NoNetwork(), menu,
+                    inspector: new ResolutionTests.NamedInspector()) == 0 && installer.Downloads.List().Length == 0 &&
+                    installer.ExternalTransition(selection.Name)?.Id == menuExternal.Id && menu.Options.Count == 2,
+                    "CLI reject/EOF after selection keeps external and creates no GUID");
+            }
+            var accepted = new Menu(0, -1, 0);
+            Check(ModelCli.Run(["download", selection.Name], output, error, installer, new(client), new Bytes(single), accepted,
+                inspector: new ResolutionTests.NamedInspector()) == 0 && error.ToString().Length == 0 &&
+                installer.List().Single(m => m.Record.Id == menuExternal.Id).Record.Ownership == "managed", "CLI repeats invalid choice and converts only after explicit acceptance");
+
+            selection = Selected(single, "owner/index-transition");
+            var original = installer.AddExternal(Path.Combine(root, "index-missing.gguf"), selection.Name);
+            op = installer.Create(selection, original);
+            var afterIndex = new ModelInstaller(home, fault: s => { if (s == ModelInstallStage.AfterIndex) throw new IOException("index interruption"); });
+            var indexed = await Run(afterIndex, op, new Bytes(single));
+            Check(indexed is { State: "failed", Phase: "publishing" } && installer.ExternalTransition(selection.Name) is null, "interrupted post-index transition is already managed");
+            await installer.Downloads.ControlAsync(op.Id, true, beforeCancel: installer.CancelAsync);
+            Check(installer.List().Single(m => m.Record.Id == original.Id).Record.Ownership == "managed" && installer.Downloads.List().Length == 0, "post-index cancel completes cleanup and preserves published transition");
+        }
+        finally { if (Directory.Exists(root)) Directory.Delete(root, true); }
     }
 
     private sealed class Handler(Func<HttpRequestMessage, HttpResponseMessage> response) : HttpMessageHandler

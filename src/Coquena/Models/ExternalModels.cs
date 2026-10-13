@@ -10,6 +10,7 @@ public sealed class ExternalModels(Home home)
         var store = new LocalStore(home);
         store.Update(DocumentKind.Models, ContractJsonContext.Default.ModelsDocument, ContractValidation.Models, catalog =>
         {
+            ModelInstaller.CheckUpgradeMutation(home, store, original.Id);
             var current = catalog?.Models.SingleOrDefault(m => m.Id == original.Id);
             if (current is null || ContractJson.Write(current, ContractJsonContext.Default.ModelRecord) !=
                 ContractJson.Write(original, ContractJsonContext.Default.ModelRecord))

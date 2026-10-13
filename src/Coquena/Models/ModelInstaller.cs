@@ -7,7 +7,7 @@ namespace Coquena.Models;
 public enum ModelInstallStage { AfterMove, AfterIndex, BeforeCleanup }
 public sealed record LocalModel(ModelRecord Record, string Availability, bool Changed, string[]? Diagnostics = null);
 
-// Initial acquisition and pinned managed upgrades; external transitions are separate.
+// Initial acquisition, explicit external transitions and pinned managed upgrades.
 public sealed partial class ModelInstaller(Home home, LocalStore? storage = null,
     Func<long>? availableBytes = null, Action<ModelInstallStage>? fault = null)
 {
@@ -30,7 +30,36 @@ public sealed partial class ModelInstaller(Home home, LocalStore? storage = null
         Json.OperationDocument, ContractValidation.Operation, _ => value, operation: value.Id);
     private static void Fail(string code) => throw new DownloadException(code, "Modelo no confirmado; no se sobrescriben archivos ni registros.");
 
-    public OperationDocument Create(SelectedModel selected)
+    public ModelRecord? ExternalTransition(string name) => Catalog().Models.SingleOrDefault(m =>
+        m.Ownership == "external" && m.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
+
+    private ModelRecord NextInstall(OperationDocument operation)
+    {
+        var plan = operation.ModelInstall!;
+        return new(plan.ModelId, operation.Name, operation.ModelSelection!,
+            plan.VerifiedFiles!.Select(f => plan.InstallationDirectory is null ? f : f with { LocalPath = f.LocalPath[7..] }).ToArray(),
+            plan.ExternalPrevious?.Parameters ?? [], plan.InstallationDirectory,
+            CompanionType: ModelRequest.Parse(operation.Name).CompanionType);
+    }
+
+    private bool InstallPublished(OperationDocument operation)
+    {
+        var plan = operation.ModelInstall!;
+        var actual = Catalog().Models.SingleOrDefault(m => m.Id == plan.ModelId);
+        return actual is { Ownership: "managed" } && (plan.ExternalPrevious is null ||
+            plan.VerifiedFiles is not null && Snapshot(actual) == Snapshot(NextInstall(operation)));
+    }
+
+    private void CheckExternalCurrent(OperationDocument operation, bool allowPublished = false)
+    {
+        if (operation.ModelInstall!.ExternalPrevious is not { } previous) return;
+        var actual = Catalog().Models.SingleOrDefault(m => m.Id == previous.Id);
+        if (actual is null || Snapshot(actual) != Snapshot(previous) && !(allowPublished && InstallPublished(operation)))
+            Fail("stale-transition-plan");
+        CheckUsage(previous);
+    }
+
+    public OperationDocument Create(SelectedModel selected, ModelRecord? externalPrevious = null)
     {
         var request = ModelRequest.Parse(selected.Name);
         var selection = selected.Selection;
@@ -43,8 +72,9 @@ public sealed partial class ModelInstaller(Home home, LocalStore? storage = null
         return store.Exclusive(() =>
         {
             var operation = new OperationDocument(1, id, selected.CompanionType is null ? "model" : "companion", selected.Name, selection, null, files,
-                "pending", "transfer", DateTimeOffset.UtcNow, null, ModelInstall: new(Guid.NewGuid(), InstallationDirectory: store.Read(DocumentKind.Config, Json.ConfigDocument, ContractValidation.Config)?.ModelsDirectory));
+                "pending", "transfer", DateTimeOffset.UtcNow, null, ModelInstall: new(externalPrevious?.Id ?? Guid.NewGuid(), InstallationDirectory: store.Read(DocumentKind.Config, Json.ConfigDocument, ContractValidation.Config)?.ModelsDirectory, ExternalPrevious: externalPrevious));
             ValidatePlan(operation);
+            CheckExternalCurrent(operation);
             CheckCollision(operation, Catalog(), allowOwn: false);
             // A persisted plan reserves its name and paths, not a long-lived catalog lease.
             var area = home.PathFor("downloads");
@@ -73,6 +103,14 @@ public sealed partial class ModelInstaller(Home home, LocalStore? storage = null
             if (f.ExpectedSize is long size) required += Math.Max(0, size - f.ConfirmedBytes);
         // Advisory preflight; unknown totals and competing processes still require handling disk-full.
         var free = availableBytes?.Invoke() ?? new DriveInfo(Path.GetPathRoot(home.Root)!).AvailableFreeSpace;
+        if (operation.ModelInstall.ExternalPrevious is not null)
+        {
+            var targetRequired = operation.Files.Sum(f => (decimal)(f.ExpectedSize ?? 0));
+            var root = paths.Root(operation.ModelInstall.InstallationDirectory);
+            if (Equal(Path.GetPathRoot(root)!, Path.GetPathRoot(home.Root)!)) required += targetRequired;
+            var targetFree = availableBytes?.Invoke() ?? new DriveInfo(Path.GetPathRoot(root)!).AvailableFreeSpace;
+            if (targetRequired + 1048576 > targetFree) Fail("insufficient-space");
+        }
         if (required + 1048576 > free) Fail("insufficient-space");
     }
 
@@ -102,6 +140,13 @@ public sealed partial class ModelInstaller(Home home, LocalStore? storage = null
         var plan = operation.ModelInstall!;
         foreach (var record in catalog.Models)
         {
+            if (record.Ownership == "external" && record.Id == plan.ExternalPrevious?.Id)
+            {
+                // External paths must never be destinations, even after consent.
+                if (record.Files.Any(f => operation.Files.Any(n => paths.Destination(operation, n).Equals(paths.File(record, f), StringComparison.OrdinalIgnoreCase))))
+                    Fail("destination-collision");
+                continue;
+            }
             if (allowOwn && record.Id == plan.ModelId) continue;
             if (record.Id == plan.ModelId || record.Name.Equals(operation.Name, StringComparison.OrdinalIgnoreCase) ||
                 record.Files.Any(f => operation.Files.Any(n => paths.Destination(operation, n).Equals(paths.File(record, f), StringComparison.OrdinalIgnoreCase))))
@@ -185,10 +230,11 @@ public sealed partial class ModelInstaller(Home home, LocalStore? storage = null
             operation = store.Exclusive(() =>
             {
                 var catalog = Catalog(); plan = operation.ModelInstall!;
+                CheckExternalCurrent(operation, allowPublished: true);
                 CheckCollision(operation, catalog, allowOwn: true);
                 var existing = catalog.Models.SingleOrDefault(m => m.Id == plan.ModelId);
-                var next = new ModelRecord(plan.ModelId, operation.Name, operation.ModelSelection!, plan.VerifiedFiles!.Select(f => plan.InstallationDirectory is null ? f : f with { LocalPath = f.LocalPath[7..] }).ToArray(), [], plan.InstallationDirectory, CompanionType: ModelRequest.Parse(operation.Name).CompanionType);
-                if (existing is not null)
+                var next = NextInstall(operation);
+                if (existing is not null && existing.Ownership != "external")
                 {
                     if (ContractJson.Write(existing, Json.ModelRecord) != ContractJson.Write(next, Json.ModelRecord)) Fail("stale-install-plan");
                 }
@@ -215,7 +261,8 @@ public sealed partial class ModelInstaller(Home home, LocalStore? storage = null
                         operation = SaveLocked(operation with { ModelInstall = plan });
                     }
                     store.UpdateLocked(DocumentKind.Models, Json.ModelsDocument, ContractValidation.Models,
-                        _ => new(1, catalog.Models.Append(next).ToArray()));
+                        _ => new(1, plan.ExternalPrevious is null ? catalog.Models.Append(next).ToArray() :
+                            catalog.Models.Select(m => m.Id == plan.ModelId ? next : m).ToArray()));
                     fault?.Invoke(ModelInstallStage.AfterIndex);
                 }
                 return SaveLocked(operation with { State = "completed", Phase = "cleanup", Diagnostic = "cleanup-pending" });
@@ -232,7 +279,7 @@ public sealed partial class ModelInstaller(Home home, LocalStore? storage = null
     {
         if (operation.ModelInstall?.Previous is not null) return await CancelUpgradeAsync(operation);
         ValidatePlan(operation);
-        if (Catalog().Models.Any(m => m.Id == operation.ModelInstall!.ModelId))
+        if (InstallPublished(operation))
         { await FinalizeAsync(operation, CancellationToken.None); return true; }
         var plan = operation.ModelInstall!;
         if (plan.MovedFiles != 0 || plan.MovingFile != -1)
@@ -249,9 +296,10 @@ public sealed partial class ModelInstaller(Home home, LocalStore? storage = null
                 if (FileIntegrity.Compare(hash.Finish(), f.LocalIntegrity).Status != "verified") Fail("publication-integrity-failed");
                 operation = store.Exclusive(() =>
                 {
-                    if (IsInstalled(plan.ModelId)) Fail("stale-cancellation");
+                    if (InstallPublished(operation)) Fail("stale-cancellation");
                     if (File.Exists(target))
                     {
+                        if (Catalog().Models.Any(m => m.Files.Any(n => Equal(paths.File(m, n), target)))) Fail("model-collision");
                         if (File.Exists(partial) && Coquena.Configuration.ModelDirectoryManager.Hash(partial) != Coquena.Configuration.ModelDirectoryManager.Hash(target)) Fail("destination-collision");
                         Directory.CreateDirectory(Path.GetDirectoryName(partial)!);
                         if (!File.Exists(partial)) PublishFile(target, partial);
@@ -295,7 +343,7 @@ public sealed partial class ModelInstaller(Home home, LocalStore? storage = null
             fault?.Invoke(ModelInstallStage.BeforeCleanup);
             store.Exclusive(() =>
             {
-                if (!Catalog().Models.Any(m => m.Id == operation.ModelInstall!.ModelId)) Fail("stale-cleanup");
+                if (!InstallPublished(operation)) Fail("stale-cleanup");
                 var relative = $"downloads/{operation.Id:D}"; var area = home.PathFor(relative);
                 foreach (var entry in Directory.GetFileSystemEntries(area, "*", SearchOption.AllDirectories)) Home.CheckLinks(entry);
                 var files = home.PathFor(relative + "/files");
