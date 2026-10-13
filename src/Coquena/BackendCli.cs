@@ -11,6 +11,8 @@ public static class BackendCli
         Func<HardwareContext>? inspect = null, OfficialBackendSource? source = null,
         CancellationToken cancellation = default)
     {
+        if (args.Length >= 2 && args[0] == "backend" && args[1] == "uninstall")
+            return ResourceRemoval.Cli(args[2..], output, error, backend: true);
         if (args.Length >= 2 && args[0] == "backend" && args[1] == "upgrade")
             return Upgrade(args, output, error, cancellation);
         if (args.Length >= 2 && args[0] == "backend" && args[1] == "update")

@@ -213,6 +213,11 @@ de los pendientes. No anunciar retiro completamente finalizado ni borrar silenci
 esa información. Contar sólo bytes de archivos efectivamente eliminados, no el tamaño
 previsto de toda la unidad. La eliminación parcial no convierte el resto en externo
 ni autoriza a retirar archivos de otras unidades.
+La unidad con retirada parcial permanece registrada como pendiente y no servible,
+con su identidad, propiedad e inventario originales. Repetir el mismo comando reintenta
+los archivos restantes; los archivos ya ausentes no suman bytes liberados en ese intento.
+Mientras esté pendiente no se permite iniciar ni modificar su instalación o trasladarla.
+El nombre queda reservado hasta completar la retirada; los presets conservan sus IDs.
 La misma regla de propiedad rige para backends. Los presets que referencian una unidad
 retirada no se borran: pasan a **No servible** por *referencia rota*.
 La retirada se rechaza si una instancia activa utiliza la unidad, indicando sus IDs;
@@ -221,9 +226,9 @@ referencias guardadas sin uso por instancias activas no bloquean el retiro. Véa
 
 El catálogo central es `<home>/catalogs/models.json`, sin sidecars por archivo o shard.
 Los pesos siguen `models/<usuario>/<repositorio>/<ruta-remota>`, sin carpetas propias
-por cuantización. La estructura completa está en la guía técnica. Recuperación del índice
-y representación técnica de eliminaciones parciales requieren diseño; las reglas de
-propiedad y diagnóstico ya están definidas arriba.
+por cuantización. La estructura completa está en la guía técnica. El estado de retirada
+pendiente se guarda en el catálogo antes de borrar archivos. Sólo después de completar
+el borrado se quita el registro; una interrupción conserva el inventario para reintentar.
 
 ## Companions
 

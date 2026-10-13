@@ -116,6 +116,7 @@ public sealed class BackendDirectoryManager(Home home, LocalStore? storage = nul
 
     internal void CheckUsage(BackendsDocument catalog, BackendDirectoryMove[] moves)
     {
+        ResourceRemoval.CheckPending(home, store, catalog.Backends.Select(b => b.Id).ToArray());
         var blockers = new List<string>();
         bool Affected(string file) => moves.Any(m => BackendPaths.Within(file, m.Source) || BackendPaths.Within(file, m.Destination));
         var affected = catalog.Backends.Where(b => Affected(paths.Server(b))).Select(b => b.Id).ToHashSet();

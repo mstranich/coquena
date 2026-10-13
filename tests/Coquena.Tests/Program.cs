@@ -7,6 +7,9 @@ if (args.Length == 1 && args[0] == "--runtime-child")
     Thread.Sleep(Timeout.Infinite); return;
 }
 
+if (args.Length is 1 or 2 && args[0] == "--removal-tests")
+{ Coquena.Tests.RemovalTests.Run(args.Length == 2 ? Path.GetFullPath(args[1]) : null); return; }
+
 if (args.Contains("--models-preset")) { Coquena.Tests.ServerRuntimeTests.Fixture(args); return; }
 if (args.Length == 5 && args[0] == "--runtime-console-signal")
 { Environment.ExitCode = Coquena.Tests.ServerRuntimeTests.ConsoleSignal(args); return; }
@@ -161,6 +164,7 @@ Console.WriteLine($"OK: {cases.Length} casos administrados" +
     (executable is null ? "." : $" y {cases.Length} casos del ejecutable publicado."));
 
 Coquena.Tests.ContractTests.Run();
+Coquena.Tests.RemovalTests.Run(executable);
 Coquena.Tests.ConfigurationTests.Run(executable);
 Coquena.Tests.ParameterTests.Run(executable);
 Coquena.Tests.RetentionTests.Run(executable);

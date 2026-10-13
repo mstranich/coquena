@@ -15,6 +15,8 @@ public static class ModelCli
         Guid? active = null;
         var companion = args.Length > 0 && args[0] == "companion";
         if (companion) args = args[1..];
+        if (args.Length > 0 && args[0] == "remove")
+            return ResourceRemoval.Cli(args[1..], output, error, backend: false, companion: companion);
         if (!(args.Length == 1 && args[0] == "list" || args.Length == 2 && args[0] == "download" ||
             args.Length is 1 or 2 && args[0] is "update" or "upgrade" ||
             args.Length == 2 && args[0] is "refresh" or "verify" ||
@@ -201,7 +203,7 @@ public static class ModelCli
             }
             finally { Console.CancelKeyPress -= handler; }
         }
-        catch (Exception e) when (e is ModelSourceException or DownloadException or StorageException or ContractException or IOException or UnauthorizedAccessException or OperationCanceledException or ArgumentException or NotSupportedException)
+        catch (Exception e) when (e is ModelSourceException or DownloadException or StorageException or ContractException or IOException or UnauthorizedAccessException or OperationCanceledException or ArgumentException or NotSupportedException or Coquena.Configuration.ConfigurationException)
         {
             var code = e switch { ModelSourceException s => s.Code, DownloadException d => d.Code, StorageException s => s.Code,
                 ContractException c => c.Code, OperationCanceledException => "selection-interrupted", _ => "model-io-failed" };

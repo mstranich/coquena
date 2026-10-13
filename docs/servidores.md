@@ -197,6 +197,11 @@ diagnóstico de backend ausente. No confundirlo con un proceso huérfano.
 La protección de builds fijados en la limpieza automática no impide esta eliminación
 explícita cuando el backend no está en ejecución. Retirar un externo elimina sólo
 su registro; retirar un gestionado elimina sus archivos conforme a las reglas de propiedad.
+Cada instalación gestionada conserva un inventario de los archivos extraídos y de su
+marca de instalación, fijado antes de publicarla. La retirada explícita borra únicamente
+ese inventario; conserva archivos agregados después y carpetas no vacías. Una retirada
+parcial conserva el registro pendiente, bloquea el inicio y permite reintentar mediante
+el mismo ID. Default, pin y selecciones de servidores no autorizan una sustitución.
 
 Si se elimina el backend seleccionado, se conserva la configuración del servidor.
 El próximo inicio se rechaza con un diagnóstico; no se sustituye silenciosamente
