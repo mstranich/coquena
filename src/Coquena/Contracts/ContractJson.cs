@@ -245,6 +245,13 @@ public static class ContractValidation
                 : file!.RemotePath == value.Selection.Files[i].Path, "Orden/correspondencia de unidad inválido.");
             Text(file.LocalPath); Require(file.Size >= 0, "Tamaño negativo."); Identity(file.Integrity);
         }
+        if (value.InformativeMatch is { } match)
+        {
+            Require(value.Ownership == "external" && match.SelectedAt != default && match.Reasons is { Length: > 0 }, "Equivalencia informativa inválida.");
+            Remote(match.Candidate);
+            foreach (var reason in match.Reasons!) Text(reason);
+        }
+
         Parameters(value.Parameters);
         if (value.IntegrityCheck is { } check)
         {

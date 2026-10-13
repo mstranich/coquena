@@ -96,7 +96,7 @@ internal static class ExternalModelTests
             Check(ModelCli.Run(["companion", "list"], output, error, installer) == 0 && output.ToString().Contains(companion.Name) && !output.ToString().Contains(single.Name + " |"), "companion listing separate");
             output.GetStringBuilder().Clear();
             Check(ModelCli.Run(["list"], output, error, installer) == 0 && !output.ToString().Contains(companion.Name), "principal listing separate");
-            Check(ModelCli.Run(["add", file, "--name", "user/new:BF16", "--try-match"], output, error, installer) == 2, "unsupported flags rejected before registration");
+            Check(ModelCli.Run(["add", file, "--name", "user/new:BF16", "--try-match", "extra"], output, error, installer) == 2, "unsupported flags rejected before registration");
             // A pending managed download reserves canonical names and physical destinations.
             var pending = installer.Create(new("user/pending:BF16", null, new("user/pending", "main", new string('a', 40), [new("pending.gguf", 1)])));
             Reject(() => external.Add(Path.Combine(root, "unregistered.gguf"), pending.Name));

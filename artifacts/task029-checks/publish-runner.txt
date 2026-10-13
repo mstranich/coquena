@@ -1,0 +1,7 @@
+  Determinando los proyectos que se van a restaurar...
+  Se ha restaurado tests/Coquena.Tests/Coquena.Tests.csproj (en 192 ms).
+  1 de 2 proyectos están actualizados para la restauración.
+  Coquena -> src/Coquena/bin/Release/net10.0/win-x64/coquena.dll
+  Coquena.Tests -> tests/Coquena.Tests/bin/Release/net10.0/win-x64/Coquena.Tests.dll
+  Generating native code
+  Coquena.Tests -> artifacts/task029-tests-native/

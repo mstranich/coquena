@@ -18,7 +18,8 @@ public static class ModelCli
         if (!(args.Length == 1 && args[0] == "list" || args.Length == 2 && args[0] == "download" ||
             args.Length == 2 && args[0] is "refresh" or "verify" ||
             args.Length == 3 && args[0] == "verify" && args[2] == "--set-baseline" ||
-            args.Length == 4 && args[0] == "add" && args[2] == "--name"))
+            args.Length is 4 or 5 && args[0] == "add" && args[2] == "--name" &&
+                (args.Length == 4 || args[4] == "--try-match")))
         { error.WriteLine("Error: argumentos de model inválidos. Consulte coquena --help."); return 2; }
         try
         {
@@ -55,6 +56,26 @@ public static class ModelCli
                 var record = installer.AddExternal(args[1], args[3], companion);
                 output.WriteLine($"Registrado externo: {record.Id:D} | {record.Name}");
                 Show(installer.List().Single(m => m.Record.Id == record.Id));
+                if (args.Length == 5)
+                {
+                    using var client = source is null ? HuggingFaceStore.CreateClient() : null;
+                    using var stoppedMatch = CancellationTokenSource.CreateLinkedTokenSource(cancellation);
+                    ConsoleCancelEventHandler matchHandler = (_, e) => { e.Cancel = true; stoppedMatch.Cancel(); };
+                    Console.CancelKeyPress += matchHandler;
+                    try
+                    {
+                        var match = ExternalMatching.SelectAsync(record, source ?? new(client!), interaction ?? new Interaction(output), stoppedMatch.Token).GetAwaiter().GetResult();
+                        if (match is not null)
+                        {
+                            installer.SaveInformativeMatch(record, match);
+                            output.WriteLine("Equivalencia informativa guardada; externo sin seguimiento ni upgrade.");
+                        }
+                        else output.WriteLine("Alta local conservada sin emparejamiento.");
+                    }
+                    catch (Exception e) when (e is ModelSourceException or StorageException or ContractException or IOException or UnauthorizedAccessException or OperationCanceledException or HttpRequestException)
+                    { output.WriteLine($"Alta local conservada sin emparejamiento: {e.Message}"); }
+                    finally { Console.CancelKeyPress -= matchHandler; }
+                }
                 return 0;
             }
             if (args[0] == "list")
@@ -103,6 +124,8 @@ public static class ModelCli
             foreach (var file in entry.Record.Files) output.WriteLine($"  {file.LocalPath} | {(entry.Record.Ownership == "external" && file.LastWriteUtc is null ? "tamaño no observado" : $"{file.Size} bytes")}");
             if (entry.Changed) output.WriteLine("  Aviso: tamaño/fecha cambiaron; no se redefine integridad.");
             if (entry.Record.IntegrityCheck is { } check) output.WriteLine($"  Última integridad: {check.Status} | {check.CheckedAt:O}");
+            if (entry.Record.InformativeMatch is { } match)
+                output.WriteLine($"  Equivalencia informativa: {match.Candidate.Repository}@{match.Candidate.Commit} | {string.Join(", ", match.Candidate.Files.Select(f => f.Path))} | no certificada; sin seguimiento");
             foreach (var diagnostic in entry.Diagnostics ?? []) output.WriteLine("  " + diagnostic);
             if (entry.Availability != "available") output.WriteLine("  No servible: revisar rutas, lectura y cabeceras GGUF; no se reparan archivos externos.");
         }

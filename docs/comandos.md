@@ -189,6 +189,7 @@ las observaciones guardadas. Un registro incompleto o inaccesible no puede servi
 local permanece. Emparejar no habilita actualizaciones del externo.
 Si hay candidatos, un menú muestra opciones y razones y permite elegir o cancelar
 el empate. Cancelar conserva el registro local; elegir guarda sólo equivalencia informativa.
+Sin terminal interactiva, el alta se conserva sin emparejamiento ni consultas remotas.
 `update` guarda novedades y `upgrade` aplica la revisión detectada sólo a gestionados.
 
 `model download usuario/repositorio[:cuantización]` selecciona una unidad completa.
