@@ -56,7 +56,7 @@ al registrar un backend externo ni certifica su compatibilidad.
       ([020](../../specs/020-m2-config-models-dir/README.md)).
 - [x] Separar el sondeo de SO/hardware mediante system probe.
       ([021](../../specs/021-m2-system-probe/README.md)).
-- [ ] Clonar presets y completar referencias explícitas a companions.
+- [x] Clonar presets y completar referencias explícitas a companions.
       ([033](../../specs/033-m2-presets-clone-companions/README.md)).
 - [ ] Retirar recursos con protección de propiedad, uso y referencias.
       ([034](../../specs/034-m2-retirada-recursos/README.md)).

@@ -33,7 +33,7 @@ public static class Cli
             output.WriteLine("Builds: config backend-retention show | set <cantidad> | unset (inicial: 5 por distribución/familia/plataforma; limpieza sólo tras upgrade exitoso).");
             output.WriteLine("Catálogo de fábrica: config param-reset [--dry-run] (requiere confirmación para aplicar)");
             output.WriteLine("Directorios: config models-dir show | set <ruta> | unset; config backends-dir show | set <ruta> | unset (rutas relativas al home; elección interactiva de traslado)");
-            output.WriteLine("Presets: preset set <preset> <param> <valor> | preset unset <preset> <param> | preset create <modelo> <nombre> | preset model set <preset> <modelo> | preset list [--model M] | preset <show|remove> <nombre>");
+            output.WriteLine("Presets: preset set <preset> <param> <valor> | preset bind <preset> <param> <recurso> | preset unset <preset> <param> | preset create <modelo> <nombre> | preset clone <preset> <nombre> [--model M] | preset model set <preset> <modelo> | preset list [--model M] | preset <show|remove> <nombre>");
             output.WriteLine("Parámetros: param list | param show <param> [--backend ID|--version RELEASE [--distribution ORIGEN]]");
             output.WriteLine("Catálogo oficial: param define <param> --type integer|decimal|string|boolean|flag|enum --scope model|server --target cli|ini [--description TEXTO] [--default VALOR] [--alias=ALIAS]... [--values VALOR]...");
             output.WriteLine("Edición: param edit <param> [opciones] [--clear-default|--clear-description|--clear-aliases] [--dry-run] | param remove <param> [--dry-run]");

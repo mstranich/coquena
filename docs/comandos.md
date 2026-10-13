@@ -462,7 +462,7 @@ referencias y clonación están en [Presets](modelos-y-companions.md#presets).
 ** clone <preset> <nombre> [--model M]
 ** model set <preset> <modelo>
 ** set <preset> <param> <valor>
-** set <preset> <param> --ref <nombre>
+** bind <preset> <param> <nombre>
 ** unset <preset> <param>
 ** list [--model M]
 ** show <preset>
@@ -471,11 +471,18 @@ referencias y clonación están en [Presets](modelos-y-companions.md#presets).
 ```
 
 `set` asigna el valor, `unset` lo retira y `show` consulta el preset y sus parámetros.
-El valor posicional y `--ref` son alternativas excluyentes; no se usa un prefijo `@`.
+`bind` vincula un recurso registrado por su ID al parámetro indicado; su ruta se resuelve
+al ejecutar. `set` guarda un literal. Ambas asignaciones son excluyentes para el mismo
+parámetro: cada operación reemplaza la anterior y `unset` retira cualquiera de ellas.
+No se infieren referencias del texto ni se usa un prefijo `@`.
+
+`clone` requiere un nombre libre, conserva el modelo del origen salvo que se indique
+`--model` y copia las asignaciones a un preset independiente. No copia archivos ni
+asocia el clon a los servidores que usan el origen.
 
 ```text
 coquena preset set conversacion temperature 0.7
-coquena preset set conversacion mmproj --ref ggml-org/Qwen3.8-27B-GGUF#mmproj:BF16
+coquena preset bind conversacion mmproj ggml-org/Qwen3.8-27B-GGUF#mmproj:BF16
 ```
 
 ## Servidores e instancias

@@ -324,6 +324,11 @@ public static class ContractValidation
     public static void Preset(PresetRecord value)
     {
         Id(value.Id); Text(value.Name); if (value.ModelId is { } model) Id(model); Parameters(value.Parameters);
+        foreach (var binding in value.Bindings ?? [])
+        {
+            Text(binding.Key); Id(binding.Value);
+            Require(binding.Key != "model" && !value.Parameters.ContainsKey(binding.Key), "Asignación literal/referencia duplicada o model reservado.");
+        }
     }
     public static void Instance(InstanceDocument value)
     {

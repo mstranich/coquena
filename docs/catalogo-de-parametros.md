@@ -117,6 +117,15 @@ todo `0` o `1` como booleano. Para definiciones personalizadas el usuario declar
 Estas referencias a `master` fundamentan la distinción, no certifican el soporte en
 todos los releases. El catálogo conserva su aplicabilidad por binario y versión.
 
+## Asignaciones de recursos
+
+Las asignaciones de recursos se realizan mediante `preset bind`, con las
+[reglas de vínculos](modelos-y-companions.md#presets). El ID guardado se distingue de
+un literal del parámetro, aunque ambos produzcan un argumento textual al ejecutar.
+Al editar su definición, un vínculo sigue siendo compatible con texto de ámbito modelo;
+cambiarlo a otro tipo o ámbito lo incluye en la cascada confirmada. El informe conserva
+el ID referenciado. Modificar alias conserva la identidad del parámetro y del recurso.
+
 ## Valores predeterminados para formularios
 
 El valor predeterminado de una definición sirve para preasignar el campo al crear

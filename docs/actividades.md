@@ -209,7 +209,7 @@ stop
 ```plantuml
 @startuml
 start
-:preset set <preset> <param>\n--ref <nombre>;
+:preset bind <preset> <param> <nombre>;
 :Resolver la referencia sin\nconfundirla con una ruta literal;
 if (¿identifica un único registro?) then (no)
   :Rechazar con diagnóstico;
@@ -226,5 +226,5 @@ Registrar mediante `model companion add` no configura ni activa una funcionalida
 CPU/GPU y los ajustes de inferencia se expresan con parámetros normales del backend.
 La compatibilidad funcional se delega al backend al cargar la combinación; no hay
 validación ni modo forzado en Coquena para ella. Coquena conserva sus comprobaciones de
-referencias y disponibilidad, sin garantizar funcionamiento. `--ref` distingue una
+referencias y disponibilidad, sin garantizar funcionamiento. `bind` distingue una
 referencia por nombre canónico de un valor literal; no se infiere por el contenido del texto.

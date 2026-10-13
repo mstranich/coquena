@@ -39,7 +39,8 @@ public sealed record ModelRecord(Guid Id, string Name, RemoteSelection? Selectio
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] InformativeMatch? InformativeMatch = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] ModelUpdateObservation? Update = null);
 public sealed record PresetRecord(Guid Id, string Name, Guid? ModelId,
-    Dictionary<string, string> Parameters);
+    Dictionary<string, string> Parameters,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] Dictionary<string, Guid>? Bindings = null);
 public sealed record ServerRecord(Guid Id, string Name, [property: JsonIgnore(Condition = JsonIgnoreCondition.Never)] BackendSelection? Backend,
     Guid[] PresetIds, Dictionary<string, JsonElement> Parameters,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] LogRetention? LogRetention = null);
