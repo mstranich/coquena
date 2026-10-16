@@ -71,6 +71,26 @@ la persistencia, las transferencias y la ejecución del recorrido M1. La separac
 config/preset de [017](../../specs/017-configuracion-retencion-logs/README.md) es antecedente
 del recorrido integrado; su retención de logs conserva su entrega propia.
 
+## Correcciones posteriores a la aceptación
+
+La prueba de uso personal con Ornith motivó estas tareas de corrección, creadas
+el 16 de octubre de 2026. No reabren las entregas aceptadas ni acreditan que sus
+correcciones estén implementadas. El usuario autorizó publicar 0.2.0 el 16 de octubre
+de 2026 como resultado parcialmente exitoso, con estos problemas conocidos abiertos.
+
+- [036: checkpoints bajo contención](../../specs/036-m2-checkpoints-contencion/README.md)
+  — prioridad alta; reanudación y duración de secciones críticas de publicación.
+- [037: clasificación MTP](../../specs/037-m2-clasificacion-companions-mtp/README.md)
+  — distinguir drafts separados de principales cuyo nombre incluye MTP.
+- [038: rutas Windows en pruebas](../../specs/038-m2-pruebas-rutas-windows/README.md)
+  — evitar falsos negativos por capitalización sin debilitar identidad de procesos.
+- [039: codificación de procesos en pruebas](../../specs/039-m2-pruebas-codificacion-procesos/README.md)
+  — aislar y corregir la dependencia de la página de códigos.
+
+La [evidencia de la prueba](../../specs/035-m2-entrega-integrada/prueba-ornith.md)
+distingue mecanismos reproducidos, síntomas sin causa atribuida y límites.
+No hay dependencias bloqueantes entre estas cuatro correcciones.
+
 ## Alcance futuro que requiere aclaración
 
 Las definiciones YAML y la importación/exportación JSON de parámetros corresponden

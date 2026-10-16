@@ -25,7 +25,7 @@ backup completo del manager ni soporte automático de interfaces de servidor dis
 Los runtimes externos son ejecutables locales descargados manualmente por el usuario.
 La asociación manual de parámetros a esos ejecutables queda pendiente de definición;
 el catálogo oficial de 018 no certifica su soporte ni anticipa esa entrega.
-La antigua tarjeta exploratoria 036 se retira: sus casos de intercambio se concretan
+La tarjeta exploratoria original de intercambio se retiró; sus casos se concretan
 en estas dos clases de archivos. Las tarjetas de M3 se definirán al cerrar los
 pendientes canónicos; este milestone no autoriza implementación.
 
