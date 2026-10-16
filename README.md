@@ -20,9 +20,11 @@ The name brings that image to llama.cpp: a guardian that looks after your
 their environment ready for work. Read more about the legend in
 [this Perfil article (in Spanish)](https://www.perfil.com/noticias/cultura/el-coquena-la-leyenda-del-guardian-invisible-de-la-fauna-andina-y-las-leyes-del-cerro-a35.phtml).
 
-## First release: 0.1.0
+## Current version: 0.2.0
 
-Version 0.1.0 corresponds to M1: a local server. The current target is
+Version 0.2.0 includes catalog management, resource updates, external resource
+registration, companion management, preset cloning, and resource removal.
+The current target is
 **Windows x64**, with a Native AOT executable that **does not require .NET to be installed**.
 
 - Discovery and installation of official CPU, CUDA, and Vulkan backends.
@@ -95,6 +97,44 @@ effect the next time it starts.
 Data is stored in `%USERPROFILE%\.coquena` by default. Set the `COQUENA_HOME`
 environment variable to use a different directory.
 
+## Build and install from source (Windows x64)
+
+Prerequisites: Git, the .NET 10 SDK selected by `global.json`, and Visual Studio
+Build Tools with the Desktop development with C++ workload and a Windows SDK
+for Native AOT compilation.
+
+Run these commands in PowerShell to clone the repository, prepare dependencies,
+compile Native AOT packages, and install Coquena as a global .NET tool for your user:
+
+```powershell
+git clone https://github.com/mstranich/coquena.git
+cd coquena
+
+# Generate the tool entry package.
+dotnet pack .\src\Coquena\Coquena.csproj -c Release -p:PackAsTool=true -p:ToolCommandName=coquena -p:ToolPackageRuntimeIdentifiers=win-x64 -o .\artifacts\tool
+
+# Compile and package the Windows x64 native executable.
+dotnet pack .\src\Coquena\Coquena.csproj -c Release -r win-x64 -p:PackAsTool=true -p:ToolCommandName=coquena -p:ToolPackageRuntimeIdentifiers=win-x64 -o .\artifacts\tool
+
+# Install from the local packages.
+dotnet tool install --global coquena --version 0.2.0 --add-source .\artifacts\tool
+
+# Run from any directory.
+coquena --help
+```
+
+Both `dotnet pack` commands restore build dependencies automatically. They generate
+local packages; no upload or publication to a package server is required. The
+packaging properties are supplied on the command line, so no project edits are needed.
+
+Global tools are installed for the current user. If Windows cannot find `coquena`,
+ensure `%USERPROFILE%\.dotnet\tools` is on your user `PATH` and open a new terminal.
+The installed Native AOT executable does not need a separate .NET runtime.
+
+To reinstall a build from an updated checkout, repeat both packaging commands,
+then run `dotnet tool uninstall --global coquena` followed by the installation
+command above. Uninstalling the tool does not remove Coquena application data.
+
 ## Documentation
 
 The detailed documentation is currently in Spanish.
@@ -106,8 +146,8 @@ The detailed documentation is currently in Spanish.
 - [Models, downloads, and integrity](docs/modelos-y-companions.md).
 - [Verified M1 walkthrough](specs/014-m1-entrega-m1/recorrido.md): a complete
   two-model example, the resources used, and the test conditions.
-- [Milestone M2](docs/milestones/M2-gestion-completa.md): plans for the remaining
-  initial features.
+- [Milestone M2](docs/milestones/M2-gestion-completa.md): completed catalog
+  management scope and acceptance evidence.
 
 ## Authorship and license
 
