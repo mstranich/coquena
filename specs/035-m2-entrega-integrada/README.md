@@ -209,3 +209,11 @@ El usuario aprobó explícitamente la entrega el 13 de octubre de 2026 y solicit
 cerrar la tarea y crear un único commit con todo lo aprobado. Se cierra mediante
 LeanSpec con código, pruebas, documentación y evidencia en conjunto. No se publica
 un release como parte de este cierre.
+
+## Prueba posterior de uso personal
+
+El [recorrido con Ornith y preparación de 0.2.0](prueba-ornith.md) registra la
+prueba autorizada el 16 de octubre de 2026, sus incidencias y la evidencia local.
+El usuario autorizó después commit, tag, push y release 0.2.0 con binario Windows;
+las correcciones 036–039 permanecen abiertas. Las notas de publicación están en
+[release-0.2.0.md](release-0.2.0.md).
