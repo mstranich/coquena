@@ -13,6 +13,8 @@ $taskInfo.UseShellExecute = $false
 $taskInfo.CreateNoWindow = $true
 $taskInfo.RedirectStandardOutput = $true
 $taskInfo.RedirectStandardError = $true
+$taskInfo.StandardOutputEncoding = [Text.UTF8Encoding]::new($false, $true)
+$taskInfo.StandardErrorEncoding = [Text.UTF8Encoding]::new($false, $true)
 $taskVariables = @{}
 foreach ($taskEntry in [Environment]::GetEnvironmentVariables().GetEnumerator()) { $taskVariables[$taskEntry.Key] = $taskEntry.Value }
 $taskInfo.Environment.Clear()
