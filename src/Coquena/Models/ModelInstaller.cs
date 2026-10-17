@@ -4,7 +4,7 @@ using Coquena.Storage;
 
 namespace Coquena.Models;
 
-public enum ModelInstallStage { AfterMove, AfterIndex, BeforeCleanup }
+public enum ModelInstallStage { AfterMove, AfterIndex, BeforeCleanup, AfterPreparation, AfterPublicationRename }
 public sealed record LocalModel(ModelRecord Record, string Availability, bool Changed, string[]? Diagnostics = null);
 
 // Initial acquisition, explicit external transitions and pinned managed upgrades.
@@ -191,6 +191,7 @@ public sealed partial class ModelInstaller(Home home, LocalStore? storage = null
         var recovering = operation.Phase == "publishing";
         var plan = operation.ModelInstall!;
         var handles = new List<FileStream>();
+        var prepared = new List<PreparedPublication>();
         try
         {
             // Hold non-writing, delete-shared handles through moves/index publication on Windows.
@@ -220,6 +221,13 @@ public sealed partial class ModelInstaller(Home home, LocalStore? storage = null
             var map = logical.Select((p, i) => (p, actual[i])).ToDictionary(x => x.p, x => x.Item2, StringComparer.Ordinal);
             var unit = GgufInspection.InspectPaths(logical, cancellation, path => map.TryGetValue(path, out var mapped) ? mapped : path);
             if (unit.Status != "complete" || !unit.Expected.SequenceEqual(logical, StringComparer.Ordinal)) Fail("gguf-" + unit.Status);
+            cancellation.ThrowIfCancellationRequested();
+            // Copy/flush/hash on the destination volume without the home writer.
+            // The persisted operation reserves the destination; held handles protect
+            // the checked bytes until the short move/index commit below.
+            for (var i = 0; i < operation.Files.Length; i++)
+                prepared.Add(await PreparePublicationAsync(actual[i], logical[i], operation.Files[i].LocalIntegrity!, operation.Id, cancellation));
+            fault?.Invoke(ModelInstallStage.AfterPreparation);
             cancellation.ThrowIfCancellationRequested();
             if (!recovering)
             {
@@ -254,7 +262,7 @@ public sealed partial class ModelInstaller(Home home, LocalStore? storage = null
                         {
                             if (Directory.Exists(target)) Fail("destination-collision");
                             Directory.CreateDirectory(Path.GetDirectoryName(target)!);
-                            PublishFile(source, target);
+                            prepared[i].Commit();
                             fault?.Invoke(ModelInstallStage.AfterMove);
                         }
                         else if (!File.Exists(target)) Fail("publication-file-missing");
@@ -269,7 +277,11 @@ public sealed partial class ModelInstaller(Home home, LocalStore? storage = null
                 return SaveLocked(operation with { State = "completed", Phase = "cleanup", Diagnostic = "cleanup-pending" });
             });
         }
-        finally { foreach (var handle in handles) handle.Dispose(); }
+        finally
+        {
+            foreach (var file in prepared) file.Dispose();
+            foreach (var handle in handles) handle.Dispose();
+        }
         Cleanup(operation);
         return null;
     }
@@ -295,15 +307,15 @@ public sealed partial class ModelInstaller(Home home, LocalStore? storage = null
                 using var hash = new FileHashSession();
                 await hash.ReadPrefixAsync(held, held.Length);
                 if (FileIntegrity.Compare(hash.Finish(), f.LocalIntegrity).Status != "verified") Fail("publication-integrity-failed");
+                using var prepared = await PreparePublicationAsync(path, partial, f.LocalIntegrity!, operation.Id, CancellationToken.None);
                 operation = store.Exclusive(() =>
                 {
                     if (InstallPublished(operation)) Fail("stale-cancellation");
                     if (File.Exists(target))
                     {
                         if (Catalog().Models.Any(m => m.Files.Any(n => Equal(paths.File(m, n), target)))) Fail("model-collision");
-                        if (File.Exists(partial) && Coquena.Configuration.ModelDirectoryManager.Hash(partial) != Coquena.Configuration.ModelDirectoryManager.Hash(target)) Fail("destination-collision");
                         Directory.CreateDirectory(Path.GetDirectoryName(partial)!);
-                        if (!File.Exists(partial)) PublishFile(target, partial);
+                        prepared.Commit();
                         File.Delete(target);
                     }
                     plan = plan with { MovedFiles = i, MovingFile = -1 };
@@ -313,28 +325,89 @@ public sealed partial class ModelInstaller(Home home, LocalStore? storage = null
             Save(operation with { State = "paused", Phase = "transfer", Diagnostic = null,
                 ModelInstall = plan with { VerifiedFiles = null } });
         }
+        RemovePublicationTemporaries(operation);
         return false;
     }
 
-    private static void PublishFile(string source, string target)
+    private void RemovePublicationTemporaries(OperationDocument operation)
+    {
+        foreach (var file in operation.Files)
+        {
+            foreach (var target in new[] { paths.Destination(operation, file), home.PathFor(file.PartialPath) })
+            {
+                var temporary = target + $".coquena-{operation.Id:D}.tmp";
+                Home.CheckLinks(temporary);
+                if (File.Exists(temporary)) File.Delete(temporary);
+            }
+        }
+    }
+
+    private sealed class PreparedPublication(string temporary, string target, FileStream held, bool existing, Action afterRename) : IDisposable
+    {
+        private FileStream? destinationGuard;
+        public void Commit()
+        {
+            Home.CheckLinks(target);
+            if (existing)
+            {
+                if (!File.Exists(target)) Fail("publication-file-missing");
+                return;
+            }
+            // Reject a substituted pathname before moving it. This handle still
+            // shares delete so the move can run; a second check below closes the
+            // race between this check and File.Move.
+            using (var candidate = new FileStream(temporary, FileMode.Open, FileAccess.Read, FileShare.Read | FileShare.Delete))
+                if (!WindowsFileIdentity.Same(held, candidate)) Fail("publication-file-changed");
+            File.Move(temporary, target);
+            afterRename();
+            // Deny both writes and renames until index publication, then compare
+            // the locked destination to the handle whose bytes were hashed.
+            destinationGuard = new FileStream(target, FileMode.Open, FileAccess.Read, FileShare.Read);
+            if (!WindowsFileIdentity.Same(held, destinationGuard)) Fail("publication-file-changed");
+        }
+        public void Dispose()
+        {
+            destinationGuard?.Dispose();
+            held.Dispose();
+            if (!existing && File.Exists(temporary)) File.Delete(temporary);
+        }
+    }
+
+    private async Task<PreparedPublication> PreparePublicationAsync(string source, string target, ContentIdentity reference,
+        Guid operation, CancellationToken cancellation)
     {
         Home.CheckLinks(source); Home.CheckLinks(target);
-        if (File.Exists(target))
-        {
-            if (Coquena.Configuration.ModelDirectoryManager.Hash(source) != Coquena.Configuration.ModelDirectoryManager.Hash(target)) Fail("destination-collision");
-            return;
-        }
-        var temporary = target + ".coquena-" + Guid.NewGuid().ToString("N") + ".tmp";
+        var existing = File.Exists(target);
+        var temporary = existing ? target : target + $".coquena-{operation:D}.tmp";
+        Home.CheckLinks(temporary);
+        FileStream? held = null;
         try
         {
-            using (var input = new FileStream(source, FileMode.Open, FileAccess.Read, FileShare.Read))
-            using (var output = new FileStream(temporary, FileMode.CreateNew, FileAccess.Write, FileShare.None))
-            { input.CopyTo(output); output.Flush(true); }
-            File.SetLastWriteTimeUtc(temporary, File.GetLastWriteTimeUtc(source));
-            if (Coquena.Configuration.ModelDirectoryManager.Hash(source) != Coquena.Configuration.ModelDirectoryManager.Hash(temporary)) Fail("copy-verification-failed");
-            File.Move(temporary, target);
+            if (!existing)
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+                using var input = new FileStream(source, FileMode.Open, FileAccess.Read, FileShare.Read | FileShare.Delete, 65536, FileOptions.Asynchronous);
+                using (var output = new FileStream(temporary, FileMode.Create, FileAccess.Write, FileShare.None, 65536, FileOptions.Asynchronous))
+                {
+                    await input.CopyToAsync(output, cancellation);
+                    output.Flush(true);
+                }
+                File.SetLastWriteTimeUtc(temporary, File.GetLastWriteTimeUtc(source));
+            }
+            held = new FileStream(temporary, FileMode.Open, FileAccess.Read,
+                existing ? FileShare.Read : FileShare.Read | FileShare.Delete, 65536, FileOptions.Asynchronous);
+            using var hash = new FileHashSession();
+            await hash.ReadPrefixAsync(held, held.Length, cancellation);
+            if (FileIntegrity.Compare(hash.Finish(), reference).Status != "verified")
+                Fail(existing ? "destination-collision" : "copy-verification-failed");
+            return new(temporary, target, held, existing, () => fault?.Invoke(ModelInstallStage.AfterPublicationRename));
         }
-        finally { if (File.Exists(temporary)) File.Delete(temporary); }
+        catch
+        {
+            held?.Dispose();
+            if (!existing && File.Exists(temporary)) File.Delete(temporary);
+            throw;
+        }
     }
 
     private void Cleanup(OperationDocument operation)
@@ -342,6 +415,7 @@ public sealed partial class ModelInstaller(Home home, LocalStore? storage = null
         try
         {
             fault?.Invoke(ModelInstallStage.BeforeCleanup);
+            RemovePublicationTemporaries(operation);
             store.Exclusive(() =>
             {
                 if (!InstallPublished(operation)) Fail("stale-cleanup");

@@ -1,6 +1,13 @@
 using System.Diagnostics;
 using Coquena;
 
+if (args.Length == 1 && args[0] == "--contention-tests")
+{ await Coquena.Tests.ContentionTests.Run(); return; }
+if (args.Length == 3 && args[0] == "--contention-crash-worker")
+{ await Coquena.Tests.ContentionTests.CrashWorker(args[1], Guid.Parse(args[2])); return; }
+if (args.Length is 1 or 2 && args[0] == "--download-tests")
+{ await Coquena.Tests.DownloadTests.Run(args.Length == 2 ? Path.GetFullPath(args[1]) : null); return; }
+
 if (args.Length == 1 && args[0] == "--runtime-child")
 {
     Console.CancelKeyPress += (_, e) => e.Cancel = true;
@@ -176,6 +183,7 @@ Coquena.Tests.ServerRuntimeTests.Run(executable);
 Coquena.Tests.StorageTests.Run();
 await Coquena.Tests.BackendTests.Run(executable);
 await Coquena.Tests.DownloadTests.Run(executable);
+await Coquena.Tests.ContentionTests.Run();
 
 await Coquena.Tests.InstallerTests.Run(executable);
 await Coquena.Tests.ExternalBackendTests.Run(executable);

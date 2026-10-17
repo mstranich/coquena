@@ -1,14 +1,19 @@
 ---
-status: planned
+status: complete
 created: 2026-10-16
 priority: high
 tags:
 - m2
 - bugfix
 created_at: 2026-10-16T20:07:29.755753600Z
-updated_at: 2026-10-16T20:15:13.230780700Z
+updated_at: 2026-10-17T04:30:02.013413500Z
+completed_at: 2026-10-17T04:30:02.013413500Z
+transitions:
+- status: in-progress
+  at: 2026-10-16T21:38:58.094306Z
+- status: complete
+  at: 2026-10-17T04:30:02.013413500Z
 ---
-
 # Preservar descargas reanudables ante contención del home
 
 Las rutas de evidencia están parametrizadas. Para reproducir comandos de este documento, definir `$TestRoot` y `$CoquenaHome` con directorios de prueba propios; las ubicaciones originales no se publican.
@@ -64,22 +69,75 @@ preservar sus contratos y comprobar regresiones.
 
 ## Trabajo y aceptación
 
-- [ ] Incorporar una regresión determinista para contención superior a 3 s y su control.
-- [ ] Comprobar publicación de un recurso mientras otra operación guarda checkpoints,
+- [x] Incorporar una regresión determinista para contención superior a 3 s y su control.
+- [x] Comprobar publicación de un recurso mientras otra operación guarda checkpoints,
   sin depender de descargar pesos remotos ni del rendimiento del disco de una PC.
-- [ ] Acotar las secciones críticas pesadas y asegurar un checkpoint final recuperable;
+- [x] Acotar las secciones críticas pesadas y asegurar un checkpoint final recuperable;
   impedir pérdida de progreso confirmado, duplicación de ejecutores o publicación parcial.
-- [ ] Cubrir pausa, cancelación, caída, reanudación, integridad y publicación/limpieza
+- [x] Cubrir pausa, cancelación, caída, reanudación, integridad y publicación/limpieza
   interrumpidas bajo la coordinación elegida, incluyendo modelos y companions.
-- [ ] Diagnósticos precisos y sin credenciales: distinguir contención de corrupción;
+- [x] Diagnósticos precisos y sin credenciales: distinguir contención de corrupción;
   no presentar bytes transferidos como recurso instalado.
-- [ ] Ejecutar pruebas pertinentes y publicación/ejecución Native AOT win-x64,
+- [x] Ejecutar pruebas pertinentes y publicación/ejecución Native AOT win-x64,
   con homes y temporales en D:, sin alterar los recursos personales de la prueba.
-- [ ] Registrar evidencia, límites y consecuencias para la preparación de recursos de M3.
+- [x] Registrar evidencia, límites y consecuencias para la preparación de recursos de M3.
   Actualizar reglas funcionales sólo si se aprueba un cambio de comportamiento.
-- [ ] Presentar para revisión; no cerrar ni hacer commit/publicar sin aprobación.
+- [x] Presentar para revisión; no cerrar ni hacer commit/publicar sin aprobación.
 
 ## Estado de autorización
 
-Se autoriza crear esta tarea para corrección futura. Su redacción no autoriza iniciar
-implementación. El usuario autorizó después publicar 0.2.0 con este problema conocido abierto; no autorizó implementar esta corrección.
+El usuario autorizó tomar e implementar esta tarea el 16 de octubre de 2026.
+Después de consultar la documentación, confirmó corregir la contención para nuevas
+ejecuciones y mantener el rechazo de parciales anteriores inconsistentes. No se
+autoriza adoptar o truncar bytes adelantados ni publicar una release.
+El 17 de octubre de 2026 el usuario aprobó la entrega verificada y autorizó cerrar
+la tarjeta y crear un único commit con código, pruebas, documentación y evidencia.
+
+## Coordinación elegida
+
+- El checkpoint detiene la lectura de red y conserva el ejecutor por GUID mientras
+  reintenta exclusivamente `writer-busy` previo a publicación. El timeout general
+  de LocalStore sigue en 3 s. La espera también protege el checkpoint final ante
+  pausa/Ctrl+C/cancelación; no confirma el control antes de persistirlo.
+- La espera informa `checkpoint-writer-busy` con el progreso persistido, sin presentar
+  bytes pendientes como confirmados. No reintenta corrupción, E/S ni auditoría fallida
+  después de publicación.
+- La adquisición y la reversión preparan copias y hashes fuera del escritor global.
+  Temporales identificados por GUID, handles sin escritura y reservas existentes
+  protegen la preparación; dentro del escritor quedan movimientos, comprobación de
+  catálogo/colisiones, intención persistida, avance por archivo e índice.
+- Un cierre forzado entre escribir bytes y persistirlos conserva el diagnóstico
+  de inconsistencia; no se añade recuperación por truncado ni adopción. La espera
+  no promete atomicidad entre el parcial y su JSON ante caída del proceso.
+- Upgrade y traslados conservan sus protocolos: se prueban como consumidores del
+  motor compartido. Sus copias/hashes bajo exclusión pueden seguir demorando otros
+  comandos; el checkpoint vivo espera sin perder reanudabilidad por esa contención.
+
+
+## Evidencia y revisión
+
+Ver [evidencia reproducible](evidencia.md): reproducción previa, regresiones de
+contención/control/caída, publicación y recuperación de modelos/companions,
+validación Native AOT y limitación de la suite completa.
+
+Entrega aprobada por el usuario el 17 de octubre de 2026, tras la verificación
+independiente registrada en la evidencia. Se cierra mediante LeanSpec e integra
+todo lo aprobado en un único commit. No incluye publicación de una release.
+
+### Corrección durante revisión: identidad de publicación
+
+Se reprodujo la sustitución del temporal después de verificarlo: un handle que
+comparte delete conserva el archivo abierto, pero no la identidad de su ruta.
+La corrección compara volumen e ID de archivo de 128 bits antes del movimiento
+y otra vez en el destino abierto sin compartir escritura ni delete, conservado
+hasta completar el índice. El caso de destino existente se abre sin compartir
+delete antes de calcular su hash. Las consultas de identidad son constantes;
+copias y hashes siguen fuera del escritor global. No hay fallback que acepte
+identidad desconocida.
+
+Las regresiones sustituyen temporales con contenido alterado o idéntico, y también
+el destino en la ventana posterior al movimiento; comprueban rechazo sin activar
+catálogo. Otras prueban el bloqueo de sustitución para `existing=true` y después
+de establecer el guard del destino. Todos los casos incluyen modelos y companions.
+Se restauró el método `CrashWorker` ausente en el checkout de revisión y su prueba.
+Resultados y límites actualizados en [evidencia](evidencia.md).
