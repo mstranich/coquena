@@ -44,10 +44,10 @@ public static class ModelSelection
     public static ModelRole NameRole(string path)
     {
         var mmproj = Regex.IsMatch(path, "(?:^|[/_.-])mmproj(?=$|[/_.-])", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
-        // Explicit draft markers anywhere, or mtp- at the start of the basename,
+        // Explicit draft/only markers anywhere, or mtp- at the start of the basename,
         // or an exact mtp directory. An internal MTP token is also used by principals.
         var mtp = path.Split('/')[^1].StartsWith("mtp-", StringComparison.OrdinalIgnoreCase) ||
-            Regex.IsMatch(path, "(?:^|[/_.-])mtp-?draft(?=$|[/_.-])|(?:^|/)mtp/", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+            Regex.IsMatch(path, "(?:^|[/_.-])(?:mtp-?draft|mtp-only)(?=$|[/_.-])|(?:^|/)mtp/", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
         return mmproj && mtp ? ModelRole.Unknown : mmproj ? ModelRole.Mmproj : mtp ? ModelRole.Mtp : ModelRole.Principal;
     }
     private static string? Base(string label)

@@ -93,6 +93,11 @@ La [evidencia de la prueba](../../specs/035-m2-entrega-integrada/prueba-ornith.m
 distingue mecanismos reproducidos, síntomas sin causa atribuida y límites.
 No hay dependencias bloqueantes entre estas cuatro correcciones.
 
+La reprueba del 17 de octubre de 2026 originó una única corrección adicional:
+[040: MTP-ONLY y publicación CUDA](../../specs/040-m2-reprueba-mtp-publicacion-cuda/README.md).
+Reúne los dos hallazgos del reporte por solicitud del usuario; evidencia, decisiones
+y límites de atribución del fallo histórico se mantienen en esa tarjeta.
+
 ## Alcance futuro que requiere aclaración
 
 Las definiciones YAML y la importación/exportación JSON de parámetros corresponden

@@ -168,6 +168,14 @@ publicación y limpieza pendiente. No anuncia instalación disponible al llegar 
 de bytes. Una nueva tentativa desde fallo requiere validar su causa y la seguridad del
 parcial; se realiza mediante resume, no mediante reintento infinito.
 
+Al publicar un directorio de backend en Windows, una denegación de renombrado admite
+una espera breve y acotada dentro de la misma operación, sin volver a descargar.
+La espera libera la exclusión global del home; antes de otro intento se comprueban
+otra vez la selección, el catálogo, la propiedad y la versión preparada. La pausa o
+cancelación interrumpe la espera. Si la denegación persiste, se conserva la preparación
+y se informa la etapa de movimiento y el código de sistema, sin rutas sensibles ni
+texto de excepciones. Otros errores de E/S no reciben reintentos genéricos.
+
 ## Comportamiento por acción
 
 ### Iniciar y consultar

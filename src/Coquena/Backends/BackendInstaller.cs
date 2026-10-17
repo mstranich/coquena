@@ -7,7 +7,7 @@ using Coquena.Storage;
 
 namespace Coquena.Backends;
 
-public enum InstallStage { AfterMove, AfterIndex, AfterCopy }
+public enum InstallStage { AfterMove, AfterIndex, AfterCopy, BeforeMove }
 
 // Separate slots allow a failed reinstall to leave the previous executable untouched.
 public sealed partial class BackendInstaller(Home home, LocalStore? storage = null,
@@ -216,49 +216,74 @@ public sealed partial class BackendInstaller(Home home, LocalStore? storage = nu
             cancellation.ThrowIfCancellationRequested();
             // Local publication, serialized against configuration and process starts.
             // A cross-volume copy retains preparation; no network I/O occurs here.
-            operation = store.Exclusive(() =>
+            var moveRetry = new Stopwatch();
+            while (true)
             {
-                var catalog = Catalog();
-                var previous = catalog.Backends.SingleOrDefault(b => b.Id == plan.BackendId);
-                var finalPath = FinalPath(plan);
-                var next = new BackendRecord(plan.BackendId, selection.Release, plan.Version!, "ggml", "ggml-org/llama.cpp",
-                    selection.Variant, selection.Family, selection.Platform, finalPath,
-                    plan.RequestedRelease == "latest" || plan.Previous?.TracksLatest == true,
-                    plan.RequestedRelease != "latest" || plan.Previous?.Pinned == true, plan.InstallationDirectory, OwnedFiles: plan.OwnedFiles);
-                var alreadyPublished = previous is not null && previous.ServerPath == finalPath && previous.InstallationDirectory == plan.InstallationDirectory &&
-                    previous with { TracksLatest = next.TracksLatest, Pinned = next.Pinned } == next;
-                if (!alreadyPublished)
+                cancellation.ThrowIfCancellationRequested();
+                if (moveRetry.IsRunning)
                 {
-                    if (previous != plan.Previous) Fail("stale-install-plan");
-                    if (plan.RequestedRelease == "latest" && Current(catalog.Backends, selection.Variant) != plan.PreviousLatest)
-                        Fail("stale-latest-plan");
-                    if (plan.Upgrade is { } expected) BackendUpgrader.CheckObservation(store, expected);
-                    if (previous is not null) NotInUse(previous.Id);
-                    if (!Directory.Exists(slot))
-                    {
-                        Directory.CreateDirectory(Path.GetDirectoryName(slot)!);
-                        PublishDirectory(home.PathFor(prepared), slot, operation.Id, cancellation);
-                    }
-                    else if (Directory.Exists(home.PathFor(prepared))) VerifyCopy(home.PathFor(prepared), slot);
-                    fault?.Invoke(InstallStage.AfterMove);
-                    var values = catalog.Backends.Where(b => b.Id != plan.BackendId).Select(b =>
-                        b.Ownership == "managed" && plan.RequestedRelease == "latest" && b.Variant == selection.Variant && b.Platform == selection.Platform
-                        ? b with { TracksLatest = false } : b).Append(next).ToArray();
-                    store.UpdateLocked(DocumentKind.Backends, Json.BackendsDocument, ContractValidation.Backends, _ => new(1, values));
-                    fault?.Invoke(InstallStage.AfterIndex);
+                    if (File.ReadAllText(Path.Combine(checkArea, ".coquena-owner")) != operation.Id.ToString("D")) Fail("destination-collision");
+                    var currentVersion = await (probe ?? ProbeAsync)(Path.Combine(checkArea, plan.ServerRelativePath!), cancellation);
+                    CheckVersion(currentVersion, selection.Release);
+                    if (currentVersion != plan.Version) Fail("version-changed");
                 }
-                // Default decision belongs to publication and is serialized against backend use.
-                store.UpdateLocked(DocumentKind.Config, Json.ConfigDocument, ContractValidation.Config, old =>
+                try
                 {
-                    var config = old ?? new(1, null, null, new(5));
-                    // Only the first installation autoassigns; later removal never repairs default.
-                    return config.DefaultBackend is null && catalog.Backends.All(b => b.Id == next.Id)
-                        ? config with { DefaultBackend = plan.RequestedRelease == "latest"
-                            ? new("latest", Origin: "ggml", Variant: selection.Variant) : new("fixed", next.Id) }
-                        : config;
-                });
-                return SaveLocked(operation with { State = "completed", Phase = "cleanup", Diagnostic = "cleanup-pending" });
-            });
+                    operation = store.Exclusive(() =>
+                    {
+                        var catalog = Catalog();
+                        var previous = catalog.Backends.SingleOrDefault(b => b.Id == plan.BackendId);
+                        var finalPath = FinalPath(plan);
+                        var next = new BackendRecord(plan.BackendId, selection.Release, plan.Version!, "ggml", "ggml-org/llama.cpp",
+                            selection.Variant, selection.Family, selection.Platform, finalPath,
+                            plan.RequestedRelease == "latest" || plan.Previous?.TracksLatest == true,
+                            plan.RequestedRelease != "latest" || plan.Previous?.Pinned == true, plan.InstallationDirectory, OwnedFiles: plan.OwnedFiles);
+                        var alreadyPublished = previous is not null && previous.ServerPath == finalPath && previous.InstallationDirectory == plan.InstallationDirectory &&
+                            previous with { TracksLatest = next.TracksLatest, Pinned = next.Pinned } == next;
+                        if (!alreadyPublished)
+                        {
+                            if (previous != plan.Previous) Fail("stale-install-plan");
+                            if (plan.RequestedRelease == "latest" && Current(catalog.Backends, selection.Variant) != plan.PreviousLatest)
+                                Fail("stale-latest-plan");
+                            if (plan.Upgrade is { } expected) BackendUpgrader.CheckObservation(store, expected);
+                            if (previous is not null) NotInUse(previous.Id);
+                            if (!Directory.Exists(slot))
+                            {
+                                if (File.ReadAllText(Path.Combine(home.PathFor(prepared), ".coquena-owner")) != operation.Id.ToString("D")) Fail("destination-collision");
+                                Directory.CreateDirectory(Path.GetDirectoryName(slot)!);
+                                PublishDirectory(home.PathFor(prepared), slot, operation.Id, cancellation);
+                            }
+                            else if (Directory.Exists(home.PathFor(prepared))) VerifyCopy(home.PathFor(prepared), slot);
+                            fault?.Invoke(InstallStage.AfterMove);
+                            var values = catalog.Backends.Where(b => b.Id != plan.BackendId).Select(b =>
+                                b.Ownership == "managed" && plan.RequestedRelease == "latest" && b.Variant == selection.Variant && b.Platform == selection.Platform
+                                ? b with { TracksLatest = false } : b).Append(next).ToArray();
+                            store.UpdateLocked(DocumentKind.Backends, Json.BackendsDocument, ContractValidation.Backends, _ => new(1, values));
+                            fault?.Invoke(InstallStage.AfterIndex);
+                        }
+                        // Default decision belongs to publication and is serialized against backend use.
+                        store.UpdateLocked(DocumentKind.Config, Json.ConfigDocument, ContractValidation.Config, old =>
+                        {
+                            var config = old ?? new(1, null, null, new(5));
+                            // Only the first installation autoassigns; later removal never repairs default.
+                            return config.DefaultBackend is null && catalog.Backends.All(b => b.Id == next.Id)
+                                ? config with { DefaultBackend = plan.RequestedRelease == "latest"
+                                    ? new("latest", Origin: "ggml", Variant: selection.Variant) : new("fixed", next.Id) }
+                                : config;
+                        });
+                        return SaveLocked(operation with { State = "completed", Phase = "cleanup", Diagnostic = "cleanup-pending" });
+                    });
+                    break;
+                }
+                catch (PublicationMoveException error) when (error.Retryable && moveRetry.ElapsedMilliseconds < 1000)
+                {
+                    // A reader can deny renaming a directory on Windows even after
+                    // --version exited. Wait outside the home lease; the next attempt
+                    // rechecks the catalog, selection, ownership and destination.
+                    moveRetry.Start();
+                    await Task.Delay(25, cancellation);
+                }
+            }
         }
         // Index is active. Cleanup failure must not revert or claim a failed installation.
         Cleanup(operation);
@@ -354,31 +379,58 @@ public sealed partial class BackendInstaller(Home home, LocalStore? storage = nu
         Home.CheckLinks(slot);
         if (Path.GetPathRoot(prepared)!.Equals(Path.GetPathRoot(slot), StringComparison.OrdinalIgnoreCase))
         {
-            try { Directory.Move(prepared, slot); return; }
             // Mounted volumes and virtual drives can differ even under one root.
-            catch (IOException e) when ((e.HResult & 0xffff) == 17) { }
+            if (MovePublicationDirectory(prepared, slot, cancellation, allowCrossVolume: true)) return;
         }
-        RemoveCopy(slot, operation);
         var stage = slot + ".copy";
-        Directory.CreateDirectory(stage);
-        File.WriteAllText(Path.Combine(stage, ".coquena-owner"), operation.ToString("D"));
-        BackendPaths.CheckTree(prepared);
-        foreach (var dir in Directory.GetDirectories(prepared, "*", SearchOption.AllDirectories))
-            Directory.CreateDirectory(Path.Combine(stage, Path.GetRelativePath(prepared, dir)));
-        foreach (var source in Directory.GetFiles(prepared, "*", SearchOption.AllDirectories))
+        // A completed cross-volume copy may only be waiting for its final rename.
+        // Validate it again on every attempt; interrupted copies are rebuilt.
+        var copyReady = false;
+        Home.CheckLinks(stage);
+        if (Directory.Exists(stage))
         {
-            cancellation.ThrowIfCancellationRequested();
-            var destination = Path.Combine(stage, Path.GetRelativePath(prepared, source));
-            if (Path.GetFileName(source) == ".coquena-owner" && Path.GetDirectoryName(source) == prepared) continue;
-            using (var input = new FileStream(source, FileMode.Open, FileAccess.Read, FileShare.Read))
-            using (var output = new FileStream(destination, FileMode.CreateNew, FileAccess.Write, FileShare.None))
-            { input.CopyTo(output); output.Flush(true); }
-            if (Coquena.Configuration.BackendDirectoryManager.Hash(source) != Coquena.Configuration.BackendDirectoryManager.Hash(destination)) Fail("copy-verification-failed");
+            if (File.ReadAllText(Path.Combine(stage, ".coquena-owner")) != operation.ToString("D")) Fail("destination-collision");
+            try { VerifyCopy(prepared, stage); copyReady = true; }
+            catch (DownloadException error) when (error.Code == "copy-verification-failed") { }
         }
-        fault?.Invoke(InstallStage.AfterCopy);
+        if (!copyReady)
+        {
+            RemoveCopy(slot, operation);
+            Directory.CreateDirectory(stage);
+            File.WriteAllText(Path.Combine(stage, ".coquena-owner"), operation.ToString("D"));
+            BackendPaths.CheckTree(prepared);
+            foreach (var dir in Directory.GetDirectories(prepared, "*", SearchOption.AllDirectories))
+                Directory.CreateDirectory(Path.Combine(stage, Path.GetRelativePath(prepared, dir)));
+            foreach (var source in Directory.GetFiles(prepared, "*", SearchOption.AllDirectories))
+            {
+                cancellation.ThrowIfCancellationRequested();
+                var destination = Path.Combine(stage, Path.GetRelativePath(prepared, source));
+                if (Path.GetFileName(source) == ".coquena-owner" && Path.GetDirectoryName(source) == prepared) continue;
+                using (var input = new FileStream(source, FileMode.Open, FileAccess.Read, FileShare.Read))
+                using (var output = new FileStream(destination, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+                { input.CopyTo(output); output.Flush(true); }
+                if (Coquena.Configuration.BackendDirectoryManager.Hash(source) != Coquena.Configuration.BackendDirectoryManager.Hash(destination)) Fail("copy-verification-failed");
+            }
+            fault?.Invoke(InstallStage.AfterCopy);
+        }
         VerifyCopy(prepared, stage);
         Home.CheckLinks(slot);
-        Directory.Move(stage, slot);
+        MovePublicationDirectory(stage, slot, cancellation);
+    }
+    private bool MovePublicationDirectory(string source, string destination, CancellationToken cancellation, bool allowCrossVolume = false)
+    {
+        cancellation.ThrowIfCancellationRequested();
+        fault?.Invoke(InstallStage.BeforeMove);
+        cancellation.ThrowIfCancellationRequested();
+        try { Directory.Move(source, destination); return true; }
+        catch (IOException error) when (allowCrossVolume && (error.HResult & 0xffff) == 17) { return false; }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+        { throw new PublicationMoveException(error); }
+    }
+    private sealed class PublicationMoveException(Exception error)
+        : DownloadException($"backend-publication-move-0x{error.HResult:X8}", "No se pudo publicar el directorio del backend; preparación conservada.")
+    {
+        public bool Retryable { get; } = OperatingSystem.IsWindows() && (error.HResult & 0xffff) is 5 or 32 or 33;
     }
     private static void VerifyCopy(string source, string destination)
     {

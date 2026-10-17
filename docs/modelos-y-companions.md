@@ -45,7 +45,7 @@ Una receta documentada no se equipara automáticamente a Q4_K_M por ese metadato
 
 Auxiliares `mmproj`/`mtp` se distinguen por tokens de nombre/carpeta y pistas de cabecera
 cuando existen; no se convierten en principales por carecer de cuantización en el nombre.
-Para MTP, los marcadores delimitados `mtpdraft` o `mtp-draft`, una carpeta exacta `mtp`
+Para MTP, los marcadores delimitados `mtpdraft`, `mtp-draft` o `mtp-only`, una carpeta exacta `mtp`
 o el prefijo `mtp-` al comienzo del nombre del archivo producen candidatos auxiliares.
 Un token interno `MTP` por sí solo conserva la candidatura principal, incluido un
 principal con MTP integrado. Las pistas de nombre/carpeta no certifican el rol de
