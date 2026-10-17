@@ -1,6 +1,9 @@
 using System.Diagnostics;
 using Coquena;
 
+// Match the product's output contract, including fixture and failure diagnostics.
+Console.OutputEncoding = new System.Text.UTF8Encoding(false);
+
 if (args.Length is 1 or 2 && args[0] == "--mtp-tests")
 { await Coquena.Tests.ResolutionTests.Run(); await Coquena.Tests.MtpResolutionTests.Run(args.Length == 2 ? Path.GetFullPath(args[1]) : null); return; }
 

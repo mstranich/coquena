@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Net;
 using System.Net.Sockets;
+using System.Text;
 using Coquena;
 using Coquena.Configuration;
 using Coquena.Contracts;
@@ -193,9 +194,17 @@ internal static class ServerRuntimeTests
             Check(Cli(["server", "default", "stop"]).Code == 0, "explicit default name stops named server despite another designation");
             Check(Read() is null && !File.Exists(home.PathFor(first.IniPath)) && Log(first).Contains("graceful exit"), "graceful stop cleans active state and preserves log");
             Check(Cli(["server", "default", "logs"]).Out.Contains("graceful exit"), "logs available after stop using last reference despite another default");
-            File.AppendAllText(home.PathFor(first.LogPath), new string('x', 70000) + "\nrecent UTF8 á fin\n");
+            const string unicode = "recent UTF8 á 漢字 😀 fin";
+            File.AppendAllText(home.PathFor(first.LogPath), new string('x', 70000) + "\n" + unicode + "\n", new UTF8Encoding(false));
+            var logBytes = File.ReadAllBytes(home.PathFor(first.LogPath));
+            Check(logBytes.AsSpan().IndexOf(Encoding.UTF8.GetBytes(unicode)) >= 0, "log contains original UTF8 bytes");
             var recent = Cli(["server", "default", "logs"]);
-            Check(recent.Code == 0 && recent.Out.Contains("recent UTF8 á fin") && recent.Out.Length < 66000, $"recent logs bounded and UTF8 intact: code={recent.Code}, out={recent.Out}, error={recent.Error}");
+            Console.WriteLine($"UTF8 log tail={Convert.ToHexString(logBytes.AsSpan(Math.Max(0, logBytes.Length - 40)))}, stdout={Convert.ToHexString(recent.OutBytes)}, captured={recent.Out}");
+            Check(recent.OutBytes.AsSpan().IndexOf(Encoding.UTF8.GetBytes(unicode)) >= 0, "CLI emits original UTF8 bytes");
+            Check(recent.Code == 0 && recent.Out.Contains(unicode) && recent.OutBytes.Length <= 65536 && recent.Out.Length < 66000, $"recent logs bounded and UTF8 intact: code={recent.Code}, out={recent.Out}, error={recent.Error}");
+            var diagnostic = Cli(["server", unicode, "show"]);
+            Check(diagnostic.Code != 0 && diagnostic.Error.Contains(unicode) &&
+                diagnostic.ErrorBytes.AsSpan().IndexOf(Encoding.UTF8.GetBytes(unicode)) >= 0, "UTF8 stderr preserves non-ASCII diagnostic and failure exit code");
             var logJson = ContractJsonContext.Default.LastLogDocument;
             store.Update(DocumentKind.LastLog, logJson, _ => { }, old => old! with { ServerId = Guid.NewGuid() }, server: "default");
             Check(Cli(["server", "default", "logs"]).Code == 1, "last log does not reconnect another server ID");
@@ -248,7 +257,11 @@ internal static class ServerRuntimeTests
             runtime.Stop(afterConsole.InstanceId, output);
 
             var concurrentCli = new (int Code, string Out, string Error)[4];
-            Parallel.For(0, concurrentCli.Length, i => concurrentCli[i] = Cli(["server", "start", "-d"]));
+            Parallel.For(0, concurrentCli.Length, i =>
+            {
+                var result = Cli(["server", "start", "-d"]);
+                concurrentCli[i] = (result.Code, result.Out, result.Error);
+            });
             var concurrentInstance = Read()!; live.Add(concurrentInstance); Wait(() => Log(concurrentInstance).Contains("ready"));
             Check(concurrentCli.Count(result => result.Code == 0 && result.Out.StartsWith("Instancia ")) == 1,
                 "concurrent CLI invocations publish one execution");
@@ -431,13 +444,21 @@ internal static class ServerRuntimeTests
         InstanceDocument? Read() => store.Read(DocumentKind.Instance, json.InstanceDocument, ContractValidation.Instance, server: "default");
         string Log(InstanceDocument instance) => ReadText(home.PathFor(instance.LogPath));
         void Behavior(string value) => File.WriteAllText(Path.Combine(backendDirectory, "behavior.txt"), value);
-        (int Code, string Out, string Error) Cli(string[] arguments)
+        (int Code, string Out, string Error, byte[] OutBytes, byte[] ErrorBytes) Cli(string[] arguments)
         {
             var start = new ProcessStartInfo(product) { UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true, CreateNoWindow = true };
             start.Environment["COQUENA_HOME"] = root; foreach (var arg in arguments) start.ArgumentList.Add(arg);
-            using var process = Process.Start(start)!; var stdout = process.StandardOutput.ReadToEndAsync(); var stderr = process.StandardError.ReadToEndAsync();
+            using var process = Process.Start(start)!;
+            using var stdout = new MemoryStream(); using var stderr = new MemoryStream();
+            var outputCopy = process.StandardOutput.BaseStream.CopyToAsync(stdout);
+            var errorCopy = process.StandardError.BaseStream.CopyToAsync(stderr);
             if (!process.WaitForExit(15000)) { process.Kill(true); throw new Exception("runtime CLI timeout"); }
-            return (process.ExitCode, stdout.GetAwaiter().GetResult(), stderr.GetAwaiter().GetResult());
+            Task.WhenAll(outputCopy, errorCopy).GetAwaiter().GetResult();
+            var outBytes = stdout.ToArray(); var errorBytes = stderr.ToArray();
+            // The product explicitly emits UTF-8. Decode raw pipes using that
+            // contract, rejecting invalid bytes instead of using the console page.
+            var utf8 = new UTF8Encoding(false, true);
+            return (process.ExitCode, utf8.GetString(outBytes), utf8.GetString(errorBytes), outBytes, errorBytes);
         }
         void CheckBackend(InstanceDocument instance, Guid expectedId, string expectedPath, string message)
         {
