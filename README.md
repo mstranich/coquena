@@ -20,10 +20,11 @@ The name brings that image to llama.cpp: a guardian that looks after your
 their environment ready for work. Read more about the legend in
 [this Perfil article (in Spanish)](https://www.perfil.com/noticias/cultura/el-coquena-la-leyenda-del-guardian-invisible-de-la-fauna-andina-y-las-leyes-del-cerro-a35.phtml).
 
-## Current version: 0.2.0
+## Current version: 0.2.1
 
-Version 0.2.0 includes catalog management, resource updates, external resource
+Version 0.2.1 includes catalog management, resource updates, external resource
 registration, companion management, preset cloning, and resource removal.
+It also fixes download contention, publication recovery, and MTP draft selection.
 The current target is
 **Windows x64**, with a Native AOT executable that **does not require .NET to be installed**.
 
@@ -117,7 +118,7 @@ dotnet pack .\src\Coquena\Coquena.csproj -c Release -p:PackAsTool=true -p:ToolCo
 dotnet pack .\src\Coquena\Coquena.csproj -c Release -r win-x64 -p:PackAsTool=true -p:ToolCommandName=coquena -p:ToolPackageRuntimeIdentifiers=win-x64 -o .\artifacts\tool
 
 # Install from the local packages.
-dotnet tool install --global coquena --version 0.2.0 --add-source .\artifacts\tool
+dotnet tool install --global coquena --version 0.2.1 --add-source .\artifacts\tool
 
 # Run from any directory.
 coquena --help
