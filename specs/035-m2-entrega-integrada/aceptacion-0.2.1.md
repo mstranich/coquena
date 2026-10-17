@@ -86,3 +86,50 @@ condición del usuario para preparar 0.2.1. La causa histórica del fallo CUDA
 sigue sin atribuirse retrospectivamente; la corrección del mecanismo reproducido
 y sus límites están en 040. No se incorporan reglas funcionales nuevas en esta
 aceptación ni funciones anticipadas de M3.
+
+## Paquete candidato
+
+Versión actualizada a 0.2.1 y snapshot de aceptación en `925a234`.
+Publicación Native AOT de producto y runner win-x64 con advertencias AOT como
+errores y análisis de trimming sin supresión. ZIP
+`coquena-0.2.1-win-x64.zip`, 5 095 592 bytes, con coquena.exe, README.md y LICENSE.
+Sin PDB, runner, backend ni pesos. SHA-256 ZIP:
+`66d24d1ccb825b75636edd85b760467f4eed6d1ffaa46427b87365fcf9cbe8cc`.
+SHA-256 ejecutable:
+`c95669cc52150c166758625253260ce64ab19ba08b5252b51d81f855195a006c`.
+
+La copia extraída coincide en hash e informa
+`0.2.1+925a234e5772c5a9a6332b3fccfc79f08fbb981f`. Ayuda ejecutada correctamente.
+`release-publish.txt`, `release-publish-runner.txt`, `release-hashes.json`,
+`SHA256SUMS.txt` y `release-help.txt` conservan la procedencia.
+La suite completa sobre la copia extraída terminó con exit 0 y stderr vacío:
+`release-full-native/native-tests.txt` y `native-errors.txt`. Incluye los cinco
+escenarios de contención/caída, 43 comprobaciones de publicación con lectores
+Windows, 103 de resolución MTP y el conjunto general de almacenamiento,
+parámetros, runtime, backends, modelos, companions e integridad/actualizaciones.
+Los hashes de los cinco catálogos personales y config.json quedaron iguales
+antes y después de la suite. Enlaces locales y JSON de evidencia válidos;
+git diff --check correcto. No se modificaron diagramas PlantUML.
+
+Reproducción desde la raíz del checkout:
+
+```powershell
+& specs/035-m2-entrega-integrada/run-native-tests.ps1 `
+  -Executable ${CoquenaHome}/validation/0.2.1-final/release-extracted/coquena.exe `
+  -Runner ${CoquenaHome}/validation/0.2.1-final/release-runner/Coquena.Tests.exe `
+  -OutputDirectory ${CoquenaHome}/validation/0.2.1-final/release-full-native `
+  -TempDirectory ${CoquenaHome}/validation/0.2.1-final/release-temp
+```
+
+Los commits posteriores de cierre/evidencia sólo cambian documentación y estado
+LeanSpec; la procedencia del binario sigue siendo 925a234. Distribución prevista
+en el [release v0.2.1](https://github.com/mstranich/coquena/releases/tag/v0.2.1),
+con ZIP y SHA256SUMS.txt. Sin publicación de paquetes en NuGet.
+
+El binario extraído inició de nuevo ornith y pasó una sexta llamada de
+herramienta con MTP: `release-mtp-tool-{request,response}.json`. Estado dejado
+activo: instancia `0e12855a-95a1-460a-896f-f807a4c85e61`, PID observado 51328,
+con MTP cargado y otros presets unloaded; `release-instance.json`,
+`release-models.json` y `release-server-ps.txt`. Continúa en 127.0.0.1:9931/v1.
+La CLI instalada globalmente no se reemplazó: la prueba usa el ejecutable
+Native AOT extraído del paquete indicado, sin confundirlo con una instalación vieja.

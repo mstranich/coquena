@@ -98,6 +98,10 @@ La reprueba del 17 de octubre de 2026 originó una única corrección adicional:
 Reúne los dos hallazgos del reporte por solicitud del usuario; evidencia, decisiones
 y límites de atribución del fallo histórico se mantienen en esa tarjeta.
 
+La [aceptación 0.2.1](../../specs/035-m2-entrega-integrada/aceptacion-0.2.1.md)
+repite el recorrido real tras estas correcciones, sin nuevos defectos observados,
+incluyendo a4lg MTP-ONLY y validación del paquete Windows Native AOT extraído.
+
 ## Alcance futuro que requiere aclaración
 
 Las definiciones YAML y la importación/exportación JSON de parámetros corresponden
