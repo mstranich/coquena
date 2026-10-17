@@ -102,7 +102,7 @@ internal static class ServerRuntimeTests
             // Later fixture catalog replacements deliberately exercise retained broken IDs.
             new ConfigurationManager(home).Set("chat", "mmproj", null);
             Wait(() => Log(externalInstance).Contains("ready"));
-            Check(externalInstance.BackendId == external.Id && externalInstance.ExecutablePath == external.ServerPath, "external start uses registered executable and ID");
+            CheckBackend(externalInstance, external.Id, external.ServerPath!, "external start uses registered executable and ID");
             var externalRestart = runtime.Restart(null, output); live.Add(externalRestart);
             Wait(() => Log(externalRestart).Contains("ready"));
             Check(externalRestart.BackendId == external.Id && externalRestart.InstanceId != externalInstance.InstanceId, "external restart preserves backend identity");
@@ -346,7 +346,7 @@ internal static class ServerRuntimeTests
             Check(new BackendDirectoryManager(home).Change("relocated-backends", output, () => "s", () => true), "stopped backend transfers as whole directory");
             backendDirectory = home.PathFor("relocated-backends/" + backendSlot);
             var movedStart = runtime.Start(null, true, output).Instance; live.Add(movedStart); Wait(() => Log(movedStart).Contains("ready"));
-            Check(movedStart.BackendId == backendId && movedStart.ExecutablePath == Path.Combine(backendDirectory, "Coquena.Tests.exe"), "server starts from moved backend without changing backend identity");
+            CheckBackend(movedStart, backendId, Path.Combine(backendDirectory, "Coquena.Tests.exe"), "server starts from moved backend without changing backend identity");
             runtime.Stop(movedStart.InstanceId, output);
             var removalRace = manager.Create("removal-race", FreePort()); manager.Presets(removalRace.Name, ["chat"], true);
             ServerStartResult? raceInstance = null; var removed = false;
@@ -438,6 +438,18 @@ internal static class ServerRuntimeTests
             using var process = Process.Start(start)!; var stdout = process.StandardOutput.ReadToEndAsync(); var stderr = process.StandardError.ReadToEndAsync();
             if (!process.WaitForExit(15000)) { process.Kill(true); throw new Exception("runtime CLI timeout"); }
             return (process.ExitCode, stdout.GetAwaiter().GetResult(), stderr.GetAwaiter().GetResult());
+        }
+        void CheckBackend(InstanceDocument instance, Guid expectedId, string expectedPath, string message)
+        {
+            Console.WriteLine($"Backend path: observed=[{instance.ExecutablePath}], expected=[{expectedPath}]");
+            Check(Matches(instance, expectedId, expectedPath), message);
+            Check(Matches(instance, expectedId, expectedPath.ToUpperInvariant()) &&
+                Matches(instance, expectedId, expectedPath.ToLowerInvariant()), message + ": accepts case variants");
+            Check(!Matches(instance, expectedId, Path.Combine(root, "unrelated.exe")), message + ": rejects different path");
+            Check(!Matches(instance, Guid.NewGuid(), expectedPath), message + ": rejects different backend ID");
+
+            static bool Matches(InstanceDocument actual, Guid id, string path) =>
+                actual.BackendId == id && string.Equals(actual.ExecutablePath, path, StringComparison.OrdinalIgnoreCase);
         }
         void Check(bool condition, string message) { checks++; if (!condition) throw new Exception("Runtime test: " + message); }
         void Reject(Action action, string message)
