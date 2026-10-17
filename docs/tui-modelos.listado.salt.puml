@@ -1,0 +1,48 @@
+@startsalt
+{
+  {/ Servicios | Presets | <b>Modelos  }
+  {/ <b>Disponibles | Descargar  }
+  {
+    {
+      Filtrar:    | " Gemma-4    "
+      [X] Modelos | [ ] Companion | [Buscar]
+    }
+    {
+      {Resultados para "Gemma-4" (3): } | {Detalles selección:}
+      {SI
+        {+
+          Usuario: Google
+          Nombre: gemma-4-26B-A4B-it-qat-q4_0-gguf
+          Quant: Q4_0
+        }
+        {+
+          Usuario: Unsloth
+          Nombre: gemma-4-E4B-it-qat-GGUF
+          Quant: Q4_0
+        }
+        {+
+          Usuario: Unsloth
+          Nombre: gemma-4-12B-it-qat-GGUF
+          Quant: Q4_0
+        }
+        .
+        .
+      } | {+
+        { google/gemma-4-26B-A4B-it-qat-q4_0-gguf | [Copiar URL] }
+        {#
+          Tamaño       | 25B params
+          Architectura | Gemma-4
+          Formato      | GGUF
+        }
+        Readme:
+        {SI
+          Gemma is a family of open models built by Google DeepMind.
+          .
+          .
+          .
+        }
+      }
+    }
+  }
+}
+@endsalt

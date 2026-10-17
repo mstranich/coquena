@@ -2,155 +2,68 @@
 
 ## Contrato de trabajo para agentes
 
-Esta guía permite implementar en C# por entregas pequeñas sin reconstruir la conversación.
-Native AOT es requisito del ejecutable desde la primera entrega; condiciona contratos,
-persistencia y elección de dependencias. No se crea una fase final de conversión a AOT.
-No crea el proyecto ni autoriza a implementar ahora. Leer primero
-[las reglas funcionales](modelos-y-companions.md) y luego la entrega asignada aquí.
-
-- **Acordado:** comportamiento de modelos-y-companions.md; ningún agente lo reinterpreta.
-- **Diseño propuesto:** mecanismos concretos de esta guía, pendientes de revisión antes
-  de implementarlos. La estructura JSON de la sección 2 sí está acordada; librerías y
-  mecanismos no aprobados siguen siendo propuestas.
-- **Pendiente:** decisiones enumeradas al final. Un agente no las resuelve por omisión.
-- Implementar desde cero a partir de estos contratos; ninguna tarea requiere consultar otro repositorio.
-- Implementar sólo la entrega asignada. No crear framework de proveedores, daemon,
-  frontend, servidor HTTP, soporte MLX ni motor propio de Xet para resolver este catálogo.
-- No incorporar paquetes ni cambiar contratos compartidos sin explicar su necesidad y
-  obtener la decisión correspondiente. No hacer commits sin autorización explícita.
-- Si aparece una contradicción, señalar las dos reglas y detener sólo el trabajo afectado.
-  No ampliar silenciosamente el alcance para resolverla.
+Esta guía relaciona invariantes técnicas con los documentos funcionales.
+No define entregas ni autoriza implementar capacidades adicionales.
+Cada catálogo pertenece a un ámbito de proyecto o global importado; no inferirlo a partir
+de nombres de clases o formatos históricos. Mantener C# y Native AOT verificables.
 
 ## 1. Separación mínima de responsabilidades
 
-Son responsabilidades de código, no una obligación de crear proyectos, interfaces o
-capas por cada caja. Mantener una aplicación C# comprensible.
+Separar resolución de YAML/overrides/variables, validación, resolución de recursos,
+transferencia, publicación de locks/inventario y operación/observación del proceso.
+CLI y frontends invocan esas mismas operaciones, sin duplicar políticas.
 
-```plantuml
-@startuml
-left to right direction
-rectangle "Comandos\nvalidar entrada y presentar resultados" as CLI
-rectangle "Casos de uso\nregistrar / consultar / actualizar / verificar" as UC
-rectangle "Comparador de inventarios\nfunción pura, sin red ni disco" as CMP
-database "Persistencia local\ncatálogos JSON y operaciones separadas" as IDX
-rectangle "Acceso local\nGGUF, archivos y hash" as FS
-cloud "Hugging Face\nmetadatos y descarga HTTP" as HF
-CLI --> UC
-UC --> CMP
-UC --> IDX
-UC --> FS
-UC --> HF
-@enduml
-```
-
-El acceso HTTP traduce respuestas a datos propios; no introduce objetos del proveedor
-en presets ni en el comparador. La resolución de referencias para generar INI es local:
-no consulta Hugging Face ni exige que el seguimiento esté al día.
+El adaptador de argumentos no implica adaptador de APIs: un fork puede necesitar
+otro healthcheck y carecer de recarga, métricas o eventos del oficial.
+La capacidad se demuestra sobre el build concreto, no por el nombre del repositorio.
 
 ## 2. Datos mínimos y significado
 
+Conservar por separado:
+- Intención efectiva, archivos de origen y orden.
+- Resolución portable de origen/revisión/artefactos y referencias de integridad.
+- Instalaciones físicas y propiedad del inventario local.
+- Plan update fijado a intención/resolución de partida.
+- Operaciones pendientes y sus checkpoints.
+- Instancia identificada, composición activa y última buena local.
+- Observaciones de integridad por recurso y fecha.
+- Borradores por sesión y versión original del archivo.
+
+Identidad de contenido exige algoritmo, dominio y valor completo. Commit, Git blob,
+ETag y SHA-256 de archivo no son equivalentes. Una igualdad sin algoritmo comparable
+no prueba igualdad de bytes. No inventar hashes abreviados.
+
+Las referencias lógicas sobreviven renombres y revisiones físicas.
+El nombre canónico del inventario no es el alias del router ni una ruta.
+Bind conserva identidad de recurso; set conserva un literal.
+
 ### Almacenamiento local acordado
 
-Configuración, catálogos y registros de operaciones conservan JSON indentado con el
-estado actual, para facilitar lectura y edición manual. JSONL se utiliza para el log
-local de transacciones: un evento JSON por línea, agregado secuencialmente y con retención
-limitada. No es la fuente del estado ni exige reproducir eventos para reconstruir catálogos.
-Los logs originales de llama-server pueden conservarse como texto.
+Los recursos se guardan en su ámbito de preparación. .coquena separa datos compartibles
+de estado local ignorado por Git; layout y cantidad de locks no se fijan aquí.
+Generados del router, preparación e inventario no se guardan junto a externos.
+Home conserva registro/prefs y el ámbito importado; el catálogo global no es obligatorio.
 
-No utilizar JSONL como historial de modificaciones de los catálogos: actualizar o retirar
-un registro exigiría reescribir el archivo o introducir reproducción y compactación.
-JSONL no aporta atomicidad; se mantiene la exclusión de escritores. Los documentos de
-estado se guardan en un archivo nuevo y se reemplazan de forma segura. El nombre/ruta,
-límite y rotación del log de transacciones se concretan al implementar, sin registrar
-credenciales ni URLs firmadas. No conservar indefinidamente eventos ni operaciones terminadas.
-
-```text
-<home>/
-  config.json
-  catalogs/
-    models.json       # modelos principales y companions
-    backends.json
-    parameters.json
-    presets.json
-    servers.json      # definiciones persistidas de servidores
-  run/<servidor>/     # registro JSON de instancia e INI por lanzamiento
-  logs/<servidor>/    # salida de llama-server como texto, con retención limitada
-  downloads/<guid>/
-    operation.json
-    files/
-  models/<usuario>/<repositorio>/<ruta-remota>
-  backends/           # disposición interna pendiente
-```
-
-Un JSON por catálogo, no un archivo por registro ni por shard; configuración separada.
-Config.json conserva las selecciones de servidor/backend predeterminados y las políticas
-de retención. Servers.json guarda presets referenciados, selección propia de backend
-o herencia y parámetros propios; no duplica valores efectivos heredados. El registro
-de instancia bajo run conserva ID, PID, backend/build concretos, escucha efectiva y
-ubicación del log. La definición guarda intención; la instancia registra lo ejecutado.
-Detener elimina el registro activo y su INI, no el último log. La consulta de ese log
-no exige mantener una instancia detenida como activa; la referencia al último log y su retención están concretadas en
-[servidores.md](servidores.md#consulta-de-logs).
-Los registros tienen nombre canónico visible e ID estable. Las referencias conservan
-el ID para sobrevivir a renombres y muestran el nombre para lectura humana; un nombre
-reutilizado no reconecta referencias al registro retirado. El esquema concreto sigue
-pendiente para los otros catálogos; no se exige duplicar nombre e ID en cada referencia.
-
-Los pesos conservan las rutas relativas remotas bajo usuario/repositorio; no se agrega
-una carpeta propia por cuantización. Los renombres confirmados se reflejan físicamente
-según las reglas funcionales. Validar las rutas antes de escribir: ninguna ruta remota
-puede escapar del área gestionada. La publicación entre archivos e índice requiere
-un protocolo recuperable; JSON por sí solo no lo garantiza.
-
-Nombres conceptuales: no son todavía clases públicas ni esquema de persistencia.
-
-| Registro | Contenido |
-|---|---|
-| Entrada | Identificador estable, nombre canónico, modelo o companion, tipo de companion, propiedad, instalación activa |
-| Instalación | Archivos esperados y rutas locales; externo puede estar incompleto; commit de descarga si es gestionada |
-| Archivo instalado | Ruta local, ruta remota si aplica, tamaño observado, fecha local observada, identidad remota tipada, referencia de integridad opcional |
-| Origen seguido | Repositorio, referencia solicitada, selección remota y correspondencias actuales de sus archivos |
-| Consulta remota | Fecha, commit consultado, resultado, diferencias y candidatos; separada de la instalación |
-| Plan de actualización | Instalación de partida, commit objetivo, conjunto objetivo completo y acciones por archivo |
-| Verificación | Archivo y referencia comprobados, resultado y fecha; error de lectura distinto de discrepancia |
-
-Un hash se representa con **tipo/algoritmo, dominio y valor completo**. Un commit no es
-un hash de archivo. No comparar un hash de puntero Git con un SHA-256 de los pesos.
-ETag es evidencia del transporte que debe interpretarse según su contrato, no por su
-longitud. La ausencia de identidad comparable produce incertidumbre, no igualdad.
-
-SHA-256 completo es la referencia de integridad local acordada, calculada durante la
-escritura de la descarga sin una segunda lectura obligatoria. Contrastar con el digest
-remoto sólo si representa esos mismos bytes y algoritmo. Xet no obliga a implementar
-su algoritmo interno para usar una descarga convencional.
-
-Las referencias de configuración deben sobrevivir a la actualización de archivos.
-Se resuelven mediante el identificador estable, no mediante rutas físicas.
-El nombre canónico es case insensitive, sin aliases. Los renombres físicos siguen la
-regla funcional; esquema de ID y recuperación se concretan al implementar.
+Compartir un lock no certifica que funcionó en otra máquina.
+La última buena y la composición activa se registran localmente.
+No incorporar valores secretos expandidos a locks, planes o borradores compartidos.
 
 ## 3. Registro externo y comprobaciones locales
 
-1. Validar nombre canónico, rutas y encabezados con lecturas acotadas; aplicar la
-   agrupación estándar desde el primer shard. Conservar partes esperadas y faltantes:
-   un externo incompleto puede registrarse con diagnóstico, pero no usarse.
-2. Registrar todas las rutas de la unidad como externas, sin copiar ni crear enlaces.
-3. No exigir hash completo. Tras persistir, intentar emparejamiento sólo si se indicó `--try-match`,
-   usando `--name` y metadatos locales. Un fallo remoto no revierte el alta.
-4. Resolver luego esas rutas para el INI. No certificar compatibilidad con el backend.
+Registrar rutas y cabeceras con lecturas acotadas, conservando todas las partes
+esperadas de shards. Un externo incompleto se diagnostica sin copiar/reparar bytes.
+Resolver el alta contra la base del proyecto. Si el usuario copió el archivo,
+registrar la copia y no su origen histórico. Separar ubicación relativa/absoluta,
+propiedad, disponibilidad y correspondencia remota; no deducir ninguna de las
+otras por encontrarse el archivo dentro de la carpeta.
+--try-match se ejecuta sólo por elección y después de persistir el alta.
+Un fallo remoto no revierte el registro ni habilita gestión de sus archivos.
 
-Listar deriva disponibilidad mediante acceso local y muestra avisos de tamaño/fecha.
-No reescribe hashes, procedencia ni referencias remotas. `refresh` sólo relee los
-metadatos locales previstos por la regla funcional.
-
-La verificación explícita recorre los archivos con memoria acotada y compara contra
-su referencia. Si falta referencia, informa que no puede verificar: establecer una
-base para un externo es otra acción explícita. Si tamaño/fecha cambian durante la
-lectura, no publicar un éxito concluyente; esos indicadores tampoco detectan por sí
-solos todas las modificaciones concurrentes.
-
-No escribir junto a archivos externos. Retirarlos elimina sólo su registro. Un enlace
-hacia fuera del área gestionada no transforma su destino en propiedad de Coquena.
+Disponibilidad no calcula hashes completos. Verify recorre archivos con memoria
+acotada, compara referencias y persiste resultados por recurso.
+Ausencia de referencia es no concluyente; crear una base externa es otra operación
+explícita. No actualizar la referencia con el hash de un archivo que falló.
+Si cambia durante la lectura, no publicar un éxito concluyente.
 
 ## 4. Adaptador de Hugging Face: sólo la información necesaria
 
@@ -178,7 +91,7 @@ Antes de elegir endpoints/librería, comprobar estas capacidades con fixtures pe
 y documentación oficial. No hacer experimentos descargando modelos de gigabytes.
 La sintaxis de la API Python citada como referencia no exige introducir Python en C#.
 
-### Mecanismo de selección inicial implementado (015)
+### Inspección acotada de GGUF
 
 `ModelSelection` conserva clasificación/agrupación pura y evidencia por archivo:
 commit/ruta, rol, base y etiqueta completa, fuente, estado y diagnóstico. `ModelResolver`
@@ -199,216 +112,87 @@ La cabecera no certifica una receta dinámica ni la reduce a la etiqueta estánd
 predominante. No se ofrece una equivalencia/alias implícita para omitir `UD-`.
 
 La lectura usa `resolve/<commit>/<ruta>` y `ResponseHeadersRead`, rangos cerrados,
-`Accept-Encoding: identity`, sin cookies/redirecciones automáticas. Reutiliza la política
-HF/CDN de 009 (cinco saltos, HTTPS, hosts permitidos, sin credenciales). Exige 206,
+`Accept-Encoding: identity`, sin cookies/redirecciones automáticas. Utiliza una política
+HF/CDN restringida (cinco saltos, HTTPS, hosts permitidos, sin credenciales). Exige 206,
 Content-Range exacto y total de inventario, longitudes/cuerpo coherentes, sin compresión;
 contrasta commit opcional, continuidad de ETag e identidad LFS comparable cuando existe.
 Un 200 se cierra sin drenar; 416/rangos falsos/cambio de contenido son fallos de consulta.
 
-Presupuestos: primer bloque 64 KiB, siguientes hasta 1 MiB; máximo 64 MiB por cabecera,
-128 MiB por unidad, 256 MiB y 8192 peticiones (incluidos redirects) por invocación;
+Presupuestos: primer bloque 64 KB, siguientes hasta 1 MB; máximo 64 MB por cabecera,
+128 MB por unidad, 256 MB y 8192 peticiones (incluidos redirects) por invocación;
 20 segundos por petición, 120 por sesión. Memoria de cuerpo acotada a dos bloques y
-scratch del parser de 64 KiB, sin conservar tokenizer ni pesos. Contadores incluyen
+scratch del parser de 64 KB, sin conservar tokenizer ni pesos. Contadores incluyen
 bytes leídos en fallos y un byte de detección de exceso. Máximo tres intentos HTTP
 429/500/502/503/504; Retry-After y RateLimit toman la espera mayor, más de 5 s se informa
 sin reintentar antes del plazo. Cancelación y fallos no se convierten en ausencia.
 Memoización por repo/commit/ruta sólo durante la invocación; sin caché en disco, home,
 GUID ni `.part`. Los límites del inventario siguen siendo independientes.
 
-El bloque inicial de 64 KiB se conserva; se aumentaron los posteriores porque ese tamaño
-en cada petición agotó 120 s para el principal Google. Con 1 MiB, principal+mmproj en el
-snapshot d1c082b se inspeccionaron con 15 859 712 bytes/34 peticiones en unos 10 s.
-Se leen rangos del prefijo GGUF, no el archivo completo; el último bloque puede contener
-bytes posteriores a los metadatos que no se interpretan como pesos ni se conservan.
-Los detalles reproducibles y la verificación Native AOT se registran en
-[015](../specs/015-m1-resolucion-gguf-hugging-face/README.md).
+Los límites de inspección no sustituyen la verificación completa de una descarga.
+No ampliar búsquedas o presupuestos silenciosamente para convertir un resultado
+no concluyente en una selección aparentemente segura.
+
 
 ## 5. Comparación determinista y update
 
-Implementar las [reglas de correspondencia](modelos-y-companions.md#reglas-de-correspondencia)
-como función pura: entrada = instalación, correspondencias seguidas e inventario remoto;
-salida = diferencias explicadas y, sólo si hay resolución suficiente, conjunto objetivo.
-No hay E/S ni selección opaca por semejanza.
+Las [reglas de correspondencia](modelos-y-companions.md#reglas-de-correspondencia)
+son deterministas sobre instalación y metadatos remotos. Sin identidad comparable,
+resultado no concluyente; no recurrir a semejanza opaca ni cambiar cuantización.
+Inventario remoto incompleto no demuestra desaparición.
 
-Identidad ausente o incomparable produce un resultado no concluyente. No sustituir
-esa evidencia por commit, tamaño o fecha. Para localizar una reubicación se necesita
-inventario suficientemente completo; para comparar rutas conocidas no hace falta
-recorrer todo el repositorio.
+Update guarda plan actual/propuesto, selección concreta y huella de intención.
+No descarga ni cambia YAML. Un cambio de intención invalida el plan.
+La operación comprende la combinación elegida, no todos los recursos de la máquina.
+Seleccionar otra variante explícita no equivale a descubrir automáticamente una sucesora.
 
-Resultados propuestos: sin consultar, sin cambios, actualización disponible,
-requiere intervención y consulta fallida; externo usa no aplica.
-Conservar último intento y último éxito con sus fechas.
-Una elección manual resuelve correspondencia, no prueba retrospectivamente procedencia.
 ## 6. Descarga inicial y `upgrade`: publicación recuperable
 
-La adquisición inicial usa el menú definido en comandos.md y secuencias.md: cuantización
-opcional, README a pedido y cancelación antes de crear trabajo. Upgrade aplica el plan
-fijado sin repetir esa selección. Ambos transfieren en primer plano; Ctrl+C conserva
-parciales y muestra el GUID para reanudar sin volver a buscar ni elegir cuantización.
+La descarga sigue [descargas](descargas.md). Upgrade consume exactamente el plan
+y prepara/verifica todas las unidades seleccionadas antes de publicar resoluciones.
+Un filtro delimita ese conjunto; no convierte un fallo dentro de él en éxito parcial.
+Up puede preparar una intención cambiada sin renovar latest no modificado.
 
-El [administrador de descargas](descargas.md) define los contratos de transferencia, pausa, reanudación, cancelación, progreso y vistas global/filtrada. Implementarlos en C# con las pruebas de aceptación allí especificadas.
+Las revisiones físicas nuevas son independientes de las activas. Conservar anteriores
+y última buena; preparar con servidor activo no autoriza reemplazar sus archivos.
+No suponer transacción atómica de sistema de archivos sobre todos los documentos:
+usar un protocolo recuperable con comprobación de generación y propiedad.
+Prever interrupción antes/después de publicar y limpieza parcialmente fallida.
 
-La preparación acordada es `downloads/<guid>/operation.json` y `files/`, según
-[descargas.md](descargas.md#área-de-preparación-acordada). Está separada del destino
-instalado. Cada unidad conserva su ubicación registrada; la publicación admite otro
-volumen mediante copia verificada. La disposición del catálogo instalado está acordada
-en la sección 2.
-No exigir symlinks.
-
-El plan de publicación conserva en `operation.json` el registro instalado de partida,
-los archivos objetivo verificados, el índice del movimiento confirmado y el movimiento
-en curso. El GUID reserva la unidad frente a start hasta completar o cancelar el trabajo;
-la creación de la reserva y el inicio de una instancia usan la misma exclusión de escritores.
-Las consultas que modifican el registro esperan la resolución de esa operación.
-Los archivos reutilizados se copian a preparación tras contrastar su SHA-256 local.
-Antes de sustituir rutas se conserva una copia completa de los archivos anteriores en
-`downloads/<guid>/previous/`, con hashes de los bytes observados para recuperación;
-esos hashes no sustituyen las referencias de integridad del catálogo anterior.
-Cada reemplazo usa una copia temporal identificada por el GUID en el volumen destino.
-Sólo se permiten destinos libres o pertenecientes al registro de partida.
-Una publicación interrumpida se completa al reanudar; cancelar restaura los archivos
-anteriores si el índice aún no cambió. Después del cambio de índice, cancelar completa
-la limpieza y conserva la instalación publicada. Se eliminan únicamente archivos propios
-comprobados; una limpieza pendiente mantiene el GUID y su diagnóstico.
-
-```plantuml
-@startuml
-start
-:Cargar plan y comprobar instalación de partida;
-if (¿unidad utilizada por instancia activa?) then (sí)
-  :Rechazar antes de descargar o mover;
-  stop
-endif
-:Preparar conjunto del commit objetivo;
-:Reutilizar contenido comprobado sin cambios;\ndescargar nuevos o modificados a preparación;
-if (¿Conjunto completo y verificado?) then (no)
-  :Conservar instalación activa;\nregistrar fallo recuperable;
-  stop
-endif
-:Publicar nueva instalación en el índice;
-:Retirar archivos anteriores exclusivamente propios\ncuando sea seguro;
-stop
-@enduml
-```
-
-- Descargar siempre desde el commit fijado. Si deja de estar accesible, fallar sin
-  sustituirlo por `main` ni por otra revisión.
-- Antes de aplicar, comprobar que el plan sigue ligado a la instalación actual. Otro
-  proceso no puede aplicar después un plan obsoleto sin detectarlo.
-- Reutilización exige evidencia local suficiente; no confiar únicamente en que el
-  índice recuerde un digest. Si hace falta, verificar los bytes antes de reutilizarlos.
-- No reemplazar shards activos durante la transferencia. Verificar el conjunto antes
-  de publicar. Guardar cada JSON nuevo y reemplazar el original de forma segura, con
-  exclusión de escritores y comprobación de vigencia. Esto no vuelve atómicos los
-  movimientos físicos: detectar inconsistencias sin reparación destructiva automática.
-  No se impone un archivo transaccional adicional.
-- Mantener la instalación anterior durante preparación; después de una publicación
-  confirmada, la nueva debe estar completa. Una interrupción entre movimiento e índice
-  puede requerir recuperación antes de usar la unidad. No declarar éxito o inventar
-  rutas para ocultarlo. Probar el mecanismo con fallos; una limpieza pendiente no revierte
-  una publicación válida.
-- Cancelación, falta de espacio o hash incorrecto no publican archivos parciales.
-  Validar rutas remotas para impedir escapes, rutas absolutas y colisiones locales.
-- Respetar la propiedad ya acordada: sin deduplicación entre unidades y sin upgrade
-  de pesos en uso. Coordinar exclusión con start y comprobar vigencia antes de publicar;
-  el mecanismo técnico no puede permitir reemplazar recursos de una instancia activa.
-- Reanudar una transferencia incompleta no es actualizar por bloques un archivo viejo.
-  Ninguna de esas optimizaciones forma parte del comparador.
+La transición externo→gestionado exige selección explícita y publicación verificada,
+sin adoptar, mover ni borrar los externos. Coordinar referencias durante transición;
+no cambiar bajo una instancia las rutas de recursos que ya utiliza.
 
 ## 7. Emparejamiento
 
-El intento es opcional mediante `--try-match`; el nombre se declara con `--name`.
-El flujo está en [secuencias.md](secuencias.md#1-registrar-un-externo-e-intentar-emparejarlo).
-Implementar consultas acotadas a partir de pistas locales. Tras concretar el registro
-local, mostrar candidatos y razones en un menú con selección explícita o cancelación.
-Guardar la equivalencia elegida como información, no como identidad certificada ni
-habilitación de seguimiento. Cancelar deja el alta local intacta y sin emparejamiento.
+El matching externo es informativo: metadatos, rol, cuantización, partes y tamaños,
+con selección explícita. No prueba revisión ni integridad y no habilita update.
+Se aplican los límites de [modelos](modelos-y-companions.md#incorporación-externo-o-gestionado).
+Nunca descargar pesos sólo para reconstruir procedencia.
 
-Si el nombre está ocupado por un externo, ofrecer la transición explícita definida
-en modelos-y-companions.md: publicar sólo tras completar/verificar la descarga,
-conservando ID y referencias, sin tocar los archivos externos. La operación conserva
-el registro de partida para comprobar vigencia antes de publicar.
-## 8. Entregas delegables y evidencia de aceptación
+## 8. Evidencia de aceptación técnica
 
-Cada entrega recibe este documento, las reglas funcionales, sus decisiones pendientes
-resueltas y el contrato de su predecesora. No comenzar todas en paralelo: primero
-estabilizar los datos compartidos. Sólo después podrán delegarse piezas independientes.
+La validación debe cubrir coherencia de combinaciones/locks, concurrencia de escritura,
+fallos a mitad de descarga/publicación, recuperación y propiedad.
+Probar archivos pequeños/fixtures para límites de red, rangos y parsing.
+Los recorridos de runtime requieren binario publicado Native AOT; una prueba
+administrada no demuestra que una dependencia funcione publicada.
 
-| Entrega | Depende de | Resultado y pruebas mínimas |
-|---|---|---|
-| M0: contratos y fixtures | Decisiones de identidad local y agrupación | Datos de ejemplo monofichero, shards y companion; revisión humana, sin aplicación todavía |
-| M1: comparador puro | M0 | Tabla de correspondencia completa; mismas entradas producen mismo resultado; ninguna E/S |
-| M2: índice y registro externo | M0, M3, persistencia elegida | Registro local independiente del éxito remoto; listado/retiro sin red; cero escrituras externas; colisión sin pérdida |
-| M3: inspección e integridad | M0 | GGUF inválido, shards ausentes, lectura fallida, hash correcto/incorrecto; nunca rebasar referencia tras discrepancia |
-| M4: metadatos HF y update | M1, M2, contrato HTTP verificado | Paginación, error de acceso/red, identidad ausente, reubicación; cero descarga de pesos |
-| M5: descarga y upgrade | M2–M4, publicación/propiedad resueltas | Commit fijo, conjunto verificado, plan obsoleto, fallo y recuperación antes/después de activación |
-| M6: búsqueda asistida | M2–M4, UX definida | Intento opcional en el alta; candidatos no certificados; fallo remoto no invalida registro; descarga no altera externo |
-
-Pruebas de regresión obligatorias: cambio sólo de README; cambio de pesos con igual
-nombre; renombre exacto único y ambiguo; eliminación más alta con distinto contenido;
-shard faltante; companion no elegido; externo modificado por otra herramienta; error
-de consulta con último éxito previo; fallo de descarga conservando versión instalada.
-
-Usar archivos pequeños y transporte simulado para pruebas deterministas. Las pruebas
-de integración remota son opt-in y acotadas; no dependen de modelos enormes ni se ejecutan
-en cada listado. No declarar una entrega terminada sólo porque compila.
-
-Cada agente entrega: alcance realizado, archivos modificados, pruebas ejecutadas y
-resultado, limitaciones, decisiones pendientes y siguiente dependencia. Distinguir
-claramente propuesta, implementación y comportamiento efectivamente verificado.
-Las entregas de runtime incluyen evidencia de publicación Native AOT y ejecución del
-binario publicado para el destino acordado, además de las pruebas funcionales. La
-entrega documental M0 no requiere todavía un ejecutable ni crear el proyecto.
+Para router, probar sobre build fijado: inicio vacío, publicación/recarga de presets,
+carga/descarga por entrada, errores de modelo, eventos y recuperación.
+No asumir que éxito HTTP equivale a carga completada ni que existe una transacción
+nativa para aplicar varios presets.
 
 ## 9. Decisiones que no deben quedar ocultas en el código
 
-Esta es la lista central de pendientes. No reabre nombres canónicos, shards estándar,
-JSON por catálogo, comandos de companions, SHA-256, alcance global de update/upgrade
-ni controles de descargas ya acordados.
+El [formato](formato-proyecto.md) define YAML sin campo de versión y referencias. [Parámetros](catalogo-de-parametros.md) fija metaschema y emisión; [persistencia](persistencia-proyectos.md) concreta documentos, identidad y
+publicación recuperable con control de escritores. Capacidades se acreditan por build.
+Las invariantes aprobadas no autorizan elegir por silencio una política distinta.
 
-### Alcance funcional aplazado
-
-- Gestión de nombres cortos de otros orígenes y variantes: aplazada. En esta versión
-  ggml y su alias oficial vienen incluidos; los terceros se declaran mediante el
-  repositorio en --distribution y sus externos se seleccionan por nombre propio.
-  La gramática conceptual no habilita comandos ni gestión/descargas de terceros.
-- Autenticación y repositorios privados/restringidos: decisión aplazada; no requisito
-  confirmado de la primera versión.
-
-La excepción acordada para el servidor llamado default y las palabras reservadas se
-definen en [comandos.md](comandos.md#servidores-e-instancias). No queda como decisión
-del parser al implementar: probar designación, acción explícita y servidor retirado.
-
-Los detalles siguientes se resuelven con evidencia al implementar; si cambian conducta
-visible o alcance, deben volver a revisión antes de incorporarse.
-
-### Detalles técnicos al implementar
-
-- Esquemas JSON de otros catálogos, validación y migraciones; la estructura mínima
-  de servidores está acordada. Representación de IDs; exclusión de escritores y
-  comprobación de ejecutores vivos; recuperación entre cambios de disco e índice.
-- Reutilización física dentro de la misma unidad, sin deduplicación entre repositorios;
-  representación de eliminaciones parciales; tratamiento de identificadores remotos
-  no comparables sin convertirlos en evidencia falsa de igualdad.
-- Límites de consultas, metadatos, tiempos, reintentos y extracción; frecuencia de
-  checkpoints. JSONL para transacciones y texto para logs del backend están acordados;
-  faltan campos de eventos, límites iniciales y rotación. Reintentos limitados y trabajo
-  recuperable ya están acordados.
-- Identidad verificable de procesos y coordinación de start/stop/restart con cambios
-  del catálogo; tiempos de salud y terminación. Las reglas de recuperación no son pendientes.
-- Disposición interna de backends; cálculo de espacio liberado y pruebas de fallos.
-
-Estos detalles requieren evidencia y pruebas en su entrega, no nuevas rondas de
-decisiones funcionales salvo que aparezca un impacto visible o una contradicción.
-Las reglas de recursos en uso y retención de backends están en [servidores.md](servidores.md).
-Upgrade de pesos en uso se rechaza; el mecanismo de exclusión y recuperación requiere pruebas.
-La separación configurable de ubicaciones se concreta en las
-[reglas de directorios](servidores.md#directorios-gestionados) y las tarjetas 019/020.
-La TUI y la transferencia diferencial por bloques conservan su alcance posterior.
+La [restauración acotada](servidores.md#restauración-acotada-de-presets) conserva entradas no afectadas y exige reinicio explícito si restaurar lo requiere. La evidencia del build determina capacidades reales, sin redefinir esa política ni afirmar soporte probado.
 
 ## Referencias
 
-Las referencias verificadas durante el análisis están en
-[modelos-y-companions.md](modelos-y-companions.md#referencias-técnicas). Antes de integrar
-el proveedor, verificar su contrato vigente y guardar fixtures sin credenciales. No
-convertir un comportamiento observado en una garantía universal de todos los orígenes.
+- [Reglas de modelos y companions](modelos-y-companions.md).
+- [Proyecto, composición y locks](definiciones-declarativas.md).
+- [Preparación, upgrade y limpieza](actualizacion-y-limpieza.md).
+- [Observación de APIs y procesos](observabilidad.md).

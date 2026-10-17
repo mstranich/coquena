@@ -2,11 +2,10 @@
 
 ## Actores
 
-- **Usuario:** una sola persona, en su propia PC. Opera Coquena por línea de comandos.
-- **Cliente de inferencia** (secundario): OpenCode, Pi Code u otro harness. No habla con
-  Coquena: consume el endpoint de `llama-server` y elige preset por nombre.
-- **Distribución** (secundario): origen de releases de binarios; la oficial es
-  `ggml-org/llama.cpp` en GitHub.
+- Usuario local o remoto por SSH: define, prueba y opera su proyecto.
+- DevOps: reproduce una receta en hardware compatible, configura logs y alertas.
+- Frontend CLI/TUI/Web: invoca operaciones comunes y observa APIs/procesos.
+- Backend: sirve peticiones y ofrece las capacidades de su build.
 
 ## Diagrama
 
@@ -14,113 +13,53 @@
 @startuml
 left to right direction
 actor Usuario
-actor "Cliente de\ninferencia" as Cliente
-actor "Distribución oficial" as GH
-actor "Hugging Face" as HF
-
+actor DevOps
+actor Backend
 rectangle Coquena {
-  package Máquina {
-    usecase "Inspeccionar hardware" as UC_HW
-  }
-  package Backends {
-    usecase "Listar versiones remotas" as UC_BR
-    usecase "Instalar build" as UC_BI
-    usecase "Listar instaladas" as UC_BL
-    usecase "Desinstalar backend" as UC_BD
-    usecase "Registrar backend externo" as UC_BE
-    usecase "Consultar / aplicar novedades\nde seguimientos latest" as UC_BU
-    usecase "Seleccionar backend\npredeterminado" as UC_BDEF
-    usecase "Elegir familia\nsegún hardware" as UC_VAR
-  }
-  package Modelos {
-    usecase "Descargar modelo o companion\nelegir variante / ver README" as UC_DL
-    usecase "Consultar novedades (update)" as UC_UP
-    usecase "Aplicar actualización (upgrade)" as UC_UG
-    usecase "Verificar integridad local" as UC_V
-    usecase "Establecer base local\nde externo (--set-baseline)" as UC_BASE
-    usecase "Retirar modelo o companion" as UC_RM
-    usecase "Registrar modelo externo" as UC_MR
-    usecase "Registrar companion externo" as UC_CR
-    usecase "Listar modelos" as UC_ML
-  }
-  package Configuración {
-    usecase "Definir servidor\n(presets, puerto,\nbackend propio o default)" as UC_ID
-    usecase "Configurar políticas y directorios\ndel manager" as UC_IG
-    usecase "Crear / editar / consultar /\neliminar parámetros del catálogo" as UC_PAR
-    usecase "Definir / editar /\neliminar preset" as UC_PD
-    usecase "Clonar preset" as UC_PC
-  }
-  package "Descargas" {
-    usecase "Consultar progreso y filtrar" as UC_DLIST
-    usecase "Pausar / reanudar / cancelar" as UC_DCTRL
-  }
-  package "Instancias" {
-    usecase "Iniciar / reiniciar instancia" as UC_IS
-    usecase "Detener instancia" as UC_IX
-    usecase "Ver estado (ps)" as UC_IP
-    usecase "Seguir logs" as UC_IL
-  }
+  usecase "Inicializar y editar proyecto" as Config
+  usecase "Importar servicio / receta global" as Import
+  usecase "Publicar / retirar conjunto consumidor" as Publish
+  usecase "Resolver YAML y overrides" as Resolve
+  usecase "Preparar recursos y locks" as Prepare
+  usecase "Iniciar / detener / recuperar" as Run
+  usecase "Aplicar presets y cargar memoria" as Apply
+  usecase "Observar salud, logs y métricas" as Observe
+  usecase "Comparar y medir rendimiento" as Bench
+  usecase "Actualizar, verificar y limpiar" as Maintain
+  usecase "Compartir receta y reproducir" as Share
 }
-
-Usuario --> UC_HW
-Usuario --> UC_BR
-Usuario --> UC_BI
-Usuario --> UC_BL
-Usuario --> UC_BD
-Usuario --> UC_BE
-Usuario --> UC_BU
-Usuario --> UC_BDEF
-Usuario --> UC_DL
-Usuario --> UC_UP
-Usuario --> UC_UG
-Usuario --> UC_V
-Usuario --> UC_BASE
-Usuario --> UC_RM
-Usuario --> UC_DLIST
-Usuario --> UC_DCTRL
-UC_DL --> HF
-UC_UP --> HF
-UC_UG --> HF
-UC_MR --> HF : sólo --try-match
-UC_CR --> HF : sólo --try-match
-Usuario --> UC_MR
-Usuario --> UC_CR
-Usuario --> UC_ML
-Usuario --> UC_ID
-Usuario --> UC_IG
-Usuario --> UC_PAR
-Usuario --> UC_PD
-Usuario --> UC_PC
-Usuario --> UC_IS
-Usuario --> UC_IX
-Usuario --> UC_IP
-Usuario --> UC_IL
-
-UC_BR --> GH
-UC_BI --> GH
-UC_BU --> GH
-UC_BI ..> UC_VAR : <<include>>
-UC_VAR ..> UC_HW : <<include>>
-UC_IS ..> UC_IL : <<extend>>\n(primer plano)
-
-Cliente --> (Consumir preset\npor nombre)
-note right of (Consumir preset\npor nombre)
-  Lo atiende llama-server,
-  no Coquena.
-end note
+Usuario --> Import
+Usuario --> Publish
+Usuario --> Config
+Usuario --> Run
+Usuario --> Apply
+Usuario --> Observe
+Usuario --> Bench
+Usuario --> Maintain
+DevOps --> Share
+DevOps --> Run
+DevOps --> Observe
+Config --> Resolve
+Import --> Resolve
+Publish --> Prepare
+Publish --> Backend
+Resolve --> Prepare
+Run --> Prepare
+Run --> Backend
+Apply --> Backend
+Observe --> Backend
+Share --> Resolve
 @enduml
 ```
 
 ## Lectura del mapa
 
-- Backends: selección, compatibilidad y comandos en [comandos.md](comandos.md#convenciones).
-- Modelos: registro, emparejamiento, actualización e integridad en
-  [modelos-y-companions.md](modelos-y-companions.md).
-- Descargas: progreso, control y recuperación en [descargas.md](descargas.md).
-- Presets y servidores: valores y referencias en [modelo-de-datos.md](modelo-de-datos.md#parámetros-del-preset-y-del-servidor).
-- Servidores e instancias: acuerdos y pendientes en [servidores.md](servidores.md).
-- Parámetros: definiciones y aplicabilidad en [catálogo de parámetros](catalogo-de-parametros.md).
-- Directorios de backends y modelos: configuración del manager mediante [config](comandos.md#config).
+Editar, preparar y aplicar son efectos distintos. La interacción visual puede
+crear borradores y experimentar antes de guardar, manteniendo explícita la
+composición activa. Un router compatible puede recibir presets sin reinicio;
+cambiar el backend requiere otro proceso.
 
-El cliente de inferencia consume llama-server, no una API de Coquena.
-La verificación local no usa red; sólo los casos remotos se relacionan con Hugging Face.
+La observación no inicia modelos ni deja un supervisor. El benchmarking tiene
+su propio ciclo explícito y no debe interrumpir una instancia productiva sin
+una operación acordada. Detalles en [interfaces](interfaces-visuales.md),
+[observabilidad](observabilidad.md) y [benchmarking](benchmarking.md).

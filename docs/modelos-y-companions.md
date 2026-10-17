@@ -1,9 +1,9 @@
 # Catálogo de modelos y companions
 
-Registro, actualización e integridad. Los diagramas de disponibilidad están en [estados.md](estados.md).
+Inventario por proyecto, selección, propiedad e integridad. Los diagramas de disponibilidad están en [estados.md](estados.md).
 
 La [guía de implementación](implementacion-catalogo-modelos.md) descompone estas reglas
-en contratos, algoritmos, pruebas y entregas para agentes. Los mecanismos propuestos
+en contratos e invariantes técnicas. Los mecanismos propuestos
 allí no sustituyen las decisiones funcionales de este documento.
 
 ## Ejes independientes
@@ -25,8 +25,11 @@ Coquena descarga sólo la selección solicitada y sus shards necesarios, no el r
 completo.
 
 La selección inicial y el menú de descarga están en [comandos.md](comandos.md#model).
-Cada companion se descarga en otra invocación; no se presupone su repositorio ni
-compatibilidad. Los algoritmos y las interacciones se detallan en la guía técnica
+Una cuantización explícita con una única unidad válida inicia descarga sin menú
+ni oferta de README; la unicidad se evalúa por unidad, no por archivo o shard.
+La descarga explícita de un modelo no incorpora companions por proximidad remota.
+Al preparar un proyecto se incluyen los companions declarados por sus presets;
+no se presupone su repositorio ni compatibilidad. Los algoritmos y las interacciones se detallan en la guía técnica
 y en secuencias.md.
 
 Los nombres son pistas, no un requisito para reconocer un GGUF. La selección evalúa
@@ -65,7 +68,8 @@ los demás candidatos; una exploración limitada se informa como parcial/no conc
 
 ## Identificación en el catálogo local
 
-No se usan aliases. El **nombre canónico** identifica la selección local:
+El **nombre canónico** identifica la selección en el inventario del proyecto.
+No debe confundirse con los nombres/aliases de entradas publicados en el router:
 
 ```text
 usuario/repositorio:cuantización
@@ -85,7 +89,8 @@ por hash. Un nombre retirado puede reutilizarse, sin reconectar referencias rota
 
 El nombre no es una ruta física ni el nombre del preset. Las configuraciones referencian
 el registro; el INI recibe rutas absolutas. Cada registro tiene un ID interno estable
-para mantener referencias ante renombres. Su esquema concreto sigue pendiente.
+para mantener referencias ante renombres. La resolución física distingue revisiones para conservar recursos activos y anteriores.
+Los locks transportan selecciones; los identificadores locales no presuponen una home compartida.
 
 ## Presets
 
@@ -117,10 +122,10 @@ selecciona exclusivamente el principal del preset y conserva sus demás asignaci
 La configuración de métodos de especulación es independiente del vínculo a archivos:
 no se deduce un método ni compatibilidad a partir del tipo o nombre del recurso.
 
-La composición respeta la aplicabilidad del catálogo al backend seleccionado: un
-parámetro no admitido se omite con aviso, conservando su vínculo guardado. Sólo los
-recursos emitidos forman parte de esa ejecución y de sus protecciones de uso. Los
-parámetros con soporte desconocido se conservan y sus referencias se comprueban.
+El modo permisivo admite desconocidos y valida conocidos; el estricto exige definición para todos. Se comprueban tipos, ámbito,
+aplicabilidad y dependencias: una asignación inválida se rechaza con diagnóstico,
+no se omite para iniciar otra configuración silenciosamente. Las referencias
+seleccionadas determinan los recursos requeridos y protegidos.
 
 ## Disponibilidad, en el núcleo
 
@@ -184,31 +189,20 @@ de revisión remota. Los repositorios del modelo de origen no sustituyen al repo
 que publica los GGUF seleccionados. Una misma etiqueta de cuantización puede describir
 varias variantes; se seleccionan explícitamente las rutas concretas.
 
-Para el alcance inicial:
+Para el descubrimiento automático:
 - Conjuntos divididos con nombres no convencionales quedan fuera del registro automático;
-  se diagnostica la limitación, no se declara inválido el GGUF. No se incorpora un flujo
-  manual de partes y orden en esta iteración.
+  se diagnostica la limitación, no se declara inválido el GGUF. No se inventa una lista de partes ni su orden.
 - Si hay varias variantes para un selector, el usuario elige las rutas concretas. Sólo
   una variante puede estar registrada por nombre canónico; otra alta colisiona y se rechaza.
 
 ## Renombres y reubicaciones remotas
 
-Coquena sigue los nombres actuales del origen: un renombre confirmado del repositorio
-actualiza el nombre canónico; una reubicación confirmada de archivos actualiza sus rutas
-seguidas. En almacenamiento gestionado, carpetas y archivos se renombran o reubican
-físicamente para reflejar el origen, sin volver a descargar contenido sin cambios.
-No se conserva deliberadamente una estructura física con nombres remotos antiguos.
-
-El registro interno y las referencias de configuración conservan su identidad durante
-la operación. Un renombre no crea otro modelo ni implica un cambio de pesos. Se comprueba
-la correspondencia de contenido separadamente; no basta la semejanza de nombres.
-La regla de seguimiento de nombres no autoriza mover archivos externos.
-
-`update` detecta y guarda el cambio; no mueve archivos. `upgrade` aplica el cambio físico
-en gestionados junto con la actualización correspondiente. Debe resolver colisiones,
-fallos e interrupciones sin sobrescribir registros o archivos ajenos ni dejar referencias
-inconsistentes. Si la unidad está en uso, upgrade se rechaza antes de descargar o mover.
-El protocolo físico y su coordinación con el índice requieren pruebas de recuperación.
+Un renombre remoto confirmado conserva la identidad lógica y las referencias.
+Nombre parecido no prueba equivalencia: se exige correspondencia de contenido.
+Update registra el plan; upgrade lo aplica mediante preparación separada, sin
+mover ni sobrescribir archivos que una instancia esté utilizando. Los locks y
+el inventario resuelven cada revisión física; los nombres de carpetas no son la
+identidad del recurso. No se mueven archivos externos.
 
 ## Quitar un modelo o companion
 
@@ -235,13 +229,14 @@ La misma regla de propiedad rige para backends. Los presets que referencian una 
 retirada no se borran: pasan a **No servible** por *referencia rota*.
 La retirada se rechaza si una instancia activa utiliza la unidad, indicando sus IDs;
 referencias guardadas sin uso por instancias activas no bloquean el retiro. Véase
-[servidores.md](servidores.md#inicio-y-detención). Upgrade y renombres también se bloquean en uso.
+[servidores.md](servidores.md#inicio-y-detención). Preparar una revisión nueva no elimina ni reemplaza la revisión en uso.
 
-El catálogo central es `<home>/catalogs/models.json`, sin sidecars por archivo o shard.
-Los pesos siguen `models/<usuario>/<repositorio>/<ruta-remota>`, sin carpetas propias
-por cuantización. La estructura completa está en la guía técnica. El estado de retirada
-pendiente se guarda en el catálogo antes de borrar archivos. Sólo después de completar
-el borrado se quita el registro; una interrupción conserva el inventario para reintentar.
+El inventario y la retirada pendiente pertenecen al proyecto. Antes de borrar se
+persiste la propiedad y la lista de archivos; una interrupción permite reintentar.
+Quitar explícitamente un recurso no equivale a desactivar un preset ni a limpiar
+recursos sin referencias. La limpieza respeta además las protecciones de locks,
+combinaciones conocidas y recuperación descritas en
+[actualización y limpieza](actualizacion-y-limpieza.md).
 
 ## Companions
 
@@ -270,7 +265,7 @@ companion no es su estado sino su relación con los modelos:
 
 Compartir significa referenciar el mismo registro, no crear varios registros propietarios
 del mismo archivo. No se introduce deduplicación física entre repositorios ni almacenamiento
-compartido por hash en la primera versión. Cada unidad gestionada tiene archivos propios;
+compartido por hash como requisito del proyecto. Cada unidad gestionada tiene archivos propios;
 si otra unidad pretende apropiarse de una ruta ya registrada, se rechaza la colisión.
 Retirar un companion compartido conserva los presets, pero sus referencias quedan rotas.
 
@@ -285,6 +280,34 @@ deriva de la disponibilidad de sus archivos:
   del registro. El inicio del servidor se rechaza, sin omitir el preset; véase [servidores.md](servidores.md).
 
 ## Incorporación: externo o gestionado
+
+### Reutilizar archivos obtenidos por otra herramienta
+
+El alta pertenece al inventario del proyecto seleccionado. El usuario puede copiar
+o mover a su carpeta archivos ya descargados con LM Studio, Ollama u otra herramienta,
+registrarlos y vincularlos a un preset sin descargar otra vez sus gigabytes.
+También puede registrar una ubicación ajena explícita; esa referencia depende de
+que la ubicación siga disponible y no es autocontenida por compartir el YAML.
+
+Si el usuario trajo una copia, registrar la copia actual y usarla desde el proyecto,
+no la ruta de origen del otro gestor. Las referencias dentro de la carpeta se
+expresan respecto de la base del proyecto para conservar portabilidad. Se requieren
+todos los shards necesarios y los companions que seleccione la configuración.
+No rastrear automáticamente las bibliotecas de otros gestores ni mover sus archivos.
+
+Externo describe propiedad, no posición física ni un catálogo global: estar dentro
+de la carpeta no autoriza a Coquena a borrar o actualizar el archivo. El registro
+local permite utilizarlo y verificarlo con el mismo criterio que otros externos.
+Sin baseline de integridad se informa esa ausencia; no se exige una descarga nueva
+para poder registrar y usar una selección local disponible.
+
+El matching opcional consulta el repositorio indicado y conserva candidatos,
+evidencia y elección en este proyecto. No requiere éxito para usar el archivo.
+Equivalencia de nombre, cabecera y tamaño no certifica identidad de bytes ni
+revisión remota; no convierte por sí sola el recurso en gestionado ni habilita upgrade.
+Una referencia local compartida no promete poder reconstruirla desde Hugging Face
+si su correspondencia exacta no está demostrada. El flujo no confunde ahorrar una
+descarga con certificar procedencia o adquirir propiedad.
 
 Registrar un externo no requiere identificar su revisión remota ni calcular un hash
 completo. Basta la referencia del catálogo a sus rutas: no necesita symlinks ni hardlinks.
@@ -355,51 +378,19 @@ No se cambia automáticamente de cuantización. En un modelo dividido se resuelv
 conjunto completo; no basta identificar un shard. La historia remota sólo se consulta
 de forma acotada cuando aporte evidencia útil: el flujo normal compara inventarios.
 
-`model update [nombre]` consulta y guarda novedades; no cambia pesos ni su revisión de
-descarga. Puede registrar una reubicación inequívoca sin alterar las rutas locales.
-Un externo explícito informa que no aplica. Sin nombre, consulta todos los gestionados
-del catálogo, incluidos companions; los externos se omiten indicando que no aplica.
-`model companion update` sin nombre limita esa consulta a companions.
+Update y upgrade siguen el contrato de
+[actualización y limpieza](actualizacion-y-limpieza.md). La selección procede de
+la combinación de YAML indicada y de filtros explícitos, no de todos los recursos
+de la máquina. Una consulta fallida o ambigua no equivale a estar actualizado.
+Se conserva la fecha de observación y se solicita selección cuando no hay una
+correspondencia inequívoca; nunca se cambia de cuantización por inferencia.
 
-Una consulta fallida significa **no se pudo comprobar**; una correspondencia ambigua,
-**requiere intervención**. Ninguna equivale a «actualizado» ni necesariamente a
-«desactualizado». Se conserva la última observación con su fecha, sin presentarla como
-una comprobación actual.
-
-Si la consulta permite confirmar pérdida del origen o de la selección seguida y no
-hay sucesor identificado ni candidatos, informar **huérfano de seguimiento**: no puede
-actualizarse con el seguimiento actual. No reconstruir procedencia ni elegir otra
-cuantización para remediarlo. Si hay candidatos, ofrecerlos para elección explícita;
-cancelar conserva instalación y seguimiento sin resolver, sin descargar pesos.
-El menú muestra candidatos, diferencias y la acción de cancelar. Elegir uno establece
-explícitamente el destino de seguimiento y guarda el plan del commit seleccionado;
-no prueba identidad retrospectiva ni modifica pesos. `upgrade` aplica ese plan.
-Si la elección implica cambiar el espacio de nombres o las rutas remotas, upgrade
-también renombra/reubica carpetas y archivos físicos gestionados para reflejarlo,
-conservando IDs y referencias y comprobando colisiones. Update no mueve archivos.
-Un error de red o permisos no demuestra orfandad. La pérdida de seguimiento no bloquea
-la inferencia: archivos completos y legibles continúan disponibles localmente.
-
-`model upgrade [nombre]` aplica la revisión concreta detectada por `update`, no una
-revisión nueva elegida silenciosamente. Reutiliza archivos sin cambios, descarga los
-nuevos o modificados y verifica el conjunto antes de activarlo. Si falla, conserva la
-instalación anterior; nunca publica una mezcla de shards de revisiones distintas.
-Los casos que requieren intervención se informan sin sustituir sus archivos.
-Sin nombre, aplica los planes de actualización resueltos de todos los gestionados del
-catálogo, incluidos companions. No sustituye update ni selecciona una revisión nueva.
-Informa unidades sin cambios, externas, ambiguas o fallidas sin impedir tratar las demás.
-`model companion upgrade` sin nombre limita la operación a companions. No es una
-transacción global: cada unidad se publica completa o conserva su instalación anterior.
-
-La reutilización por archivo es el criterio inicial. La transferencia diferencial por
-bloques es una optimización posterior, no un requisito para detectar actualizaciones.
-Update puede consultar novedades aunque la unidad esté en uso. Upgrade de modelos o
-companions se rechaza antes de descargar mientras una instancia activa utilice esa
-unidad, indicando sus IDs; primero deben detenerse. Incluye planes de sólo renombre.
-No se mantienen dos instalaciones de pesos para servir simultáneamente revisiones
-distintas. Esto no elimina el espacio temporal de preparación necesario para verificar
-la actualización y conservar la instalación anterior si falla. Coordinar inicio y
-upgrade para impedir que una instancia adquiera los archivos durante su sustitución.
+La pérdida confirmada de origen sin sucesor deja el recurso huérfano de seguimiento,
+pero no impide usar bytes locales completos. Upgrade aplica el plan fijado y verifica
+el conjunto seleccionado antes de publicar sus resoluciones. Puede preparar revisiones
+mientras funciona la anterior; no sustituye archivos en uso ni publica shards mezclados.
+El YAML no se modifica. Una nueva intención explícita se prepara al iniciar aunque no
+haya un plan update previo; esto no autoriza renovar latest en cada arranque.
 
 ## Integridad local
 
@@ -419,12 +410,10 @@ alterado**. `refresh` no restablece esa referencia ni declara integridad.
 En externos, establecer una referencia de integridad es opcional y explícito. Sólo
 permite afirmar después «no cambió desde aquella lectura», no que la descarga original
 fuera correcta o coincidiera con Hugging Face. No es requisito para registrarlos.
-Se realiza con `model verify <nombre> --set-baseline` o su equivalente bajo
-`model companion`. Calcula SHA-256 completos y registra la fecha; advierte el alcance
-de esa base. El flag expresa creación o sustitución explícita de la referencia del
-externo, no una verificación exitosa contra otra referencia. Lecturas fallidas o cambios
-detectados durante la lectura no producen una base completa exitosa. En gestionados
-se rechaza el flag: no se rebasan los hashes establecidos al descargar.
+Establecer o sustituir esa referencia es una operación explícita distinta de
+comparar integridad; no se presenta como reparación ni como verify exitoso.
+Verify no tiene un modo de arreglo automático. En gestionados no se reemplazan
+los hashes conocidos por los de bytes que han fallado.
 
 La base se publica para la unidad completa: si falla una parte, se conservan todas
 las referencias anteriores. El resultado distingue la creación explícita de base
@@ -441,7 +430,7 @@ identificador Git, ETag y hash de los bytes. Verify nunca establece una base por
 
 - No reconstruir obligatoriamente la procedencia de externos ni recorrer historiales exhaustivos.
 - No escribir sidecars por archivo o shard.
-- No descargar ni reconciliar companions automáticamente.
+- No inferir companions por proximidad; preparar los declarados en la configuración efectiva.
 - No deducir cambios de pesos solamente de un commit distinto.
 - No mezclar seguimiento remoto, integridad y disponibilidad en un estado único.
 
@@ -455,3 +444,16 @@ por archivo, pausa, reanudación, cancelación y recuperación.
 - [GGUF: metadatos y referencias de origen](https://github.com/ggml-org/ggml/blob/master/docs/gguf.md).
 - [llama.cpp: carga de partes y comprobaciones estructurales](https://github.com/ggml-org/llama.cpp/blob/master/src/llama-model-loader.cpp).
 - [Ejemplo de variante dividida IQ1_S-XL](https://huggingface.co/persadian/DeepSeek-V4-Flash-GGUF/tree/main).
+
+## Integridad y arranque del proyecto
+
+Verify comprueba YAML y existencia/integridad de backend, modelos y companions
+seleccionados. Registra fallos por recurso. Un fallo conocido bloquea otro arranque
+que lo seleccione en ambos modos, sin detener la instancia ya activa. No se intenta
+una recuperación que eluda ese fallo. Un verify correcto o una redescarga terminada
+y verificada lo resuelven; excluir el preset evita seleccionarlo, sin declararlo sano.
+
+Up valida sintaxis, esquema y referencias efectivas y consulta fallos conocidos;
+no recorre gigabytes para recalcular hashes en cada ejecución. Corrigir el YAML
+se comprueba en otro up. La incompatibilidad de hardware es otro diagnóstico,
+no un fallo permanente de integridad. Refresh de metadatos no borra estos resultados.

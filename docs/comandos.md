@@ -1,632 +1,368 @@
 # Comandos de la CLI
 
-Las rutas de evidencia están parametrizadas. Para reproducir comandos de este documento, definir `$TestRoot` y `$CoquenaHome` con directorios de prueba propios; las ubicaciones originales no se publican.
-
-```powershell
-$TestRoot = Join-Path $env:TEMP "coquena-validation"
-$CoquenaHome = Join-Path $TestRoot "home"
-$TestRootUpper = $TestRoot.ToUpperInvariant()
-$CoquenaHomeLower = $CoquenaHome.ToLowerInvariant()
-New-Item -ItemType Directory -Force $TestRoot | Out-Null
-```
-
-Superficie acordada del núcleo, al estilo de SDKMan, FNM o UV para la gestión y de
-Docker para la ejecución. El alcance aplazado y las excepciones por resolver se
-identifican en la lista central; no son requisitos implícitos.
-
 ## Convenciones
 
-- `<familia>` es `cpu`, `vulkan`, `cuda@12`, `cuda@13`, … . En `cuda@12`, `12` es la
-  versión mayor de las bibliotecas CUDA usadas para compilar el runtime, **no** el
-  release de llama.cpp. Éste se expresa por separado como `<build>` (`b1002`).
-  Cada backend registrado tiene además un **ID único y estable**. Un selector abreviado
-  como familia + build sólo se acepta si identifica exactamente uno. Servidores seleccionan
-  por origen/variante:release o nombre externo; `uninstall` conserva la selección por ID.
-  Sin familia, Coquena elige automáticamente una compatible con el hardware; sin
-  release, `latest` significa **el build más reciente que tenga un binario compatible
-  dentro del filtro indicado**. Primero se compara el build y sólo entre candidatos
-  del mismo build se prefiere, en NVIDIA, la familia CUDA con la versión de bibliotecas
-  más alta que resulte compatible; después Vulkan. CPU es el fallback portable de la
-  arquitectura nativa. Así, CPU `b10010` gana a CUDA `b10009` sin filtro, pero
-  filtrar por CUDA con `latest` elige CUDA `b10009`. Coquena informa la elección por
-  defecto y enumera las alternativas. La preferencia no garantiza rendimiento; el
-  usuario siempre puede elegir explícitamente otra familia.
-- La selección automática considera sólo candidatos `compatible`. En la plataforma
-  correcta, un candidato con aceleración `incompatible` o `unknown` puede elegirse
-  explícitamente; ambos quedan fuera de la elección automática, pero se muestran con
-  diagnósticos distintos. La elección explícita no cambia su estado de compatibilidad.
-  Un binario de otro SO o arquitectura se rechaza siempre: Coquena no descarga algo
-  que no podrá instalar para uso local. Toda instalación o registro exige además un
-  `llama-server --version` local válido.
-- En el núcleo, la selección automática usa sólo la distribución oficial. Los
-  backends externos son obtenidos y registrados por el usuario, y se eligen
-  explícitamente para ejecutar. Repositorios de terceros como fuentes de descargas
-  quedan para una iteración posterior. Al registrar uno externo, el usuario declara
-  su familia; `--version` aporta la versión del ejecutable, no confirma esa familia.
-  También se declara la distribución de origen para asociar su catálogo de parámetros:
-  `--distribution oficial` (implícito) o el repositorio de un tercero. Esto no habilita
-  descargas desde ese repositorio ni verifica la procedencia del binario externo.
-- El núcleo inicial **no ofrece `--json`**. La salida JSON por comando se reconsiderará después de un milestone funcional. Si
-  hiciera falta una interfaz programática, se prefiere evaluar un servidor HTTP.
+Los comandos distinguen ámbito de intención (proyecto o global), servicio destino
+y efecto. config administra preferencias globales. La gramática aquí es contrato;
+la disponibilidad real se acredita por la entrega del ejecutable.
+Sin selección explícita se usa `coquena.yaml`. El [formato del proyecto](formato-proyecto.md) concreta campos, layout e inicialización.
+Los archivos adicionales se combinan en orden; para editar se modifica sólo la
+última capa seleccionada, validando antes y después. Consultar o editar no inicia
+servidores ni aplica cambios a una instancia.
+
+Las rutas relativas comparten base de proyecto, no la carpeta de cada override.
+La selección sigue la referencia de Compose: archivos -f ordenados y base en el
+primero; una selección explícita de directorio permite cambiar esa base.
+La selección y el nombre `coquena.yaml` se concretan en [Formato del proyecto](formato-proyecto.md).
+
+No descargar gigabytes ni recalcular hashes sólo por listar estado.
+Los tamaños de salida usan unidad automática en escala de 1024 y hasta dos
+decimales, sin duplicarlos en bytes, según el [formato legible](glosario.md#unidades-de-tamaño-y-memoria).
+Distinguir errores de configuración, consulta remota, compatibilidad, integridad,
+transferencia y ejecución. Informar acciones posibles sin cambiar intención
+automáticamente. No guardar secretos expandidos en archivos compartidos.
 
 ## Mapa por comando
 
-Todos los comandos se invocan con el prefijo `coquena`, omitido en los diagramas.
+### Ámbito y destino del estado
 
-Los flujos de selección y confirmación son **interactivos**. No se incorpora un modo
-automático para omitir sus menús. Si no hay entrada interactiva y el flujo necesita
-una respuesta, informar el requisito y terminar sin decidir por el usuario ni ejecutar
-la acción pendiente. Un registro local ya concretado antes de un emparejamiento se
-conserva; la falta de interacción no revierte esa alta.
+| Familia | Ámbito y efecto |
+| --- | --- |
+| config | Preferencias globales de Coquena; no requiere receta. |
+| system probe | Consulta del entorno; no requiere receta. |
+| --help, -h, help | Consulta de ayuda de la CLI; no requiere receta. |
+| init | Inicialización opcional de la carpeta/receta seleccionada. |
+| import | Copia explícita de intención al ámbito global y preparación; no inicia. |
+| backend/runtime, model, preset, param, download | Proyecto por defecto; `--global` selecciona inventario e intención importados. |
+| service/server start, stop, restart | Proceso del servicio seleccionado; no publicación de un consumidor. |
+| up, down | Publicar/retirar conjunto de la receta seleccionada; no detener servicio. |
+| ps, logs | Observación general o por servicio, sin cambiar intención; ps admite -w/--watch. |
+| update, upgrade, verify, clean | Combinación o ámbito global explícito; no recorren YAML desconocidos. |
+| tui, web, benchmark | Operaciones comunes sobre ámbito/servicio seleccionados. |
 
-Las descargas y reanudaciones de modelos, companions y backends ocupan la terminal
-en primer plano. Ctrl+C pausa sin borrar parciales y muestra el GUID de la operación
-y `coquena download resume <guid>` antes de devolver el prompt. No equivale a
-`download cancel`, que solicita limpiar los parciales.
+Un consumidor conserva inventario propio aunque su target sea global. `--global`
+no equivale a seleccionar el target para cargar pesos del proyecto en la home.
+No se busca una referencia en otro ámbito por coincidencia de nombre.
+Un GUID de transferencia se resuelve en su ámbito; no es una cola global agregada.
+Ps y el dashboard sí agregan observación de servicios conocidos, sin mutar inventarios.
+
+| Operación | Efecto |
+| --- | --- |
+| up | Validar, preparar y publicar conjunto propio; preguntar ante destino detenido. |
+| up --start-service | Autorizar inicio del destino detenido; después publicar. No reiniciar activo. |
+| up -d | Misma publicación sin seguimiento; si debe iniciar, usar recuperación desacoplada. No autoriza inicio por sí solo. |
+| down | Retirar conjunto publicado propio, conservando archivos, servicio y entradas ajenas. |
+| service start -d | Preparar, iniciar, comprobar salud y salir sin supervisor. |
+| service stop | Detener proceso verificado; afecta a todos sus consumidores. |
+| service restart -d | Preparar antes de detener; iniciar y recuperar según política desacoplada. |
+| update | Consultar novedades y guardar plan; pin fijo no cambia. |
+| upgrade | Aplicar plan vigente; pin fijo exige cambiar intención a latest. |
+| verify | Auditar y guardar resultados locales; no reparar. |
+| clean | Previsualizar elegibles y borrar sólo tras confirmación o `--yes`. |
 
 ### Responsabilidades de los comandos
 
-| Grupo | Responsabilidad |
-|---|---|
-| config | Configuración de Coquena |
-| system | Sistema operativo y hardware |
-| param | Catálogo de parámetros: tipos, defaults, opciones y metadatos |
-| preset | Catálogo de presets por modelo y valores del catálogo de parámetros |
-| model | Catálogo de modelos |
-| server | Catálogo de servidores por runtime/backend y presets asociados |
+Hay cuatro efectos distintos: editar intención, preparar archivos, operar instancia
+y observar. Los comandos informan cuál realizan. Una operación de configuración
+puede ofrecer aplicar después; guardar no constituye aceptación de un reinicio.
 
-### `system`
+Init preserva archivos existentes y reglas de .gitignore. No ejecuta git init.
+La consulta de configuración efectiva permite revisar capas y resultado antes
+de preparar. Es una responsabilidad de consulta, no un subcomando llamado como
+la herramienta de referencia para composición de archivos.
 
-Inspecciona el hardware y la plataforma para informar las opciones de ejecución.
+### system
 
-```plantuml
-@startmindmap
-* system
-** probe (inspecciona SO y hardware)
-@endmindmap
-```
+Consulta plataforma, arquitectura y capacidades cuando se solicita.
+El diagnóstico de hardware no sustituye backend ni modifica YAML/lock para ocultar
+una incompatibilidad. Las capacidades no garantizan que un modelo quepa en memoria.
 
-### `backend`
+### backend
 
-Consulta, instala y registra backends de llama.cpp; también permite retirarlos.
+Define o registra el backend del servicio en el ámbito seleccionado, su versión y variante.
+Se admite el oficial con versión/variante o un ejecutable externo relativo/absoluto. Sólo el oficial admite seguimiento y update/upgrade; no hay repositorios configurables de backend. Las capacidades de forks se comprueban explícitamente.
+Una combinación tiene un único backend efectivo; un override puede cambiar CUDA
+por Vulkan u otra variante. Ese cambio requiere reiniciar la instancia.
 
-```plantuml
-@startmindmap
-* backend
-** remote [<familia>] [--release <build>|latest]
-** install [<familia>] [--release <build>|latest]
-** register <ruta-llama-server> --name <nombre> --family <familia> [--distribution <origen>]
-** use [<selector>|<nombre-externo>]
-** update [<selector-latest>]
-** upgrade [<selector-latest>]
-** list
-** uninstall <id-backend>
-@endmindmap
-```
+La descarga explícita queda protegida localmente y no edita por sí sola YAML.
+Preparar otra versión puede ocurrir con una instancia activa: se conserva su revisión.
+Un backend externo conserva sus rutas y propiedad; no se adopta por registrar.
 
-`backend uninstall <id-backend>` retira el ID mostrado por `backend list`, incluso
-si está fijado o seleccionado, siempre que no esté en uso. `model remove <nombre>` y
-`model companion remove <nombre>` retiran sólo su ámbito. Informan bytes efectivamente
-liberados por intento, archivos eliminados y pendientes con sus causas. Repetir el comando
-reintenta una retirada parcial; ésta devuelve error hasta completarse. Los externos
-conservan todos sus archivos. Las referencias guardadas permanecen rotas, sin reasignación.
-Operaciones de instalación o actualización pendientes deben reanudarse o cancelarse
-antes de retirar el recurso reservado.
+### model
 
-`<selector-latest>` es un marcador de la documentación, no un texto que se escriba
-literalmente. Se sustituye por el seguimiento que se quiere consultar o actualizar,
-con formato `[origen/]variante:latest`: por ejemplo `cpu:latest`,
-`ggml/cuda@12:latest` u `oficial/vulkan:latest`. `ggml` identifica el origen oficial,
-`oficial` es su alias y omitir el origen también selecciona el oficial.
-Los corchetes de la sintaxis indican que el argumento es opcional; tampoco se escriben.
-Si se omite, el comando opera sobre todos los seguimientos oficiales `latest` registrados.
+Gestiona modelos principales y companions del inventario del ámbito seleccionado.
+Un alta/configuración declarativa modifica intención; una descarga explícita sólo
+prepara y protege el recurso local. Esos efectos no deben confundirse.
 
-```powershell
-coquena backend update cpu:latest
-coquena backend upgrade ggml/cuda@12:latest
-coquena backend upgrade oficial/vulkan:latest
-coquena backend upgrade
-```
-
-`backend update` consulta todos los seguimientos oficiales `latest` registrados;
-un selector como `oficial/cuda@12:latest` limita la consulta a ese filtro.
-Guarda candidato, fecha y diagnóstico sin descargar ni cambiar instalaciones.
-`backend list` muestra la última consulta guardada del build actual, sin red.
-
-`backend upgrade [selector-latest]` aplica el candidato guardado para el build
-actual. Si ya está instalado, lo valida y reutiliza conservando ID, pin e instancias.
-Una descarga pendiente informa su GUID para `download resume` o `download cancel`.
-Sin un candidato aplicable, solicita `backend update`; sin novedades, no descarga
-ni ejecuta limpieza. La retención se aplica después de un upgrade exitoso.
-
-Repetir install fuerza descarga y reinstalación; intención latest/pin y publicación
-siguen [servidores.md](servidores.md) y [descargas.md](descargas.md).
-
-Register sondea el ejecutable local con `--version` y guarda su ruta absoluta sin copiar
-archivos ni cambiar el backend predeterminado. Requiere un nombre único sin `/` ni `:`;
-`default` está reservado. Use selecciona ese nombre sin distinguir mayúsculas.
-La familia y distribución se declaran, no se certifican por el sondeo. Las familias
-externas no amplían las familias disponibles para descarga oficial.
-
-Update y upgrade sin selector operan sobre todos los seguimientos latest registrados;
-con selector (por ejemplo ggml/cuda@12:latest), sólo sobre ese seguimiento. Releases
-fijados y externos no son selecciones a actualizar. Un pin fija un build específico;
-no bloquea un seguimiento `latest` que comparta ese build. Update guarda novedades; upgrade aplica
-el build detectado, sin seleccionar silenciosamente uno nuevo. El recorrido es por
-unidad: un fallo no impide tratar las demás. No se deduce el alcance del servidor default.
-
-### `model`
-
-Registra y descarga modelos y companions, y consulta su estado.
-
-```plantuml
-@startmindmap
-* model
-** add <ruta.gguf> --name <nombre-canónico> [--try-match]
-** download <usuario/repositorio[:cuantización]>
-** companion
-*** add <ruta.gguf> --name <nombre-canónico-con-tipo> [--try-match]
-*** download <usuario/repositorio#tipo[:cuantización]>
-*** list
-*** refresh <nombre>
-*** verify <nombre> [--set-baseline]
-*** update [<nombre>]
-*** upgrade [<nombre>]
-*** remove <nombre>
-** list
-** refresh <nombre-modelo>
-** verify <nombre-modelo> [--set-baseline]
-** update [<nombre-modelo>]
-** upgrade [<nombre-modelo>]
-** remove <nombre-modelo>
-@endmindmap
-```
-
-La sintaxis del nombre es `usuario/repositorio[#tipo]:cuantización`; `#tipo` sólo
-aparece en companions. No hay aliases ni `--type`. Las reglas de identidad están en
-[modelos-y-companions.md](modelos-y-companions.md#identificación-en-el-catálogo-local).
-`--name` es obligatorio para externos; no certifica procedencia.
-El alta guarda rutas absolutas y un ID estable, sin copiar ni mover archivos ni crear
-un preset. Para shards estándar se indica el primero; se conserva la lista esperada,
-incluidas las partes ausentes. Una ruta ausente o inaccesible puede registrarse con
-diagnóstico; cabeceras inválidas o contradictorias se rechazan. Una división de nombres
-no convencionales se diagnostica como limitación del registro automático.
-`model list` muestra principales y `model companion list` auxiliares, con propiedad,
-disponibilidad local y avisos de cambios, sin red ni hash completo. Consultar no actualiza
-las observaciones guardadas. Un registro incompleto o inaccesible no puede servirse.
-`--try-match` es opcional, sin valor. Sin él no se consulta la red; si falla, el alta
-local permanece. Emparejar no habilita actualizaciones del externo.
-Si hay candidatos, un menú muestra opciones y razones y permite elegir o cancelar
-el empate. Cancelar conserva el registro local; elegir guarda sólo equivalencia informativa.
-Sin terminal interactiva, el alta se conserva sin emparejamiento ni consultas remotas.
-`update` guarda novedades y `upgrade` aplica la revisión detectada sólo a gestionados.
-Upgrade muestra el GUID y el commit fijado de cada operación. Si se interrumpe, se
-continúa con `download resume <guid>`; `download cancel <guid>` conserva la instalación
-anterior o termina la limpieza si la nueva ya fue publicada. Mientras exista la
-operación de upgrade, se bloquea iniciar una instancia que use esa unidad y modificar
-su registro mediante update, refresh o verify; primero se reanuda o cancela el trabajo.
-
-`model download usuario/repositorio[:cuantización]` selecciona una unidad completa.
-Omitir cuantización conserva el menú acordado; al elegirla se determina el nombre
-canónico. No se descargan companions como efecto secundario.
-Si ese nombre está ocupado por un externo, ofrecer su transición explícita a gestionado;
-publicar sólo tras verificar la descarga, conservando ID y referencias y sin tocar los
-archivos externos. Cancelar o fallar mantiene el externo. Otras colisiones se rechazan.
-La propuesta permite descargar y pasar a gestión o conservar el externo y cancelar;
-rechazarla o llegar a fin de entrada no crea una operación. Una vez aceptada, el GUID
-permite `download resume` o `download cancel`. Mientras la operación esté pendiente,
-se bloquean el inicio de instancias y los cambios de metadatos de esa unidad; si ya
-se publicó, cancelar completa la limpieza y conserva la instalación gestionada.
-Antes de crear la operación presenta un único menú repetible:
-
-- **Con cuantización:** descargar la selección indicada, mostrar README o cancelar.
-- **Sin cuantización:** una opción «Descargar <variante>» por candidato, mostrar README
-  o cancelar. Elegir una variante inicia la descarga; si su nombre está ocupado por
-  un externo, se presenta la propuesta de transición explícita descrita arriba.
-- Mostrar README consulta la documentación del repositorio en la revisión resuelta y
-  vuelve al mismo menú. No descarga pesos; si falla o no existe, informa y vuelve.
-- Cancelar en este menú no crea GUID, trabajo ni parciales; no es Ctrl+C de una descarga
-  activa. Una cuantización inexistente se informa, sin sustituirla automáticamente.
-- Si una etiqueta identifica varias variantes, mostrar sus diferencias para una selección
-  explícita; no adivinar. Etiquetar cada opción de inicio como descarga, no como inspección.
-
-El README se consulta sólo al solicitarlo. No se descarga por defecto con los pesos.
-Cada opción muestra rutas, etiqueta/fuente y tamaño en GB decimal y GiB. La actividad
-de inspección de metadatos se informa separadamente de la descarga instalable, sin GUID
-ni parciales. Los nombres no convencionales se evalúan por cabecera; las
-[reglas de selección](modelos-y-companions.md) distinguen candidatos, conflictos e
-incertidumbre. Elegir completa la validación acotada antes de iniciar; si falla, explica
-la causa y vuelve al menú sin crear una operación vacía.
-Si el repositorio existe pero no ofrece GGUF seleccionables para la unidad solicitada,
-mostrar sólo «Mostrar README» y «Cancelar», explicando la ausencia de candidatos.
-No ofrecer descarga ni crear GUID, operación o parciales. La misma regla aplica a
-companions cuando no hay candidatos del tipo indicado.
-No encola companions. `model companion download` es otra invocación independiente,
-incluso otro día. Usa `usuario/repositorio#tipo[:cuantización]` y el mismo menú de
-selección, README y cancelación, limitado al tipo auxiliar indicado. Descargarlo no
-descarga el principal ni lo asocia automáticamente a un preset.
-La operación se identifica como companion en `download list --companion` y puede
-pausarse, reanudarse o cancelarse mediante su GUID. Sus archivos se publican como una
-unidad completa en el directorio de modelos configurado. `list`, `refresh`,
-`update`, `upgrade` y `remove` aplican las mismas reglas que en modelos, sobre companions.
-Sin nombre, `model update` revisa todos los gestionados del catálogo, incluidos companions,
-y `model upgrade` aplica sus planes resueltos; los subcomandos de `companion` limitan
-el alcance a companions. Externos no reciben seguimiento ni actualización. Los problemas
-de una unidad se informan sin impedir tratar las demás; no hay publicación global atómica.
-La consulta muestra `unchanged`, `update-available`, `intervention-required`,
-`query-failed` u `orphaned`, el último intento y el último éxito. Un plan indica
-el commit objetivo y, por archivo, reutilización o descarga. Si hay varias
-correspondencias o posibles sucesores, el menú permite elegir un conjunto completo
-o cancelar; sin entrada interactiva conserva el seguimiento sin resolver.
-Una consulta fallida conserva la observación y el plan anteriores, identificados
-como históricos. `model list` y `model companion list` muestran el resultado
-guardado sin consultar la red. Las reglas están en
-[seguimiento de gestionados](modelos-y-companions.md#seguimiento-y-actualización-de-gestionados).
-`model verify <nombre>` y `model companion verify <nombre>` leen todos los archivos
-de la unidad y comparan SHA-256 completos con las referencias registradas, sin red.
-No reparan ni reemplazan referencias. Sin referencia, informan que no pueden verificar;
-no establecen una base automáticamente. Reglas en
-[integridad local](modelos-y-companions.md#integridad-local).
-
-`model refresh <nombre>` y `model companion refresh <nombre>` actualizan tamaño y
-fecha de los archivos legibles y vuelven a evaluar disponibilidad. Conservan las
-observaciones anteriores de los archivos inaccesibles y todas las referencias de
-integridad. El listado muestra el último resultado de integridad y su fecha; esa
-observación histórica no sustituye la comprobación actual de disponibilidad.
-Verify informa cada archivo y el conjunto; devuelve código 0 al comparar con éxito
-o establecer una base completa, y 1 si faltan archivos/referencias, hay discrepancias
-o la lectura falla o cambia. Refresh devuelve 1 si la unidad no está disponible.
-
-En externos, `verify <nombre> --set-baseline` calcula y registra SHA-256 de los bytes
-actuales como base local. Advierte que no certifica procedencia ni corrección original.
-Es una acción explícita distinta de comparar; sin el flag nunca reemplaza la referencia.
-El flag no se aplica a gestionados, cuya referencia se establece durante la descarga.
-
-### `download`
-
-Consulta y controla operaciones por GUID. Estados, persistencia y recuperación se
-definen en [descargas.md](descargas.md); no inicia selecciones nuevas.
-
-```plantuml
-@startmindmap
-* download
-** list [--model | --companion | --backend]
-** status [<guid>]
-** pause <guid>
-** resume <guid>
-** cancel <guid>
-@endmindmap
-```
-
-`download list` muestra todas las operaciones y admite filtros excluyentes `--model`,
-`--companion` o `--backend`: principales, companions o backends respectivamente.
-El detalle conserva progreso por archivo. Pause, resume y cancel requieren el GUID
-del conjunto; no hay control individual de archivos en el alcance inicial.
-Operaciones terminadas y limpiadas desaparecen de estas vistas; su resultado queda en el log.
-
-### `param`
-
-Administra el catálogo de parámetros personalizados: creación y edición de definiciones,
-tipos, defaults, enumeraciones, binarios aplicables y rangos de versiones. También permite
-consultar, retirar, importar y exportar definiciones. Define, edit, remove, support
-y las consultas operan sobre la distribución oficial de llama.cpp, sus builds
-bNNNN y familias CPU, CUDA y Vulkan.
-
-Import y export corresponden a [M3](milestones/M3-definiciones-declarativas.md).
-El formato de intercambio será JSON; su sintaxis y resolución de conflictos
-se concretarán según [las reglas declarativas](definiciones-declarativas.md).
-
-Las reglas están en el [catálogo de parámetros](catalogo-de-parametros.md).
-`define` crea una definición y rechaza un nombre existente; `edit` modifica una
-definición existente y rechaza un nombre inexistente. Las opciones omitidas en edit
-conservan su valor actual.
-
-Define y edit comparten estas opciones:
-
-| Opción | Metadato |
-|---|---|
-| `--type integer\|decimal\|string\|boolean\|flag\|enum` | Tipo; flag no recibe valor |
-| `--description <texto>` | Descripción |
-| `--default <valor>` | Valor inicial para formularios |
-| `--alias <alias>` | Alias del parámetro; opción repetible |
-| `--values <valor>` | Valor permitido del enumerado; opción repetible |
-| `--scope model\|server` | Ámbito de asignación |
-| `--target cli\|ini` | Destino de emisión |
-
-Define requiere type, scope y target; los demás metadatos son opcionales. Edit valida
-la definición completa resultante antes de aplicar el cambio.
-
-Las asociaciones se gestionan mediante support. Cada repetición de alias o values
-aporta un elemento de su lista. En edit, indicar la opción reemplaza la lista anterior
-por todos los elementos proporcionados; omitirla conserva la lista actual. Los alias
-que comienzan con guiones se pasan mediante `--alias=<alias>` para distinguirlos de
-opciones del comando:
+Selectores canónicos:
 
 ```text
-coquena param edit ctx-size --alias=-c --alias=--context-size
-coquena param edit device --values cpu --values cuda --values vulkan
+usuario/repositorio[:cuantización]
+usuario/repositorio#tipo[:cuantización]
 ```
 
-Edit admite `--clear-default`, `--clear-description` y `--clear-aliases` para retirar
-esos metadatos. Cada opción de limpieza es excluyente con la opción que asigna el
-mismo metadato en esa invocación. Un enumerado debe conservar al menos un valor
-permitido: para retirar su enumeración hay que cambiar el tipo. El default, si existe,
-debe seguir siendo válido para la definición resultante.
+Sin cuantización, resolver candidatos en un commit e indicar etiqueta completa,
+rol, archivos y tamaños legibles con unidad automática. El usuario elige rutas si hay varias variantes
+equivalentes por nombre. Permitir leer README y cancelar antes del GUID.
+No sustituir una cuantización ausente por otra parecida ni descargar el repositorio.
 
-```plantuml
-@startmindmap
-* param
-** define <parámetro> <opciones de definición>
-** edit <parámetro> <opciones de edición> [--dry-run]
-** remove <parámetro> [--dry-run]
-** support
-*** set <parámetro> [<origen/familia>] [--from V] [--until V] [--dry-run]
-*** remove <parámetro> [<origen/familia>] [--dry-run]
-** list [--backend <id-backend> | --version <release> [--distribution <origen>]]
-** show <parámetro> [--backend <id-backend> | --version <release> [--distribution <origen>]]
-** import <archivo> [--backend <id-backend>]
-** export [<archivo>] [--backend <id-backend>]
-@endmindmap
-```
+Si el selector incluye una cuantización explícita y resuelve una única unidad
+válida, descargarla directamente sin menú de filtrado, selección ni oferta de leer
+README. Por ejemplo, `model download unsloth/gemma-4-12b-it-GGUF:Q4_0` sigue ese
+camino cuando existe una sola unidad coincidente. Una unidad puede contener varios
+shards; no se exige un único archivo. Si hay varias unidades de esa cuantización,
+se conserva la selección entre rutas. La ausencia o resolución no concluyente se
+diagnostica sin elegir otra cuantización. La descarga directa conserva las
+validaciones GGUF, coherencia de shards e integridad correspondientes.
 
-`support set` crea o actualiza una asociación de soporte oficial; `support remove` la retira.
-Omitir origen/familia en set declara soporte para cualquier backend oficial, sujeto
-a los límites de build indicados. Los rangos se comparan numéricamente como bNNNN;
-otros formatos se rechazan.
-`support remove` sin origen/familia retira sólo la asociación general; conserva
-las asociaciones específicas del parámetro.
-Para una excepción local oficial, set y remove aceptan `--backend <id>` en lugar del selector
-origen/familia; ambos selectores son excluyentes. Set reemplaza el rango de la asociación
-seleccionada: omitir from o until deja abierto ese extremo. Los selectores de origen
-admitidos son ggml y su alias oficial.
-List/show conservan --distribution para el origen oficial únicamente.
+La selección de un modelo no selecciona companions vecinos. Los que estén declarados
+en presets se preparan como dependencias de la combinación.
+Un shard es parte de la unidad, no otro modelo.
+Los [criterios GGUF](modelos-y-companions.md) gobiernan candidatos y ambigüedades.
 
-La [consulta del impacto](catalogo-de-parametros.md#consulta-del-impacto) permite guardar
-el informe mediante redirección de salida:
+Registrar un externo requiere rutas y nombre; --try-match es un intento informativo
+opcional de correspondencia, no adopción ni certificación de procedencia.
+El registro persiste aunque falle o se cancele el emparejamiento.
+Retirar externo no borra bytes; retirar gestionado actúa sólo sobre archivos propios
+y conserva pendientes si la eliminación es parcial.
 
-```text
-coquena param remove <parámetro> --dry-run > impacto.txt
-```
+El archivo puede proceder de otro gestor y haber sido copiado o movido por el usuario
+a la carpeta del proyecto. El alta y matching son del proyecto actual, sin importación
+a home ni nueva descarga obligatoria. Registrar la copia no referencia por accidente
+la ubicación original. Usar el recurso en un preset conserva esa ruta local en la
+intención, relativa a la base cuando está dentro del proyecto.
+Véase [reutilización local](modelos-y-companions.md#reutilizar-archivos-obtenidos-por-otra-herramienta).
 
-### `config`
+Refresh relee disponibilidad/metadatos; no restablece integridad.
+Verify y update no son sinónimos de refresh ni acciones de reparación.
+Modelos y companions participan en update/upgrade mediante selecciones del proyecto.
 
-Configura Coquena.
+### download
 
-```plantuml
-@startmindmap
-* config
-** param-reset [--dry-run]
-** backend-retention
-*** show
-*** set <cantidad>
-*** unset
-** log-retention
-*** show
-*** set <tamaño>
-*** unset
-** backends-dir
-*** show
-*** set <ruta>
-*** unset
-** models-dir
-*** show
-*** set <ruta>
-*** unset
-@endmindmap
-```
+Opera por GUID estable y expone progreso por archivo/unidad.
+Reanudar conserva revisión y selección; pausar conserva parciales; cancelar detiene
+escritores y limpia sólo su preparación. Consultar no reanuda ni publica.
+Las reglas detalladas están en [descargas](descargas.md).
 
-La [política de retención](servidores.md#consulta-de-logs) define el límite global,
-las excepciones por servidor y cuándo se aplica una modificación.
+Promover un recurso ya descargado a explícito no vuelve a descargarlo.
+Desprotegerlo permite limpieza posterior, sin borrarlo ni declararlo íntegro.
+Esa marca local no modifica lo que viaja en Git.
 
-`config backend-retention` consulta, ajusta o restablece el número de builds conservados;
-sus reglas están en [actualizaciones y retención de backends](servidores.md#definición-persistida).
+### param
 
-```text
-coquena config backend-retention show
-coquena config backend-retention set 5
-coquena config backend-retention unset
-```
+Mantiene definiciones de argumentos del ámbito seleccionado; no exige catálogo global
+obligatorio. Puede trasladarse un schema entre proyectos.
+El modo permisivo admite desconocidos y valida conocidos; el estricto exige definición para todos. Ambos diagnostican
+tipos, valores, ámbito, aplicabilidad y dependencias.
 
-```text
-coquena config log-retention show
-coquena config log-retention set 200MiB
-coquena config log-retention unset
-```
+Args omite el prefijo -- en las claves. true emite flag; false lo omite.
+Los strings "true"/"false" son valores literales. Véase
+[parámetros](catalogo-de-parametros.md).
+El schema puede alimentar formularios; un texto --help no es un schema verificado.
 
-`backends-dir` y `models-dir` consultan y ajustan los directorios de backends y modelos.
-Show consulta la ubicación efectiva; set guarda una ubicación propia; unset elimina
-ese ajuste y recupera la ubicación predeterminada. Set y unset ofrecen trasladar los
-archivos existentes con las mismas reglas. Las rutas con espacios se pasan entre comillas.
-Las rutas relativas se guardan como relativas y se resuelven desde el home de Coquena.
-Sus reglas están en
-[Directorios gestionados](servidores.md#directorios-gestionados).
+### config
 
-```text
-coquena config backends-dir show
-coquena config backends-dir set "${CoquenaHome}/Backends"
-coquena config backends-dir unset
-coquena config models-dir show
-coquena config models-dir set "${TestRoot}/external/Modelos"
-coquena config models-dir set "../Modelos"
-coquena config models-dir unset
-```
+Config configura Coquena globalmente en el perfil/home, sin requerir YAML.
+Preferencias de observadores/reconexión y retención predeterminada de logs
+pertenecen a ese ámbito. Un override de retención del servidor y el destino de sus
+logs pertenecen al YAML y se editan como configuración del proyecto.
+No hay selección global implícita de modelo/backend que reescriba una receta.
 
-`config param-reset` restablece el catálogo de parámetros de fábrica. Sus reglas están
-en el [restablecimiento del catálogo](catalogo-de-parametros.md#restablecimiento-de-fábrica).
+Ubicación de pesos/binarios, definición de servidor y schema de parámetros no son
+preferencias globales de config. Restablecer definiciones de parámetros es una
+edición del schema del proyecto, bajo la responsabilidad de param.
+La consulta de configuración efectiva combina YAML; no consulta preferencias de
+Coquena como si formaran otra capa de intención del servidor.
 
-```text
-coquena config param-reset --dry-run > impacto-reset.txt
-coquena config param-reset
-```
+### preset
 
-### `preset`
+Mantiene presets nombrados de la intención efectiva.
+Set asigna literales; bind escribe referencias `model://` o `companion://` dentro de `args`, resueltas por identidad al componer. Un nombre escrito como
+literal no se transforma automáticamente en vínculo. Clone copia valores y vínculos
+sin copiar archivos ni mantener herencia viva.
 
-Administra presets asociados a un modelo y sus valores. Las reglas de asignación,
-referencias y clonación están en [Presets](modelos-y-companions.md#presets).
-
-```plantuml
-@startmindmap
-* preset
-** create <modelo> <nombre>
-** clone <preset> <nombre> [--model M]
-** model set <preset> <modelo>
-** set <preset> <param> <valor>
-** bind <preset> <param> <nombre>
-** unset <preset> <param>
-** list [--model M]
-** show <preset>
-** remove <preset>
-@endmindmap
-```
-
-`set` asigna el valor, `unset` lo retira y `show` consulta el preset y sus parámetros.
-`bind` vincula un recurso registrado por su ID al parámetro indicado; su ruta se resuelve
-al ejecutar. `set` guarda un literal. Ambas asignaciones son excluyentes para el mismo
-parámetro: cada operación reemplaza la anterior y `unset` retira cualquiera de ellas.
-No se infieren referencias del texto ni se usa un prefijo `@`.
-
-`clone` requiere un nombre libre, conserva el modelo del origen salvo que se indique
-`--model` y copia las asignaciones a un preset independiente. No copia archivos ni
-asocia el clon a los servidores que usan el origen.
-
-```text
-coquena preset set conversacion temperature 0.7
-coquena preset bind conversacion mmproj ggml-org/Qwen3.8-27B-GGUF#mmproj:BF16
-```
+Un override puede modificar parte de un preset y desasignar un companion con valor
+vacío. Retirar/desactivar un preset no borra sus pesos. Persistir no lo aplica
+automáticamente al router. No confundir configuración con memoria de una instancia.
 
 ## Servidores e instancias
 
-Reglas confirmadas y pendientes en [servidores.md](servidores.md).
+Cada servicio admite una instancia. Un consumidor puede publicar en un servicio
+compartido; `service start` sobre activo informa que ya está ejecutándose.
+Up publica el conjunto sin reiniciar. Puertos ocupados se diagnostican sin reasignar.
+Preparar recursos nuevos puede ocurrir antes de detener el servidor anterior.
+Un reinicio explícito valida/prepara primero, detiene y prueba lo nuevo después.
+La política de recuperación depende del modo y de la última buena local;
+una falla de integridad conocida es fatal en ambos modos.
 
-### Sintaxis confirmada
+### Selectores de control
 
-~~~text
-coquena backend use [<selector>|<nombre-externo>]
+Apply/withdraw opera sobre presets de la receta.
+Apply publica/recarga/retira presets sobre el router compatible sin reiniciarlo
+si sus capacidades lo permiten. Cambiar backend requiere reinicio.
+Véase [servidores](servidores.md#aplicación-dinámica-y-memoria).
 
-coquena server create <nombre> [--port <puerto>]
-coquena server default [<nombre>]
-coquena server [<nombre>] use default|<selector>|<nombre-externo>
-coquena server [<nombre>] set <parámetro> <valor>
-coquena server [<nombre>] unset <parámetro>
-coquena server [<nombre>] preset add <preset>...
-coquena server [<nombre>] preset remove <preset>...
-coquena server [<nombre>] preset list
-coquena server [<nombre>] start [-d]
-coquena server [<nombre>] restart
-coquena server [<nombre>] stop
-coquena server [<nombre>] show
-coquena server [<nombre>] remove
-coquena server [<nombre>] logs [-f]
-coquena server [<nombre>] log-retention show
-coquena server [<nombre>] log-retention set <tamaño>
-coquena server [<nombre>] log-retention unset
-coquena server list
-coquena server ps
-coquena server stop --id <id-instancia>
-~~~
-
-Backend use configura el backend predeterminado de Coquena; sin selector lo muestra.
-No descarga ni inicia: la selección debe resolver a una instalación registrada.
-Server default designa un servidor existente; sin nombre muestra el predeterminado.
-Coquena parte de un servidor default predeterminado. El primer backend instalado
-correctamente mediante descarga propia se autoasigna como backend predeterminado,
-sin sustituir una selección previa del usuario. Los presets siguen asignándose explícitamente.
-
-Palabras reservadas tras server: create, default, list, ps, stop, use, set, unset,
-preset, show, remove, logs, log-retention, start y restart. Para preset, las acciones son
-add, remove y list. Para log-retention, son show, set y unset. Un token no reservado tras server identifica un servidor existente y su acción.
-Los nombres de servidores no pueden coincidir con las reservadas, salvo default,
-que también puede crearse explícitamente. Los argumentos se interpretan según su posición:
-server create default crea ese servidor si el nombre está libre; server default default
-lo designa como predeterminado si existe. No se interpretan esos argumentos como subcomandos.
-La excepción de acción explícita se resuelve por el siguiente token:
-
-- server default sin argumentos muestra la designación predeterminada.
-- server default <nombre> designa un servidor existente (incluido default).
-- server default seguido de use, set, unset, preset, show, remove, logs, log-retention, start, stop o restart
-  actúa sobre el servidor llamado default, aunque otro sea el predeterminado.
-- Un subcomando global como create, list o ps no es una acción válida después
-  del nombre default; no se reinterpreta como nombre de servidor para adivinar la intención.
-
-Por ejemplo, server default start inicia el llamado default; server default lts designa
-lts como predeterminado. Se interpreta la gramática antes de consultar entidades;
-si el servidor default fue retirado, su acción informa que no existe y no lo recrea.
-Omitir el nombre en use, set,
-unset, preset, show, remove, logs, log-retention, start, stop o restart dirige la acción al servidor predeterminado. Create, default, list
-y ps tienen su significado propio; no operan implícitamente sobre ese servidor.
-
-Server use default elimina la selección propia y recupera la herencia del backend
-predeterminado de Coquena. Los selectores mantienen la distinción entre release fijado
-y seguimiento latest. El selector admite origen/variante:release (o latest), con origen
-oficial implícito si se omite. Un externo se selecciona por nombre, sin --backend.
-Los selectores de gestionados no incluyen externos, aunque éstos declaren igual origen,
-familia y release. Backend update/upgrade no siguen ni actualizan registros externos.
-Las identidades y alcance de terceros están en [servidores.md](servidores.md#identificación-de-backends).
-
-Start utiliza la definición guardada, sin overrides temporales de backend o parámetros;
--d sólo selecciona el modo. Start sin -d permanece en primer plano. Ps muestra instancias activas y métricas como
-instantánea. Stop detiene la única instancia del servidor indicado o predeterminado;
-`server stop --id <id-instancia>` selecciona una ejecución concreta sin requerir default.
-No se combina nombre con --id ni se acepta el ID posicional. Un servidor existente
-ya detenido informa que no tiene instancia activa y termina correctamente. Un servidor
-o ID ausente, un default no designado o una identidad incierta se diagnostican.
-Stop no crea ni designa un default. No hay comando de guardar.
-El control de Ctrl+C y la espera de parada se describen en
-[servidores.md](servidores.md#inicio-y-detención); la ayuda muestra ambos controles.
-Restart aplica la configuración guardada y, si la selección sigue latest, el build actual
-instalado por backend upgrade. No descarga al reiniciar. Hay una sola instancia activa
-por servidor; un segundo start no crea otra. Restart inicia también un servidor detenido
-y devuelve el prompt sin seguir logs; la nueva instancia queda en segundo plano.
-Los antiguos comandos raíz run, ps y stop no son la superficie acordada.
-
-Log-retention consulta o cambia la política del servidor seleccionado. Show muestra el
-límite efectivo y su origen; set guarda un límite propio y unset recupera el global.
-La [política de retención](servidores.md#consulta-de-logs) define unidades y aplicación.
-
-Preset add asocia presets existentes; remove retira sólo las asociaciones, sin eliminar
-los presets del catálogo. List muestra los asociados al servidor seleccionado. Los cambios
-afectan al próximo inicio, no a instancias activas.
-
-Show muestra la definición completa: selección de backend propia o heredada, build
-instalado resuelto, parámetros efectivos y presets asociados. No inicia procesos ni
-consulta actualizaciones remotas. Si falta una referencia/default, muestra el diagnóstico
-sin inventar una selección.
-
-Logs muestra salida reciente; -f sigue la salida. Ctrl+C termina únicamente el
-seguimiento, sin detener el servidor. Se consulta la ejecución actual o, si está
-detenido, la última ejecución. La retención se limita por tamaño configurable;
-no confundir logs -f con start en primer plano.
-
-Remove retira sólo la definición de un servidor detenido. Si era el predeterminado,
-limpia la designación sin seleccionar otro ni recrear default. No elimina recursos asociados.
+En daemon se recupera la última buena local cuando falla la candidata, con warning,
+sin bucle infinito. Sin recuperación posible, se informa y termina.
+En interactivo se ofrecen reintento/recuperación según disponibilidad.
+La TUI ejecuta las operaciones desacopladas y presenta resultados/acciones;
+no cambia esa política por estar abierta.
 
 ## Home
 
-El home contiene configuración, catálogos y estado de ejecución con la
-[estructura acordada](implementacion-catalogo-modelos.md#almacenamiento-local-acordado).
-Las ubicaciones de archivos pesados se ajustan mediante
-[config](#config); sus reglas de resolución y traslado están en
-[directorios gestionados](servidores.md#directorios-gestionados).
+COQUENA_HOME selecciona preferencias, registro de proyectos/servicios e intención
+importada con recursos globales. Los proyectos autónomos mantienen recursos propios.
+La importación es explícita: consultar o consumir un servicio global no importa
+pesos ni convierte su ubicación en global. Mover/copiar una carpeta no exige
+identidad Git ni deduplicación automática.
+En Windows, sin variable se usa $USERPROFILE/.coquena; si se define, debe ser una
+ruta absoluta. Coquena no modifica variables de entorno persistentes ni autodetecta
+una home junto al ejecutable. La carpeta de metadatos del proyecto y la home son
+responsabilidades distintas aunque compartan un nombre convencional.
 
-No hay comando `init` ni autodetección de directorios junto al ejecutable. Si no se
-define `COQUENA_HOME`, se utiliza `$USERPROFILE\.coquena` en Windows.
-La variable puede redefinirse con una ruta absoluta para testing o uso portable;
-por ejemplo, `$env:COQUENA_HOME = Join-Path $PWD '.coquena'` estando en el
-directorio del ejecutable. La configuración es del proceso: Coquena no modifica
-variables de entorno persistentes. El directorio se crea en el primer uso de almacenamiento.
+No compartir como configuración portable PID, salud local, última buena local,
+credenciales, borradores ni rutas privadas de observadores.
 
-```plantuml
-@startuml
-start
-if (¿COQUENA_HOME definido?) then (sí)
-  if (¿es ruta absoluta?) then (no)
-    :Rechazar nombrando\nCOQUENA_HOME;
-    stop
-  endif
-  :Usar COQUENA_HOME;
-else (no)
-  :Usar $USERPROFILE/.coquena\n(crearlo en el primer uso);
-endif
-stop
-@enduml
+## Gramática
+
+```text
+coquena [opciones-contexto] <comando> [argumentos] [opciones-operación]
+opciones-contexto := [-f|--file <yaml>]... [--project-directory <base>]
+                    [--env-file <env>]... [--private] [--global]
+                    [--service <nombre|default|self>]
 ```
+
+Opciones de contexto se aceptan antes o después del comando, sin duplicar opciones
+no repetibles. `-f` y `--env-file` conservan orden y exigen valor; `--` termina
+opciones. Paths con espacios son un argumento del shell llamante. CLI no reinterpreta
+su contenido como comandos. Opción desconocida o combinación incompatible es error.
+
+`--project-directory` se resuelve contra cwd. El primer `-f` relativo se resuelve
+contra esa base explícita o cwd; sin base explícita su carpeta pasa a ser base.
+Los `-f` posteriores y todos los `--env-file` relativos parten de esa base. Sin `-f`,
+se lee `coquena.yaml` de base; no se asciende buscando otro proyecto. `--global`
+es incompatible con `-f`, env-file, private y project-directory, salvo `import`, que
+recibe archivo fuente y siempre escribe global. No hay `-f -` ni entrada YAML por stdin.
+
+`--service` selecciona servicio para control/observación y backend global. En up/apply
+sobrescribe target sólo para esa operación y se registra como destino publicado,
+sin editar YAML. Down sin selección retira la publicación registrada del consumidor,
+incluido su destino original; una selección distinta no retira otro destino por nombre.
+En service, omitir nombre y opción selecciona default; `self` exige proyecto.
+El selector posicional y --service juntos son error.
+Los verbos reservados start, stop, restart, remove, list, logs y default
+se interpretan como gramática antes que como nombre. Para un servicio cuyo nombre
+coincida con un verbo se usa --service. `service default set` es asignación de alias;
+`service default logs` selecciona el alias y consulta sus logs.
+
+```text
+init [<directorio>]
+import <receta.yaml> [--select <categorías>] [--as-default]
+       [--replace <entidad>]... [--force]
+up [-d] [--start-service]
+down
+service [<nombre|default|self>] start|stop|restart [-d]
+service [<nombre|default|self>] remove
+service default set <nombre>
+service list
+service [<nombre|default|self>] logs [list|follow|show <log-id>] [-f]
+preset apply|withdraw <clave>
+apply|withdraw <clave>
+ps [-w|--watch]
+logs [list|follow|show <log-id>] [-f]
+update [--select <recurso>]...
+upgrade [--select <recurso>]...
+verify [--select <recurso>]... [--include-unused]
+clean [--dry-run|--yes]
+combination list|forget <combination-id>
+download list|show|pause|resume|cancel [<operation-id>]
+backend show|set|download|list|remove|protect|unprotect
+model [companion] list|show|add|set|download|refresh|remove|protect|unprotect
+preset list|show|set|bind|unset|clone|remove
+param list|show|define|set|unset|remove|reset
+```
+
+`server` es alias de service y `runtime` de backend: misma selección/estado.
+`-d` sólo pertenece a start/restart y up; stop no inicia otro proceso. Omitir
+verbo en familias mutantes muestra ayuda y no realiza cambios.
+`--start-service` es la autorización no interactiva de up; ante rechazo o falta
+de stdin interactivo se informa destino detenido. Import nunca inicia, aun con force.
+
+Las categorías de import son `service,presets,model,params`, sin repetidos ni vacíos.
+Los selectores de reemplazo son `service:<nombre>`, `model:<clave>`,
+`companion:<clave>`, `preset:<name/clave>` y `param:<clave>`. Deben existir
+en la selección importada. El selector de servicio usa el name raíz; el de preset
+usa name/clave. Modelos, companions y parámetros mantienen sus claves sin prefijo.
+`--force` no se combina con select/replace y no elimina entidades ausentes.
+
+Selectores de recursos para update/upgrade/verify: `backend`, `model:<clave>` y
+`companion:<clave>`, repetibles como unión. Sin select se usa la combinación
+seleccionada; un selector desconocido no amplía al conjunto completo. Un plan
+parcial nuevo no autoriza aplicar propuestas excluidas. `combination forget`
+requiere ID completo del ámbito y no olvida una instancia activa ni retira presets.
+
+Set recibe entidad, argumento y valor YAML escalar/lista como un argumento de CLI:
+`preset set charla ctx-size 8192`, `preset set charla texto '"8192"'`.
+Bind recibe entidad, argumento y referencia tipada; unset escribe null en la capa
+editable para retirar herencia. Clone recibe origen y nombre nuevo.
+Backend set acepta `--version <latest|bNNNN> --variant <variante>` o
+`--executable <ruta>`, excluyentes. Model/companion add recibe `--name <clave>` y
+`--file <ruta>` repetible; `--try-match` es optativo. Download recibe selector remoto
+o backend version/variant y protege el resultado sin editar YAML.
+Define recibe nombre y `--file <definición.json>`; reset muestra impacto y exige
+confirmación o --yes, sin descartar valores de presets. Remove nunca implica
+cascada de archivos ajenos. Opciones de campos específicos siguen sus canónicos.
+
+Clean sin opciones previsualiza y pregunta; sin interacción sólo previsualiza y
+diagnostica falta de confirmación. Dry-run nunca borra; yes autoriza el conjunto
+mostrado sólo si su revisión sigue vigente. No existe clean --force.
+Logs sin subcomando lee salida reciente; -f equivale a follow y no es --file en
+esa familia. `logs show <id>` selecciona un histórico y no se combina con follow.
+IDs de log son locales al servicio, nunca rutas arbitrarias inferidas.
+Ps sin servicio muestra los servicios conocidos; con selección limita la consulta.
+`ps -w` y `ps --watch` activan la observación continua; watch es una opción, no
+un subcomando. Sin esa opción ps muestra una instantánea y termina.
+Con salida redirigida, ps --watch emite snapshots separados por newline, sin
+escapes de terminal.
+
+La consulta de configuración efectiva redacta expansiones sensibles; no descarga ni crea inventario
+ni inicia. Las consultas list/show no se vuelven transferencias por mostrar progreso.
+No hay pregunta obligatoria al cargar por warmup ni al observar.
+
+La selección de una receta ya registrada consulta su referencia y nombre de receta en
+`.coquena/local/` antes de derivar nombres desde el YAML actual o la carpeta. Cambiar esos
+datos no ejecuta bajas, renombrados o altas implícitos. Up y down usan nombres
+registrados y muestran diferencias con la intención. Service remove da de baja
+un servicio detenido sin eliminar recursos; rechaza identidad incierta, instancia
+activa o contribuciones que todavía lo referencian. Si era default, retira el alias
+sin elegir sustituto. Sólo después de la baja confirmada de las entidades afectadas
+puede una nueva alta adoptar los nombres actuales. Force de import no es un rename.
+Para el conjunto de presets, esa baja y alta son down y up: down usa los nombres
+anteriores registrados; tras retirada confirmada, up publica con los actuales.
+Down/up opera sobre presets. Los comandos de modelos del router no intervienen
+en ese cambio de nombres.
+
+## Códigos de salida y diagnósticos
+
+| Código | Resultado |
+| --- | --- |
+| 0 | Operación completa o sin cambios; warning de recuperación si quedó disponible. |
+| 1 | Error interno no clasificado, con diagnóstico local. |
+| 2 | Sintaxis CLI, YAML/schema, referencia o selección inválida. |
+| 3 | Conflicto de revisión/nombre, dependencia en uso o confirmación requerida. |
+| 4 | Consulta remota/autenticación/red no completada. |
+| 5 | Capacidad/backend/hardware incompatible o no acreditado para la operación. |
+| 6 | Integridad inválida o evidencia insuficiente para certificar verify. |
+| 7 | Transferencia, extracción, lectura/escritura o publicación física fallida. |
+| 8 | Ejecución/salud/carga fallida, o servicio detenido sin autorización de inicio. |
+| 9 | Mutación remota de resultado no confirmado; consultar antes de actuar de nuevo. |
+| 130 | Cancelación del usuario; conservar lo recuperable. |
+
+Resultado incierto domina sobre éxito local; no se convierte timeout en cancelación
+remota. En operaciones con varios diagnósticos se conserva cada resultado y el
+código del primer fallo por fase: validación, coordinación, preparación, ejecución
+o publicación; incertidumbre posterior usa 9. Un fallo de warmup produce 8 aunque
+la publicación se haya confirmado. Estado simplemente detenido en ps no es error.
+Datos normales van a stdout, diagnósticos a stderr; secretos se redactan en ambos.
+El diagnóstico contiene código estable de área, ubicación, causa y efecto observado,
+sin depender de analizar texto traducido para decidir la siguiente acción.

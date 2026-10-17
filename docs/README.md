@@ -1,115 +1,95 @@
-# Coquena — análisis funcional
+# Coquena — documentación funcional
 
-Coquena es un **manager de línea de comandos para llama.cpp**, en la familia de SDKMan,
-NVM, FNM o UV: instala y convive con varias versiones y variantes de llama.cpp, y
-coordina con qué modelos y companions se levanta cada `llama-server`.
+Coquena prepara y opera servicios locales de IA mediante recetas reproducibles.
+Una receta define un servicio con su backend, presets consumidores de un servicio,
+o ambos. El usuario puede experimentar sobre un router vivo, observar resultados
+y conservar lo útil como una receta que puede llevar a otra máquina compatible.
 
-Reemplaza los scripts lanzadores (`.bat`, `.ps1`, `.sh`) que hoy se escriben a mano para
-arrancar `llama-server` con la combinación correcta de binario, modelos y parámetros.
+El estado local en `.coquena/` conserva la referencia y nombre de receta usados al cargar
+la receta. La home mantiene un índice de localización. Los nombres
+de servicios y presets creados permanecen hasta su baja y nueva alta explícitas;
+renombrar la carpeta no los cambia.
 
-## Por qué nace
+El YAML expresa intención; los locks conservan resoluciones concretas. CLI, TUI y
+Web UI comparten operaciones. La CLI permite editar la definición con coherencia;
+las interfaces visuales facilitan configurar y observar.
 
-Nace de una necesidad propia. Catapult, LM Studio y Ollama no simplifican la configuración
-de llama.cpp para exprimir el hardware disponible; el resultado era mantener funciones de
-PowerShell que lanzaban `llama-server` con líneas de comando cada vez más largas.
+## El contexto es el proyecto
 
-Tres descubrimientos dan forma al proyecto:
+Los recursos gestionados pertenecen al ámbito donde se preparan: `.coquena/` del
+proyecto o `COQUENA_HOME` tras importación global explícita. Los externos se usan
+en su ubicación y conservan su propiedad. No se exige deduplicación ni un almacén
+global para consumir servicios compartidos. Conservar un proyecto autónomo permite
+reutilizar sus recursos sin depender de una home anterior.
 
-- **Un archivo INI enruta varios modelos en un solo `llama-server`** (`--models-preset`).
-  Intercambiar modelos en VRAM dentro del mismo proceso es potencialmente más rápido que
-  cerrar el servidor y relanzarlo con otro modelo.
-- **Lanzar `llama-server` directamente ahorra recursos**: sin el overhead de los wrappers.
-- **`llama-server` expone métricas** (formato Prometheus) aprovechables en un dashboard.
+Hay una instancia activa como máximo por servicio. Un proyecto puede consumir un
+servicio global sin tener un proceso propio. Copias del proyecto pueden
+funcionar simultáneamente si no colisionan recursos. El hardware condiciona la
+ejecución; no sustituye la intención ni autoriza cambiar automáticamente un backend
+incompatible por otra familia.
 
-Existen enrutadores como llama-swap, pero apuntan a otro problema. llama.cpp sirve igual
-para un servidor local, un laboratorio personal o un equipo productivo; Coquena quiere que
-**los presets que un desarrollador afina en su PC sean migrables** a otra escala de
-ejecución. Después del milestone ejecutable se prevé una TUI que coordine múltiples
-descargas; su librería no está elegida. Una Web GUI para hardware remoto es una idea futura.
+## Recorrido de uso
 
-## Alcance de este análisis
+1. Escribir o recibir una receta; inicializar una carpeta es opcional.
+2. Definir servicio o destino, modelos y presets; seleccionar overrides.
+3. Iniciar el servicio explícitamente o autorizarlo en up; publicar los presets.
+4. Ajustar presets, aplicarlos explícitamente al router compatible y probarlos.
+5. Guardar receta/locks, compartirlos y reproducirlos en otra máquina.
+6. Actualizar, verificar, recuperar y limpiar conservando las protecciones.
 
-Esta carpeta contiene las reglas funcionales y una guía de implementación del catálogo.
-La guía distingue los acuerdos funcionales, los mecanismos técnicos propuestos y las
-decisiones pendientes. La cobertura del ejecutable y su evidencia se registran en
-las tarjetas y milestones.
+Intención, borrador y composición activa pueden diferir. Guardar no reinicia;
+cargar un modelo no publica un preset nuevo; descargarlo de memoria no borra pesos.
+Up/down publican/retiran el conjunto de presets de la receta; service start/stop
+controlan el proceso. Down no detiene el servicio ni retira entradas ajenas.
 
-Coquena se implementará en **C# con publicación Native AOT**, en pasos pequeños y revisables por quien mantiene
-Coquena. El orden de revisión es: backends y catálogo de parámetros; configuración y
-presets; catálogo de modelos y sus comandos (incluida su relación con Hugging Face);
-por último, servidores e instanciación. Los acuerdos y pendientes de ejecución están en [servidores.md](servidores.md). La documentación es autosuficiente: ningún requisito depende de otra implementación.
+## Arquitectura de interacción
 
-## El contexto es la máquina
+C# con publicación Native AOT es una restricción del ejecutable y sus dependencias.
+Los contratos funcionales no fijan clases o bibliotecas.
 
-Native AOT es una restricción desde la primera entrega, no una conversión final.
-Las tareas deben verificar publicación y ejecución del binario nativo para la plataforma
-objetivo, además de sus pruebas funcionales. No elegir dependencias sin comprobar ese
-camino. Base elegida tras inspeccionar la PC el 7 de octubre de 2026: .NET 10 (`net10.0`),
-SDK estable instalado `10.0.401`, destino inicial `win-x64`. El SDK se fija mediante
-global.json al crear el proyecto; no se adopta una versión preliminar automáticamente.
-Hay herramientas C++ de Visual Studio Build Tools 2026 y Windows SDK instalados; la
-publicación AOT efectiva se comprobará en la primera entrega ejecutable, no se presume.
-
-La [descarga oficial de .NET](https://dotnet.microsoft.com/en-us/download) indicaba
-10.0.401 como SDK estable actual y .NET 11 RC como preliminar en esa fecha.
-
-A diferencia de NVM o UV, el contexto no es una carpeta ni un proyecto: es **el hardware
-de la PC donde corre**. No hay `.nvmrc` ni shims. Lo que importa es qué CPU y qué GPUs hay
-(posiblemente de fabricantes distintos) y qué binarios de llama.cpp pueden usarlas.
-
-## Cómo se usa lo que Coquena levanta
-
-Un `llama-server` levantado por Coquena expone **varios presets con nombre**. El servidor
-gestiona por sí mismo qué modelo está cargado en la GPU; el cliente (OpenCode, Pi Code, u
-otro harness agéntico) alterna entre presets pidiendo uno u otro por nombre.
-
-Un caso típico: modelos de frontera para diseño e investigación, y modelos locales para
-implementación — con un preset liviano y rápido y otro pesado con más contexto, ambos
-sobre el mismo GGUF.
+En modo desacoplado Coquena inicia/comprueba y termina; el backend continúa.
+No hay supervisor Coquena permanente. TUI, Web UI y watch observan mientras están
+abiertos, sin ser propietarios de la vida del servidor.
+Un schema describe argumentos; no proporciona por sí mismo las APIs de un fork.
 
 ## Documentos
 
-### Milestones
+| Documento | Responsabilidad |
+| --- | --- |
+| [Formato del proyecto](formato-proyecto.md) | Campos de coquena.yaml, composición, índices e inicialización |
+| [Servicios y recetas](servicios-recetas.md) | Ámbitos, nombres, consumidores e importación |
+| [Persistencia de proyectos](persistencia-proyectos.md) | Documentos, identidad, coordinación y publicación recuperable |
+| [Definiciones declarativas](definiciones-declarativas.md) | Proyecto, YAML, variables, locks y estado local |
+| [Servidores](servidores.md) | Ciclo, backend, puertos, salud, aplicación y recuperación |
+| [Modelos y companions](modelos-y-companions.md) | Selección, identidad, shards, propiedad e integridad |
+| [Descargas](descargas.md) | Transferencias, pausa, reanudación y preparación |
+| [Parámetros](catalogo-de-parametros.md) | Schema optativo por proyecto y emisión |
+| [Actualización y limpieza](actualizacion-y-limpieza.md) | Plan, publicación conjunta y protecciones |
+| [Observabilidad](observabilidad.md) | Estado, eventos, métricas, logs y reconexión |
+| [Interfaces visuales](interfaces-visuales.md) | Panel, borradores y comparación |
+| [Pantalla Servicios](ui-servicio.md) | Hardware, actividad, histórico visual y logs de la TUI |
+| [Benchmarking](benchmarking.md) | Rendimiento y consumo de recursos |
+| [Comandos](comandos.md) | Responsabilidades y superficie CLI |
+| [Glosario](glosario.md) | Vocabulario |
+| [Modelo de datos](modelo-de-datos.md) | Relaciones conceptuales |
+| [Estados](estados.md) | Ejes y transiciones |
+| [Casos de uso](casos-de-uso.md) | Actores y recorrido |
+| [Secuencias](secuencias.md) | Colaboración entre operaciones |
+| [Actividades](actividades.md) | Decisiones de ejecución y edición |
+| [Guía técnica](implementacion-catalogo-modelos.md) | Contratos e invariantes de implementación |
 
-- [M1: servidor local](milestones/M1-servidor-local.md): backend, dos modelos, métricas y logs.
-- [M2: gestión completa](milestones/M2-gestion-completa.md): funciones iniciales restantes, después de M1.
+Una regla se mantiene en su documento responsable; diagramas y comandos la enlazan.
+Las cuestiones no concretadas se identifican, sin autorizar otra política implícita.
 
-- [M3: definiciones declarativas](milestones/M3-definiciones-declarativas.md): YAML de servidores y JSON de parámetros.
+## Planificación y evidencia
 
-Los milestones son documentos de planificación. Las tareas concretas se gestionan con LeanSpec
-en specs/; los milestones no se mezclan con ellas en el tablero.
+El contrato funcional no acredita que el ejecutable publicado ya implemente todo.
+Recortes, entregas y evidencia pertenecen a specs/ y milestones.
 
-### Cómo leer y mantener esta documentación
+- [M1: servidor local](milestones/M1-servidor-local.md).
+- [M2: gestión completa](milestones/M2-gestion-completa.md).
+- [M3: soporte completo de proyectos con YAML](milestones/M3-definiciones-declarativas.md).
+- [M4: experiencia completa e interfaces visuales](milestones/M4-experiencia-completa.md).
 
-1. **Comportamiento:** modelos-y-companions.md, descargas.md, catalogo-de-parametros.md y servidores.md.
-2. **Interfaz:** comandos.md define sintaxis y menús; no repite los algoritmos.
-3. **Diagramas:** casos-de-uso.md es el mapa; secuencias.md muestra interacciones;
-   actividades.md sólo conserva flujos complementarios. Estados y modelo de datos
-   explican ejes y relaciones, no otra versión de las reglas.
-4. **Implementación futura:** implementacion-catalogo-modelos.md describe mecanismos
-   propuestos, entregas y [pendientes](implementacion-catalogo-modelos.md#9-decisiones-que-no-deben-quedar-ocultas-en-el-código).
-
-Una regla se mantiene en su documento de comportamiento; los demás la enlazan o
-representan. Cambiarla exige revisar sus diagramas y comandos, no copiar otro párrafo.
-Los acuerdos de servidores están en [servidores.md](servidores.md); sus pendientes no autorizan decisiones implícitas.
-
-| Documento | Contenido |
-|---|---|
-| [definiciones-declarativas.md](definiciones-declarativas.md) | YAML de ejecución, JSON de parámetros y pendientes de M3 |
-| [servidores.md](servidores.md) | Composición, defaults, instancias y pendientes |
-| [glosario.md](glosario.md) | Vocabulario del dominio |
-| [casos-de-uso.md](casos-de-uso.md) | Actores y casos de uso |
-| [modelo-de-datos.md](modelo-de-datos.md) | Diagrama de clases del dominio |
-| [estados.md](estados.md) | Ciclos de vida (instancia, backend, modelo, preset) |
-| [modelos-y-companions.md](modelos-y-companions.md) | Registro externo, seguimiento remoto, actualización e integridad |
-| [implementacion-catalogo-modelos.md](implementacion-catalogo-modelos.md) | Contratos, algoritmos, entregas y pruebas para implementar el catálogo en C# |
-| [descargas.md](descargas.md) | Gestión de transferencias, persistencia, recuperación y pruebas |
-| [secuencias.md](secuencias.md) | Interacciones de registro, update, upgrade, instalación, recuperación e integridad |
-| [actividades.md](actividades.md) | Flujos de los casos de uso principales |
-| [comandos.md](comandos.md) | Superficie de la línea de comandos |
-| [catalogo-de-parametros.md](catalogo-de-parametros.md) | Parámetros de llama-server por versión y distribución |
-
-Los diagramas son PlantUML empotrado en Markdown y muestran primero el flujo o la
-estructura. El texto breve aclara sus condiciones y excepciones. **No deben
-contradecirse**: si discrepan, se corrigen ambos antes de implementar; ninguno prevalece
-automáticamente. Una hipótesis se rotula como tal hasta verificarla.
+Los tamaños y la memoria se presentan como KB, MB, GB y TB con escala de 1024,
+según la [convención única de unidades](glosario.md#unidades-de-tamaño-y-memoria).
