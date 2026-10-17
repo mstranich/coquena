@@ -1,6 +1,9 @@
 using System.Diagnostics;
 using Coquena;
 
+if (args.Length is 1 or 2 && args[0] == "--mtp-tests")
+{ await Coquena.Tests.ResolutionTests.Run(); await Coquena.Tests.MtpResolutionTests.Run(args.Length == 2 ? Path.GetFullPath(args[1]) : null); return; }
+
 if (args.Length == 1 && args[0] == "--contention-tests")
 { await Coquena.Tests.ContentionTests.Run(); return; }
 if (args.Length == 3 && args[0] == "--contention-crash-worker")
@@ -191,6 +194,7 @@ await Coquena.Tests.BackendUpdateTests.Run(executable);
 await Coquena.Tests.BackendUpgradeTests.Run(executable);
 await Coquena.Tests.BackendDirectoryTests.Run(executable);
 await Coquena.Tests.ResolutionTests.Run();
+await Coquena.Tests.MtpResolutionTests.Run(executable);
 await Coquena.Tests.ModelSourceTests.Run();
 await Coquena.Tests.GgufTests.Run();
 await Coquena.Tests.ModelInstallerTests.Run(executable);
