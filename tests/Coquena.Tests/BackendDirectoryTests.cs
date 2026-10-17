@@ -328,6 +328,35 @@ internal static class BackendDirectoryTests
                 "cross-volume recovery completes after " + stage);
             Check(installer.List().Single().Id == previous.Id && !File.Exists(paths.Server(previous)), "recovered publication retains ID and cleans previous slot after " + stage);
         }
+        // A verified copy denied its final rename must be reused, not recopied;
+        // another home writer releases the reader while publication backs off.
+        var copyCount = 0; var moveCount = 0; FileStream? copyReader = null;
+        var copyBlocked = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        OperationDocument copyOperation = null!;
+        var copied = new BackendInstaller(home, probe: Probe, fault: stage =>
+        {
+            if (stage == InstallStage.BeforeMove) moveCount++;
+            if (stage != InstallStage.AfterCopy || ++copyCount != 1) return;
+            var stagePath = paths.Resolve(volume, copyOperation.BackendInstall!.Slot) + ".copy";
+            copyReader = new FileStream(Path.Combine(stagePath, "bin", "ggml.dll"), FileMode.Open, FileAccess.Read, FileShare.Read);
+            copyBlocked.TrySetResult();
+        });
+        copyOperation = copied.Create(Candidate(archive), "b2");
+        var releaseCopy = Task.Run(async () =>
+        {
+            await copyBlocked.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            new LocalStore(home).Update(DocumentKind.Config, Json.ConfigDocument, ContractValidation.Config, old => old!);
+            copyReader!.Dispose();
+        });
+        try
+        {
+            result = await copied.Downloads.RunAsync(copyOperation.Id, new Transport(archive), finalize: copied.FinalizeAsync);
+            await releaseCopy;
+            Check(result is null && copyCount == 1 && moveCount >= 2, "verified staged copy survives rename contention and concurrent home writer");
+            Check(File.Exists(paths.Server(copied.List().Single())) && !Directory.Exists(home.PathFor($"downloads/{copyOperation.Id:D}")),
+                "copied publication indexes and cleans preparation after retry");
+        }
+        finally { copyReader?.Dispose(); }
         installed = installer.List().Single();
         var interruptedCopy = new BackendInstaller(home, probe: Probe, fault: stage => { if (stage == InstallStage.AfterCopy) throw new IOException("cancel copy"); });
         var toCancel = interruptedCopy.Create(Candidate(archive), "b2");

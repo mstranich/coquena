@@ -14,6 +14,9 @@ internal static class MtpResolutionTests
     private const string Repository = "EryriLabs/Ornith-1.5-35B-A3B-BigBang-MTP-GGUF";
     private const string Main = "Ornith-1.5-35B-A3B-BigBang-MTP-Q8_0.gguf";
     private const string Draft = "mtpdraft-Q8_0.gguf";
+    private const string A4lgRepository = "a4lg/Qwen3.6-35B-A3B-MTP-ONLY-GGUF";
+    private const string A4lgCommit = "034793caf3d6f3a60cd9f0c37765434be9931cf4";
+    private const string A4lgDraft = "Qwen3.6-35B-A3B-MTP-ONLY-Q8_0.gguf";
     private static int checks;
     private static void Check(bool value, string reason)
     { checks++; if (!value) throw new Exception("037: " + reason); }
@@ -22,18 +25,20 @@ internal static class MtpResolutionTests
     private static GgufHeader Header(uint? quant = 7, string architecture = "qwen35moe") =>
         new(3, 23, null, null, null, new Dictionary<string, string>
         { ["general.architecture"] = architecture, ["general.name"] = "Ornith Bigbang Mtpfix", ["general.type"] = "model" }, quant);
-    private sealed class Inspector(Func<RepositoryFile, GgufHeader>? read = null) : IRemoteGgufInspector
+    private sealed class Inspector(Func<RepositoryFile, GgufHeader>? read = null, string commit = Commit) : IRemoteGgufInspector
     {
         public Task<GgufHeader> InspectAsync(RepositoryRevision revision, RepositoryFile file, CancellationToken cancellation)
-        { Check(revision.Commit == Commit, "inspection pinned"); return Task.FromResult(read is null ? Header() with { TensorCount = file.Path == Main ? 733UL : 23UL } : read(file)); }
+        { Check(revision.Commit == commit, "inspection pinned"); return Task.FromResult(read is null ? Header() with { TensorCount = file.Path == Main ? 733UL : 23UL } : read(file)); }
     }
-    private sealed class Handler(byte[] payload) : HttpMessageHandler
+    private sealed class Handler(byte[] payload, string repository = Repository, string commit = Commit,
+        string draft = Draft, bool includeMain = true) : HttpMessageHandler
     {
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellation)
         {
             var path = request.RequestUri!.AbsolutePath;
-            var json = path.EndsWith("/revision/main") ? $$"""{"id":"{{Repository}}","sha":"{{Commit}}"}""" :
-                path.Contains("/tree/" + Commit) ? $$"""[{"type":"file","path":"{{Main}}","size":36903139136,"oid":"{{Commit}}"},{"type":"file","path":"{{Draft}}","size":{{payload.Length}},"oid":"{{Commit}}"}]""" :
+            var principal = includeMain ? $$"""{"type":"file","path":"{{Main}}","size":36903139136,"oid":"{{commit}}"},""" : "";
+            var json = path.EndsWith("/revision/main") ? $$"""{"id":"{{repository}}","sha":"{{commit}}"}""" :
+                path.Contains("/tree/" + commit) ? $$"""[{{principal}}{"type":"file","path":"{{draft}}","size":{{payload.Length}},"oid":"{{commit}}"}]""" :
                 throw new Exception("Unexpected metadata request " + path);
             return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(json) });
         }
@@ -46,13 +51,13 @@ internal static class MtpResolutionTests
         public Task<int?> ChooseAsync(IReadOnlyList<string> options, CancellationToken cancellation)
         { Options = options.ToArray(); return Task.FromResult<int?>(choice); }
     }
-    private sealed class Transport(byte[] payload) : IDownloadTransport
+    private sealed class Transport(byte[] payload, string commit = Commit, string draft = Draft) : IDownloadTransport
     {
         public int Calls;
         public Task<HttpResponseMessage> OpenAsync(OperationDocument operation, int file, long offset, CancellationToken cancellation)
         {
             Calls++;
-            Check(operation.ModelSelection!.Commit == Commit && operation.ModelSelection.Files.Single().Path == Draft && offset == 0,
+            Check(operation.ModelSelection!.Commit == commit && operation.ModelSelection.Files.Single().Path == draft && offset == 0,
                 "only pinned draft transferred");
             return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(payload) });
         }
@@ -75,14 +80,16 @@ internal static class MtpResolutionTests
         Check(variants.Single(v => v.CompanionType == "mtp").Files.Single().Path == Draft, "fixed inventory offers draft");
         Check(variants.Count(v => v.CompanionType is null) == 2 && variants.Any(v => v.CompanionType is null && v.Files[0].Path == Main),
             "principal with MTP and embedded principal remain principals");
-        foreach (var path in new[] { Draft, "mtp-draft-Q8_0.gguf", "mtp-modelo-Q8_0.gguf", "MTP/whatever.gguf", "nested/mtp/weights.gguf", "folder/model-mtpdraft-Q8_0.gguf" })
+        foreach (var path in new[] { Draft, "mtp-draft-Q8_0.gguf", "mtp-modelo-Q8_0.gguf", "MTP/whatever.gguf", "nested/mtp/weights.gguf", "folder/model-mtpdraft-Q8_0.gguf",
+            A4lgDraft, "folder/model_mTp-OnLy.Q8_0.gguf", "MTP-ONLY/weights.gguf" })
         foreach (var header in new GgufHeader?[] { null, Header(), Header(null), Header(uint.MaxValue) })
         {
             var evidence = ModelSelection.Classify(Revision, File(path), header);
             var expected = ModelSelection.NameQuantization(path) is null && (header?.FileTypeId is null or uint.MaxValue) ? EvidenceState.Inconclusive : EvidenceState.Candidate;
             Check(evidence.Role == ModelRole.Mtp && evidence.State == expected && evidence.Diagnostic!.Contains("no certifica"), "heuristic remains candidate " + path);
         }
-        foreach (var path in new[] { Main, "model-MTP-Q8_0.gguf", "mtpdrafting-Q8_0.gguf", "notmtp/weights-Q8_0.gguf", "mtp-model/weights-Q8_0.gguf" })
+        foreach (var path in new[] { Main, "model-MTP-Q8_0.gguf", "mtpdrafting-Q8_0.gguf", "notmtp/weights-Q8_0.gguf", "mtp-model/weights-Q8_0.gguf",
+            "model-MTP-ONLYish-Q8_0.gguf", "model-XMTP-ONLY-Q8_0.gguf", "model-MTP_ONLY-Q8_0.gguf" })
             Check(ModelSelection.Classify(Revision, File(path), Header()).Role == ModelRole.Principal, "no internal token conversion " + path);
         var arbitrary = new RepositoryInventory(Revision, [File("mtp/whatever.gguf"), File("whatever.gguf")]);
         var discovered = await new ModelResolver(new Inspector()).DiscoverAsync(arbitrary, _ => { }, default);
@@ -90,7 +97,12 @@ internal static class MtpResolutionTests
         foreach (var quant in new[] { ("Q4_0", 2u), ("Q8_0", 7u), ("BF16", 32u) })
             Check(ModelSelection.Classify(Revision, File("mtpdraft-" + quant.Item1 + ".gguf"), Header(quant.Item2)).State == EvidenceState.Candidate, "quant does not verify role");
         foreach (var header in new[] { Header(2), Header(7, "clip") })
+        {
             Check(ModelSelection.Classify(Revision, File(Draft), header).State == EvidenceState.Conflict, "incompatible quant or architecture blocks");
+            Check(ModelSelection.Classify(Revision, File(A4lgDraft), header).State == EvidenceState.Conflict, "MTP-ONLY preserves incompatible metadata");
+        }
+        Check(ModelSelection.Classify(Revision, File("mmproj-model-MTP-ONLY-Q8_0.gguf"), Header()).State == EvidenceState.Conflict,
+            "MTP-ONLY cannot hide conflicting auxiliary marker");
         var conflict = ModelSelection.Classify(Revision, File("mtp-mmproj-Q8_0.gguf"), Header());
         Check(conflict.State == EvidenceState.Conflict, "incompatible name markers block");
         Check(ModelSelection.Classify(Revision, File("mtp-mmproj-weights.gguf"), Header(null)).State == EvidenceState.Conflict, "missing quant cannot erase role conflict");
@@ -159,6 +171,47 @@ internal static class MtpResolutionTests
             }
         }
         finally { if (Directory.Exists(root)) Directory.Delete(root, true); }
-        Console.WriteLine($"037 MTP resolution: {checks} checks passed.");
+        // Fixed real a4lg inventory; installation uses a minimal synthetic GGUF payload.
+        var a4lgRevision = new RepositoryRevision(A4lgRepository, "main", A4lgCommit);
+        var a4lgInventory = new RepositoryInventory(a4lgRevision, new[] {
+            ("BF16", 3735545632L), ("Q4_K_M", 1621550880L), ("Q5_K_M", 1713186592L),
+            ("Q6_K", 1860626208L), ("Q8_0", 1990649632L)
+        }.Select(q => new RepositoryFile("Qwen3.6-35B-A3B-MTP-ONLY-" + q.Item1 + ".gguf", q.Item2, A4lgCommit, null, null)).ToArray());
+        var a4lgVariants = ModelSelection.Discover(a4lgInventory).Variants;
+        Check(a4lgVariants.Length == 5 && a4lgVariants.All(v => v.CompanionType == "mtp" && v.Evidence.All(e => e.State == EvidenceState.Candidate)),
+            "fixed a4lg inventory offers five candidate companions, no principal");
+        Check(a4lgVariants.Single(v => v.Quantization == "Q8_0").Files.Single().Path == A4lgDraft, "a4lg exact Q8_0 candidate");
+        var onlyShards = a4lgInventory with { Files = [
+            File("model-MTP-ONLY-Q8_0-00001-of-00002.gguf"), File("model-MTP-ONLY-Q8_0-00002-of-00002.gguf")] };
+        Check(ModelSelection.Discover(onlyShards).Variants.Single() is { CompanionType: "mtp", Files.Length: 2 }, "MTP-ONLY shards form one candidate");
+        Check(ModelSelection.Discover(onlyShards with { Files = onlyShards.Files[..1] }).Variants.Length == 0, "MTP-ONLY incomplete shards remain blocked");
+        using var a4lgClient = new HttpClient(new Handler(payload, A4lgRepository, A4lgCommit, A4lgDraft, false));
+        var a4lgSource = new HuggingFaceStore(a4lgClient);
+        var a4lgRoot = Path.Combine(Path.GetTempPath(), "coquena-mtp-only-" + Guid.NewGuid());
+        try
+        {
+            var a4lgInstaller = new ModelInstaller(new Home(a4lgRoot));
+            var a4lgTransport = new Transport(payload, A4lgCommit, A4lgDraft);
+            using var output = new StringWriter(); using var error = new StringWriter();
+            foreach (var selector in new[] { A4lgRepository + "#mtp", A4lgRepository + "#mtp:Q8_0" })
+            {
+                var menu = new Menu(0);
+                var selected = await new ModelSelectionMenu(a4lgSource, new Inspector(commit: A4lgCommit)).SelectAsync(ModelRequest.Parse(selector), menu);
+                Check(selected?.Selection.Commit == A4lgCommit && selected.Selection.Files.Single().Path == A4lgDraft &&
+                    menu.Options[0].Contains("rol MTP candidato"), "MTP-ONLY selectable with candidate disclosure " + selector);
+            }
+            Check(ModelCli.Run(["companion", "download", A4lgRepository + "#mtp:Q8_0"], output, error, a4lgInstaller,
+                a4lgSource, a4lgTransport, new Menu(2), inspector: new Inspector(commit: A4lgCommit)) == 0 &&
+                !Directory.Exists(a4lgRoot) && a4lgTransport.Calls == 0, "MTP-ONLY cancellation creates no operation");
+            Check(ModelCli.Run(["companion", "download", A4lgRepository + "#mtp:Q8_0"], output, error, a4lgInstaller,
+                a4lgSource, a4lgTransport, new Menu(0), inspector: new Inspector(commit: A4lgCommit)) == 0 && error.ToString().Length == 0,
+                "MTP-ONLY companion installed through CLI path");
+            var installed = a4lgInstaller.List().Single().Record;
+            Check(installed.CompanionType == "mtp" && installed.Name == A4lgRepository + "#mtp:Q8_0" &&
+                installed.Selection!.Commit == A4lgCommit && installed.Selection.Files.Single().Path == A4lgDraft &&
+                a4lgTransport.Calls == 1 && a4lgInstaller.Downloads.List().Length == 0, "only pinned MTP-ONLY resource published");
+        }
+        finally { if (Directory.Exists(a4lgRoot)) Directory.Delete(a4lgRoot, true); }
+        Console.WriteLine($"MTP resolution: {checks} checks passed.");
     }
 }

@@ -7,6 +7,9 @@ Console.OutputEncoding = new System.Text.UTF8Encoding(false);
 if (args.Length is 1 or 2 && args[0] == "--mtp-tests")
 { await Coquena.Tests.ResolutionTests.Run(); await Coquena.Tests.MtpResolutionTests.Run(args.Length == 2 ? Path.GetFullPath(args[1]) : null); return; }
 
+if (args.Length is 1 or 2 && args[0] == "--backend-publication-tests")
+{ await Coquena.Tests.InstallerTests.Run(args.Length == 2 ? Path.GetFullPath(args[1]) : null); await Coquena.Tests.BackendPublicationTests.Run(); return; }
+
 if (args.Length == 1 && args[0] == "--contention-tests")
 { await Coquena.Tests.ContentionTests.Run(); return; }
 if (args.Length == 3 && args[0] == "--contention-crash-worker")
@@ -192,6 +195,7 @@ await Coquena.Tests.DownloadTests.Run(executable);
 await Coquena.Tests.ContentionTests.Run();
 
 await Coquena.Tests.InstallerTests.Run(executable);
+await Coquena.Tests.BackendPublicationTests.Run();
 await Coquena.Tests.ExternalBackendTests.Run(executable);
 await Coquena.Tests.BackendUpdateTests.Run(executable);
 await Coquena.Tests.BackendUpgradeTests.Run(executable);
