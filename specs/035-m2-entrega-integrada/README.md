@@ -207,3 +207,8 @@ prueba autorizada el 16 de octubre de 2026, sus incidencias y la evidencia local
 El usuario autorizó después commit, tag, push y release 0.2.0 con binario Windows;
 las correcciones 036–039 permanecen abiertas. Las notas de publicación están en
 [release-0.2.0.md](release-0.2.0.md).
+
+El [recorrido de aceptación 0.2.1](aceptacion-0.2.1.md) repite la retirada,
+reconstrucción y uso real después de las correcciones 036–040. Terminó sin
+defectos nuevos y con suite Native AOT exitosa sobre el paquete Windows extraído.
+Conserva hashes, límites, procedencia y estado local dejado para uso.

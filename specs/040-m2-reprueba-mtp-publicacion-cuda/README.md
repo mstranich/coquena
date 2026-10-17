@@ -1,15 +1,18 @@
 ---
-status: in-progress
+status: complete
 created: 2026-10-17
 priority: medium
 tags:
 - m2
 - bugfix
 created_at: 2026-10-17T16:12:21.399365500Z
-updated_at: 2026-10-17T16:29:37.886689500Z
+updated_at: 2026-10-17T17:07:06.555409700Z
+completed_at: 2026-10-17T17:07:06.555409700Z
 transitions:
 - status: in-progress
   at: 2026-10-17T16:12:55.999616Z
+- status: complete
+  at: 2026-10-17T17:07:06.555409700Z
 ---
 # Contemplar MTP-ONLY y resolver el fallo de publicación CUDA observado en la reprueba
 
@@ -188,7 +191,12 @@ Se revisó el diff de producción y pruebas contra los criterios de la tarjeta;
 se conserva la limitación de atribución histórica, sin presentar la instalación
 real exitosa como prueba de causa del fallo anterior.
 
-Implementación y evidencia completas; tarjeta en in-progress para revisión humana,
-siguiendo el flujo de aprobación previo a cierre/commit. Sin commit, tag, push ni
-release. La documentación histórica de la reprueba y su reporte, antes sin commit,
-queda enlazada a esta única tarea y preserva sus resultados originales.
+La implementación se entregó inicialmente en in-progress para revisión humana.
+El usuario autorizó después el commit previo al nuevo recorrido: `39783ae`
+incluye esta corrección y la evidencia histórica. Su instrucción de concluir
+0.2.1 si el recorrido no encontraba más defectos se cumplió con la
+[aceptación completa](../035-m2-entrega-integrada/aceptacion-0.2.1.md), incluida
+la suite Native AOT sobre el paquete extraído. Se cierra la tarjeta mediante
+LeanSpec; versión y publicación se registran en esa aceptación, fuera del
+alcance de implementación de esta corrección. No se atribuye retrospectivamente
+la causa histórica ni se crean nuevas tareas o reglas funcionales durante la prueba.
