@@ -406,7 +406,7 @@ public sealed class DownloadManager(Home home, LocalStore? storage = null)
                     hash?.Append(buffer.AsSpan(0, read));
                     if (DateTimeOffset.UtcNow >= nextCheckpoint)
                     {
-                        Checkpoint(); progress?.Invoke(value); nextCheckpoint = DateTimeOffset.UtcNow.AddSeconds(1);
+                        await Checkpoint(); progress?.Invoke(value); nextCheckpoint = DateTimeOffset.UtcNow.AddSeconds(1);
                     }
                 }
                 if ((end is not null && target.Position != end) || (file.ExpectedSize is not null && target.Position != file.ExpectedSize))
@@ -421,13 +421,25 @@ public sealed class DownloadManager(Home home, LocalStore? storage = null)
                 }
                 file = file with { State = "transferred" };
             }
-            finally { Checkpoint(); }
-            void Checkpoint()
+            finally { await Checkpoint(); }
+            async Task Checkpoint()
             {
                 target.Flush(true);
                 file = file with { ConfirmedBytes = target.Length };
                 value.Files[index] = file;
-                value = Save(value with { UpdatedAt = DateTimeOffset.UtcNow });
+                // Backpressure: stop reading the response until these flushed bytes are
+                // durably confirmed. Keep the executor lease, including during Ctrl+C;
+                // cancellation must not skip the final checkpoint. Only contention is
+                // retried; corruption, disk failures and published audit errors escape.
+                while (true)
+                {
+                    try { value = Save(value with { UpdatedAt = DateTimeOffset.UtcNow }); break; }
+                    catch (StorageException e) when (e.Code == "writer-busy" && !e.Published)
+                    {
+                        progress?.Invoke(Read(id) with { Diagnostic = "checkpoint-writer-busy" });
+                        await Task.Delay(50);
+                    }
+                }
             }
         }
         async Task<HttpResponseMessage> Open(int index, long offset)

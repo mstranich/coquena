@@ -79,7 +79,8 @@ correcciones estén implementadas. El usuario autorizó publicar 0.2.0 el 16 de 
 de 2026 como resultado parcialmente exitoso, con estos problemas conocidos abiertos.
 
 - [036: checkpoints bajo contención](../../specs/036-m2-checkpoints-contencion/README.md)
-  — prioridad alta; reanudación y duración de secciones críticas de publicación.
+  — completada y aprobada el 17 de octubre de 2026; reanudación, duración de secciones
+  críticas e identidad de los archivos publicados. Evidencia y límites en la tarjeta.
 - [037: clasificación MTP](../../specs/037-m2-clasificacion-companions-mtp/README.md)
   — distinguir drafts separados de principales cuyo nombre incluye MTP.
 - [038: rutas Windows en pruebas](../../specs/038-m2-pruebas-rutas-windows/README.md)

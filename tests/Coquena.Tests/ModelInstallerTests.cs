@@ -254,12 +254,127 @@ internal static class ModelInstallerTests
             foreach (var args in new[] { Array.Empty<string>(), new[] { "verify" }, new[] { "download" }, new[] { "list", "x" }, new[] { "download", "x", "--json" } })
                 Check(ModelCli.Run(args, output, error, installer) == 2, "invalid syntax no work");
             await MenuTests(home, installer, single);
+            await PublicationContentionTests();
+            await PublicationIdentityTests();
             await CompanionTests(executable);
             await TransitionTests(executable);
             await TransportTests(op);
             Console.WriteLine($"OK: {checks} comprobaciones de descarga/publicación de modelos; fixtures, recuperación y CLI{(executable is null ? "." : " Native AOT.")}");
         }
         finally { if (Directory.Exists(root)) Directory.Delete(root, recursive: true); }
+    }
+
+    private static async Task PublicationContentionTests()
+    {
+        foreach (var companion in new[] { false, true })
+        {
+            var root = Path.Combine(Path.GetTempPath(), "coquena-publication-contention-" + Guid.NewGuid());
+            var home = new Home(root);
+            var installer = new ModelInstaller(home);
+            try
+            {
+                byte[][] payload = [Gguf()];
+                var selected = Selected(payload, "owner/publication");
+                if (companion) selected = selected with { Name = "owner/publication#mmproj:Q4_K_M", CompanionType = "mmproj" };
+                var operation = installer.Create(selected);
+                var peer = installer.Create(Selected(payload, "owner/peer"));
+                var interrupted = new ModelInstaller(home, fault: stage =>
+                {
+                    if (stage != ModelInstallStage.AfterPreparation) return;
+                    // A second GUID completes its checkpoint and publication while the
+                    // first owns a verified destination-volume preparation. This would
+                    // fail writer-busy if preparation retained the home writer lease.
+                    Check(Run(installer, peer, new Bytes(payload)).GetAwaiter().GetResult() is null,
+                        "independent operation checkpoints and publishes during preparation");
+                    throw new IOException("fixture interrupted before publication intent");
+                });
+                var failed = await Run(interrupted, operation, new Bytes(payload));
+                Check(failed is { State: "failed", Phase: "resource-validation" }, "preparation interruption preserves transfer checkpoint");
+                Check(installer.List().All(m => m.Record.Id != operation.ModelInstall!.ModelId), "prepared bytes never activate the record");
+                // Simulate a process crash leaving an incomplete deterministic temporary.
+                var target = home.PathFor(operation.Files[0].DestinationPath);
+                var temporary = target + $".coquena-{operation.Id:D}.tmp";
+                File.WriteAllText(temporary, "interrupted-copy");
+                Check(await Run(installer, operation, new NoNetwork()) is null, "resume rebuilds orphan copy without redownloading");
+                Check(!File.Exists(temporary) && installer.List().Count(m => m.Availability == "available") == 2,
+                    "coherent publication and temporary cleanup for model/companion");
+                var cancelSelection = Selected(payload, "owner/cancel-preparation");
+                if (companion) cancelSelection = cancelSelection with { Name = "owner/cancel-preparation#mmproj:Q4_K_M", CompanionType = "mmproj" };
+                var cancelled = installer.Create(cancelSelection);
+                var cancelTarget = home.PathFor(cancelled.Files[0].DestinationPath);
+                Directory.CreateDirectory(Path.GetDirectoryName(cancelTarget)!);
+                var abandoned = cancelTarget + $".coquena-{cancelled.Id:D}.tmp";
+                File.WriteAllText(abandoned, "crash before publication intent");
+                await installer.Downloads.ControlAsync(cancelled.Id, true, beforeCancel: installer.CancelAsync);
+                Check(!File.Exists(abandoned) && !File.Exists(cancelTarget), "cancel removes orphan preparation without activating resource");
+            }
+            finally { if (Directory.Exists(root)) Directory.Delete(root, true); }
+        }
+    }
+
+    private static async Task PublicationIdentityTests()
+    {
+        foreach (var companion in new[] { false, true })
+        foreach (var mode in new[] { "temporary", "same-bytes", "existing", "after-move", "renamed-path" })
+        {
+            var root = Path.Combine(Path.GetTempPath(), "coquena-publication-identity-" + Guid.NewGuid());
+            var home = new Home(root); var installer = new ModelInstaller(home);
+            try
+            {
+                byte[][] payload = [Gguf()];
+                var selected = Selected(payload, "owner/identity");
+                if (companion) selected = selected with { Name = "owner/identity#mmproj:Q4_K_M", CompanionType = "mmproj" };
+                var operation = installer.Create(selected);
+                var target = home.PathFor(operation.Files[0].DestinationPath);
+                if (mode == "existing")
+                {
+                    var interrupted = new ModelInstaller(home, fault: stage =>
+                    { if (stage == ModelInstallStage.AfterMove) throw new IOException("fixture interrupted after move"); });
+                    Check((await Run(interrupted, operation, new Bytes(payload)))?.Phase == "publishing", "existing-file recovery fixture");
+                }
+                var attempted = false;
+                var probing = new ModelInstaller(home, fault: stage =>
+                {
+                    var probeStage = mode == "after-move" ? ModelInstallStage.AfterMove :
+                        mode == "renamed-path" ? ModelInstallStage.AfterPublicationRename : ModelInstallStage.AfterPreparation;
+                    if (stage != probeStage) return;
+                    attempted = true;
+                    var path = mode is "existing" or "after-move" or "renamed-path" ? target : target + $".coquena-{operation.Id:D}.tmp";
+                    var blocked = false;
+                    try { File.Move(path, path + ".verified"); }
+                    catch (IOException e) when ((e.HResult & 0xffff) is 32 or 33) { blocked = true; }
+                    if (mode is "existing" or "after-move")
+                    {
+                        Check(blocked, "verified destination cannot be renamed before index publication");
+                        return;
+                    }
+                    Check(!blocked, "fixture substitutes temporary while verified handle stays open");
+                    var replacement = payload[0].ToArray();
+                    if (mode != "same-bytes") replacement[^1] ^= 1;
+                    File.WriteAllBytes(path, replacement);
+                });
+                var result = await Run(probing, operation, mode == "existing" ? new NoNetwork() : new Bytes(payload));
+                Check(attempted, "publication substitution probe executed");
+                if (mode is "temporary" or "same-bytes" or "renamed-path")
+                {
+                    Check(result is { State: "failed", Diagnostic: "publication-file-changed" }, "substituted temporary rejected by identity, even with identical bytes");
+                    Check(installer.List().Length == 0, "substituted bytes never activate catalog");
+                    if (mode != "renamed-path")
+                    {
+                        Check(!File.Exists(target), "substitution caught before moving replacement to destination");
+                        Check(await Run(installer, operation, new NoNetwork()) is null, "rejected substitution resumes from verified partial without network");
+                    }
+                    else Check((await Run(installer, operation, new NoNetwork()))?.Diagnostic == "publication-integrity-failed",
+                        "post-rename replacement stays unindexed and fails recovery integrity without network");
+                }
+                else
+                {
+                    Check(result is null && installer.List().Single().Availability == "available", "protected original publishes successfully");
+                    Check(Digest(File.ReadAllBytes(target)) == Digest(payload[0]), "installed bytes match catalog integrity");
+                }
+            }
+            finally { if (Directory.Exists(root)) Directory.Delete(root, true); }
+        }
     }
 
     private static async Task TransitionTests(string? executable)
