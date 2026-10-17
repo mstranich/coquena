@@ -82,7 +82,8 @@ de 2026 como resultado parcialmente exitoso, con estos problemas conocidos abier
   — completada y aprobada el 17 de octubre de 2026; reanudación, duración de secciones
   críticas e identidad de los archivos publicados. Evidencia y límites en la tarjeta.
 - [037: clasificación MTP](../../specs/037-m2-clasificacion-companions-mtp/README.md)
-  — distinguir drafts separados de principales cuyo nombre incluye MTP.
+  — completada y aprobada el 17 de octubre de 2026; distingue drafts candidatos de
+  principales cuyo nombre incluye MTP, sin certificar rol ni compatibilidad. Evidencia en la tarjeta.
 - [038: rutas Windows en pruebas](../../specs/038-m2-pruebas-rutas-windows/README.md)
   — evitar falsos negativos por capitalización sin debilitar identidad de procesos.
 - [039: codificación de procesos en pruebas](../../specs/039-m2-pruebas-codificacion-procesos/README.md)

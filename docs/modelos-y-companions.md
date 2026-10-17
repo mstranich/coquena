@@ -45,6 +45,19 @@ Una receta documentada no se equipara automáticamente a Q4_K_M por ese metadato
 
 Auxiliares `mmproj`/`mtp` se distinguen por tokens de nombre/carpeta y pistas de cabecera
 cuando existen; no se convierten en principales por carecer de cuantización en el nombre.
+Para MTP, los marcadores delimitados `mtpdraft` o `mtp-draft`, una carpeta exacta `mtp`
+o el prefijo `mtp-` al comienzo del nombre del archivo producen candidatos auxiliares.
+Un token interno `MTP` por sí solo conserva la candidatura principal, incluido un
+principal con MTP integrado. Las pistas de nombre/carpeta no certifican el rol de
+draft ni su compatibilidad; el menú muestra esa condición incluso cuando la cabecera
+confirma la cuantización. Un nombre arbitrario dentro de `mtp` puede resolver su
+cuantización por cabecera; sin marcador ni evidencia específica no se inventa un rol MTP.
+Una cabecera genérica (`general.type=model`), metadatos específicos ausentes o un
+publicador distinto son evidencia insuficiente, no contradicciones por sí solos.
+Se considera incompatible un marcador MTP frente a arquitectura `clip`, marcadores
+auxiliares de tipos diferentes, una cuantización estándar discordante entre nombre y
+cabecera o metadatos incompatibles entre shards. Esos conflictos impiden la selección;
+la ausencia de cuantización resoluble produce un resultado no concluyente.
 Dos unidades con igual cuantización conservan opciones separadas por rutas. Antes del GUID
 se comprueban las cabeceras de todas las partes elegidas y la coherencia split; esto no
 certifica integridad de los pesos ni compatibilidad de carga. Un fallo aislado conserva

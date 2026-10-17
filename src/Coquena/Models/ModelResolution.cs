@@ -44,7 +44,10 @@ public static class ModelSelection
     public static ModelRole NameRole(string path)
     {
         var mmproj = Regex.IsMatch(path, "(?:^|[/_.-])mmproj(?=$|[/_.-])", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
-        var mtp = Regex.IsMatch(path, "(?:^|[/_.-])mtp(?=$|[/_.-])", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+        // Explicit draft markers anywhere, or mtp- at the start of the basename,
+        // or an exact mtp directory. An internal MTP token is also used by principals.
+        var mtp = path.Split('/')[^1].StartsWith("mtp-", StringComparison.OrdinalIgnoreCase) ||
+            Regex.IsMatch(path, "(?:^|[/_.-])mtp-?draft(?=$|[/_.-])|(?:^|/)mtp/", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
         return mmproj && mtp ? ModelRole.Unknown : mmproj ? ModelRole.Mmproj : mtp ? ModelRole.Mtp : ModelRole.Principal;
     }
     private static string? Base(string label)
@@ -72,9 +75,20 @@ public static class ModelSelection
         { state = EvidenceState.Conflict; diagnostic = $"Nombre {label} contradice general.file_type {quant}."; }
         if (publisherRecipe && state != EvidenceState.Conflict)
         { state = EvidenceState.Candidate; diagnostic = "Etiqueta del publicador conservada; file_type describe predominancia, no certifica la receta dinámica."; }
-        if (header?.FileTypeId is { } unknown && quant is null) diagnostic = $"general.file_type={unknown} desconocido; no se inventa etiqueta.";
+        if (header?.FileTypeId is { } unknown && quant is null && state != EvidenceState.Conflict)
+            diagnostic = $"general.file_type={unknown} desconocido; no se inventa etiqueta.";
         label ??= quant;
-        if (label is null) { state = EvidenceState.Inconclusive; diagnostic ??= "Sin cuantización resoluble por nombre/metadatos."; }
+        if (role == ModelRole.Mtp && state != EvidenceState.Conflict)
+        {
+            state = EvidenceState.Candidate;
+            diagnostic = (diagnostic is null ? "" : diagnostic + " ") +
+                "Rol auxiliar MTP candidato por nombre/carpeta; cabecera no certifica rol ni compatibilidad.";
+        }
+        if (label is null && state != EvidenceState.Conflict)
+        {
+            state = EvidenceState.Inconclusive;
+            diagnostic = (diagnostic is null ? "" : diagnostic + " ") + "Sin cuantización resoluble por nombre/metadatos.";
+        }
         return new(file.Path, revision.Commit, role, label is null ? null : quant ?? Base(label), label, source, state, diagnostic);
     }
     public static ModelUnit[] Units(RepositoryInventory inventory, List<string> diagnostics)
@@ -108,7 +122,8 @@ public static class ModelSelection
         var type = first.Role switch { ModelRole.Mmproj => "mmproj", ModelRole.Mtp => "mtp", _ => null };
         var total = unit.Files.Aggregate(0m, (sum, f) => sum + f.Size);
         return new(first.PublisherLabel!, type,
-            $"{first.PublisherLabel} — {string.Join(", ", unit.Files.Select(f => f.Path))} — {total / 1000000000m:F2} GB / {total / 1073741824m:F2} GiB — {first.Source}/{first.State}", unit.Files)
+            $"{first.PublisherLabel} — {string.Join(", ", unit.Files.Select(f => f.Path))} — {total / 1000000000m:F2} GB / {total / 1073741824m:F2} GiB — {first.Source}/{first.State}" +
+                (first.Role == ModelRole.Mtp ? " — rol MTP candidato por nombre/carpeta; compatibilidad no certificada" : ""), unit.Files)
             { Evidence = evidence };
     }
     public static ModelCandidates Discover(RepositoryInventory inventory)
