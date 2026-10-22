@@ -118,10 +118,10 @@ Content-Range exacto y total de inventario, longitudes/cuerpo coherentes, sin co
 contrasta commit opcional, continuidad de ETag e identidad LFS comparable cuando existe.
 Un 200 se cierra sin drenar; 416/rangos falsos/cambio de contenido son fallos de consulta.
 
-Presupuestos: primer bloque 64 KB, siguientes hasta 1 MB; máximo 64 MB por cabecera,
-128 MB por unidad, 256 MB y 8192 peticiones (incluidos redirects) por invocación;
+Presupuestos: primer bloque 64 KiB, siguientes hasta 1 MiB; máximo 64 MiB por cabecera,
+128 MiB por unidad, 256 MiB y 8192 peticiones (incluidos redirects) por invocación;
 20 segundos por petición, 120 por sesión. Memoria de cuerpo acotada a dos bloques y
-scratch del parser de 64 KB, sin conservar tokenizer ni pesos. Contadores incluyen
+scratch del parser de 64 KiB, sin conservar tokenizer ni pesos. Contadores incluyen
 bytes leídos en fallos y un byte de detección de exceso. Máximo tres intentos HTTP
 429/500/502/503/504; Retry-After y RateLimit toman la espera mayor, más de 5 s se informa
 sin reintentar antes del plazo. Cancelación y fallos no se convierten en ausencia.

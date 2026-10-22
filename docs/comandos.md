@@ -16,8 +16,6 @@ primero; una selección explícita de directorio permite cambiar esa base.
 La selección y el nombre `coquena.yaml` se concretan en [Formato del proyecto](formato-proyecto.md).
 
 No descargar gigabytes ni recalcular hashes sólo por listar estado.
-Los tamaños de salida usan unidad automática en escala de 1024 y hasta dos
-decimales, sin duplicarlos en bytes, según el [formato legible](glosario.md#unidades-de-tamaño-y-memoria).
 Distinguir errores de configuración, consulta remota, compatibilidad, integridad,
 transferencia y ejecución. Informar acciones posibles sin cambiar intención
 automáticamente. No guardar secretos expandidos en archivos compartidos.
@@ -102,7 +100,7 @@ usuario/repositorio#tipo[:cuantización]
 ```
 
 Sin cuantización, resolver candidatos en un commit e indicar etiqueta completa,
-rol, archivos y tamaños legibles con unidad automática. El usuario elige rutas si hay varias variantes
+rol, archivos y tamaños. El usuario elige rutas si hay varias variantes
 equivalentes por nombre. Permitir leer README y cancelar antes del GUID.
 No sustituir una cuantización ausente por otra parecida ni descargar el repositorio.
 

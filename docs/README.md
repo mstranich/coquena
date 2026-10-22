@@ -70,7 +70,7 @@ Un schema describe argumentos; no proporciona por sí mismo las APIs de un fork.
 | [Pantalla Servicios](ui-servicio.md) | Hardware, actividad, histórico visual y logs de la TUI |
 | [Benchmarking](benchmarking.md) | Rendimiento y consumo de recursos |
 | [Comandos](comandos.md) | Responsabilidades y superficie CLI |
-| [Glosario](glosario.md) | Vocabulario |
+| [Glosario](glosario.md) | Vocabulario y unidades de tamaño y memoria |
 | [Modelo de datos](modelo-de-datos.md) | Relaciones conceptuales |
 | [Estados](estados.md) | Ejes y transiciones |
 | [Casos de uso](casos-de-uso.md) | Actores y recorrido |
@@ -90,6 +90,3 @@ Recortes, entregas y evidencia pertenecen a specs/ y milestones.
 - [M2: gestión completa](milestones/M2-gestion-completa.md).
 - [M3: soporte completo de proyectos con YAML](milestones/M3-definiciones-declarativas.md).
 - [M4: experiencia completa e interfaces visuales](milestones/M4-experiencia-completa.md).
-
-Los tamaños y la memoria se presentan como KB, MB, GB y TB con escala de 1024,
-según la [convención única de unidades](glosario.md#unidades-de-tamaño-y-memoria).

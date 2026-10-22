@@ -32,27 +32,16 @@
 
 ## Unidades de tamaño y memoria
 
-Coquena usa una única convención para tamaños de archivos, transferencias,
-almacenamiento, RAM, VRAM, límites y tasas de bytes: B, KB, MB, GB, TB, PB y EB.
-Cada magnitud equivale a 1024 de la anterior: 1 KB = 1024 B, 1 MB = 1024 KB,
-1 GB = 1024 MB y 1 TB = 1024 GB. Estas etiquetas representan siempre esa escala
-binaria dentro de Coquena. No se muestra una segunda conversión decimal ni otra
-familia de abreviaturas para el mismo valor.
+Tamaños, memoria, límites y tasas de bytes usan exclusivamente B, KiB, MiB, GiB,
+TiB, PiB y EiB, con escala 1024; las tasas se expresan por segundo. La entrada
+acepta esos sufijos; B o un entero sin sufijo expresa bytes.
 
-La salida dirigida a personas elige automáticamente la unidad adecuada, subiendo
-de magnitud al alcanzar 1024. Usa como máximo dos decimales, redondea para mostrar
-y elimina ceros decimales innecesarios: `64 KB`, `1,5 GB`, `2 TB`. Si el redondeo
-alcanza 1024, se pasa a la unidad siguiente. No se añade entre paréntesis la cifra
-completa en bytes ni se ofrece una segunda representación del mismo tamaño.
-Esta regla se aplica a CLI, tablas, progreso, mensajes, logs de Coquena y pantallas,
-incluidos tamaños totales, espacio libre, memoria y tasas como `12,5 MB/s`.
-La precisión de presentación nunca altera cantidades, límites o comparaciones.
+En todas las interfaces humanas, la unidad se elige automáticamente y se muestran
+hasta dos decimales sin ceros innecesarios, por ejemplo `1,5 GiB`. Si el redondeo
+alcanza 1024, se pasa a la unidad siguiente. No se duplica el valor en bytes ni en
+otra escala.
 
-La entrada de tamaños con esos sufijos sigue la misma escala que la salida;
-B o un entero sin sufijo expresa bytes. Las cantidades persistidas y recibidas de
-APIs se conservan en bytes. El formato visible se calcula a partir de esos bytes,
-sin interpretar como binaria una cifra decimal ya formateada por un proveedor.
-Los documentos de estado y respuestas estructuradas conservan cantidades exactas
-para procesamiento; no se vuelcan como cifras sin formato en una vista para personas.
-Las tasas usan las mismas unidades por segundo; bits, tokens y tiempos conservan
-sus propias unidades. El cambio de etiqueta no modifica límites ni bytes medidos.
+La persistencia, las APIs y las respuestas estructuradas conservan cantidades
+exactas en bytes; el formato visible no altera valores, límites ni comparaciones.
+Las cifras ya formateadas por proveedores no se reinterpretan. Bits, tokens y
+tiempos conservan sus propias unidades.

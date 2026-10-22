@@ -26,7 +26,8 @@ Las reglas están en la documentación funcional enlazada. Esta tarjeta delimita
 
 ## Trabajo y aceptación
 
-- [ ] Centralizar parsing y formato con B/KB/MB/GB/TB/PB/EB y escala 1024; probar límites y valores inválidos conforme al contrato único.
+- [ ] Centralizar parsing y formato con B/KiB/MiB/GiB/TiB/PiB/EiB y escala 1024; probar límites y valores inválidos conforme al contrato único.
+- [ ] Rechazar los sufijos KB/MB/GB/TB/PB/EB; no conservarlos como aliases de entrada. Ajustar la ayuda a los únicos sufijos admitidos.
 - [ ] Elegir magnitud automáticamente, limitar a dos decimales y quitar ceros innecesarios; comprobar promoción de magnitud tras redondeo.
 - [ ] Sustituir presentaciones dobles y contadores extensos en bytes de listados, progreso, memoria, espacio, retención y diagnósticos propios de Coquena.
 - [ ] Conservar cantidades exactas persistidas/estructuradas; no cambiar límites efectivos al cambiar etiquetas ni reinterpretar cifras formateadas por proveedores.

@@ -4,6 +4,9 @@ using Coquena;
 // Match the product's output contract, including fixture and failure diagnostics.
 Console.OutputEncoding = new System.Text.UTF8Encoding(false);
 
+if (args.Length is 1 or 2 && args[0] == "--help-tests")
+{ Coquena.Tests.HelpTests.Run(null); if (args.Length == 2) Coquena.Tests.HelpTests.Run(Path.GetFullPath(args[1])); return; }
+
 if (args.Length is 1 or 2 && args[0] == "--mtp-tests")
 { await Coquena.Tests.ResolutionTests.Run(); await Coquena.Tests.MtpResolutionTests.Run(args.Length == 2 ? Path.GetFullPath(args[1]) : null); return; }
 
@@ -182,6 +185,8 @@ Console.WriteLine($"OK: {cases.Length} casos administrados" +
     (executable is null ? "." : $" y {cases.Length} casos del ejecutable publicado."));
 
 Coquena.Tests.ContractTests.Run();
+Coquena.Tests.HelpTests.Run(null);
+if (executable is not null) Coquena.Tests.HelpTests.Run(executable);
 Coquena.Tests.RemovalTests.Run(executable);
 Coquena.Tests.ConfigurationTests.Run(executable);
 Coquena.Tests.ParameterTests.Run(executable);

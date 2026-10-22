@@ -75,7 +75,7 @@ Strings conservan comillas/tipo de origen: `"8192"` no pasa a entero por validac
 La estructura de cada capa se valida antes de combinar; los requisitos efectivos
 se validan después. Se rechaza una clave desconocida aunque otra capa la retire.
 Un límite de lectura produce diagnóstico, nunca un documento truncado aceptado:
-16 MB por archivo, profundidad máxima 64, 100 000 nodos y 64 capas YAML o env.
+16 MiB por archivo, profundidad máxima 64, 100 000 nodos y 64 capas YAML o env.
 La edición puntual preserva comentarios y texto ajenos a la asignación; si el
 parser no puede localizar una edición inequívoca, no reserializa todo el archivo:
 informa la ubicación para edición manual. Se releen bytes antes de reemplazar.

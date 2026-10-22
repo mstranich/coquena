@@ -10,12 +10,7 @@ la familia del backend. La selección y la publicación tienen reglas propias de
 
 - Selección: fija origen, revisión y archivos antes de transferir.
 - Operación: agrupa una instalación o preparación con identificador estable.
-- Transferencia: informa bytes, progreso, diagnóstico y continuidad por archivo.
-
-El progreso visible presenta cantidades transferidas, total y velocidad con
-[unidades legibles](glosario.md#unidades-de-tamaño-y-memoria), elegidas automáticamente
-y hasta dos decimales. No muestra además contadores completos en bytes; esos
-contadores se conservan en el estado técnico para reanudación e integridad.
+- Transferencia: informa cantidad transferida, total, velocidad, diagnóstico y continuidad por archivo.
 - Publicación: incorpora sólo resultados completos y verificados.
 - Inventario: registra propiedad, revisión física y origen explícito o automático.
 

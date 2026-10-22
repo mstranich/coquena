@@ -34,10 +34,6 @@ ni usar APIs internas desaconsejadas como contrato genérico.
 
 ## Métricas
 
-Tamaños de archivos/logs, RAM, VRAM y tasas de transferencia usan el
-[formato legible común](glosario.md#unidades-de-tamaño-y-memoria): magnitud automática,
-escala 1024 y hasta dos decimales, sin duplicar cifras completas en bytes.
-
 Métricas oficiales activadas por defecto, desactivables en YAML. Obtener las que
 exponga el build: tasas de prompt/generación, contadores, peticiones activas/esperando
 y especulación cuando existan. Nombres/unidades deben reflejar su significado:
@@ -79,12 +75,12 @@ visiblemente ejecuciones. Espera mientras el servicio está detenido; cancelar s
 cierra el observador. Si se elimina y recrea el nombre con otra identidad, no se
 enlaza automáticamente. El acceso por service/server y el atajo raíz son equivalentes.
 Retención: límite global de usuario y override de proyecto, independiente de args
-del backend. Se conserva default de 100 MB, configurable en bytes/unidades claras.
+del backend. Se conserva default de 100 MiB, configurable en bytes/unidades claras.
 No truncar activo/último para cumplir límite; informar exceso de protegidos.
 Cambiar límite no borra inmediatamente; limpieza en acciones de ciclo/consulta,
 sin recolector residente. No prometer cuota estricta si protegido supera el límite.
 
-Consulta reciente acotada (referencia de 64 KB) y límites de respuesta/plazo evitan
+Consulta reciente acotada (referencia de 64 KiB) y límites de respuesta/plazo evitan
 retener logs o métricas ilimitados. No presentar esas cotas como límites de tamaño
 de pesos o de generación de inferencia.
 

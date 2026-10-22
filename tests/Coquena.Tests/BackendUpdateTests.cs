@@ -197,7 +197,7 @@ internal static class BackendUpdateTests
                 var list = Native("backend", "list");
                 Check(list.Code == 0 && list.Output.Contains("Candidato guardado: b20") && list.Output.Contains("remote-status"), "native CLI reads candidate and failure after restart");
                 Check(Native("backend", "update", "cpu:b9").Code == 2 && Native("backend", "update", "external").Code == 2, "native pin and external update rejection");
-                Check(Native("--help").Output.Contains("backend update [selector-latest]"), "native help includes update");
+                Check(Native("--help").Output.Contains("backend update [<seguimiento>]"), "native help includes update");
             }
 
             Save(vulkan, external);
