@@ -1,0 +1,104 @@
+# Partial, manually maintained navigation map. Paths are relative to the repository root.
+# Start at entrypoints, follow implementation as needed, then inspect relevant tests.
+# References describe intended behavior; verify actual behavior in code and tests.
+version: 1
+features:
+  - id: model-selection-download
+    intent: Seleccionar una cuantización GGUF de Hugging Face y descargarla con integridad.
+    keywords: [model download, model companion download, Hugging Face, cuantización, shards, GGUF, mmproj, MTP]
+    entrypoints:
+      - src/Coquena/ModelCli.cs
+    implementation:
+      - src/Coquena/Models/ModelSelection.cs
+      - src/Coquena/Models/ModelResolution.cs
+      - src/Coquena/Models/HuggingFaceStore.cs
+      - src/Coquena/Models/RemoteGgufInspector.cs
+      - src/Coquena/Models/ModelInstaller.cs
+      - src/Coquena/Models/HuggingFaceTransport.cs
+      - src/Coquena/Models/FileIntegrity.cs
+    tests:
+      - tests/Coquena.Tests/ModelSourceTests.cs
+      - tests/Coquena.Tests/ResolutionTests.cs
+      - tests/Coquena.Tests/ModelInstallerTests.cs
+      - tests/Coquena.Tests/GgufTests.cs
+    references:
+      - docs/modelos-y-companions.md
+      - docs/descargas.md
+
+  - id: download-pause-resume
+    intent: Localizar transferencias, pausa, reanudación y publicación tras completar una descarga.
+    keywords: [download list, download status, download pause, download resume, parciales, checkpoint, contención]
+    entrypoints:
+      - src/Coquena/DownloadCli.cs
+    implementation:
+      - src/Coquena/Downloads/DownloadManager.cs
+      - src/Coquena/Models/ModelInstaller.cs
+      - src/Coquena/Backends/BackendInstaller.cs
+      - src/Coquena/Storage/LocalStore.cs
+    tests:
+      - tests/Coquena.Tests/DownloadTests.cs
+      - tests/Coquena.Tests/ContentionTests.cs
+      - tests/Coquena.Tests/BackendPublicationTests.cs
+    references:
+      - docs/descargas.md
+
+  - id: backend-install-update
+    intent: Descubrir e instalar backends oficiales, consultar novedades y aplicar actualizaciones.
+    keywords: [system probe, backend remote, backend install, backend update, backend upgrade, CPU, CUDA, Vulkan, retención]
+    entrypoints:
+      - src/Coquena/BackendCli.cs
+    implementation:
+      - src/Coquena/Backends/HardwareProbe.cs
+      - src/Coquena/Backends/BackendCatalog.cs
+      - src/Coquena/Backends/OfficialBackendSource.cs
+      - src/Coquena/Backends/OfficialArtifactTransport.cs
+      - src/Coquena/Backends/BackendInstaller.cs
+      - src/Coquena/Backends/BackendUpdater.cs
+      - src/Coquena/Backends/BackendUpgrader.cs
+      - src/Coquena/Backends/BackendBuildRetention.cs
+    tests:
+      - tests/Coquena.Tests/BackendTests.cs
+      - tests/Coquena.Tests/InstallerTests.cs
+      - tests/Coquena.Tests/BackendUpdateTests.cs
+      - tests/Coquena.Tests/BackendUpgradeTests.cs
+      - tests/Coquena.Tests/RetentionTests.cs
+    references:
+      - docs/servidores.md
+      - docs/actualizacion-y-limpieza.md
+
+  - id: preset-configuration
+    intent: Crear y clonar presets, configurar valores, asociar companions y componer CLI e INI.
+    keywords: [preset create, preset clone, preset set, preset bind, config, param, parámetros, companions, INI]
+    entrypoints:
+      - src/Coquena/ConfigurationCli.cs
+      - src/Coquena/ParameterCli.cs
+    implementation:
+      - src/Coquena/Configuration/ConfigurationManager.cs
+      - src/Coquena/Configuration/ParameterManager.cs
+      - src/Coquena/Configuration/ParameterCatalog.cs
+    tests:
+      - tests/Coquena.Tests/ConfigurationTests.cs
+      - tests/Coquena.Tests/ParameterTests.cs
+      - tests/Coquena.Tests/MtpResolutionTests.cs
+    references:
+      - docs/catalogo-de-parametros.md
+      - docs/modelos-y-companions.md
+      - docs/servidores.md
+
+  - id: server-lifecycle-observation
+    intent: Definir servidores, asociar presets, iniciar y detener procesos, consultar estado, métricas y logs.
+    keywords: [server start, server stop, server restart, server ps, server logs, métricas, puerto, proceso, Router Mode]
+    entrypoints:
+      - src/Coquena/ServerCli.cs
+    implementation:
+      - src/Coquena/Servers/ServerManager.cs
+      - src/Coquena/Servers/ServerRuntime.cs
+      - src/Coquena/Servers/WindowsServerProcess.cs
+      - src/Coquena/Servers/ServerObservability.cs
+    tests:
+      - tests/Coquena.Tests/ServerTests.cs
+      - tests/Coquena.Tests/ServerRuntimeTests.cs
+      - tests/Coquena.Tests/ObservabilityTests.cs
+    references:
+      - docs/servidores.md
+      - docs/observabilidad.md

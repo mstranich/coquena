@@ -17,6 +17,18 @@
 - No iniciar código, agregar paquetes, ampliar alcance ni hacer commits sin autorización.
 - No resolver contradicciones por omisión: informar y detener sólo el trabajo afectado.
 
+## Navegación del código
+
+- Consultar [src/code-map.yaml](src/code-map.yaml) para localizar funcionalidades,
+  puntos de entrada, implementación y pruebas; verificar después el código relevante.
+- Cualquier agente puede ampliarlo dentro del trabajo autorizado: actualizar entradas
+  afectadas por cambios y agregar recorridos útiles que todavía no estén cubiertos.
+- Mantener nombres de campos e identificadores en inglés, rutas relativas a la raíz
+  del repositorio y referencias a archivos existentes y comprobados, sin números de línea.
+- El mapa es parcial y descriptivo: no acredita cobertura ni sustituye la búsqueda,
+  las reglas funcionales o LeanSpec. No inventariar cada clase, anticipar implementación
+  ni introducir reglas arquitectónicas. Si no cubre la consulta, buscar normalmente.
+
 ## LeanSpec
 
 Adaptador local markdown, specs/ y .lean-spec/config.json. La CLI disponible es leanspec.
