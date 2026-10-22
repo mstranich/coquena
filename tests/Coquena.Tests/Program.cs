@@ -4,6 +4,13 @@ using Coquena;
 // Match the product's output contract, including fixture and failure diagnostics.
 Console.OutputEncoding = new System.Text.UTF8Encoding(false);
 
+if (args.Length == 1 && args[0] == "--project-persistence-tests")
+{ Coquena.Tests.ProjectPersistenceTests.Run(); return; }
+if (args.Length == 4 && args[0] == "--project-crash-worker")
+{ Coquena.Tests.ProjectPersistenceTests.Worker(args); return; }
+if (args.Length == 4 && args[0] == "--project-writer-worker")
+{ Coquena.Tests.ProjectPersistenceTests.WriterWorker(args); return; }
+
 if (args.Length == 1 && args[0] == "--model-selection-tests")
 { await Coquena.Tests.ModelSourceTests.Run(); await Coquena.Tests.ResolutionTests.Run(); return; }
 
@@ -201,6 +208,7 @@ Coquena.Tests.ServerTests.Run(executable);
 Coquena.Tests.ServerRemovalTests.Run(executable);
 Coquena.Tests.ServerRuntimeTests.Run(executable);
 Coquena.Tests.StorageTests.Run();
+Coquena.Tests.ProjectPersistenceTests.Run();
 await Coquena.Tests.BackendTests.Run(executable);
 await Coquena.Tests.DownloadTests.Run(executable);
 await Coquena.Tests.ContentionTests.Run();

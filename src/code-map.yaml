@@ -3,6 +3,24 @@
 # References describe intended behavior; verify actual behavior in code and tests.
 version: 1
 features:
+  - id: project-context-persistence
+    intent: Separar ámbitos, registrar identidades locales y publicar generaciones recuperables entre proyectos y servicios.
+    keywords: [scope, project, recipe registry, identity, generation, recovery, .coquena, projects.json]
+    entrypoints:
+      - src/Coquena/Projects/ScopeContext.cs
+      - src/Coquena/Projects/RecipeRegistry.cs
+    implementation:
+      - src/Coquena/Projects/PhysicalDirectory.cs
+      - src/Coquena/Projects/ProjectDocuments.cs
+      - src/Coquena/Projects/ScopeStore.cs
+      - src/Coquena/Projects/ProjectIndex.cs
+    tests:
+      - tests/Coquena.Tests/ProjectPersistenceTests.cs
+    references:
+      - docs/persistencia-proyectos.md
+      - docs/formato-proyecto.md
+      - docs/servicios-recetas.md
+
   - id: model-selection-download
     intent: Seleccionar una cuantización GGUF de Hugging Face y descargarla con integridad.
     keywords: [model download, model companion download, Hugging Face, cuantización, shards, GGUF, mmproj, MTP]

@@ -1,6 +1,6 @@
 # M3 — Recetas YAML, servicios globales y proyectos
 
-**Estado:** planificado, sin implementación iniciada. **Depende de:** [M2](M2-gestion-completa.md).
+**Estado:** en implementación, comenzando por la infraestructura de contextos y persistencia. **Depende de:** [M2](M2-gestion-completa.md).
 
 ## Objetivo
 

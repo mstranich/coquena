@@ -51,7 +51,8 @@ coherente; una proyección discrepante no se acepta como catálogo vacío.
 
 Los documentos persistidos tienen envoltura `kind`, `format`, `revision` y `data`.
 `format` es el entero 1; kind distingue `combination-index`, `resolution`,
-`inventory`, `state`, `active`, `last-good`, `update-plan`, `operation` y `recipe-registry`.
+`inventory`, `state`, `active`, `last-good`, `update-plan`, `operation`, `recipe-registry`
+y `project-index` (índice de ubicaciones de la home).
 No es una versión de receta YAML. Lectura rechaza claves duplicadas, un format
 desconocido o kind incorrecto, sin sobrescribir. Revisión entera monotónica por
 documento, UUID canónico lowercase y fecha UTC RFC 3339. Codificación UTF-8 sin BOM.
@@ -86,6 +87,7 @@ Campos mínimos de `data` por documento:
 | update-plan | scope-id, combination-id, revisión base, identidad local de intención y selecciones actuales/propuestas exactas. |
 | operation | operation-id, tipo, ámbitos, revisiones base, fase, recursos, candidatos, documentos nuevos y anteriores; remote-status cuando interviene router. |
 | recipe-registry | recipes con recipe-id, archivos relativos, nombre de receta registrado, entidades creadas y revisión. Local en el ámbito de la receta. |
+| project-index | projects con scope-id, base absoluta conocida, identidad física de directorio (volumen y archivo) y revisión local observada. Sólo navegación; no acredita propiedad ni sustituye el registro de recetas. |
 
 Los campos opcionales se omiten; null no equivale a registro vacío válido.
 SHA-256 de un artefacto usa algoritmo `sha256`, dominio `file-bytes` y 64 hex
