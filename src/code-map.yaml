@@ -3,6 +3,24 @@
 # References describe intended behavior; verify actual behavior in code and tests.
 version: 1
 features:
+  - id: recipe-reading-composition
+    intent: Leer capas YAML y env explícitas, validar estructura y consultar intención efectiva sin preparar ni ejecutar.
+    keywords: [recipe, YAML, env, interpolation, overrides, provenance, target, literal]
+    entrypoints:
+      - src/Coquena/Recipes/RecipeReader.cs
+    implementation:
+      - src/Coquena/Recipes/RecipeYaml.cs
+      - src/Coquena/Recipes/RecipeVariables.cs
+      - src/Coquena/Recipes/RecipeStructure.cs
+      - src/Coquena/Recipes/RecipeValue.cs
+    tests:
+      - tests/Coquena.Tests/RecipeTests.cs
+    references:
+      - docs/formato-proyecto.md
+      - docs/definiciones-declarativas.md
+      - docs/servicios-recetas.md
+      - docs/comandos.md
+
   - id: project-context-persistence
     intent: Separar ámbitos, registrar identidades locales y publicar generaciones recuperables entre proyectos y servicios.
     keywords: [scope, project, recipe registry, identity, generation, recovery, .coquena, projects.json]
