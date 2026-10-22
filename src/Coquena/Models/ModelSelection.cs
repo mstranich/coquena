@@ -70,6 +70,8 @@ public sealed class ModelSelectionMenu(HuggingFaceStore store, IRemoteGgufInspec
             (request.Quantization is null || v.Quantization.Equals(request.Quantization, StringComparison.OrdinalIgnoreCase))).ToArray();
         if (variants.Length == 0) interaction.Show(request.Quantization is null ?
             "No se resolvieron GGUF seleccionables para la unidad solicitada; revisar los diagnósticos de exploración." : "Cuantización solicitada inexistente o no seleccionable según la exploración; puede ser parcial/no concluyente. No se sustituye.");
+        if (request.Quantization is not null && variants.Length == 1)
+            return await ValidateSelection(variants[0]);
         if (!interaction.IsInteractive)
             throw new ModelSourceException("interaction-required", "La selección necesita entrada interactiva; no se eligió ni creó trabajo.");
         var options = variants.Select(v => "Descargar " + v.Label).Concat(["Mostrar README", "Cancelar"]).ToArray();
@@ -86,14 +88,16 @@ public sealed class ModelSelectionMenu(HuggingFaceStore store, IRemoteGgufInspec
                 continue;
             }
             var selected = variants[choice.Value];
-            try
-            {
-                var evidence = await resolver.ValidateAsync(revision, new(selected.Files), interaction.Show, cancellation);
-                var verified = ModelSelection.Variant(new(selected.Files), evidence);
-                if (verified is null || verified.Quantization != selected.Quantization || verified.CompanionType != selected.CompanionType)
-                    throw new ModelSourceException("selection-conflict", string.Join("; ", evidence.Select(e => e.Diagnostic ?? "Rol/etiqueta cambió tras inspección.")));
-            }
+            try { return await ValidateSelection(selected); }
             catch (ModelSourceException e) { interaction.Show(e.Code + ": " + e.Message); continue; }
+        }
+
+        async Task<SelectedModel> ValidateSelection(ModelVariant selected)
+        {
+            var evidence = await resolver.ValidateAsync(revision, new(selected.Files), interaction.Show, cancellation);
+            var verified = ModelSelection.Variant(new(selected.Files), evidence);
+            if (verified is null || verified.Quantization != selected.Quantization || verified.CompanionType != selected.CompanionType)
+                throw new ModelSourceException("selection-conflict", string.Join("; ", evidence.Select(e => e.Diagnostic ?? "Rol/etiqueta cambió tras inspección.")));
             // The consumer starts the action with this result; never ask for another confirmation.
             return new(selected.Name(revision.Repository), selected.CompanionType,
                 new(revision.Repository, revision.RequestedRevision, revision.Commit, selected.Files.Select(f => f.ToRemoteFile()).ToArray()));

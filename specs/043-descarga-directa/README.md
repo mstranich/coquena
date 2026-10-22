@@ -1,15 +1,30 @@
 ---
-status: planned
+status: complete
 created: 2026-10-21
 priority: medium
 tags:
 - m3
 - correctivo
 created_at: 2026-10-21T23:16:24.525824600Z
-updated_at: 2026-10-21T23:16:24.525824600Z
+updated_at: 2026-10-22T17:08:15.382039400Z
+completed_at: 2026-10-22T17:08:15.382039400Z
+transitions:
+- status: in-progress
+  at: 2026-10-22T16:32:57.157172900Z
+- status: complete
+  at: 2026-10-22T17:08:15.382039400Z
 ---
-
 # Descargar una cuantización explícita inequívoca sin interacción redundante
+
+Las rutas de evidencia están parametrizadas. Para reproducir comandos de este documento, definir `$TestRoot` y `$CoquenaHome` con directorios de prueba propios; las ubicaciones originales no se publican.
+
+```powershell
+$TestRoot = Join-Path $env:TEMP "coquena-validation"
+$CoquenaHome = Join-Path $TestRoot "home"
+$TestRootUpper = $TestRoot.ToUpperInvariant()
+$CoquenaHomeLower = $CoquenaHome.ToLowerInvariant()
+New-Item -ItemType Directory -Force $TestRoot | Out-Null
+```
 
 ## Objetivo
 
@@ -26,11 +41,11 @@ Las reglas están en la documentación funcional enlazada. Esta tarjeta delimita
 
 ## Trabajo y aceptación
 
-- [ ] Reproducir con fixtures la interacción redundante para un selector como unsloth/gemma-4-12b-it-GGUF:Q4_0, sin descargar pesos costosos.
-- [ ] Descargar directamente una cuantización explícita con una unidad válida, sin menú, filtrado ni oferta de README.
-- [ ] Contar unidades, no archivos: un conjunto de shards coherente puede ser la única unidad válida.
-- [ ] Conservar selección ante varias unidades y diagnóstico ante ausencia o resultado no concluyente; nunca sustituir cuantización ni añadir companions implícitos.
-- [ ] Mantener integridad, validación GGUF, reanudación y el recorrido sin cuantización explícita.
+- [x] Reproducir con fixtures la interacción redundante para un selector como unsloth/gemma-4-12b-it-GGUF:Q4_0, sin descargar pesos costosos.
+- [x] Descargar directamente una cuantización explícita con una unidad válida, sin menú, filtrado ni oferta de README.
+- [x] Contar unidades, no archivos: un conjunto de shards coherente puede ser la única unidad válida.
+- [x] Conservar selección ante varias unidades y diagnóstico ante ausencia o resultado no concluyente; nunca sustituir cuantización ni añadir companions implícitos.
+- [x] Mantener integridad, validación GGUF, reanudación y el recorrido sin cuantización explícita.
 
 ## Dependencias
 
@@ -46,4 +61,29 @@ Correctivo independiente sobre la base M2; no depende del compositor ni implemen
 
 ## Estado y evidencia
 
-Planificada. Sin implementación ni validación ejecutadas. El inicio del trabajo, el cierre y cualquier commit requieren la autorización correspondiente.
+Implementación terminada y aprobada el 2026-10-22. Tarjeta cerrada con un único commit que agrupa implementación, pruebas y evidencia.
+
+### Implementación
+
+- `ModelSelectionMenu` deriva la cuantización explícita con una única unidad al mismo validador GGUF usado por el menú. Sólo devuelve la selección fijada tras comprobar cabeceras, rol, etiqueta y coherencia split; no requiere terminal interactiva ni ofrece README.
+- Varias unidades conservan la elección por rutas; sin cuantización permanece el menú. Ausencia e incertidumbre conservan diagnósticos sin sustituciones. Un fallo de validación en el camino directo se propaga antes de crear el GUID, sin volver a un menú redundante.
+- La CLI y el instalador mantienen transferencia, integridad, reanudación y publicación existentes. El consentimiento para convertir un externo sigue siendo obligatorio. La misma selección compartida aplica a companions solicitados explícitamente, sin incorporar recursos implícitos.
+- Sin nuevas dependencias ni modificaciones de documentación funcional: se implementa la regla ya definida en comandos y modelos/companions.
+
+### Validación ejecutada
+
+Temporales y publicaciones en `${TestRoot}`; fixtures HTTP y pesos sintéticos pequeños, sin descargar modelos reales ni utilizar la home de uso.
+
+- Reproducción antes del cambio: `dotnet run --project tests/Coquena.Tests -c Release -- --model-selection-tests` falla con `interaction-required` ante una cuantización explícita única sin terminal. La misma regresión pasa después del cambio.
+- Selección focalizada administrada y Native AOT: 183 comprobaciones HF/selección y 217 de resolución/metadatos/HTTP. Incluyen selección directa sin README, comparación sin distinguir mayúsculas, dos shards como unidad única, rechazo de split incoherente, varias rutas, cuantización ausente, menú sin cuantización y reanudación con publicación de bytes exactos.
+- Instalación administrada: 305 comprobaciones. Contra el producto Native AOT: 314 comprobaciones tanto desde el ejecutor administrado como desde el ejecutor Native AOT. Incluyen descarga directa desde CLI, companions explícitos, consentimiento/rechazo/EOF en transición externa, integridad, recuperación y preservación del catálogo.
+- `dotnet publish src/Coquena -c Release -r win-x64 -o ${TestRoot}/coquena-043/publish`: publicación Native AOT sin errores ni advertencias.
+- `dotnet publish tests/Coquena.Tests -c Release -r win-x64 -p:PublishAot=true -o ${TestRoot}/coquena-043/native-tests`: ejecutor nativo publicado sin errores ni advertencias. Ejecutado con `--model-selection-tests` y `--model-install-tests ${TestRoot}/coquena-043/publish/coquena.exe`; ambos con salida 0.
+- Ejecutado también `dotnet run --project tests/Coquena.Tests -c Release -- --model-install-tests ${TestRoot}/coquena-043/publish/coquena.exe`, salida 0.
+- Revisión manual mediante board/search/view y tabla del milestone: sin bloqueos. `leanspec deps` no está migrado al adaptador; no se interpretó ese error como ausencia de dependencias.
+
+### Evaluación para revisión
+
+Sin hallazgos adicionales que requieran seguimiento. La descarga directa conserva el motor de instalación y no establece una política nueva para M3/M4. El consentimiento ante conversión de externos es una interacción distinta de la selección redundante y permanece probado. Un fallo de cabecera en el camino directo termina con diagnóstico sin operación: consecuencia de conservar la validación previa exigida, no una sustitución ni una nueva regla funcional.
+
+La evidencia usa fixtures y no acredita disponibilidad actual del repositorio de ejemplo, inferencia ni recursos declarativos futuros. No se ejecutó la batería general completa. No se modificaron diagramas ni ejemplos JSON. Trabajo aprobado, cerrado y comprometido en un único commit.

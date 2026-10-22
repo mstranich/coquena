@@ -18,6 +18,16 @@ internal static class ModelSourceTests
     { Content = new StringContent(text, Encoding.UTF8, "application/json") };
     private static RepositoryFile File(string path) => new(path, 123, Commit, Sha, Sha);
     private static RepositoryRevision Revision => new("owner/repo", "main", Commit);
+    private sealed class SplitInspector(bool broken = false) : IRemoteGgufInspector
+    {
+        public int Calls;
+        public Task<GgufHeader> InspectAsync(RepositoryRevision revision, RepositoryFile file, CancellationToken cancellation)
+        {
+            cancellation.ThrowIfCancellationRequested(); Calls++;
+            return Task.FromResult(new GgufHeader(3, 1,
+                broken ? 1 : file.Path.Contains("00001-of") ? 0 : 1, 2, 2, new Dictionary<string, string>()));
+        }
+    }
     private sealed class Fixture(Func<HttpRequestMessage, HttpResponseMessage> respond) : HttpMessageHandler
     {
         public List<string> Calls { get; } = [];
@@ -97,8 +107,22 @@ internal static class ModelSourceTests
             "main selection pinned and companion not enqueued");
         Check(choose.Menus.Count == 1 && choose.Menus[0][0].StartsWith("Descargar "), "choose starts with no second confirmation");
         Check(!fixture.Calls.Any(c => c.Contains("/raw/")), "README only on demand");
+        var direct = new Interaction { IsInteractive = false };
+        var directSelection = await menu.SelectAsync(ModelRequest.Parse("owner/repo:q4_k_m"), direct);
+        Check(directSelection!.Name == "owner/repo:Q4_K_M" && direct.Menus.Count == 0 &&
+            !fixture.Calls.Any(c => c.Contains("/raw/")), "explicit unique unit needs no terminal or README");
+        using var splitFixture = new Fixture(r => r.RequestUri!.AbsolutePath.Contains("/tree/") ?
+            Json("[" + FileJson("model-Q4_K_M-00001-of-00002.gguf") + "," + FileJson("model-Q4_K_M-00002-of-00002.gguf") + "]") : Standard(r));
+        using var splitClient = new HttpClient(splitFixture);
+        var splitInspector = new SplitInspector();
+        var splitMenu = new Interaction { IsInteractive = false };
+        var splitSelection = await new ModelSelectionMenu(new(splitClient), splitInspector).SelectAsync(ModelRequest.Parse("owner/repo:Q4_K_M"), splitMenu);
+        Check(splitSelection!.Selection.Files.Length == 2 && splitInspector.Calls == 2 && splitMenu.Menus.Count == 0,
+            "one unit with two shards validated directly");
+        await Fails(() => new ModelSelectionMenu(new(splitClient), new SplitInspector(true)).SelectAsync(
+            ModelRequest.Parse("owner/repo:Q4_K_M"), new Interaction()), "split-conflict");
         var readme = new Interaction(1, 0);
-        await menu.SelectAsync(ModelRequest.Parse("owner/repo:Q4_K_M"), readme);
+        await menu.SelectAsync(ModelRequest.Parse("owner/repo"), readme);
         Check(readme.Menus.Count == 2 && readme.Menus[0].SequenceEqual(readme.Menus[1]) && readme.Messages.Contains("README del commit"), "README returns same menu");
         Check(fixture.Calls.Any(c => c == $"/owner/repo/raw/{Commit}/README.md"), "README pinned commit");
         var cancel = new Interaction(2);

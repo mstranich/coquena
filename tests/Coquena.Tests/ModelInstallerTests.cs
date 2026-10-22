@@ -473,13 +473,13 @@ internal static class ModelInstallerTests
             using var output = new StringWriter(); using var error = new StringWriter();
             foreach (var rejected in new int?[] { 1, null })
             {
-                var menu = new Menu(0, rejected);
+                var menu = new Menu(rejected);
                 Check(ModelCli.Run(["download", selection.Name], output, error, installer, new(client), new NoNetwork(), menu,
                     inspector: new ResolutionTests.NamedInspector()) == 0 && installer.Downloads.List().Length == 0 &&
-                    installer.ExternalTransition(selection.Name)?.Id == menuExternal.Id && menu.Options.Count == 2,
+                    installer.ExternalTransition(selection.Name)?.Id == menuExternal.Id && menu.Options.Count == 1,
                     "CLI reject/EOF after selection keeps external and creates no GUID");
             }
-            var accepted = new Menu(0, -1, 0);
+            var accepted = new Menu(-1, 0);
             Check(ModelCli.Run(["download", selection.Name], output, error, installer, new(client), new Bytes(single), accepted,
                 inspector: new ResolutionTests.NamedInspector()) == 0 && error.ToString().Length == 0 &&
                 installer.List().Single(m => m.Record.Id == menuExternal.Id).Record.Ownership == "managed", "CLI repeats invalid choice and converts only after explicit acceptance");
@@ -565,7 +565,7 @@ internal static class ModelInstallerTests
             using var output = new StringWriter(); using var error = new StringWriter();
             Check(ModelCli.Run(["companion", "download", "owner/menu-aux#mmproj:F16"], output, error,
                 installer, new HuggingFaceStore(client), transfer, menu, inspector: new ResolutionTests.NamedInspector()) == 0 &&
-                error.ToString().Length == 0 && menu.Options.Count == 1 && transfer.Calls.Count == 1 &&
+                error.ToString().Length == 0 && menu.Options.Count == 0 && transfer.Calls.Count == 1 &&
                 installer.List().Any(m => m.Record.Name == "owner/menu-aux#mmproj:F16"), "companion menu starts only auxiliary download with no second confirmation");
         }
         finally { if (Directory.Exists(root)) Directory.Delete(root, true); }
@@ -592,13 +592,13 @@ internal static class ModelInstallerTests
         }));
         var source = new HuggingFaceStore(client); var menu = new Menu(1, 2);
         using var output = new StringWriter(); using var error = new StringWriter();
-        Check(ModelCli.Run(["download", "owner/menu:Q4_K_M"], output, error, installer, source,
+        Check(ModelCli.Run(["download", "owner/menu"], output, error, installer, source,
             new NoNetwork(), menu) == 0 && installer.Downloads.List().Length == 0, "README then cancel creates no GUID or work");
         Check(menu.Options.Count == 2 && menu.Options.All(o => o.Length == 3 && o[0].StartsWith("Descargar")), "one repeated menu, no companion");
-        var bytes = new Bytes(payload); menu = new Menu(0);
-        Check(ModelCli.Run(["download", "owner/menu"], output, error, installer, source, bytes, menu,
+        var bytes = new Bytes(payload); menu = new Menu();
+        Check(ModelCli.Run(["download", "owner/menu:Q4_K_M"], output, error, installer, source, bytes, menu,
             inspector: new ResolutionTests.NamedInspector()) == 0 &&
-            bytes.Calls.Count == 1 && menu.Options.Count == 1 && installer.List().Any(m => m.Record.Name == "owner/menu:Q4_K_M"), "menu choice starts download without second confirmation");
+            bytes.Calls.Count == 1 && menu.Options.Count == 0 && installer.List().Any(m => m.Record.Name == "owner/menu:Q4_K_M"), "explicit unique unit installs directly without menu or implicit companion");
         var count = metadata;
         Check(ModelCli.Run(["download", "owner/menu#mmproj:F16"], output, error, installer, source, bytes, menu) == 1 && metadata == count, "companion rejected before metadata");
         Check(error.ToString().Contains("invalid-selector"), "explicit selector diagnostic");

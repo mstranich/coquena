@@ -4,6 +4,9 @@ using Coquena;
 // Match the product's output contract, including fixture and failure diagnostics.
 Console.OutputEncoding = new System.Text.UTF8Encoding(false);
 
+if (args.Length == 1 && args[0] == "--model-selection-tests")
+{ await Coquena.Tests.ModelSourceTests.Run(); await Coquena.Tests.ResolutionTests.Run(); return; }
+
 if (args.Length is 1 or 2 && args[0] == "--byte-size-tests")
 { Coquena.Tests.ByteSizeTests.Run(); Coquena.Tests.RetentionTests.Run(args.Length == 2 ? Path.GetFullPath(args[1]) : null); return; }
 if (args.Length is 1 or 2 && args[0] == "--help-tests")

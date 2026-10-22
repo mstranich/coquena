@@ -271,7 +271,8 @@ internal static class ResolutionTests
             var menu = new Interaction(1, 0);
             var selected = await new ModelSelectionMenu(new(metadata),inspector).SelectAsync(ModelRequest.Parse(selector),menu);
             Check(selected!.Selection.Commit == Commit && selected.Selection.Files.Length == 1 && selected.Selection.Files[0].Path == "gemma-4-26B_q4_0-it.gguf", "both Google selectors pinned principal only");
-            Check(menu.Menus.Count == 2 && menu.Menus.All(m=>m.Length==3 && m[0].StartsWith("Descargar Q4_0")), "README same explicit menu");
+            Check(selector.Contains(':') ? menu.Menus.Count == 0 :
+                menu.Menus.Count == 2 && menu.Menus.All(m=>m.Length==3 && m[0].StartsWith("Descargar Q4_0")), "explicit selector skips menu; implicit keeps README");
             Check(rangeHandler.Calls == 2, "memoization after README");
         }
     }
@@ -309,7 +310,7 @@ internal static class ResolutionTests
         var result = await new ModelSelectionMenu(store, inspector).SelectAsync(request, menu, requestedRevision: revision.Commit);
         if (result is null || result.Selection.Commit != revision.Commit || result.Selection.Files.Length == 0)
             throw new Exception("Live pinned menu failed");
-        Console.WriteLine("MENU " + string.Join(" | ", menu.Menus[0]));
+        Console.WriteLine(menu.Menus.Count == 0 ? "DIRECT" : "MENU " + string.Join(" | ", menu.Menus[0]));
         Console.WriteLine($"MENU SELECTED {result.Name} @ {result.Selection.Commit}: {string.Join(',', result.Selection.Files.Select(f=>f.Path))}");
         }
         finally { Console.WriteLine(inspector.Statistics); }
