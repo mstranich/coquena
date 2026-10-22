@@ -33,7 +33,7 @@ public static class BackendCli
             {
                 output.WriteLine($"Plataforma nativa: {hardware.Platform}");
                 output.WriteLine($"CPU: {Safe(hardware.Cpu)}");
-                output.WriteLine(hardware.MemoryBytes is ulong ram ? $"RAM física: {ram / (1024 * 1024)} MiB" : "RAM física: desconocida");
+                output.WriteLine(hardware.MemoryBytes is ulong ram ? $"RAM física: {ByteSize.Format(ram)}" : "RAM física: desconocida");
                 foreach (var adapter in hardware.DisplayAdapters) output.WriteLine($"Adaptador: {Safe(adapter)} (el nombre no prueba aceleración)");
                 output.WriteLine($"CUDA: {hardware.Cuda.State} — {Safe(hardware.Cuda.Diagnostic)}");
                 if (hardware.CudaDriverVersion is int version) output.WriteLine($"Driver admite CUDA: {version / 1000}.{version % 1000 / 10}");
@@ -60,7 +60,7 @@ public static class BackendCli
             if (resolution.Selected is { } selected)
             {
                 output.WriteLine($"{(family is null ? "Elección automática" : "Selección explícita")}: ggml/{selected.Variant}:{selected.Release} ({selected.Platform}) [{selected.Compatibility}]");
-                foreach (var artifact in selected.Artifacts) output.WriteLine($"Artefacto: {artifact.Name} ({artifact.Size} bytes)");
+                foreach (var artifact in selected.Artifacts) output.WriteLine($"Artefacto: {artifact.Name} ({(artifact.Size is long size ? ByteSize.Format(size) : "desconocido")})");
             }
             output.WriteLine("Alternativas consultadas (otros SO/arquitecturas se rechazan siempre):");
             foreach (var candidate in resolution.Alternatives)
@@ -231,7 +231,7 @@ public static class BackendCli
         output.WriteLine($"{Safe(selector)} ({observation.Platform}) | instalado={observation.InstalledBuild} | consulta={observation.CheckedAt:O} | {observation.State} | {Safe(observation.Diagnostic)}");
         if (observation.Candidate is not { } candidate) return;
         output.WriteLine($"  Candidato guardado: {candidate.Build} [{candidate.Compatibility}] — {Safe(candidate.Diagnostic)}");
-        foreach (var artifact in candidate.Artifacts) output.WriteLine($"  Artefacto: {artifact.Path} ({artifact.Size} bytes)");
+        foreach (var artifact in candidate.Artifacts) output.WriteLine($"  Artefacto: {artifact.Path} ({(artifact.Size is long size ? ByteSize.Format(size) : "desconocido")})");
     }
 
     private static bool TryRemote(string[] args, out string? family, out string? release)

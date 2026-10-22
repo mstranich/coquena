@@ -109,9 +109,9 @@ public static class DownloadCli
         {
             bytes += file.ConfirmedBytes;
             if (file.ExpectedSize is { } size) total += size; else known = false;
-            output.WriteLine($"  {file.SourcePath}: {file.ConfirmedBytes}/{file.ExpectedSize?.ToString() ?? "desconocido"} bytes | {file.State} | {file.DestinationPath}");
+            output.WriteLine($"  {file.SourcePath}: {ByteSize.Format(file.ConfirmedBytes)}/{(file.ExpectedSize is long expected ? ByteSize.Format(expected) : "desconocido")} | {file.State} | {file.DestinationPath}");
         }
-        output.WriteLine($"  Total: {bytes}/{(known ? total.ToString() : "desconocido")} bytes");
+        output.WriteLine($"  Total: {ByteSize.Format(bytes)}/{(known ? ByteSize.Format(total) : "desconocido")}");
         if (value.Diagnostic is not null) output.WriteLine($"  Diagnóstico: {value.Diagnostic}");
         if (value.Phase == "resource-validation") output.WriteLine("  Bytes transferidos; pendiente validación y publicación del recurso. No instalado.");
     }

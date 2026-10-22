@@ -32,9 +32,21 @@
 
 ## Unidades de tamaño y memoria
 
-Tamaños, memoria, límites y tasas de bytes usan exclusivamente B, KiB, MiB, GiB,
-TiB, PiB y EiB, con escala 1024; las tasas se expresan por segundo. La entrada
-acepta esos sufijos; B o un entero sin sufijo expresa bytes.
+La presentación de tamaños, memoria, límites y tasas de bytes usa exclusivamente
+B, KiB, MiB, GiB, TiB, PiB y EiB, con escala 1024; las tasas se expresan por segundo.
+
+La entrada no distingue mayúsculas de minúsculas y acepta:
+
+- `B` o un entero sin sufijo para bytes.
+- `KiB`, `MiB`, `GiB`, `TiB`, `PiB` y `EiB` para múltiplos de 1024.
+- `KB`, `MB`, `GB`, `TB`, `PB` y `EB` como alias de esas unidades binarias,
+  por usos y costumbres: `1MB` equivale a `1MiB`, no a un millón de bytes.
+- `k`, `m`, `g`, `t`, `p` y `e`, sin `B`, para múltiplos de 1000.
+
+Por ejemplo, `1k` y `1K` representan 1000 bytes; `1kb`, `1KB` y `1KiB`
+representan 1024 bytes. `1m` representa 1.000.000 bytes, mientras que `1MB`
+representa 1.048.576 bytes. Con sufijo se admiten decimales con punto siempre
+que representen bytes enteros; por ejemplo, `1.5MB` equivale a `1.5MiB`.
 
 En todas las interfaces humanas, la unidad se elige automáticamente y se muestran
 hasta dos decimales sin ceros innecesarios, por ejemplo `1,5 GiB`. Si el redondeo

@@ -23,9 +23,9 @@ internal static class RetentionTests
             try
             {
                 CultureInfo.CurrentCulture = CultureInfo.GetCultureInfo("es-AR");
-                foreach (var pair in new (string Text, long Bytes)[] { ("1", 1), ("100MB", 100000000), ("100MiB", 104857600), ("100mib", 104857600), ("100 MiB", 104857600), ("1.5GiB", 1610612736), ("0.5KiB", 512), ("1.000B", 1), ("9223372036854775807", long.MaxValue), ("9007199254740993B", 9007199254740993) })
+                foreach (var pair in new (string Text, long Bytes)[] { ("1", 1), ("100MiB", 104857600), ("100mib", 104857600), ("100 MiB", 104857600), ("1.5GiB", 1610612736), ("0.5KiB", 512), ("1.000B", 1), ("9223372036854775807", long.MaxValue), ("9007199254740993B", 9007199254740993) })
                     Check(LogRetentionPolicy.Parse(pair.Text) == pair.Bytes, "exact size " + pair.Text);
-                foreach (var bad in new[] { "0", "-1", "1,5GiB", "1,000", "0.1KiB", "1e3", "1TB", "9223372036854775808", "1.1B", "+1", "1 MiB extra" })
+                foreach (var bad in new[] { "0", "-1", "1,5GiB", "1,000", "0.1KiB", "1e3", "9223372036854775808", "1.1B", "+1", "1 MiB extra" })
                 {
                     try { LogRetentionPolicy.Parse(bad); throw new Exception("accepted " + bad); }
                     catch (ConfigurationException) { checks++; }
@@ -34,17 +34,28 @@ internal static class RetentionTests
             finally { CultureInfo.CurrentCulture = culture; }
             Check(Invoke(0, "config", "log-retention", "show").Contains("inicial"), "initial policy");
             Invoke(0, "config", "log-retention", "set", "1.5GiB");
-            Check(Invoke(0, "server", "log-retention", "show").Contains("1610612736 bytes"), "default server inherits global");
+            Check(Invoke(0, "server", "log-retention", "show").Contains(ByteSize.Format(1610612736)), "default server inherits global");
             Invoke(0, "server", "other", "log-retention", "set", "512B");
             Invoke(0, "config", "log-retention", "set", "200MiB");
-            Check(Invoke(0, "server", "other", "log-retention", "show").Contains("512 bytes") && servers.Retention("other").Origin == "propio", "override independent of global changes");
+            Check(Invoke(0, "server", "other", "log-retention", "show").Contains("512 B") && servers.Retention("other").Origin == "propio", "override independent of global changes");
             Check(new ServerManager(home).Retention(null).MaxBytes == 209715200, "persisted global policy");
+            Invoke(0, "config", "log-retention", "set", "1mB");
+            Check(manager.Retention().MaxBytes == 1048576, "binary alias persisted exactly");
+            Check(Invoke(0, "config", "log-retention", "set", "1M").Contains(ByteSize.Format(1000000)) && manager.Retention().MaxBytes == 1000000, "short decimal persisted and displayed in binary");
+            Invoke(0, "server", "other", "log-retention", "set", "1.5gB");
+            Check(servers.Retention("other").MaxBytes == 1610612736, "mixed case binary alias for server");
+            Invoke(0, "server", "other", "log-retention", "set", "1.5g");
+            Check(servers.Retention("other").MaxBytes == 1500000000, "short decimal for server");
             var log = home.PathFor("logs/other/" + Guid.NewGuid() + ".log"); Directory.CreateDirectory(Path.GetDirectoryName(log)!); File.WriteAllText(log, "keep");
             Invoke(0, "server", "other", "log-retention", "set", "1");
             Invoke(0, "server", "other", "log-retention", "show");
             Check(File.Exists(log), "setting and showing do not clean logs");
             var before = File.ReadAllText(home.PathFor("catalogs/servers.json"));
             Invoke(1, "server", "other", "log-retention", "set", "0.1KiB");
+            Invoke(1, "server", "other", "log-retention", "set", "1XB");
+            var globalBefore = File.ReadAllText(home.PathFor("config.json"));
+            Invoke(2, "config", "log-retention", "set", "1Mi");
+            Check(File.ReadAllText(home.PathFor("config.json")) == globalBefore, "invalid suffix preserves exact global bytes");
             Invoke(2, "server", "other", "log-retention", "set", "1", "extra");
             Check(File.ReadAllText(home.PathFor("catalogs/servers.json")) == before, "invalid CLI leaves catalog unchanged");
             Invoke(0, "server", "other", "log-retention", "unset");

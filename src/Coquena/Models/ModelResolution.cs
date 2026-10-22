@@ -122,7 +122,7 @@ public static class ModelSelection
         var type = first.Role switch { ModelRole.Mmproj => "mmproj", ModelRole.Mtp => "mtp", _ => null };
         var total = unit.Files.Aggregate(0m, (sum, f) => sum + f.Size);
         return new(first.PublisherLabel!, type,
-            $"{first.PublisherLabel} — {string.Join(", ", unit.Files.Select(f => f.Path))} — {total / 1000000000m:F2} GB / {total / 1073741824m:F2} GiB — {first.Source}/{first.State}" +
+            $"{first.PublisherLabel} — {string.Join(", ", unit.Files.Select(f => f.Path))} — {ByteSize.Format(total)} — {first.Source}/{first.State}" +
                 (first.Role == ModelRole.Mtp ? " — rol MTP candidato por nombre/carpeta; compatibilidad no certificada" : ""), unit.Files)
             { Evidence = evidence };
     }

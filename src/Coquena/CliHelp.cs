@@ -161,6 +161,9 @@ internal static class CliHelp
         Configuración:
           config log-retention show        Consultar la retención global de logs
           config log-retention set <tamaño> Establecer el límite global de logs
+            Entero en bytes o B; KiB/MiB/GiB/TiB/PiB/EiB y sus alias
+            KB/MB/GB/TB/PB/EB usan base 1024; k/m/g/t/p/e usan base 1000.
+            Sin distinguir mayúsculas; punto decimal. Salida siempre B/KiB/MiB/etc.
           config log-retention unset       Restablecer el límite inicial de 100 MiB
           config backend-retention show    Consultar cuántos builds conservar
           config backend-retention set <cantidad>

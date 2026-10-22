@@ -127,7 +127,7 @@ public sealed class ModelUpdater(Home home)
                         var p = ModelUpdateComparer.Plan(original, revision, u, true, result.ExactCandidates,
                             names.GetValueOrDefault(u.Files[0].Path));
                         return $"{p.TargetName} @ {revision.Commit} | " + string.Join("; ", p.Actions.Select(a =>
-                            $"{a.TargetPath}: {a.Action}")) + " | " + u.Files.Sum(f => (decimal)f.Size) + " bytes";
+                            $"{a.TargetPath}: {a.Action}")) + " | " + ByteSize.Format(u.Files.Sum(f => (decimal)f.Size));
                     }).Append("Cancelar; conservar seguimiento sin resolver").ToArray();
                     var choice = await interaction.ChooseAsync(options, cancellation);
                     if (choice is >= 0 && choice < candidates.Length)

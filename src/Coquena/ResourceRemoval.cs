@@ -148,7 +148,7 @@ public sealed class ResourceRemoval(Home home, LocalStore? storage = null)
         {
             var removal = new ResourceRemoval(Home.Resolve());
             var result = backend ? removal.Backend(Guid.Parse(args[0])) : removal.Model(args[0], companion);
-            output.WriteLine($"Bytes efectivamente liberados en este intento: {result.FreedBytes}.");
+            output.WriteLine($"Espacio efectivamente liberado en este intento: {ByteSize.Format(result.FreedBytes)}.");
             foreach (var path in result.Deleted) output.WriteLine("Eliminado: " + path);
             foreach (var path in result.Pending) output.WriteLine("Pendiente: " + path);
             output.WriteLine(result.External ? "Registro externo retirado; archivos conservados en disco." : result.Complete ? "Retirada completada." : "Retirada parcial; propiedad conservada. Reintente el mismo comando.");

@@ -145,7 +145,7 @@ internal static class RemovalTests
                 Check(Coquena.Cli.Run(["model", "remove"], output, error) == 2, "strict model CLI");
                 Check(Coquena.Cli.Run(["model", "companion", "remove", reused.Name], output, error) == 1, "CLI scopes companions");
                 SaveModels(reused);
-                Check(Coquena.Cli.Run(["model", "remove", reused.Name], output, error) == 0 && output.ToString().Contains("Bytes efectivamente"), "CLI bytes output");
+                Check(Coquena.Cli.Run(["model", "remove", reused.Name], output, error) == 0 && output.ToString().Contains("Espacio efectivamente"), "CLI bytes output");
                 if (executable is not null)
                 {
                     SaveModels(external);

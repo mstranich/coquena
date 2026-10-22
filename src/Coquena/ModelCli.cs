@@ -214,7 +214,7 @@ public static class ModelCli
         void Show(LocalModel entry)
         {
             output.WriteLine($"{entry.Record.Id:D} | {entry.Record.Name} | {entry.Record.Ownership} | commit {entry.Record.Selection?.Commit ?? "no aplica"} | {entry.Availability}");
-            foreach (var file in entry.Record.Files) output.WriteLine($"  {file.LocalPath} | {(entry.Record.Ownership == "external" && file.LastWriteUtc is null ? "tamaño no observado" : $"{file.Size} bytes")}");
+            foreach (var file in entry.Record.Files) output.WriteLine($"  {file.LocalPath} | {(entry.Record.Ownership == "external" && file.LastWriteUtc is null ? "tamaño no observado" : ByteSize.Format(file.Size))}");
             if (entry.Changed) output.WriteLine("  Aviso: tamaño/fecha cambiaron; no se redefine integridad.");
             if (entry.Record.IntegrityCheck is { } check) output.WriteLine($"  Última integridad: {check.Status} | {check.CheckedAt:O}");
             if (entry.Record.InformativeMatch is { } match)

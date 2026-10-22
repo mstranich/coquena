@@ -44,7 +44,7 @@ public sealed partial class ServerRuntime
             try { var length = file.Length; file.Delete(); total -= length; }
             catch (IOException e) { output.WriteLine($"Diagnóstico: no se pudo retirar log {file.Name}: {e.Message}"); }
         }
-        if (total > limit) output.WriteLine($"Diagnóstico: logs de {server} superan {limit} bytes; se conservan logs protegidos.");
+        if (total > limit) output.WriteLine($"Diagnóstico: logs de {server} superan {ByteSize.Format(limit)}; se conservan logs protegidos.");
     }
 
     public int Logs(string? name, bool follow, TextWriter output, Func<bool>? cancelled = null)
