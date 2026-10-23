@@ -19,9 +19,11 @@ public sealed class ScopeTransfers
     private readonly LocalStore checkpoints;
     private readonly ScopeStore inventory;
     private readonly Action<ScopeTransferStage>? fault;
+    private readonly Func<string, BackendDownloadSelection, CancellationToken, Task>? validateBackend;
     private static readonly ContractJsonContext Json = ContractJsonContext.Default;
 
-    public ScopeTransfers(ScopeContext context, Action<ScopeTransferStage>? fault = null)
+    public ScopeTransfers(ScopeContext context, Action<ScopeTransferStage>? fault = null,
+        Func<string, BackendDownloadSelection, CancellationToken, Task>? validateBackend = null)
     {
         Context = context;
         home = new Home(context);
@@ -29,6 +31,7 @@ public sealed class ScopeTransfers
         checkpoints = new LocalStore(home);
         Downloads = new DownloadManager(home, checkpoints);
         this.fault = fault;
+        this.validateBackend = validateBackend;
     }
 
     public OperationDocument Create(OperationDocument selection, string origin = "explicit", string[]? requiredFiles = null)
@@ -174,6 +177,8 @@ public sealed class ScopeTransfers
         try
         {
             await VerifyTree(destination, data["files"]!.AsArray(), cancellation, guards);
+            if (operation.BackendSelection is { } backend && validateBackend is not null)
+                await validateBackend(destination, backend, cancellation);
             PublishInventory(operation, data["files"]!.AsArray());
         }
         finally { foreach (var guard in guards) guard.Dispose(); }

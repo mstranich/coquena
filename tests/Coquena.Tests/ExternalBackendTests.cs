@@ -65,7 +65,8 @@ internal static class ExternalBackendTests
                 var nativeHome = new Home(Path.Combine(root, "native"));
                 (int Code, string Out, string Error) Run(params string[] args)
                 {
-                    var start = new ProcessStartInfo(executable) { UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true };
+                    var start = new ProcessStartInfo(Environment.ProcessPath!) { UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true };
+                    start.ArgumentList.Add("--m2-backend-api");
                     var env = start.Environment.ToArray(); start.Environment.Clear();
                     foreach (var group in env.GroupBy(p => p.Key, StringComparer.OrdinalIgnoreCase)) start.Environment[group.Key] = group.Last().Value;
                     start.Environment["COQUENA_HOME"] = nativeHome.Root;

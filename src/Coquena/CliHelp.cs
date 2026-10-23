@@ -31,7 +31,7 @@ internal static class CliHelp
 
         Comandos:
           system probe                     Mostrar hardware y aceleradores disponibles
-          backend                          Instalar y seleccionar llama.cpp
+          backend (runtime)                Consultar y preparar backends por ámbito
           model                            Descargar y administrar modelos
           model companion                  Administrar auxiliares mmproj y MTP
           download                         Consultar y controlar descargas
@@ -44,24 +44,23 @@ internal static class CliHelp
           -h, --help                       Mostrar esta ayuda (también: coquena help)
 
         Backends:
-          backend remote [<familia>] [--release <versión>]
-            Consultar versiones disponibles para el equipo
-          backend install [<familia>] [--release <versión>]
-            Descargar e instalar llama.cpp
-          backend list                     Listar backends instalados
-          backend use [<backend>]           Seleccionar backend; sin argumento,
-            consultar
-          backend register <ejecutable> --name <nombre> --family <familia>
-                           [--distribution <propietario/repositorio>]
-            Registrar una instalación externa de llama.cpp
-          backend update [<seguimiento>]    Buscar actualizaciones sin instalarlas
-          backend upgrade [<seguimiento>]   Instalar la actualización encontrada
-          backend uninstall <id-backend>    Retirar un backend que no esté en uso
+          backend show                     Consultar el backend de la receta
+          backend list                     Listar revisiones del ámbito
+          backend download --version <versión> --variant <variante> [--force]
+            Preparar y proteger una instalación oficial sin editar YAML
+          backend protect <id-instalación>  Proteger una revisión gestionada
+          backend unprotect <id-instalación>
+            Retirar protección explícita sin borrar archivos ni referencias
 
-            familia: cpu, vulkan o cuda@<mayor>. Por defecto: selección automática.
-            versión: bNNNN o latest (por defecto).
-            backend: [ggml/|oficial/]<familia>:<versión> o nombre de uno externo.
-            seguimiento: [ggml/|oficial/]<familia>:latest; omitido, consultar todos.
+            Ámbito: proyecto actual; -f/--file repetible y --env-file explícito.
+            --project-directory <carpeta> selecciona la base (alias --base).
+            --global (alias -g) selecciona COQUENA_HOME/global.
+            backend show global admite --service <nombre|default>.
+            --json muestra datos estructurados. runtime es alias de backend.
+            versión: latest o bNNNN; variante: cpu, vulkan o cuda@<mayor>.
+            --force permite intentar un backend incompatible con advertencia;
+            no omite integridad ni cambia la variante elegida.
+            Un ejecutable externo se declara en service.backend.executable.
 
         Modelos:
           model list                       Listar modelos registrados
@@ -102,7 +101,8 @@ internal static class CliHelp
             Listar descargas; filtrar por tipo de recurso
           download status [<id-descarga>]   Consultar una descarga; sin ID, listar todas
           download pause <id-descarga>      Pausar y conservar lo descargado
-          download resume <id-descarga>     Reanudar una descarga
+          download resume <id-descarga> [--force]
+            Reanudar; --force sólo permite intentar un backend incompatible
           download cancel <id-descarga>     Cancelar y eliminar los archivos temporales
 
               Ámbito: proyecto actual; --base <carpeta> selecciona la carpeta.

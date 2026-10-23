@@ -21,7 +21,7 @@ internal static class HelpTests
                 Check(result.Code == 0 && result.Error == "", "help exit");
                 help ??= result.Output;
                 Check(result.Output == help, "help aliases agree");
-                foreach (var syntax in new[] { "backend update [<seguimiento>]", "model companion verify <nombre> [--set-baseline]",
+                foreach (var syntax in new[] { "backend download --version <versión>", "model companion verify <nombre> [--set-baseline]",
                     "download list [--model|--companion|--backend]", "download status [<id-descarga>]",
                     "server [<nombre>] start [-d]", "server [<nombre>] restart", "server [<nombre>] logs [-f]",
                     "--alias y --values pueden repetirse", "--dry-run muestra los cambios sin aplicarlos" })
@@ -36,7 +36,7 @@ internal static class HelpTests
                 ["config", "param-reset", "--dry"], ["param", "edit", "ctx-size", "--dry"],
                 ["param", "define", "x", "--type", "integer", "--scope", "model", "--target", "cli", "--dry-run"],
                 ["server", "restart", "-d"], ["server", "stop", "-d"], ["server", "logs", "-d"],
-                ["server", "start", "-f"], ["-f", "recipe.yaml"], ["service", "list"], ["runtime", "list"]];
+                ["server", "start", "-f"], ["-f", "recipe.yaml"], ["service", "list"], ["runtime", "list", "--force"]];
             foreach (var arguments in invalid)
             {
                 var result = Invoke(arguments);

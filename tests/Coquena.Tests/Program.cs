@@ -4,6 +4,26 @@ using Coquena;
 // Match the product's output contract, including fixture and failure diagnostics.
 Console.OutputEncoding = new System.Text.UTF8Encoding(false);
 
+if (args.Length is 1 or 2 && args[0] == "--scoped-backend-tests")
+{ await Coquena.Tests.ScopedBackendTests.Run(args.Length == 2 ? Path.GetFullPath(args[1]) : null); return; }
+
+// Retained M2 engine regressions run through its API in the native test process.
+// The published product exposes the scoped M3 backend contract instead.
+if (args.Length > 1 && args[0] == "--m2-backend-api")
+{ Environment.ExitCode = BackendCli.Run(args[1..], Console.Out, Console.Error); return; }
+
+if (args.Length is 1 or 2 && args[0] == "--backend-engine-tests")
+{
+    var published = args.Length == 2 ? Path.GetFullPath(args[1]) : null;
+    await Coquena.Tests.InstallerTests.Run(published);
+    await Coquena.Tests.BackendPublicationTests.Run();
+    await Coquena.Tests.ExternalBackendTests.Run(published);
+    await Coquena.Tests.BackendUpdateTests.Run(published);
+    await Coquena.Tests.BackendUpgradeTests.Run(published);
+    await Coquena.Tests.BackendDirectoryTests.Run(published);
+    return;
+}
+
 if (args.Length is 1 or 2 && args[0] == "--scope-transfer-tests")
 { await Coquena.Tests.ScopeTransferTests.Run(args.Length == 2 ? Path.GetFullPath(args[1]) : null); return; }
 if (args.Length == 3 && args[0] == "--scope-transfer-crash-worker")
@@ -165,7 +185,7 @@ if (args.Length == 2 && args[0] == "--storage-worker")
 }
 
 string[][] cases = [[], ["--help"], ["-h"], ["help"], ["invalid"],
-    ["backend"], ["--json"], ["--help", "extra"], ["invalid", "--help"],
+    ["backend", "invalid"], ["--json"], ["--help", "extra"], ["invalid", "--help"],
     ["system"], ["system", "extra"], ["system", "probe", "extra"],
     ["system", "probe", "--json"], ["system", "probe", "--help"]];
 var executable = args.Length == 1 ? Path.GetFullPath(args[0]) : null;
@@ -226,6 +246,7 @@ Coquena.Tests.ServerRuntimeTests.Run(executable);
 Coquena.Tests.StorageTests.Run();
 Coquena.Tests.ProjectPersistenceTests.Run();
 Coquena.Tests.RecipeTests.Run();
+await Coquena.Tests.ScopedBackendTests.Run(executable);
 await Coquena.Tests.BackendTests.Run(executable);
 await Coquena.Tests.DownloadTests.Run(executable);
 await Coquena.Tests.ScopeTransferTests.Run(executable);

@@ -8,7 +8,9 @@ public static class Cli
             return ServerCli.Run(args[1..], output, error);
         if (args.Length > 0 && args[0] is "config" or "preset" or "param")
             return ConfigurationCli.Run(args[0], args[1..], output, error);
-        if (args.Length > 0 && args[0] is "system" or "backend")
+        if (args.Length > 0 && args[0] is "backend" or "runtime")
+            return ScopedBackendCli.Run(args[1..], output, error);
+        if (args.Length > 0 && args[0] == "system")
             return BackendCli.Run(args, output, error);
         if (args.Length > 0 && args[0] == "download")
             return ScopeDownloadCli.Run(args[1..], output, error);

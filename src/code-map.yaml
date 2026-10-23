@@ -3,6 +3,29 @@
 # References describe intended behavior; verify actual behavior in code and tests.
 version: 1
 features:
+  - id: scoped-service-backends
+    intent: Preparar backends oficiales o externos por ámbito, conservar pins y revisiones y diagnosticar compatibilidad sin modificar ejecución.
+    keywords: [backend, runtime, service, version, variant, executable, force, protection, scope]
+    entrypoints:
+      - src/Coquena/ScopedBackendCli.cs
+      - src/Coquena/Backends/ScopedBackends.cs
+    implementation:
+      - src/Coquena/Backends/BackendCatalog.cs
+      - src/Coquena/Backends/HardwareProbe.cs
+      - src/Coquena/Backends/OfficialBackendSource.cs
+      - src/Coquena/Backends/OfficialArtifactTransport.cs
+      - src/Coquena/Downloads/ScopeTransfers.cs
+      - src/Coquena/ScopeDownloadCli.cs
+      - src/Coquena/Projects/RecipeRegistry.cs
+    tests:
+      - tests/Coquena.Tests/ScopedBackendTests.cs
+      - tests/Coquena.Tests/ScopeTransferTests.cs
+    references:
+      - docs/formato-proyecto.md
+      - docs/servidores.md
+      - docs/comandos.md
+      - docs/actualizacion-y-limpieza.md
+
   - id: scoped-resource-transfers
     intent: Aislar GUID y checkpoints por ámbito y publicar instalaciones físicas verificadas sin modificar resoluciones de combinaciones.
     keywords: [download, scope, checkpoint, publication, integrity, cancellation, recovery]

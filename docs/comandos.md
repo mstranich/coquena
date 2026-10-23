@@ -86,6 +86,14 @@ por Vulkan u otra variante. Ese cambio requiere reiniciar la instancia.
 
 La descarga explícita queda protegida localmente y no edita por sí sola YAML.
 Preparar otra versión puede ocurrir con una instancia activa: se conserva su revisión.
+`backend download --version <latest|bNNNN> --variant <variante>` prepara y protege
+una instalación oficial. `--force` permite continuar ante incompatibilidad detectada
+por el sondeo con advertencia, sin omitir integridad ni sustituir la variante.
+`download resume <operation-id> --force` da esa autorización para la reanudación
+de un backend; no se admite para modelos ni otras operaciones. Sin evidencia
+suficiente se informa compatibilidad desconocida, según [servidores](servidores.md#backend-seleccionado-ausente).
+`backend protect|unprotect <installation-id>` cambia sólo la protección explícita
+de esa revisión del ámbito; no retira referencias de intención, activo o recuperación.
 Un backend externo conserva sus rutas y propiedad; no se adopta por registrar.
 
 ### model

@@ -184,7 +184,8 @@ internal static class BackendUpdateTests
             {
                 (int Code, string Output) Native(params string[] args)
                 {
-                    var start = new ProcessStartInfo(executable) { UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true };
+                    var start = new ProcessStartInfo(args[0] == "backend" ? Environment.ProcessPath! : executable) { UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true };
+                    if (args[0] == "backend") start.ArgumentList.Add("--m2-backend-api");
                     var environment = start.Environment.ToArray(); start.Environment.Clear();
                     foreach (var group in environment.GroupBy(p => p.Key, StringComparer.OrdinalIgnoreCase)) start.Environment[group.Key] = group.Last().Value;
                     start.Environment["COQUENA_HOME"] = home.Root;
@@ -197,7 +198,7 @@ internal static class BackendUpdateTests
                 var list = Native("backend", "list");
                 Check(list.Code == 0 && list.Output.Contains("Candidato guardado: b20") && list.Output.Contains("remote-status"), "native CLI reads candidate and failure after restart");
                 Check(Native("backend", "update", "cpu:b9").Code == 2 && Native("backend", "update", "external").Code == 2, "native pin and external update rejection");
-                Check(Native("--help").Output.Contains("backend update [<seguimiento>]"), "native help includes update");
+                Check(Native("--help").Output.Contains("backend download --version"), "native help describes M3 download");
             }
 
             Save(vulkan, external);

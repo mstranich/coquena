@@ -10,16 +10,17 @@ namespace Coquena;
 
 public static class ScopeDownloadCli
 {
-    public static int Run(string[] args, TextWriter output, TextWriter error)
+    public static int Run(string[] args, TextWriter output, TextWriter error, Func<HardwareContext>? inspect = null)
     {
         try
         {
-            var global = false; var json = false; string? basePath = null; string? firstFile = null;
+            var global = false; var json = false; var force = false; string? basePath = null; string? firstFile = null;
             var command = new List<string>();
             for (var i = 0; i < args.Length; i++)
             {
                 if (args[i] is "--global" or "-g" && !global) global = true;
                 else if (args[i] == "--json" && !json) json = true;
+                else if (args[i] == "--force" && !force) force = true;
                 else if (args[i] is "--base" or "-f" or "--file")
                 {
                     var option = args[i];
@@ -32,6 +33,7 @@ public static class ScopeDownloadCli
             }
             if (global && (basePath is not null || firstFile is not null)) return Invalid(error);
             var values = command.ToArray();
+            if (force && (values.Length != 2 || values[0] != "resume")) return Invalid(error);
             if (!(values.Length == 1 && values[0] is "list" or "status" ||
                 values.Length == 2 && values[0] == "list" && values[1] is "--model" or "--companion" or "--backend" ||
                 values.Length == 2 && values[0] is "status" or "show" or "pause" or "resume" or "cancel" &&
@@ -46,7 +48,8 @@ public static class ScopeDownloadCli
                 if (values.Length == 1 || values[0] == "list") { if (json) output.WriteLine("[]"); else output.WriteLine("Sin operaciones de descarga."); return 0; }
                 throw new DownloadException("not-found", "Operación inexistente en el ámbito seleccionado.");
             }
-            var transfers = new ScopeTransfers(context);
+            var backends = new ScopedBackends(context);
+            var transfers = new ScopeTransfers(context, validateBackend: backends.ValidateOfficial);
             if (values.Length == 1 || values[0] == "list")
             {
                 var operations = transfers.Downloads.List(values.Length == 2 ? values[1][2..] : null);
@@ -64,6 +67,9 @@ public static class ScopeDownloadCli
                 return 0;
             }
             var selected = transfers.Downloads.Status(id);
+            if (force && selected.ResourceKind != "backend") return Invalid(error);
+            if (selected.BackendSelection is { } backend && selected.Phase != "cleanup")
+                ScopedBackends.CheckSelection(backend, (inspect ?? HardwareProbe.Inspect)(), force, message => error.WriteLine(message));
             using var official = selected.ResourceKind == "backend" ? new OfficialArtifactTransport() : null;
             using var huggingFace = selected.ResourceKind == "backend" ? null : new HuggingFaceTransport();
             IDownloadTransport transport = official ?? (IDownloadTransport)huggingFace!;
@@ -93,10 +99,11 @@ public static class ScopeDownloadCli
             void Show(OperationDocument operation)
             { if (json) output.WriteLine(Structured(operation).ToJsonString()); else DownloadCli.Show(operation, output); }
         }
-        catch (Exception e) when (e is DownloadException or StorageException or ContractException or IOException or UnauthorizedAccessException or OperationCanceledException)
+        catch (Exception e) when (e is BackendException or DownloadException or StorageException or ContractException or IOException or UnauthorizedAccessException or OperationCanceledException)
         {
-            var code = e switch { DownloadException d => d.Code, StorageException s => s.Code, ContractException c => c.Code, _ => "local-io-failed" };
-            error.WriteLine($"Error: {code}. Estado conservado en el ámbito seleccionado."); return 1;
+            var code = e switch { BackendException b => b.Code, DownloadException d => d.Code, StorageException s => s.Code, ContractException c => c.Code, _ => "local-io-failed" };
+            error.WriteLine($"Error: {code}. Estado conservado en el ámbito seleccionado.");
+            return e is BackendException ? code == "invalid-selection" ? 2 : 5 : 1;
         }
     }
     private static int Invalid(TextWriter error) { error.WriteLine("Error: argumentos de download inválidos. Consulte coquena --help."); return 2; }

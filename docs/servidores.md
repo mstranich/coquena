@@ -47,6 +47,15 @@ de intención. No sustituir familia automáticamente. Externo ausente exige inte
 Hardware incompatible produce diagnóstico, sin modificar YAML/lock ni bloqueo
 persistente de integridad. Registrar combinación intentada, no éxito.
 
+La preparación se detiene cuando el sondeo detecta incompatibilidad. `--force`
+autoriza intentar la preparación conservando la advertencia y la variante elegida;
+no acredita ejecución ni omite controles de integridad, archivos requeridos o
+plataforma soportada. La autorización se da por invocación, también al reanudar.
+Evidencia insuficiente se informa como compatibilidad desconocida y permite
+continuar con advertencia; no se convierte en incompatibilidad comprobada.
+El sondeo básico contrasta plataforma, driver y capacidades conocidas de los
+dispositivos; no demuestra cobertura de arquitecturas del binario ni inferencia.
+
 ## Inicio y detención
 
 Validar YAML/esquema y fallos conocidos. No auditar pesos ni recalcular hashes en up.

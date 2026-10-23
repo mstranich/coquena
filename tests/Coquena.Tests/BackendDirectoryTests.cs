@@ -378,8 +378,9 @@ internal static class BackendDirectoryTests
         Check(ConfigurationCli.Run("config", ["backends-dir", "set", "../native-location"], output, error, config, () => "n") == 0, "CLI injected choice configures native fixture");
         (int Code, string Out, string Error) Run(params string[] args)
         {
-            var start = new ProcessStartInfo(executable) { UseShellExecute = false, RedirectStandardOutput = true,
+            var start = new ProcessStartInfo(args[0] == "backend" ? Environment.ProcessPath! : executable) { UseShellExecute = false, RedirectStandardOutput = true,
                 RedirectStandardError = true, RedirectStandardInput = true, CreateNoWindow = true, WorkingDirectory = root };
+            if (args[0] == "backend") start.ArgumentList.Add("--m2-backend-api");
             var env = start.Environment.ToArray(); start.Environment.Clear();
             foreach (var item in env.GroupBy(p => p.Key, StringComparer.OrdinalIgnoreCase)) start.Environment[item.Key] = item.Last().Value;
             start.Environment["COQUENA_HOME"] = home.Root;

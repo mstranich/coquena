@@ -190,9 +190,10 @@ internal static class InstallerTests
             // CLI local paths: no source or hardware probes, defaults resolve registered data.
             Environment.SetEnvironmentVariable("COQUENA_HOME", root);
             using var output = new StringWriter(); using var error = new StringWriter();
-            Check(Cli.Run(["backend", "list"], output, error) == 0 && output.ToString().Contains("b7"), "CLI backend list local");
-            Check(Cli.Run(["backend", "use", "cpu:latest"], output, error) == 0 && installer.Use(null)?.Kind == "latest", "CLI use persisted");
-            Check(Cli.Run(["backend", "use", "cpu:b999"], output, error) == 1 && installer.Use(null)?.Kind == "latest", "absent use never changes default");
+            // Exercise the retained M2 engine directly; the public M3 CLI uses scopes.
+            Check(BackendCli.Run(["backend", "list"], output, error) == 0 && output.ToString().Contains("b7"), "M2 backend list local");
+            Check(BackendCli.Run(["backend", "use", "cpu:latest"], output, error) == 0 && installer.Use(null)?.Kind == "latest", "M2 use persisted");
+            Check(BackendCli.Run(["backend", "use", "cpu:b999"], output, error) == 1 && installer.Use(null)?.Kind == "latest", "absent use never changes default");
             if (executable is not null)
             {
                 // Native runner is a tiny valid process fixture; checks actual bounded --version invocation.

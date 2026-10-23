@@ -238,7 +238,8 @@ internal static class BackendUpgradeTests
                         new("b2", [new("llama-b2-bin-win-cpu-x64.zip", 123)], "unknown", "fixture"))]));
                 async Task<(int Code, string Text)> Native(params string[] args)
                 {
-                    var info = new ProcessStartInfo(executable) { UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true, CreateNoWindow = true };
+                    var info = new ProcessStartInfo(args[0] == "backend" ? Environment.ProcessPath! : executable) { UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true, CreateNoWindow = true };
+                    if (args[0] == "backend") info.ArgumentList.Add("--m2-backend-api");
                     info.Environment.Clear(); foreach (System.Collections.DictionaryEntry pair in Environment.GetEnvironmentVariables()) info.Environment[(string)pair.Key] = (string)pair.Value!;
                     info.Environment["COQUENA_HOME"] = nativeRoot; info.Environment["COQUENA_FIXTURE_BUILD"] = "2";
                     foreach (var arg in args) info.ArgumentList.Add(arg);
@@ -252,7 +253,7 @@ internal static class BackendUpgradeTests
                 nativeResult = await Native("config", "backend-retention", "show"); Check(nativeResult.Code == 0 && nativeResult.Text.Contains("propio"), "native policy restart");
                 Check((await Native("config", "backend-retention", "set", "0")).Code == 2, "native invalid policy");
                 Check((await Native("backend", "upgrade", "cpu:b2")).Code == 2, "native fixed selector rejected");
-                Check((await Native("--help")).Text.Contains("backend upgrade"), "native help");
+                Check((await Native("--help")).Text.Contains("backend download"), "native M3 help");
             }
             Console.WriteLine($"OK: {checks} comprobaciones de upgrade/retención" + (executable is null ? "." : " y CLI Native AOT."));
         }

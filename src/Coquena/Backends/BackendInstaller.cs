@@ -499,7 +499,7 @@ public sealed partial class BackendInstaller(Home home, LocalStore? storage = nu
 
     [GeneratedRegex(@"(?m)^version:[ \t]*(?:[0-9]+\.[0-9]+\.[0-9]+(?:-[A-Za-z0-9.-]+)?[ \t]+\(build (?<build>[1-9][0-9]*), commit [0-9a-fA-F]+\)|(?<build>[1-9][0-9]*)[ \t]+\([0-9a-fA-F]+\))[ \t\r]*$", RegexOptions.CultureInvariant)]
     private static partial Regex VersionPattern();
-    private static void CheckVersion(string version, string release)
+    internal static void CheckVersion(string version, string release)
     {
         if (version.Length > 65536 || VersionPattern().Matches(version).Count != 1 ||
             VersionPattern().Match(version).Groups["build"].Value != release[1..]) Fail("invalid-server-version");
