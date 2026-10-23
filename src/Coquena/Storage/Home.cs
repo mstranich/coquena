@@ -9,7 +9,13 @@ public sealed class StorageException(string code, string message, bool published
 
 public sealed class Home
 {
+    internal Projects.ScopeContext? Scope { get; }
     public string Root { get; }
+    internal Home(Projects.ScopeContext scope)
+    {
+        Scope = scope;
+        Root = scope.Root;
+    }
     public Home(string root)
     {
         if (string.IsNullOrWhiteSpace(root) || !Path.IsPathFullyQualified(root))
@@ -31,6 +37,12 @@ public sealed class Home
 
     public void Ensure()
     {
+        if (Scope is not null)
+        {
+            Scope.Ensure();
+            foreach (var area in new[] { "downloads", "logs", "tmp" }) Directory.CreateDirectory(PathFor(area));
+            return;
+        }
         CheckLinks(Root);
         Directory.CreateDirectory(Root);
         foreach (var area in new[] { "catalogs", "run", "logs", "downloads", "models", "backends" })
@@ -39,6 +51,7 @@ public sealed class Home
 
     public string PathFor(string relative)
     {
+        if (Scope is not null) return Scope.PathFor(relative);
         if (string.IsNullOrWhiteSpace(relative) || Path.IsPathRooted(relative)) Invalid();
         var pieces = relative.Replace('\\', '/').Split('/');
         foreach (var piece in pieces)
@@ -72,5 +85,11 @@ public sealed class Home
             catch (FileNotFoundException) { }
             catch (DirectoryNotFoundException) { }
         }
+    }
+
+    internal void CheckPath(string path)
+    {
+        if (Scope is null) CheckLinks(path);
+        else _ = Scope.PathFor(Path.GetRelativePath(Root, path));
     }
 }

@@ -34,6 +34,11 @@ public sealed class FileHashSession : IDisposable
         finished = true;
         return new("sha256", "file-bytes", Convert.ToHexString(hash.GetHashAndReset()).ToLowerInvariant());
     }
+    public ContentIdentity Snapshot()
+    {
+        ObjectDisposedException.ThrowIf(finished, this);
+        return new("sha256", "file-bytes", Convert.ToHexStringLower(hash.GetCurrentHash()));
+    }
     public void Dispose() { finished = true; hash.Dispose(); }
 }
 

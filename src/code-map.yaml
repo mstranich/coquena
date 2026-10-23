@@ -3,6 +3,25 @@
 # References describe intended behavior; verify actual behavior in code and tests.
 version: 1
 features:
+  - id: scoped-resource-transfers
+    intent: Aislar GUID y checkpoints por ámbito y publicar instalaciones físicas verificadas sin modificar resoluciones de combinaciones.
+    keywords: [download, scope, checkpoint, publication, integrity, cancellation, recovery]
+    entrypoints:
+      - src/Coquena/ScopeDownloadCli.cs
+      - src/Coquena/Downloads/ScopeTransfers.cs
+    implementation:
+      - src/Coquena/Downloads/DownloadManager.cs
+      - src/Coquena/Storage/LocalStore.cs
+      - src/Coquena/Projects/ScopeStore.cs
+      - src/Coquena/Models/FileIntegrity.cs
+    tests:
+      - tests/Coquena.Tests/ScopeTransferTests.cs
+      - tests/Coquena.Tests/DownloadTests.cs
+      - tests/Coquena.Tests/ContentionTests.cs
+    references:
+      - docs/descargas.md
+      - docs/persistencia-proyectos.md
+
   - id: recipe-argument-schema-emission
     intent: Componer definiciones locales, validar argumentos y relaciones, consultar impacto y emitir tokens CLI o INI con codec por build.
     keywords: [arg-defs, schema, param, aliases, args-mode, rules, CLI, INI, interpolation]

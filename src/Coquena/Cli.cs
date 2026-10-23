@@ -11,7 +11,7 @@ public static class Cli
         if (args.Length > 0 && args[0] is "system" or "backend")
             return BackendCli.Run(args, output, error);
         if (args.Length > 0 && args[0] == "download")
-            return DownloadCli.Run(args[1..], output, error);
+            return ScopeDownloadCli.Run(args[1..], output, error);
         if (args.Length > 0 && args[0] == "model")
             return ModelCli.Run(args[1..], output, error);
         if (args.Length == 0 ||

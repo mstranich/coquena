@@ -38,6 +38,8 @@ automáticamente. No guardar secretos expandidos en archivos compartidos.
 | update, upgrade, verify, clean | Combinación o ámbito global explícito; no recorren YAML desconocidos. |
 | tui, web, benchmark | Operaciones comunes sobre ámbito/servicio seleccionados. |
 
+`-g` es alias de `--global` para seleccionar el ámbito global.
+
 Un consumidor conserva inventario propio aunque su target sea global. `--global`
 no equivale a seleccionar el target para cargar pesos del proyecto en la home.
 No se busca una referencia en otro ámbito por coincidencia de nombre.
@@ -226,7 +228,7 @@ credenciales, borradores ni rutas privadas de observadores.
 ```text
 coquena [opciones-contexto] <comando> [argumentos] [opciones-operación]
 opciones-contexto := [-f|--file <yaml>]... [--project-directory <base>]
-                    [--env-file <env>]... [--private] [--global]
+                    [--env-file <env>]... [--private] [--global|-g]
                     [--service <nombre|default|self>]
 ```
 

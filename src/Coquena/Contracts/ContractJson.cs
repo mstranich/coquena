@@ -353,6 +353,22 @@ public static class ContractValidation
     public static void Operation(OperationDocument value)
     {
         Version(value.SchemaVersion); Id(value.Id); Text(value.Name); Text(value.Phase);
+        if (value.ScopePublication is { } scoped)
+        {
+            Id(scoped.ResourceId); Id(scoped.InstallationId);
+            Require(value.ModelInstall is null && value.BackendInstall is null &&
+                scoped.Origin is "explicit" or "automatic" && scoped.RequiredFiles is not null,
+                "Plan de publicación por ámbito inválido.");
+            foreach (var required in scoped.RequiredFiles!) Text(required);
+            Require(value.ResourceKind != "backend" || scoped.RequiredFiles!.Any(p => p.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)),
+                "Backend requiere ejecutable declarado.");
+        }
+        if (value.Executor is { } executor)
+        {
+            Require(value.ScopePublication is not null && executor.Pid > 0 && executor.StartedAtUtcTicks > 0,
+                "Identidad de ejecutor inválida.");
+            Text(executor.Executable);
+        }
         Require(value.Files is { Length: > 0 } && value.Files.All(f => f is not null), "Transferencias requeridas y no nulas.");
         if (value.ModelInstall is { } model)
         {
@@ -464,7 +480,7 @@ public static class ContractValidation
             Text(selection.Family); Text(selection.Variant); Text(selection.Platform);
             Require(selection.Artifacts is { Length: > 0 }, "Backend sin artefactos.");
             foreach (var artifact in selection.Artifacts!)
-                Require(artifact is not null && artifact.Identity is null && (artifact.Size is null or >= 0),
+                Require(artifact is not null && (artifact.Identity is null || value.ScopePublication is not null) && (artifact.Size is null or >= 0),
                     "Backend no guarda digest ni tamaño negativo.");
         }
         var expected = value.ModelSelection?.Files ?? value.BackendSelection!.Artifacts;
@@ -477,11 +493,12 @@ public static class ContractValidation
                 "Transferencia no corresponde a selección fijada.");
             Text(file.PartialPath); Text(file.DestinationPath); Text(file.State);
             Require(file.ConfirmedBytes >= 0 && (file.ExpectedSize is null || file.ConfirmedBytes <= file.ExpectedSize), "Checkpoint inválido.");
-            Require(value.ResourceKind != "backend" || file.Identity is null, "Backend no guarda digest.");
-            Require(value.ResourceKind != "backend" || file.LocalIntegrity is null, "Backend no calcula digest local.");
+            Require(value.ResourceKind != "backend" || value.ScopePublication is not null || file.Identity is null, "Backend no guarda digest.");
+            Require(value.ResourceKind != "backend" || value.ScopePublication is not null || file.LocalIntegrity is null, "Backend no calcula digest local.");
             Identity(file.Identity);
             Identity(file.LocalIntegrity);
-            if (value.ModelInstall is not null)
+            Identity(file.CheckpointIntegrity);
+            if (value.ModelInstall is not null || value.ScopePublication is not null)
             {
                 Require(file.Identity == expected[i].Identity, "Referencia remota difiere de la selección fijada.");
                 Require(file.State is "pending" or "paused" or "downloading" or "failed" or "transferred", "Estado de transferencia desconocido.");

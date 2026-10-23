@@ -240,11 +240,15 @@ internal static class DownloadTests
 
             if (executable is not null)
             {
-                using var cli = new Process { StartInfo = new ProcessStartInfo(executable) { UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true } };
+                var checkpointPath = home.PathFor($"downloads/{unknown.Id:D}/operation.json");
+                var originalCheckpoint = File.ReadAllBytes(checkpointPath);
+                using var cli = new Process { StartInfo = new ProcessStartInfo(executable) { UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true, WorkingDirectory = root } };
                 cli.StartInfo.ArgumentList.Add("download"); cli.StartInfo.ArgumentList.Add("status"); cli.StartInfo.ArgumentList.Add(unknown.Id.ToString());
                 cli.StartInfo.Environment["COQUENA_HOME"] = root;
                 cli.Start(); var text = cli.StandardOutput.ReadToEndAsync(); var err = cli.StandardError.ReadToEndAsync();
-                Check(cli.WaitForExit(10000) && cli.ExitCode == 0 && (await text).Contains("desconocido") && (await err).Length == 0);
+                // M3 resolves GUIDs in the selected project, never by falling back to an M2 home.
+                Check(cli.WaitForExit(10000) && cli.ExitCode == 1 && (await text).Length == 0 && (await err).Contains("not-found"));
+                Check(File.ReadAllBytes(checkpointPath).SequenceEqual(originalCheckpoint));
             }
             var corrupt = New(); File.WriteAllText(home.PathFor($"downloads/{corrupt.Id:D}/operation.json"), "{");
             try { manager.List(); throw new Exception("corruption ignored"); } catch (ContractException) { Check(true); }

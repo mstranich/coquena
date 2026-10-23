@@ -105,6 +105,11 @@ internal static class CliHelp
           download resume <id-descarga>     Reanudar una descarga
           download cancel <id-descarga>     Cancelar y eliminar los archivos temporales
 
+              Ámbito: proyecto actual; --base <carpeta> selecciona la carpeta.
+              --file <receta> (alias -f) selecciona el archivo de Coquena.
+              --global (alias -g) selecciona COQUENA_HOME/global.
+              --json muestra datos exactos.
+
             Usar el ID mostrado al iniciar la descarga. Ctrl+C pausa sin cancelarla.
 
         Presets:

@@ -77,7 +77,7 @@ public sealed class DownloadManager(Home home, LocalStore? storage = null)
         {
             if (!file.PartialPath.StartsWith(prefix, StringComparison.Ordinal) ||
                 !file.PartialPath.EndsWith(".part", StringComparison.Ordinal) ||
-                !partials.Add(home.PathFor(file.PartialPath)) || !destinations.Add((value.ResourceKind is "model" or "companion") ? new ModelPaths(home).Destination(value, file) : home.PathFor(file.DestinationPath)) ||
+                !partials.Add(home.PathFor(file.PartialPath)) || !destinations.Add(!store.IsScoped && (value.ResourceKind is "model" or "companion") ? new ModelPaths(home).Destination(value, file) : home.PathFor(file.DestinationPath)) ||
                 !file.DestinationPath.StartsWith(value.ResourceKind == "backend" ? "backends/" : "models/", StringComparison.Ordinal))
                 throw new DownloadException("unsafe-path", "Rutas de operación inválidas o en colisión.");
         }
@@ -137,7 +137,7 @@ public sealed class DownloadManager(Home home, LocalStore? storage = null)
         var results = new List<OperationDocument>();
         foreach (var path in Directory.GetDirectories(directory).Order(StringComparer.Ordinal))
         {
-            Home.CheckLinks(path);
+            home.CheckPath(path);
             if (!Guid.TryParseExact(Path.GetFileName(path), "D", out var id))
                 throw new DownloadException("invalid-operation-directory", "Directorio de operación no reconocido.");
             try { var value = Status(id); if (kind is null || value.ResourceKind == kind) results.Add(value); }
@@ -155,7 +155,7 @@ public sealed class DownloadManager(Home home, LocalStore? storage = null)
         List<OperationDocument> values = [];
         foreach (var path in Directory.GetDirectories(directory))
         {
-            Home.CheckLinks(path);
+            home.CheckPath(path);
             if (!Guid.TryParseExact(Path.GetFileName(path), "D", out var id))
                 throw new DownloadException("invalid-operation-directory", "Directorio de operación no reconocido.");
             values.Add(Read(id));
@@ -202,9 +202,9 @@ public sealed class DownloadManager(Home home, LocalStore? storage = null)
 
     private void RemoveRequest(Guid id, string action) { var path = Control(id, action); if (File.Exists(path)) File.Delete(path); }
     private long Length(TransferRecord file) => File.Exists(home.PathFor(file.PartialPath)) ? new FileInfo(home.PathFor(file.PartialPath)).Length : 0;
-    private void Cleanup(OperationDocument value)
+    internal void Cleanup(OperationDocument value, bool installed = false)
     {
-        value = Save(value with { State = "cancelled", Phase = "cleanup", Diagnostic = "cleanup-pending", UpdatedAt = DateTimeOffset.UtcNow });
+        value = Save(value with { State = installed ? "completed" : "cancelled", Phase = "cleanup", Diagnostic = "cleanup-pending", UpdatedAt = DateTimeOffset.UtcNow });
         try
         {
             store.Exclusive(() =>
@@ -212,14 +212,14 @@ public sealed class DownloadManager(Home home, LocalStore? storage = null)
                 // Leave operation.json until all potentially locked payload files have gone.
                 var area = Area(value.Id);
                 var entries = Directory.GetFileSystemEntries(area, "*", SearchOption.AllDirectories);
-                foreach (var entry in entries) Home.CheckLinks(entry);
+                foreach (var entry in entries) home.CheckPath(entry);
                 foreach (var entry in entries.Where(File.Exists))
                     if (entry != Path.Combine(area, "operation.json") && entry != Path.Combine(area, "executor.lock")) File.Delete(entry);
                 foreach (var entry in entries.Where(Directory.Exists).OrderByDescending(x => x.Length)) Directory.Delete(entry);
                 File.Delete(Path.Combine(area, "operation.json"));
                 File.Delete(Path.Combine(area, "executor.lock")); // handle is delete-shared but retains executor exclusion
                 Directory.Delete(area);
-                store.RecordCancellation(value.Id);
+                if (installed) store.RecordInstallation(value.Id); else store.RecordCancellation(value.Id);
                 return 0;
             });
         }
@@ -266,6 +266,11 @@ public sealed class DownloadManager(Home home, LocalStore? storage = null)
                 value = await new ModelInstaller(home, store).PrepareUpgradeAsync(value, stopped.Token);
             if (finalize is not null && value.Phase is "publishing" or "cleanup")
                 return await finalize(value, stopped.Token);
+            if (store.IsScoped)
+            {
+                using var process = System.Diagnostics.Process.GetCurrentProcess();
+                value = value with { Executor = new(Environment.ProcessId, process.StartTime.ToUniversalTime().Ticks, Environment.ProcessPath!) };
+            }
             value = Save(value with { State = "downloading", Phase = "transfer", Diagnostic = null, UpdatedAt = DateTimeOffset.UtcNow });
             for (var i = 0; i < value.Files.Length; i++)
             {
@@ -276,7 +281,7 @@ public sealed class DownloadManager(Home home, LocalStore? storage = null)
                     throw new DownloadException("checkpoint-inconsistent", "Parcial y checkpoint difieren; no se reutilizan bytes sin evidencia.");
                 if (file.State == "transferred")
                 {
-                    if (value.ModelInstall is not null)
+                    if (value.ModelInstall is not null || store.IsScoped)
                     {
                         var check = await FileIntegrity.VerifyAsync(home.PathFor(file.PartialPath), file.LocalIntegrity, stopped.Token);
                         if (check.Status != "verified") throw new DownloadException("partial-integrity-failed", "Archivo completo cambió; no se reutiliza ni se redefine su referencia.");
@@ -379,11 +384,14 @@ public sealed class DownloadManager(Home home, LocalStore? storage = null)
             Directory.CreateDirectory(Path.GetDirectoryName(path)!);
             using var target = new FileStream(path, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.Read, 65536, FileOptions.Asynchronous);
             if (target.Length != file.ConfirmedBytes) throw new DownloadException("checkpoint-inconsistent", "Parcial cambió antes de abrir escritor.");
-            using var hash = value.ModelInstall is not null ? new FileHashSession() : null;
+            using var hash = value.ModelInstall is not null || store.IsScoped ? new FileHashSession() : null;
             if (hash is not null)
             {
                 target.Position = 0;
                 await hash.ReadPrefixAsync(target, file.ConfirmedBytes, stopped.Token);
+                if (store.IsScoped && file.ConfirmedBytes > 0 &&
+                    FileIntegrity.Compare(hash.Snapshot(), file.CheckpointIntegrity).Status != "verified")
+                    throw new DownloadException("checkpoint-integrity-failed", "El prefijo cambió o carece de evidencia; no se añaden bytes.");
             }
             target.Position = file.ConfirmedBytes;
             var nextCheckpoint = DateTimeOffset.UtcNow.AddSeconds(1);
@@ -413,7 +421,7 @@ public sealed class DownloadManager(Home home, LocalStore? storage = null)
                     throw new TransientException(TimeSpan.FromMilliseconds(250));
                 if (hash is not null)
                 {
-                    var digest = hash.Finish();
+                    var digest = hash.Snapshot();
                     if (FileIntegrity.Compare(digest, file.Identity).Status == "mismatch")
                         throw new DownloadException("remote-hash-mismatch", "SHA-256 remoto no coincide; no publicar ni redefinir referencia.");
                     target.Flush(true);
@@ -426,6 +434,7 @@ public sealed class DownloadManager(Home home, LocalStore? storage = null)
             {
                 target.Flush(true);
                 file = file with { ConfirmedBytes = target.Length };
+                if (store.IsScoped && hash is not null) file = file with { CheckpointIntegrity = hash.Snapshot() };
                 value.Files[index] = file;
                 // Backpressure: stop reading the response until these flushed bytes are
                 // durably confirmed. Keep the executor lease, including during Ctrl+C;
@@ -436,7 +445,10 @@ public sealed class DownloadManager(Home home, LocalStore? storage = null)
                     try { value = Save(value with { UpdatedAt = DateTimeOffset.UtcNow }); break; }
                     catch (StorageException e) when (e.Code == "writer-busy" && !e.Published)
                     {
-                        progress?.Invoke(Read(id) with { Diagnostic = "checkpoint-writer-busy" });
+                        // A scoped read also checks the inventory identity and may need
+                        // the very writer lease we are waiting for. Report the flushed
+                        // in-memory checkpoint without acquiring it recursively.
+                        progress?.Invoke((store.IsScoped ? value : Read(id)) with { Diagnostic = "checkpoint-writer-busy" });
                         await Task.Delay(50);
                     }
                 }

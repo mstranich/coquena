@@ -208,7 +208,7 @@ internal static class ModelInstallerTests
                 Check(installer.List().Any(m => m.Record.Id == op.ModelInstall!.ModelId) == (stage == ModelInstallStage.AfterIndex), "existence isn't index activation");
                 if (stage == ModelInstallStage.AfterMove && executable is not null)
                 {
-                    var result = await Native(executable, root, "download", "resume", op.Id.ToString("D"));
+                    var result = ResumeM2(installer.Downloads, op.Id);
                     Check(result.Code == 0 && result.Output.Contains("y limpieza completadas"), "published CLI recovers fixed model without network: " + result.Code + " " + result.Output);
                 }
                 else Check(await Run(installer, failed!, new NoNetwork()) is null, "recovered publication no HTTP");
@@ -437,7 +437,7 @@ internal static class ModelInstallerTests
                 if (executable is null) await Run(installer, failed!, new NoNetwork());
                 else
                 {
-                    var result = await Native(executable, root, "download", "resume", operation.Id.ToString("D"));
+                    var result = ResumeM2(installer.Downloads, operation.Id);
                     Check(result.Code == 0, "native CLI resumes persisted transition without fetching weights: " + result.Output);
                 }
                 var managed = installer.List().Single(m => m.Record.Id == previous.Id).Record;
@@ -658,6 +658,14 @@ internal static class ModelInstallerTests
         }));
         using var rate = await limited.OpenAsync(pinned, 0, 0, default);
         Check(rate.Headers.RetryAfter?.Delta == TimeSpan.FromSeconds(60), "RateLimit reset cannot be shortened by Retry-After");
+    }
+    // M3's public download command selects a scope. Retain these M2 recovery
+    // regressions against the existing API inside the published Native AOT runner.
+    private static (int Code, string Output) ResumeM2(DownloadManager manager, Guid id)
+    {
+        using var output = new StringWriter(); using var error = new StringWriter();
+        var code = DownloadCli.Run(["resume", id.ToString("D")], output, error, manager, new NoNetwork());
+        return (code, output.ToString() + error.ToString());
     }
     private static async Task<(int Code, string Output)> Native(string executable, string home, params string[] args)
     {

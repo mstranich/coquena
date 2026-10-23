@@ -4,6 +4,8 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.Json.Serialization.Metadata;
 using Coquena.Contracts;
+using Coquena.Projects;
+using System.Text.Json.Nodes;
 
 namespace Coquena.Storage;
 
@@ -23,18 +25,35 @@ public sealed partial class LocalStore
     private const int MaxDocumentBytes = 16777216;
     private readonly Home home;
     private readonly Action<WriteStage>? fault;
+    internal bool IsScoped => home.Scope is not null;
+    private readonly string? scopeId;
     public LocalStore(Home home, Action<WriteStage>? fault = null)
     {
         this.home = home;
         this.fault = fault;
+        if (home.Scope is not null)
+        {
+            var scopes = new ScopeStore(home.Scope);
+            var snapshot = scopes.Read();
+            if (snapshot.ScopeId is null)
+            {
+                scopes.Commit(snapshot.Revision, new Dictionary<string, JsonObject>
+                {
+                    ["local/inventory.json"] = ProjectDocuments.Create("inventory", 1, new JsonObject { ["resources"] = new JsonArray() })
+                });
+                snapshot = scopes.Read();
+            }
+            scopeId = snapshot.ScopeId;
+        }
     }
 
     public T? Read<T>(DocumentKind kind, JsonTypeInfo<T> type, Action<T> validate,
         string? server = null, Guid? operation = null) where T : class
     {
-        var bytes = ServerRemovalBytes(kind) ?? ModelDirectoryBytes(kind) ?? BackendDirectoryBytes(kind) ?? TransactionBytes(kind) ?? ReadBytes(Location(kind, server, operation));
+        var bytes = IsScoped ? ReadBytes(Location(kind, server, operation)) :
+            ServerRemovalBytes(kind) ?? ModelDirectoryBytes(kind) ?? BackendDirectoryBytes(kind) ?? TransactionBytes(kind) ?? ReadBytes(Location(kind, server, operation));
         if (bytes is null) return null;
-        var value = ContractJson.Read(Encoding.UTF8.GetString(bytes), type, validate);
+        var value = ContractJson.Read(Decode(bytes, kind), type, validate);
         CheckRecord(value, operation);
         return value;
     }
@@ -47,10 +66,7 @@ public sealed partial class LocalStore
     {
         home.Ensure();
         using var lease = Acquire(cancellation);
-        RecoverServerRemovalTransaction();
-        RecoverParameterTransaction();
-        RecoverBackendDirectoryTransaction();
-        RecoverModelDirectoryTransaction();
+        Recover();
         return UpdateLocked(kind, type, validate, change, server, operation, cancellation);
     }
 
@@ -61,20 +77,23 @@ public sealed partial class LocalStore
     {
         var path = Location(kind, server, operation);
         var original = ReadBytes(path);
-        var current = original is null ? null : ContractJson.Read(Encoding.UTF8.GetString(original), type, validate);
+        var current = original is null ? null : ContractJson.Read(Decode(original, kind), type, validate);
         if (current is not null) CheckRecord(current, operation);
         var next = change(current);
         var json = ContractJson.Write(next, type);
         ContractJson.Read(json, type, validate);
         CheckRecord(next, operation);
-        var bytes = Encoding.UTF8.GetBytes(json);
+        var bytes = IsScoped ? ProjectDocuments.Bytes(ProjectDocuments.Create("operation",
+            original is null ? 1 : checked(ProjectDocuments.Read(original, "operation")["revision"]!.GetValue<long>() + 1),
+            new JsonObject { ["operation-id"] = operation!.Value.ToString("D"), ["scope-id"] = scopeId,
+                ["transfer"] = JsonNode.Parse(json) })) : Encoding.UTF8.GetBytes(json);
         if (bytes.Length > MaxDocumentBytes)
             throw new StorageException("document-too-large", "Documento supera 16 MiB.");
         cancellation.ThrowIfCancellationRequested();
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         if (kind == DocumentKind.Operation)
             Directory.CreateDirectory(home.PathFor($"downloads/{operation:D}/files"));
-        Home.CheckLinks(path);
+        home.CheckPath(path);
         var temporary = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
         var published = false;
         try
@@ -86,7 +105,7 @@ public sealed partial class LocalStore
             }
             fault?.Invoke(WriteStage.BeforeReplace);
             cancellation.ThrowIfCancellationRequested();
-            Home.CheckLinks(path);
+            home.CheckPath(path);
             var observed = ReadBytes(path);
             if (!(original is null ? observed is null : observed is not null && original.AsSpan().SequenceEqual(observed)))
                 throw new StorageException("stale-document", "Documento modificado fuera de la exclusión de Coquena; no se reemplazó.");
@@ -117,8 +136,41 @@ public sealed partial class LocalStore
             throw new StorageException("operation-id-mismatch", "GUID del documento no corresponde al directorio de operación.");
     }
 
+    private string Decode(byte[] bytes, DocumentKind kind)
+    {
+        if (!IsScoped) return Encoding.UTF8.GetString(bytes);
+        if (kind != DocumentKind.Operation) throw new StorageException("scoped-transfer-only", "Se requiere checkpoint de transferencia.");
+        try
+        {
+            var data = ProjectDocuments.Read(bytes, "operation")["data"]!;
+            if (new ScopeStore(home.Scope!).Read().ScopeId != scopeId || data["scope-id"]?.GetValue<string>() != scopeId)
+                throw new StorageException("transfer-scope-conflict", "La operación pertenece a otra identidad de ámbito.");
+            if (data["transfer"] is not JsonObject transfer) throw new StorageException("invalid-project-document", "Falta checkpoint de transferencia.");
+            if (transfer["id"]?.GetValue<string>() != data["operation-id"]?.GetValue<string>()) ProjectDocuments.Invalid();
+            return transfer.ToJsonString();
+        }
+        catch (InvalidOperationException e)
+        { throw new StorageException("invalid-project-document", "Checkpoint inválido; se conserva.", inner: e); }
+    }
+
+    private void Recover()
+    {
+        if (IsScoped)
+        {
+            if (new ScopeStore(home.Scope!).Read().ScopeId != scopeId)
+                throw new StorageException("transfer-scope-conflict", "Cambió la identidad del ámbito de transferencia.");
+            return;
+        }
+        RecoverServerRemovalTransaction();
+        RecoverParameterTransaction();
+        RecoverBackendDirectoryTransaction();
+        RecoverModelDirectoryTransaction();
+    }
+
     private string Location(DocumentKind kind, string? server, Guid? operation)
     {
+        if (IsScoped && kind != DocumentKind.Operation)
+            throw new StorageException("scoped-transfer-only", "Este almacén sólo conserva checkpoints del ámbito.");
         if (kind == DocumentKind.Operation)
         {
             if (operation is null || operation == Guid.Empty) throw new ArgumentException("GUID de operación requerido.");
@@ -167,7 +219,7 @@ public sealed partial class LocalStore
         while (true)
         {
             cancellation.ThrowIfCancellationRequested();
-            var path = home.PathFor(".writer.lock");
+            var path = home.PathFor(IsScoped ? "local/transfer-writer.lock" : ".writer.lock");
             try { return new FileStream(path, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None); }
             catch (IOException error) when ((error.HResult & 0xffff) is 32 or 33)
             {
@@ -183,10 +235,7 @@ public sealed partial class LocalStore
     {
         home.Ensure();
         using var lease = Acquire(default);
-        RecoverServerRemovalTransaction();
-        RecoverParameterTransaction();
-        RecoverBackendDirectoryTransaction();
-        RecoverModelDirectoryTransaction();
+        Recover();
         return action();
     }
 

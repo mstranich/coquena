@@ -4,6 +4,11 @@ using Coquena;
 // Match the product's output contract, including fixture and failure diagnostics.
 Console.OutputEncoding = new System.Text.UTF8Encoding(false);
 
+if (args.Length is 1 or 2 && args[0] == "--scope-transfer-tests")
+{ await Coquena.Tests.ScopeTransferTests.Run(args.Length == 2 ? Path.GetFullPath(args[1]) : null); return; }
+if (args.Length == 3 && args[0] == "--scope-transfer-crash-worker")
+{ await Coquena.Tests.ScopeTransferTests.CrashWorker(args[1], Enum.Parse<Coquena.Downloads.ScopeTransferStage>(args[2])); return; }
+
 if (args.Length == 1 && args[0] == "--argument-tests")
 { Coquena.Tests.ArgumentTests.Run(); return; }
 if (args.Length >= 1 && args[0] == "--argument-echo")
@@ -223,6 +228,7 @@ Coquena.Tests.ProjectPersistenceTests.Run();
 Coquena.Tests.RecipeTests.Run();
 await Coquena.Tests.BackendTests.Run(executable);
 await Coquena.Tests.DownloadTests.Run(executable);
+await Coquena.Tests.ScopeTransferTests.Run(executable);
 await Coquena.Tests.ContentionTests.Run();
 
 await Coquena.Tests.InstallerTests.Run(executable);

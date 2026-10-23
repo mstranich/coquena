@@ -89,14 +89,22 @@ public sealed record InstanceDocument(int SchemaVersion, Guid InstanceId, Guid S
 public sealed record TransferRecord(string SourcePath, string PartialPath, string DestinationPath,
     long ConfirmedBytes, long? ExpectedSize, ContentIdentity? Identity,
     string? ETag, string? LastModified, string State, ContentIdentity? LocalIntegrity = null,
-    DateTimeOffset? VerifiedWriteUtc = null);
+    DateTimeOffset? VerifiedWriteUtc = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] ContentIdentity? CheckpointIntegrity = null);
 // Exactly one pinned resource selection; no expiring URL or credentials persisted.
 public sealed record BackendDownloadSelection(string Origin, string Release, string Family,
     string Variant, string Platform, RemoteFile[] Artifacts);
 public sealed record OperationDocument(int SchemaVersion, Guid Id, string ResourceKind,
     string Name, RemoteSelection? ModelSelection, BackendDownloadSelection? BackendSelection,
     TransferRecord[] Files, string State, string Phase, DateTimeOffset UpdatedAt,
-    string? Diagnostic, BackendInstallPlan? BackendInstall = null, ModelInstallPlan? ModelInstall = null);
+    string? Diagnostic, BackendInstallPlan? BackendInstall = null, ModelInstallPlan? ModelInstall = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] ScopePublicationPlan? ScopePublication = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] TransferExecutor? Executor = null);
+
+public sealed record TransferExecutor(int Pid, long StartedAtUtcTicks, string Executable);
+
+public sealed record ScopePublicationPlan(Guid ResourceId, Guid InstallationId, string Origin,
+    string[] RequiredFiles);
 
 public sealed record ModelInstallPlan(Guid ModelId, InstalledFile[]? VerifiedFiles = null,
     int MovedFiles = 0, int MovingFile = -1,
