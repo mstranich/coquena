@@ -19,6 +19,8 @@ transitions:
 ---
 # Resolver unidades GGUF de Hugging Face sin depender de nombres convencionales
 
+Las referencias Git de Coquena de este documento apuntan a sus equivalentes en el historial saneado. Los hashes de modelos y backends externos se conservan.
+
 Las rutas de evidencia están parametrizadas. Para reproducir comandos de este documento, definir `$TestRoot` y `$CoquenaHome` con directorios de prueba propios; las ubicaciones originales no se publican.
 
 ```powershell
@@ -39,7 +41,7 @@ no puede cumplir su propósito para repositorios perfectamente utilizables.
 
 Esta tarjeta entrega implementación, pruebas y evidencia real de selección; NO otra
 investigación indefinida ni un diagnóstico que termine nuevamente en README/Cancelar
-para el caso reproducible. La 009 quedó aceptada y cerrada en `70d1ec6`; no reabrirla
+para el caso reproducible. La 009 quedó aceptada y cerrada en `b8ba25f`; no reabrirla
 ni mezclar esta corrección con presets/servidores. 007, 008 y 009 son sus bases reales.
 El número 015 no significa que deba esperar a 010–014. Implementar esta tarjeta como
 próxima intervención del resolvedor. Redactar esta tarjeta no implementa nada ni
@@ -405,7 +407,7 @@ Dependencias 007/008/009 completas, verificadas mediante board/search/view.
 
 ### Estado inicial y reproducción
 
-HEAD `70d1ec6` (009 aceptada); al tomar la tarea ya estaban modificados
+HEAD `b8ba25f` (009 aceptada); al tomar la tarea ya estaban modificados
 docs/milestones/M1-servidor-local.md y specs/014-m1-entrega-m1/README.md, y la carpeta
 015 estaba sin seguimiento. Se conservaron esas modificaciones. LeanSpec marcó 015
 in-progress antes de producción. La primera regresión fija del inventario Google falló

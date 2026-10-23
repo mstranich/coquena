@@ -16,6 +16,8 @@ transitions:
 ---
 # Contemplar MTP-ONLY y resolver el fallo de publicación CUDA observado en la reprueba
 
+Las referencias Git de Coquena de este documento apuntan a sus equivalentes en el historial saneado. Los hashes de modelos y backends externos se conservan.
+
 Las rutas de evidencia están parametrizadas. Para reproducir comandos de este documento, definir `$TestRoot` y `$CoquenaHome` con directorios de prueba propios; las ubicaciones originales no se publican.
 
 ```powershell
@@ -202,7 +204,7 @@ se conserva la limitación de atribución histórica, sin presentar la instalaci
 real exitosa como prueba de causa del fallo anterior.
 
 La implementación se entregó inicialmente en in-progress para revisión humana.
-El usuario autorizó después el commit previo al nuevo recorrido: `39783ae`
+El usuario autorizó después el commit previo al nuevo recorrido: `fe03e4a`
 incluye esta corrección y la evidencia histórica. Su instrucción de concluir
 0.2.1 si el recorrido no encontraba más defectos se cumplió con la
 [aceptación completa](../035-m2-entrega-integrada/aceptacion-0.2.1.md), incluida

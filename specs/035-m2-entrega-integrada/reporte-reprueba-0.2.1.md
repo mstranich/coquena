@@ -1,5 +1,7 @@
 # Reporte para revisión después de la reprueba de 0.2.1
 
+Las referencias Git de Coquena de este documento apuntan a sus equivalentes en el historial saneado. Los hashes de modelos y backends externos se conservan.
+
 Las rutas de evidencia están parametrizadas. Para reproducir comandos de este documento, definir `$TestRoot` y `$CoquenaHome` con directorios de prueba propios; las ubicaciones originales no se publican.
 
 ```powershell
@@ -11,7 +13,7 @@ New-Item -ItemType Directory -Force $TestRoot | Out-Null
 ```
 
 17 de octubre de 2026. Solicitado por el usuario durante la prueba; complementa
-la [evidencia del recorrido](reprueba-0.2.1.md). Código revisado: `f9ac856`.
+la [evidencia del recorrido](reprueba-0.2.1.md). Código revisado: `fb1fc6b`.
 No se implementaron correcciones ni se crearon tarjetas nuevas. Los puntos
 siguientes requieren evaluación; no constituyen una política nueva del producto.
 

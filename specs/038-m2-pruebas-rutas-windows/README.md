@@ -16,6 +16,8 @@ transitions:
 ---
 # Comparar rutas Windows correctamente en las pruebas de runtime
 
+Las referencias Git de Coquena de este documento apuntan a sus equivalentes en el historial saneado. Los hashes de modelos y backends externos se conservan.
+
 Las rutas de evidencia están parametrizadas. Para reproducir comandos de este documento, definir `$TestRoot` y `$CoquenaHome` con directorios de prueba propios; las ubicaciones originales no se publican.
 
 ```powershell
@@ -118,7 +120,7 @@ tarjeta y git diff --check verificados.
 
 ## Revisión independiente — 17 de octubre de 2026
 
-Revisión del diff contra `fc5d643`: sólo cambian las dos aserciones de rutas,
+Revisión del diff contra `89c15a0`: sólo cambian las dos aserciones de rutas,
 su helper local y esta tarjeta. La comparación coincide con `WindowsServerProcess`;
 conserva GUID estricto y no modifica la verificación de creación, ejecutable o job
 del proceso. Sin nuevos hallazgos bloqueantes ni cambios de reglas funcionales.

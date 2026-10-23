@@ -16,6 +16,8 @@ transitions:
 ---
 # Recorrido real y entregable Native AOT M1
 
+Las referencias Git de Coquena de este documento apuntan a sus equivalentes en el historial saneado. Los hashes de modelos y backends externos se conservan.
+
 El hardware del entorno de prueba se ha anonimizado. Los resultados conservados describen esa ejecución y no garantizan el mismo rendimiento en otro equipo.
 
 Las rutas de evidencia están parametrizadas. Para reproducir comandos de este documento, definir `$TestRoot` y `$CoquenaHome` con directorios de prueba propios; las ubicaciones originales no se publican.
@@ -117,7 +119,7 @@ por revisión automática con `blocked by policy`, sin más detalle; no se ejecu
 Tras la confirmación explícita, las acciones de inicio y consulta funcionaron.
 
 CLI utilizada: `artifacts/task014-native/coquena.exe`, Native AOT del HEAD
-`4545ca38b27dac0bb9f01e34c969f420de86d114`; cambios de 014 sólo de documentación.
+`75b523292b7d57d194a0fe390add73895415bb9b`; cambios de 014 sólo de documentación.
 SHA-256 del ejecutable: `c4b4559d010f1fcce2b06703f60b2ecd8d3ddc4f0e64087659f936ff7dcfc437`.
 
 - Backend instalado desde los dos ZIP oficiales en home aislado

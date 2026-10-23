@@ -1,5 +1,7 @@
 # Recorrido de aceptación 0.2.1 con a4lg
 
+Las referencias Git de Coquena de este documento apuntan a sus equivalentes en el historial saneado. Los hashes de modelos y backends externos se conservan.
+
 Las rutas de evidencia están parametrizadas. Para reproducir comandos de este documento, definir `$TestRoot` y `$CoquenaHome` con directorios de prueba propios; las ubicaciones originales no se publican.
 
 ```powershell
@@ -14,7 +16,7 @@ New-Item -ItemType Directory -Force $TestRoot | Out-Null
 
 Autorización: repetir la retirada, cascadas, reset, descargas, tres presets e
 inferencia; entregar 0.2.1 sólo si no aparecen defectos, o elaborar un reporte.
-Snapshot previo solicitado: `39783ae`, incluyendo la corrección y evidencia de
+Snapshot previo solicitado: `fe03e4a`, incluyendo la corrección y evidencia de
 [040](../040-m2-reprueba-mtp-publicacion-cuda/README.md). Producto Native AOT win-x64 publicado desde ese
 commit, aún con número interno 0.2.0 durante la prueba.
 
@@ -89,7 +91,7 @@ aceptación ni funciones anticipadas de M3.
 
 ## Paquete candidato
 
-Versión actualizada a 0.2.1 y snapshot de aceptación en `925a234`.
+Versión actualizada a 0.2.1 y snapshot de aceptación en `1e14f21`.
 Publicación Native AOT de producto y runner win-x64 con advertencias AOT como
 errores y análisis de trimming sin supresión. ZIP
 `coquena-0.2.1-win-x64.zip`, 5 095 592 bytes, con coquena.exe, README.md y LICENSE.
@@ -99,7 +101,7 @@ SHA-256 ejecutable:
 `c95669cc52150c166758625253260ce64ab19ba08b5252b51d81f855195a006c`.
 
 La copia extraída coincide en hash e informa
-`0.2.1+925a234e5772c5a9a6332b3fccfc79f08fbb981f`. Ayuda ejecutada correctamente.
+`0.2.1+1e14f21cc09f1c11fff75480cc635fe1f5a265e7`. Ayuda ejecutada correctamente.
 `release-publish.txt`, `release-publish-runner.txt`, `release-hashes.json`,
 `SHA256SUMS.txt` y `release-help.txt` conservan la procedencia.
 La suite completa sobre la copia extraída terminó con exit 0 y stderr vacío:
@@ -122,7 +124,7 @@ Reproducción desde la raíz del checkout:
 ```
 
 Los commits posteriores de cierre/evidencia sólo cambian documentación y estado
-LeanSpec; la procedencia del binario sigue siendo 925a234. Distribución prevista
+LeanSpec; la procedencia del binario sigue siendo 1e14f21. Distribución prevista
 en el [release v0.2.1](https://github.com/mstranich/coquena/releases/tag/v0.2.1),
 con ZIP y SHA256SUMS.txt. Sin publicación de paquetes en NuGet.
 

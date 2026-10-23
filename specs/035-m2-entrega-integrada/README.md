@@ -33,6 +33,8 @@ transitions:
 ---
 # Validar y preparar el entregable integrado M2
 
+Las referencias Git de Coquena de este documento apuntan a sus equivalentes en el historial saneado. Los hashes de modelos y backends externos se conservan.
+
 Las rutas de evidencia están parametrizadas. Para reproducir comandos de este documento, definir `$TestRoot` y `$CoquenaHome` con directorios de prueba propios; las ubicaciones originales no se publican.
 
 ```powershell
@@ -80,7 +82,7 @@ otra tarjeta. La regla ya estaba acordada; la implementación faltó entre las e
 
 ## Auditoría y evidencia
 
-Checkout inicial limpio, revisión fuente `faed6daa1f58aad33520112cff2b23ba15f42b7f`.
+Checkout inicial limpio, revisión fuente `eeb64de07f0272a64631108177f889ce59448610`.
 Dependencias 017–034 completas en el tablero. `leanspec deps 035` informa que no
 está migrado al adaptador; se comprobaron metadatos/cuerpos y evidencia manualmente.
 La [matriz de cobertura y reproducción](validacion.md) detalla comandos y suites.

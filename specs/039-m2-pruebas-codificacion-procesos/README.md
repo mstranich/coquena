@@ -16,6 +16,8 @@ transitions:
 ---
 # Eliminar dependencia de la página de códigos en las pruebas de procesos
 
+Las referencias Git de Coquena de este documento apuntan a sus equivalentes en el historial saneado. Los hashes de modelos y backends externos se conservan.
+
 Las rutas de evidencia están parametrizadas. Para reproducir comandos de este documento, definir `$TestRoot` y `$CoquenaHome` con directorios de prueba propios; las ubicaciones originales no se publican.
 
 ```powershell
@@ -155,7 +157,7 @@ aprobación explícita; sin commit ni cierre.
 
 ## Revisión independiente — 17 de octubre de 2026
 
-Diff revisado contra `4546731`: sin cambios en producción ni reglas funcionales.
+Diff revisado contra `573f24e`: sin cambios en producción ni reglas funcionales.
 La CLI ya establece UTF-8; los lectores ahora respetan ese contrato y conservan
 bytes para distinguir emisión de decodificación. Se mantienen las comprobaciones
 de Unicode, límite de salida reciente y código fallido del diagnóstico. Sin nuevos

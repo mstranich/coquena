@@ -1,5 +1,7 @@
 # Reprueba de ciclo completo para evaluar 0.2.1
 
+Las referencias Git de Coquena de este documento apuntan a sus equivalentes en el historial saneado. Los hashes de modelos y backends externos se conservan.
+
 Las rutas de evidencia están parametrizadas. Para reproducir comandos de este documento, definir `$TestRoot` y `$CoquenaHome` con directorios de prueba propios; las ubicaciones originales no se publican.
 
 ```powershell
@@ -10,7 +12,7 @@ $CoquenaHomeLower = $CoquenaHome.ToLowerInvariant()
 New-Item -ItemType Directory -Force $TestRoot | Out-Null
 ```
 
-Prueba manual autorizada el 17 de octubre de 2026 sobre `f9ac856`, después de
+Prueba manual autorizada el 17 de octubre de 2026 sobre `fb1fc6b`, después de
 las correcciones 036–039. No reabre tareas históricas ni autoriza correcciones
 de código encontradas durante la prueba. La eventual publicación está condicionada
 al resultado del recorrido solicitado.

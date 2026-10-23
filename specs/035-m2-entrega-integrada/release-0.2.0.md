@@ -1,5 +1,7 @@
 ## Coquena 0.2.0 — M2: catalog and resource management
 
+Las referencias Git de Coquena de este documento apuntan a sus equivalentes en el historial saneado. Los hashes de modelos y backends externos se conservan.
+
 A little guardian that keeps your llamas organized and ready to work.
 
 This release extends the Windows x64 CLI with:
@@ -30,7 +32,7 @@ ZIP SHA-256: `d184d47011b09f567ee59ec9881e6696a9d85adcea1228c5a73fd7fc9c32444c`.
 
 The executable was built locally using the pinned .NET SDK 10.0.401 and Native AOT
 for Windows x64. Its product version is
-`0.2.0+afb3e01875d8601b1ea0a6ecca383d4cdec89abd`. It was built before the release
+`0.2.0+ad0b61aa2bc44115e3e3959ff0279bfc67896fa4`. It was built before the release
 documentation commit; runtime sources, tests, and global.json are unchanged
 between that build commit and the release commit.
 

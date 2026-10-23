@@ -1,5 +1,7 @@
 # Prueba de uso personal y publicación 0.2.0
 
+Las referencias Git de Coquena de este documento apuntan a sus equivalentes en el historial saneado. Los hashes de modelos y backends externos se conservan.
+
 El hardware del entorno de prueba se ha anonimizado. Los resultados conservados describen esa ejecución y no garantizan el mismo rendimiento en otro equipo.
 
 Las rutas de evidencia están parametrizadas. Para reproducir comandos de este documento, definir `$TestRoot` y `$CoquenaHome` con directorios de prueba propios; las ubicaciones originales no se publican.
@@ -77,12 +79,12 @@ catálogo de fábrica del código ni se presume soporte en releases futuros.
 SHA-256 ZIP: `d184d47011b09f567ee59ec9881e6696a9d85adcea1228c5a73fd7fc9c32444c`.
 SHA-256 EXE publicado y extraído:
 `b2716ed095464da3716122c84ac955327af48028b7958929c25f56da62e80deb`.
-Publicación con `-p:InformationalVersion=0.2.0`; producto fuente `afb3e01`.
+Publicación con `-p:InformationalVersion=0.2.0`; producto fuente `ad0b61a`.
 Suite completa contra el EXE extraído: exit 0, logs `extracted-checks`.
 El paquete no incluye modelos, backend, estado local ni runner de pruebas.
 El binario se construyó y probó antes del commit documental de publicación.
 Se comprobó que las fuentes de runtime, pruebas y global.json no cambiaron respecto
-de afb3e01; no se presenta como una recompilación posterior al tag.
+de ad0b61a; no se presenta como una recompilación posterior al tag.
 
 ## Incidencias observadas
 
