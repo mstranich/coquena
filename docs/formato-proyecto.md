@@ -250,6 +250,9 @@ completas, sin concatenación implícita. Omisión conserva lo heredado; null de
 una clave o entrada completa, sin borrar archivos. `service.backend` es la excepción atómica
 indicada arriba. Los presets admiten modificaciones parciales por nombre.
 
+La interpolación es una funcionalidad de Coquena, no de YAML: un lector YAML
+ordinario ve `${VAR}` como texto. Coquena procesa estas expresiones después de
+leer los valores YAML, sin modificar la sintaxis del lenguaje.
 Se usa la sintaxis de [interpolación de Compose](https://docs.docker.com/reference/compose-file/interpolation/):
 `$VAR`, `${VAR}`, `${VAR:-default}`, `${VAR-default}`, `${VAR:?error}`,
 `${VAR?error}`, `${VAR:+replacement}`, `${VAR+replacement}` y `$$` literal.
@@ -260,16 +263,71 @@ Los `.env` se seleccionan explícitamente en orden; el último prevalece y el en
 del proceso tiene prioridad. A diferencia de Compose, una variable ausente sin
 default produce error, según la regla de seguridad de [definiciones](definiciones-declarativas.md).
 La interpolación no debe interpretar un resultado como una nueva estructura YAML.
-La conversión de escalares interpolados debe respetar el tipo esperado y diagnosticar
-valores inválidos, sin adivinar listas u objetos desde texto.
+La expansión sin tipo explícito conserva tipo string, aunque el campo o schema
+espere un número o booleano. El sufijo de Coquena `|string`, `|integer`, `|number`
+o `|boolean`, inmediatamente antes del cierre, indica y valida el tipo del resultado:
+`${CTX|integer}`, `${CTX:-4096|integer}`, `${METRICS:-true|boolean}`.
+Integer exige notación entera sin punto decimal ni exponente; number admite
+notación entera, decimal y científica con valor finito. Boolean acepta únicamente
+`true` y `false`, sin convertir `0` y `1` a booleanos. Un valor inválido produce error.
+El tipo debe pertenecer a una única expansión que ocupe todo el escalar; no se
+admite en expresiones anidadas ni en fragmentos como `prefijo-${CTX|integer}`.
+El carácter `|` dentro de una expansión queda reservado para el sufijo de tipo.
+No se adivinan listas u objetos desde texto. El resultado tipado se valida después
+contra el campo y el schema, sin conversiones adicionales para satisfacerlos.
 
 Interpolación se aplica a strings simples o dobles; comillas simples y el bloque
-`literal` conservan el texto sin expansión. Un escalar enteramente interpolado sin
-comillas puede convertirse al tipo escalar declarado por el campo/schema; un string
-con comillas conserva tipo string. En args desconocidos se conserva texto, sin
-inferir booleano, número o lista. Un resultado no se vuelve a interpolar.
+`literal` conservan el texto sin expansión. El sufijo explícito también se interpreta
+dentro de comillas dobles; las comillas permiten expresar la expansión en un mapa
+YAML compacto. Sin sufijo, tanto simples sin comillas como dobles conservan string.
+En `.env` los valores almacenados siguen siendo texto; un sufijo, si se usa, valida
+su contenido, pero el uso en YAML declara su propio tipo. Un resultado no se vuelve a interpolar.
+El schema, incluidas las alternativas `any-of`, valida el tipo resultante; no
+elige una conversión ni prueba otros tipos para volver válida una asignación.
 Expresiones anidadas en defaults/reemplazos se evalúan hasta profundidad 32.
 `$(` no ejecuta nada ni forma una expansión de variable.
+
+### Ejemplos de interpolación tipada
+
+Con `ETIQUETA=00123`, `CTX=8192`, `TEMP=0.7` y `METRICS=false` en el entorno:
+
+```yaml
+presets:
+  ejemplo:
+    args:
+      etiqueta: ${ETIQUETA}
+      ctx-size: ${CTX|integer}
+      temperature: ${TEMP|number}
+      metrics: ${METRICS|boolean}
+      descripcion: "contexto-${CTX}"
+      texto-literal: '${CTX|integer}'
+```
+
+`etiqueta` conserva el string `00123`, `ctx-size` es el entero `8192`,
+`temperature` es el número `0.7` y `metrics` es el booleano false.
+`descripcion` es el string `contexto-8192`; `texto-literal` conserva literalmente
+`${CTX|integer}` por sus comillas simples. Los argumentos son ilustrativos;
+su aplicabilidad y emisión dependen del schema y del backend seleccionados.
+
+| Expresión | Valor de variable | Resultado |
+| --- | --- | --- |
+| `${CTX}` | `8192` | String; no satisface una definición integer. |
+| `${CTX\|integer}` | `8192` | Entero. |
+| `${CTX\|integer}` | `8192.0` o `8.192e3` | Error: no es notación entera. |
+| `${CTX\|number}` | `8192.0` o `8.192e3` | Número. |
+| `${METRICS\|boolean}` | `false` | Booleano false. |
+| `${METRICS}` | `false` | String `false`; no es orden de omisión de un flag. |
+| `${METRICS\|boolean}` | `0`, `1` o `sí` | Error: booleano inválido. |
+| `${CTX:-4096\|integer}` | Variable ausente o vacía | Entero `4096`. |
+| `${CTX\|integer}` | `texto` | Error antes de preparar o ejecutar. |
+
+Si una definición admite `any-of` con string e integer, `${CTX}` conserva string
+y `${CTX|integer}` produce integer; el orden de las alternativas no cambia el
+resultado. Una definición que exige integer rechaza `${CTX}` aunque contenga
+dígitos. Las comillas dobles no anulan un sufijo explícito:
+`ctx-size: "${CTX|integer}"` también produce un entero.
+
+### Archivos de variables
 
 Los `.env` usan UTF-8, líneas vacías/comentarios y `NOMBRE=valor`, con nombre
 `[A-Za-z_][A-Za-z0-9_]*`; `NOMBRE=` declara vacío y `NOMBRE` solo declara ausencia.
@@ -289,7 +347,7 @@ service:
 presets:
   conversacion:
     args:
-      ctx-size: ${CTX:-4096}
+      ctx-size: ${CTX:-4096|integer}
       mmproj: null
   experimental: null
 ```

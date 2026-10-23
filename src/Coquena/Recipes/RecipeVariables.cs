@@ -10,12 +10,38 @@ internal sealed partial class RecipeVariables(IReadOnlyDictionary<string, string
     private static partial Regex NamePattern();
     private string? Lookup(string name) => process.TryGetValue(name, out var value) ? value : values.GetValueOrDefault(name);
 
-    internal (string Text, bool Sensitive, bool Whole) Expand(string input, RecipeOrigin origin)
+    internal (string Text, bool Sensitive, string Type) Expand(string input, RecipeOrigin origin)
     {
         var sensitive = false;
         var whole = false;
+        var type = "string";
+        var nesting = 0;
+        var suffix = -1;
+        for (var i = 0; i < input.Length; i++)
+        {
+            if (input[i] == '$' && i + 1 < input.Length && input[i + 1] == '$') { i++; continue; }
+            if (input[i] == '$' && i + 1 < input.Length && input[i + 1] == '{') { nesting++; i++; continue; }
+            if (input[i] == '}' && nesting > 0) nesting--;
+            else if (input[i] == '|' && nesting > 0)
+            {
+                if (nesting != 1 || !input.StartsWith("${", StringComparison.Ordinal) || !input.EndsWith('}') || suffix >= 0)
+                    throw Fail("interpolation-type", origin, "El tipo requiere una expansión que ocupe todo el valor.");
+                suffix = i;
+            }
+        }
+        if (suffix >= 0)
+        {
+            type = input[(suffix + 1)..^1];
+            if (type is not ("string" or "integer" or "number" or "boolean"))
+                throw Fail("interpolation-type", origin, "Tipo de interpolación inválido.");
+            input = input[..suffix] + "}";
+        }
         var text = Evaluate(input, origin, 0, ref sensitive, ref whole);
-        return (text, sensitive, whole);
+        if (suffix >= 0 && !whole) throw Fail("interpolation-type", origin, "El tipo requiere una expansión que ocupe todo el valor.");
+        if (type == "boolean" && text is not ("true" or "false") ||
+            type == "integer" && !RecipeValue.IsInteger(text) || type == "number" && !RecipeValue.IsNumber(text))
+            throw Fail("invalid-type", origin, "La expansión no tiene el tipo explícito declarado.");
+        return (text, sensitive, type);
     }
 
     private string Evaluate(string input, RecipeOrigin origin, int depth, ref bool sensitive, ref bool whole)

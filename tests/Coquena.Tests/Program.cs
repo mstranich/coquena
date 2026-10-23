@@ -4,6 +4,14 @@ using Coquena;
 // Match the product's output contract, including fixture and failure diagnostics.
 Console.OutputEncoding = new System.Text.UTF8Encoding(false);
 
+if (args.Length == 1 && args[0] == "--argument-tests")
+{ Coquena.Tests.ArgumentTests.Run(); return; }
+if (args.Length >= 1 && args[0] == "--argument-echo")
+{
+    Console.WriteLine(new System.Text.Json.Nodes.JsonArray(args.Skip(1).Select(x => (System.Text.Json.Nodes.JsonNode?)System.Text.Json.Nodes.JsonValue.Create(x)).ToArray()).ToJsonString());
+    return;
+}
+
 if (args.Length == 1 && args[0] == "--recipe-tests")
 { Coquena.Tests.RecipeTests.Run(); return; }
 

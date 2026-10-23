@@ -3,6 +3,22 @@
 # References describe intended behavior; verify actual behavior in code and tests.
 version: 1
 features:
+  - id: recipe-argument-schema-emission
+    intent: Componer definiciones locales, validar argumentos y relaciones, consultar impacto y emitir tokens CLI o INI con codec por build.
+    keywords: [arg-defs, schema, param, aliases, args-mode, rules, CLI, INI, interpolation]
+    entrypoints:
+      - src/Coquena/Recipes/ArgumentSchema.cs
+      - src/Coquena/Recipes/ArgumentValidation.cs
+      - src/Coquena/Recipes/ArgumentEmission.cs
+    implementation:
+      - src/Coquena/Recipes/RecipeVariables.cs
+      - src/Coquena/Recipes/RecipeValue.cs
+    tests:
+      - tests/Coquena.Tests/ArgumentTests.cs
+    references:
+      - docs/catalogo-de-parametros.md
+      - docs/formato-proyecto.md
+
   - id: recipe-reading-composition
     intent: Leer capas YAML y env explícitas, validar estructura y consultar intención efectiva sin preparar ni ejecutar.
     keywords: [recipe, YAML, env, interpolation, overrides, provenance, target, literal]

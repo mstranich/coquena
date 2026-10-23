@@ -63,7 +63,10 @@ Fórmula, valores y mecanismo de cancelación requieren diseño, sin impedir sal
 YAML configura destino de logs, incluso externo; default en el estado del servicio global o propio.
 Conservar diagnóstico de fallo, configuración usada y recuperación realizada.
 No confundir salida textual, log transaccional, lock o estado de instancia.
-No guardar credenciales ni URLs firmadas en diagnósticos compartibles.
+Los diagnósticos, logs y capturas destinados a compartirse siguen las reglas de
+[privacidad](privacidad.md). La observación local conserva los datos necesarios
+para identificar recursos y dispositivos; una salida local no acredita que sea
+apta para publicación.
 
 Logs consulta salida reciente; seguimiento se cierra sin detener backend.
 Conservar como referencia el último log aunque servidor termine.

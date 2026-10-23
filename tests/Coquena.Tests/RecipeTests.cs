@@ -121,7 +121,7 @@ internal static class RecipeTests
         var expanded = Read("""
             presets:
               p:
-                enable: ${FLAG}
+                enable: ${FLAG|boolean}
                 args:
                   unquoted: ${CTX}
                   quoted: "${CTX}"
@@ -139,9 +139,8 @@ internal static class RecipeTests
                   missing-plus: ${MISSING+present}
             """);
         Check(expanded.PresetEnabled("p"), "unquoted structural scalar converted");
-        Check(Args(expanded).Get("unquoted")!.Kind == RecipeKind.String && Args(expanded).Get("unquoted")!.CanConvert, "unknown argument remains text with conversion metadata");
-        Check(Args(expanded).Get("unquoted")!.ConvertInterpolatedScalar("integer").Kind == RecipeKind.Integer, "schema can convert unquoted full expansion");
-        Check(Args(expanded).Get("quoted")!.ConvertInterpolatedScalar("integer").Kind == RecipeKind.String, "quoted expansion remains string");
+        Check(Args(expanded).Get("unquoted")!.Kind == RecipeKind.String, "untyped interpolation remains string");
+        Check(Args(expanded).Get("quoted")!.Kind == RecipeKind.String, "quoted untyped expansion remains string");
         Check(Args(expanded).Get("single")!.Text == "${MISSING}" && Args(expanded).Get("wrapped")!.Get("literal")!.Text == "${MISSING}", "single quotes and literal suppress expansion");
         Check(Args(expanded).Get("escaped")!.Text == "$SECRET" && Args(expanded).Get("shell")!.Text == "$(echo hi)", "dollar escaping and no shell");
         Check(Args(expanded).Get("once")!.Text == "${MISSING}" && Args(expanded).Get("fallback")!.Text == "8192", "no recursive expanded value and nested fallback");

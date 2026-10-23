@@ -66,6 +66,7 @@ Un schema describe argumentos; no proporciona por sí mismo las APIs de un fork.
 | [Parámetros](catalogo-de-parametros.md) | Schema optativo por proyecto y emisión |
 | [Actualización y limpieza](actualizacion-y-limpieza.md) | Plan, publicación conjunta y protecciones |
 | [Observabilidad](observabilidad.md) | Estado, eventos, métricas, logs y reconexión |
+| [Privacidad y datos compartibles](privacidad.md) | Información local, anonimización, evidencia pública y autoría |
 | [Interfaces visuales](interfaces-visuales.md) | Panel, borradores y comparación |
 | [Pantalla Servicios](ui-servicio.md) | Hardware, actividad, histórico visual y logs de la TUI |
 | [Benchmarking](benchmarking.md) | Rendimiento y consumo de recursos |

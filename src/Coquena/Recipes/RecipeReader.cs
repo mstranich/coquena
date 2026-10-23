@@ -119,16 +119,12 @@ public static class RecipeReader
             return new(RecipeKind.Sequence, value.Origin, items: value.Items.Select(x => Expand(x, variables, context + "[]")));
         if (value.Kind != RecipeKind.String || value.Style is RecipeStyle.SingleQuoted or RecipeStyle.Block) return value;
         var expansion = variables.Expand(value.Text!, value.Origin);
-        var result = new RecipeValue(RecipeKind.String, value.Origin, expansion.Text, value.Style,
-            expansion.Sensitive, value.Style == RecipeStyle.Plain && expansion.Whole);
-        var expected = context switch
+        var kind = expansion.Type switch
         {
-            "root.presets.*.enable" or "root.presets.*.warmup" or "root.service.recovery.allow-draft-last-good" => "boolean",
-            "root.service.server.logs.retention.max-bytes" or "root.service.server.health.timeout-seconds" or "root.service.server.health.interval-ms" => "integer",
-            _ when context.EndsWith(".present", StringComparison.Ordinal) && context.StartsWith("root.arg-defs.", StringComparison.Ordinal) => "boolean",
-            _ => "string"
+            "integer" => RecipeKind.Integer, "number" => RecipeKind.Number,
+            "boolean" => RecipeKind.Boolean, _ => RecipeKind.String
         };
-        return result.ConvertInterpolatedScalar(expected);
+        return new(kind, value.Origin, expansion.Text, value.Style, expansion.Sensitive);
     }
 
     private static string Child(string context, string key) => context is "root.presets" or "root.models" or "root.companions" or "root.arg-defs.definitions" || context.EndsWith(".args", StringComparison.Ordinal)

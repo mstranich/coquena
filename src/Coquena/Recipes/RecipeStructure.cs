@@ -48,7 +48,6 @@ internal static partial class RecipeStructure
         void Number(RecipeValue value)
         {
             if (beforeInterpolation && value.Kind == RecipeKind.String && value.Style == RecipeStyle.Plain && value.Text!.Contains('$')) return;
-            if (value.CanConvert) { value.ConvertInterpolatedScalar("number"); return; }
             if (value.Kind is not (RecipeKind.Integer or RecipeKind.Number)) throw value.Error("invalid-type", "structure", "Se requiere un número.");
         }
         void Positive(RecipeValue value)

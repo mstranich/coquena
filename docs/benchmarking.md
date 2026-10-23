@@ -70,6 +70,12 @@ archivos identificados, argumentos efectivos, prompt, muestreo, calentamiento y
 condiciones del hardware, sin credenciales. Tokens de modelos con tokenizadores
 distintos no equivalen automáticamente al mismo trabajo o calidad.
 
+El detalle del entorno se conserva en el registro local. Al publicar resultados,
+se aplica [privacidad y datos compartibles](privacidad.md): se indica la
+anonimización del hardware y qué información se omitió para la comparación.
+Las cifras conservadas describen la ejecución observada y no garantizan el mismo
+rendimiento en otro equipo.
+
 Guardar resultados parciales de pruebas terminadas e informar progreso.
 Errores/reintentos y tiempo de espera forman parte del resultado; no elegir «mejor»
 solo por throughput si falla parte de la carga. Ausencia de datos, fallo de preparación

@@ -39,6 +39,56 @@ configuración silenciosamente.
 No deducir tipo de un valor aislado: 0/1 pueden ser números. Argumentos omitidos
 conservan defaults del ejecutable, no se rellenan todos desde el catálogo.
 
+### Diferencia entre integer y number
+
+`integer` y `number` expresan restricciones distintas del schema, aunque una
+implementación pueda usar la misma estructura de datos para representar ambos:
+
+- `integer` exige notación entera, sin punto decimal ni exponente: una cantidad
+  como `ctx-size` admite `8192`, pero rechaza `8192.0`, `8.192e3` y `8192.5`,
+  aunque algunas de esas formas representen matemáticamente un entero.
+- `number` admite notación entera, decimal y científica, siempre con valor finito:
+  un parámetro como `temperature` puede admitir `1`, `0.7` o `7e-1`.
+
+Compartir representación interna no vuelve equivalentes sus validaciones ni
+obliga a mantener estructuras separadas. La distinción pertenece al contrato
+del argumento; no se decide por cómo se almacena o emite el valor.
+
+Ejemplo ilustrativo de definiciones y asignaciones válidas:
+
+```yaml
+arg-defs:
+  definitions:
+    ctx-size:
+      type: integer
+    temperature:
+      type: number
+presets:
+  conversacion:
+    args:
+      ctx-size: 8192
+      temperature: 0.7
+```
+
+| Asignación | Resultado con esas definiciones |
+| --- | --- |
+| `ctx-size: 8192` | Válida: entero. |
+| `ctx-size: 8192.5` | Inválida: tiene parte fraccionaria. |
+| `ctx-size: 8192.0` | Inválida: utiliza punto decimal. |
+| `ctx-size: 8.192e3` | Inválida: utiliza notación científica. |
+| `temperature: 1` | Válida: number también admite enteros. |
+| `temperature: 0.7` | Válida: número con parte fraccionaria. |
+| `temperature: 8192.0` | Válida: notación decimal. |
+| `temperature: 8.192e3` | Válida: notación científica. |
+| `ctx-size: "8192"` | Inválida: es texto, no un entero. |
+| `temperature: "0.7"` | Inválida: es texto, no un número. |
+
+La misma distinción se aplica al contenido de las expansiones explícitas
+`|integer` y `|number`. Sin sufijo, la expansión conserva string. Las comillas
+en un valor YAML ordinario también conservan texto: `"8192.0"` no es un número.
+Las reglas de tipo y comillas del [formato](formato-proyecto.md#lectura-yaml)
+siguen aplicándose.
+
 ## Ámbito de aplicación
 
 Distinguir proceso/router de modelo/preset y destino CLI/INI u otro formato soportado.
@@ -159,7 +209,10 @@ arg-defs:
               equals: experimental
 ```
 
-Las reglas declaradas se comprueban en ambos modos cuando se usa el argumento.
+Las reglas declaradas se comprueban en ambos modos dentro de su ámbito, también
+cuando falta el argumento propietario. Así, `when: {present: false}` permite
+exigir una alternativa ante su ausencia. When omitido sólo activa la regla si
+el argumento está presente; no se materializan defaults para satisfacerla.
 La gramática de condiciones y emisión conserva este vocabulario sin
 convertirse en código ejecutable. JSON Schema valida documentos; referencias y
 emisión son contratos adicionales de Coquena. Nuevos parámetros con reglas existentes
@@ -207,11 +260,90 @@ false sí está presente. Referencias se validan por identidad y condición sobr
 referencias compara la referencia tipada, no una ruta incidental de la máquina.
 Una condición cuyo tipo no admite equals/contains es error de schema.
 
+### Comportamiento de `when: {present: false}`
+
+Una regla con `when: {present: false}` se activa cuando el argumento al que
+pertenece está ausente del bloque efectivo. Coquena evalúa esa condición aunque
+el argumento propietario no aparezca en `args`, tanto en modo permisivo como
+estricto y después de componer las capas.
+
+Si la condición se cumple, se comprueban `requires` y `conflicts`; incumplirlos
+produce error de validación antes de preparar o ejecutar. Si el argumento está
+presente, esa regla no se activa. La ausencia no provoca que se omita la evaluación
+de la regla ni que se agreguen valores para satisfacerla.
+
+`present` comprueba si el argumento tiene una asignación efectiva, no si su valor
+es verdadero ni si terminará emitiéndose. False, cero y string vacío cuentan como
+presentes. Omitir la clave sin herencia, o retirarla con null, la deja ausente.
+Omitirla en un override conserva una asignación heredada y, por tanto, su presencia.
+Un default del catálogo no crea una asignación.
+
+Ejemplo ilustrativo para un backend que requiere puerto cuando no se proporciona
+un archivo de configuración:
+
+```yaml
+arg-defs:
+  definitions:
+    config:
+      type: string
+      scope: preset
+      rules:
+        - when:
+            present: false
+          requires:
+            port:
+              present: true
+    port:
+      type: integer
+      scope: preset
+presets:
+  ejemplo:
+    args:
+      port: 9931
+```
+
+| Args efectivos del preset | ¿Se activa la regla de config? | Resultado |
+| --- | --- | --- |
+| `{config: './server.conf'}` | No: config está presente. | Válido para esta regla; no exige port. |
+| `{port: 9931}` | Sí: config está ausente. | Válido: port está presente. |
+| `{}` | Sí: config está ausente. | Error: también falta port. |
+| `{config: ''}` | No: string vacío cuenta como presente. | Válido para esta regla; no acredita que el backend acepte ese archivo. |
+
+Estos tres bloques son alternativas para los `args` del preset `ejemplo` anterior:
+
+```yaml
+# Válido para esta regla: config presente, no se exige port.
+args:
+  config: ./server.conf
+```
+
+```yaml
+# Válido: config ausente activa la regla y port satisface requires.
+args:
+  port: 9931
+```
+
+```yaml
+# Inválido: config ausente activa la regla y también falta port.
+args: {}
+```
+
+La regla pertenece a `config`, pero se evalúa aunque no se haya escrito ese
+argumento. Al componer `{config: null}` sin ninguna asignación efectiva para port, el
+resultado también falla por falta de port. Si `when` se omite, la regla sólo se
+activa cuando el argumento propietario está presente.
+
+Para un argumento booleano, `public: false` satisface `{present: true}` y
+`{equals: false}`; no satisface `{present: false}`. Un flag false puede omitirse
+al emitir CLI y seguir estando presente durante la validación: presencia y
+emisión son comprobaciones distintas.
+
 ## Emisión determinista
 
 `emit.cli` admite `name` (nombre sin --), `mode` (value, flag, repeat o join),
 `separator` (texto para join), `true-value`, `false-value` y `negative-name`.
 `emit.ini` admite las mismas claves salvo negative-name; name es clave INI exacta.
+Cada destino declarado requiere mode explícito; name omitido conserva el nombre canónico.
 Un destino ausente usa el adaptador conocido o emisión libre; no se deriva un
 nombre INI desde un alias CLI de un fork. `flag` sólo admite boolean; `repeat` y
 `join` sólo array; `value` un escalar. True/false-value son strings para boolean

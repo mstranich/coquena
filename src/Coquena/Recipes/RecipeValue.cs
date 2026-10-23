@@ -26,33 +26,20 @@ public sealed class RecipeValue
     public RecipeOrigin Origin { get; }
     public RecipeStyle Style { get; }
     public bool Sensitive { get; }
-    // Schema validation (046) can convert only this kind of interpolated scalar.
-    public bool CanConvert { get; }
     public IReadOnlyDictionary<string, RecipeValue> Fields { get; }
     public IReadOnlyList<RecipeValue> Items { get; }
 
     internal RecipeValue(RecipeKind kind, RecipeOrigin origin, string? text = null,
-        RecipeStyle style = RecipeStyle.Plain, bool sensitive = false, bool canConvert = false,
+        RecipeStyle style = RecipeStyle.Plain, bool sensitive = false,
         IDictionary<string, RecipeValue>? fields = null, IEnumerable<RecipeValue>? items = null)
     {
         Kind = kind; Origin = origin; Text = text; Style = style;
-        Sensitive = sensitive; CanConvert = canConvert;
+        Sensitive = sensitive;
         Fields = new ReadOnlyDictionary<string, RecipeValue>(fields is null ? new Dictionary<string, RecipeValue>(StringComparer.Ordinal) : new Dictionary<string, RecipeValue>(fields, StringComparer.Ordinal));
         Items = Array.AsReadOnly(items?.ToArray() ?? []);
     }
 
     public RecipeValue? Get(string key) => Fields.GetValueOrDefault(key);
-
-    public RecipeValue ConvertInterpolatedScalar(string type)
-    {
-        if (!CanConvert || type == "string") return this;
-        RecipeKind kind;
-        if (type == "boolean" && Text is "true" or "false") kind = RecipeKind.Boolean;
-        else if (type == "integer" && IsInteger(Text!)) kind = RecipeKind.Integer;
-        else if (type == "number" && IsNumber(Text!)) kind = IsInteger(Text!) ? RecipeKind.Integer : RecipeKind.Number;
-        else throw Error("invalid-type", "validation", "La expansión no tiene el tipo escalar declarado.");
-        return new(kind, Origin, Text, Style, Sensitive);
-    }
 
     public JsonNode? Redacted()
     {

@@ -53,17 +53,12 @@ Mantener cada entrega acotada; enlazar las reglas canónicas en vez de copiarlas
 
 ## Privacidad de la evidencia pública
 
-- Parametrizar las rutas de reproducción con variables como `$TestRoot` y
-  `$CoquenaHome`; conservar las ubicaciones reales de pruebas sólo en el chat o
-  en evidencia local excluida de Git.
-- No incorporar a documentación, tarjetas, logs o capturas versionados usuarios
-  locales, nombres de equipo, correo personal, directorios de trabajo reales,
-  identificadores de dispositivos ni el perfil concreto de CPU/GPU/memoria del
-  equipo usado. Los resultados de un entorno anonimizado deben indicarlo sin
-  prometer rendimiento equivalente en otros equipos.
-- Conservar la autoría y los créditos del proyecto. Para metadatos Git, usar el
-  correo noreply de GitHub del autor. Revisar también los archivos ya rastreados:
-  `.gitignore` no los retira del historial ni evita versionar cambios posteriores.
+- Aplicar [Privacidad y datos compartibles](docs/privacidad.md) al redactar
+  documentación, tarjetas, logs y capturas versionados. Ese documento mantiene
+  las reglas de anonimización, reproducción y autoría pública.
+- Conservar las ubicaciones reales de pruebas sólo en el chat o en evidencia
+  local excluida de Git; revisar el contenido preparado para commit, incluidos
+  archivos que Git ya rastrea.
 
 ## Validación y entrega
 
