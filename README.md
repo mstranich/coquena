@@ -1,6 +1,10 @@
 # Coquena
 
-**A little guardian that keeps your llamas organized and ready to work.**
+<p align="center">
+  <img src="docs/assets/coquena-banner.jpg" alt="Coquena, invisible guardian of the Andean AI and LLMs" width="100%">
+</p>
+
+**A little invisble guardian that keeps your llamas organized and ready to work.**
 
 Coquena manages your local [llama.cpp](https://github.com/ggml-org/llama.cpp)
 environment from the command line: it installs backends, downloads and verifies
