@@ -8,6 +8,18 @@ sobre PID reutilizado. Salud inaccesible no equivale a proceso terminado.
 Un modelo fuera de memoria no implica router caído; distinguir fallo de carga de descarga
 voluntaria y conservar código/diagnóstico cuando exista.
 
+Una tarea es una operación distinta de las anteriores, aunque el backend reutilice
+su número. Slot, tarea y puerto interno se interpretan dentro del servicio,
+instancia del router, entrada y generación de su proceso. Recargar una entrada
+puede reemplazar el hijo y reiniciar contadores sin reemplazar el router.
+Si no puede comprobarse continuidad, se inicia un tramo de observación separado;
+no se fusionan tareas ni se calculan diferencias atravesando ese límite.
+
+Los clientes acceden al puerto del servicio; el router puede reenviar a puertos
+internos de procesos de modelo. Un prefijo de puerto en logs sólo se asocia a una
+entrada con evidencia contemporánea del adaptador. No prueba PID, propietario o
+cliente, ni permite conservar la asociación después de su posible reutilización.
+
 ## Instantánea y seguimiento
 
 Ps consulta estado y métricas de la instancia y termina. `ps -w` o `ps --watch` es observador explícito
@@ -48,6 +60,35 @@ Ausente, desactivado, inaccesible o no cargado se muestran como tales; no invent
 Memoria del proceso y memoria global de GPU son distintas.
 Consultar no escribe intención ni promueve una composición a última buena sin
 la comprobación de salud correspondiente.
+
+### Cifras por tarea, entrada y servicio
+
+El detalle por tarea muestra tokens de prompt procesados y reutilizados de caché,
+tokens de salida y tiempos/tasas de esa tarea cuando haya una fuente atribuible.
+Tener esos campos en la respuesta de una petición propia no implica que el
+observador pueda obtener respuestas de otros clientes. No se inspeccionan sus
+conversaciones para completar el panel; un dato sin fuente disponible se indica.
+
+El resumen por entrada/modelo muestra contadores y tasas agregados del proceso que
+la atiende, con fuente y período. Las tasas medias del backend conservan su ventana
+o bucket y no se presentan como velocidades instantáneas ni se asignan a una tarea.
+Los contadores acumulados distinguen tokens procesados, cacheados y generados, y
+tiempos de prompt/generación. Un reset o reemplazo del hijo abre otro período.
+
+Un total del servicio sólo suma cantidades compatibles de períodos conocidos y
+no solapados, sin contar otra vez la misma actividad por tarea y por entrada.
+No se suman tasas medias de entradas como velocidad total instantánea. Sin una
+ventana común y una definición acreditada, la tasa total se indica no disponible.
+Un total de sesión del observador se identifica como tal, junto con sus huecos;
+no se presenta como acumulado completo de la vida del servicio.
+
+Los nombres de campos no bastan para deducir su significado. El adaptador acredita
+si un contador de secuencia incluye salida, si los tokens cacheados pertenecen al
+prompt actual o al estado final del slot y qué denominador utiliza cada tasa.
+No se calcula porcentaje con un total que crece durante generación. El progreso
+de logs puede ser discreto o faltar en prompts cortos; ausencia no equivale a cero.
+TTFT, ETA y picos requieren fuente/ventana explícita; una primera muestra tardía
+no mide el primer token y el máximo de medias no es un pico instantáneo.
 
 ## Reconexión
 

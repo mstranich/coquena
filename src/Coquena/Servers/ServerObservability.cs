@@ -128,6 +128,7 @@ public sealed partial class ServerRuntime
                     {
                         var metrics = ParseMetrics(Fetch(client, new(address, $"metrics?model={Uri.EscapeDataString(model)}&autoload=false"), deadline.Token));
                         output.WriteLine($"Modelo {model}: " + string.Join("; ", metrics.Select(pair => $"{pair.Key}={pair.Value.ToString(CultureInfo.InvariantCulture)}")));
+                        output.WriteLine("  Fuente: /metrics de esta entrada; contadores/tiempos acumulados del proceso del modelo, actividad/cola puntuales y tasas medias del backend, no por tarea ni instantáneas. Período del bucket no informado; no se calcula total de tasas.");
                     }
                     catch (Exception e) when (MetricError(e)) { output.WriteLine($"Modelo {model}: métricas no disponibles: {e.Message}"); }
                 }
@@ -154,7 +155,10 @@ public sealed partial class ServerRuntime
     }
     public static Dictionary<string, double> ParseMetrics(string text)
     {
-        string[] wanted = ["llamacpp:prompt_tokens_seconds", "llamacpp:predicted_tokens_seconds", "llamacpp:tokens_predicted_total", "llamacpp:prompt_tokens_total"];
+        string[] wanted = ["llamacpp:prompt_tokens_seconds", "llamacpp:predicted_tokens_seconds",
+            "llamacpp:tokens_predicted_total", "llamacpp:prompt_tokens_total", "llamacpp:prompt_tokens_cached_total",
+            "llamacpp:prompt_seconds_total", "llamacpp:tokens_predicted_seconds_total",
+            "llamacpp:requests_processing", "llamacpp:requests_deferred"];
         var result = new Dictionary<string, double>(StringComparer.Ordinal);
         foreach (var raw in text.Split('\n'))
         {

@@ -192,12 +192,15 @@ Usuario -> Coquena : up / combinación seleccionada
 Coquena -> Consumidor : validar y preparar recursos propios
 Coquena -> Servicio : resolver target (default salvo selección explícita) e identidad
 alt destino detenido
-  Coquena -> Usuario : pedir inicio o exigir --start-service sin interacción
+  Coquena -> Usuario : pedir inicio salvo autorización --start-service
   opt inicio autorizado
     Coquena -> Router : iniciar y comprobar salud
   end
 end
 alt servicio disponible
+  Coquena -> Router : consultar actividad de entradas afectadas sin cargar
+  Coquena -> Usuario : advertir ocupacion o incertidumbre\ny permitir aplicar ahora o cancelar
+  note over Usuario, Coquena : Sin interaccion o ante cancelacion, terminar sin publicar.\nLa instantanea no garantiza inactividad posterior.
   Coquena -> Servicio : reservar revisión y proteger referencias
   Coquena -> INI : agregar / actualizar presets propios\nconservar contribuciones ajenas y publicar INI
   Coquena -> Router : refrescar fuentes de presets (reload una vez)
@@ -211,6 +214,9 @@ else detenido o no disponible
 end
 Usuario -> Coquena : down
 Coquena -> Servicio : resolver target (default salvo selección explícita)\ncomprobar identidad y destino publicado registrado
+Coquena -> Router : consultar actividad disponible sin cargar
+Coquena -> Usuario : advertir ocupacion o incertidumbre\ny permitir retirar ahora o cancelar
+note over Usuario, Coquena : Sin interaccion o ante cancelacion, terminar sin publicar.
 Coquena -> Servicio : reservar revisión y conservar referencias hasta confirmar
 Coquena -> INI : remover presets propios registrados\nconservar contribuciones ajenas y publicar INI
 alt servicio activo y accesible

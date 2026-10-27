@@ -36,6 +36,7 @@ Las reglas funcionales de los documentos enlazados prevalecen. Esta tarjeta defi
 - [ ] Conservar últimas cifras observadas al finalizar; histórico acotado de sesión con límite configurable de filas finalizadas, independiente de filas activas, capacidad del backend y retención de logs.
 - [ ] Probar tareas simultáneas de presets distintos, eventos repetidos/desordenados, huecos de observación, cancelación/fallo, reinicio e IDs reutilizados. No atribuir proyecto o cliente por prefijo de entrada.
 - [ ] Contrastar fixtures con una captura real de prompt y generación del build acreditado; exponer un modelo de lectura reutilizable por TUI sin dependencia de widgets.
+- [ ] Separar tasas/buckets por hijo de cifras por petición y totales compatibles según observabilidad; tratar reemplazo del hijo como otra generación aun con router vivo. No usar puerto, tarea o slot aislado como identidad, ni n_prompt_tokens como denominador fijo sin semántica acreditada. Incorporar los contrastes de la matriz ejecutada de 052.
 
 ## Dependencias
 

@@ -71,6 +71,13 @@ Interactivo sigue salida/permite decisiones. Con -d, Coquena prepara/inicia/comp
 y devuelve control; backend sobrevive al cierre sin supervisor Coquena permanente.
 TUI/Web usan operaciones daemon: abrir/cerrar no inicia/detiene; acciones explícitas sí.
 
+La ejecución desacoplada del servicio y la interacción de una publicación son
+independientes. `service start/restart -d` inicia y comprueba el proceso, que
+continúa al terminar Coquena. `up/down` publican o retiran presets de forma
+interactiva, también sobre un servicio ya desacoplado, global o propio.
+`--start-service` autoriza iniciar el destino detenido durante up; no elimina
+la interacción ni acepta el riesgo de interrumpir peticiones al publicar.
+
 Stop solo actúa con identidad verificada. Parada ordenada y espera de diez segundos;
 escalar al grupo de procesos si no termina y diagnosticar. En primer plano segunda
 interrupción explícita permite forzar. No limpiar registro activo hasta confirmar
@@ -116,7 +123,7 @@ de modelos y no implementan una política propia de gestión de memoria.
 El backend decide ejecución, autoload, límites de modelos simultáneos, sustitución
 y tratamiento de peticiones. Coquena no garantiza residencia permanente, memoria
 liberada exacta, colocación RAM/VRAM, drenaje ni ausencia de interrupciones. No ofrece
-espera por ocupación, rechazo por ocupación o forzado como políticas propias.
+encolado de recargas, drenaje ni forzado como políticas propias.
 Un modelo puede volver a cargarse por una petición si autoload está habilitado.
 La respuesta a una solicitud y el estado observado se informan por separado.
 
@@ -205,8 +212,24 @@ No hay relanzamiento permanente tras terminar Coquena; fallback ocurre en la ope
 ## Plazos y control
 
 Health y plazos se describen abajo; códigos/selectores en [comandos](comandos.md).
-El backend decide el tratamiento de peticiones durante recarga/retirada. No se
-ofrecen modos de espera por ocupación, rechazo por ocupación ni retirada forzada.
+El backend decide el tratamiento de peticiones durante recarga/retirada. Antes
+de cambiar o retirar entradas, la publicación consulta su actividad mediante
+fuentes disponibles que no provoquen cargas. Si hay peticiones activas o en cola,
+advierte qué entradas pueden verse afectadas y permite aplicar inmediatamente
+aceptando el riesgo o cancelar. Si no puede comprobar ocupación, informa que es
+desconocida y ofrece la misma decisión. La aceptación se solicita antes de publicar
+el INI y pedir recarga; cancelar conserva la composición publicada.
+
+Up/down y apply/withdraw requieren interacción, mediante CLI o una decisión
+equivalente en la interfaz visual. Sin interacción disponible se rechaza la
+publicación antes de mutar el INI o solicitar recarga. No hay aceptación implícita
+por `-d`, `--start-service` o por el modo de inicio del servicio.
+
+La consulta de actividad es una instantánea: no reserva inactividad ni impide que
+entre una petición después. La confirmación permite continuar con ese riesgo;
+no garantiza ausencia de interrupciones aunque la entrada pareciera libre.
+No se ofrecen espera, encolado, drenaje ni un comando que genere deliberadamente
+HTTP 500. Los errores de peticiones interrumpidas son consecuencias del backend.
 No se reenvía automáticamente una mutación cuyo resultado sea incierto.
 
 ## Referencias del adaptador oficial
@@ -239,8 +262,8 @@ Si falla una entrada durante o después de apply, se intenta restaurar únicamen
 las entradas afectadas a su snapshot publicado anterior; se conservan las demás.
 No se supone atomicidad ni rollback nativo del backend. Si restaurar requiere
 reiniciar, no se reinicia automáticamente: se informa estado real y se requiere
-una operación explícita de reinicio. En modo desacoplado se devuelve diagnóstico
-sin quedar esperando una respuesta ni convertirlo en reinicio implícito.
+una operación explícita de reinicio. La aceptación inicial del riesgo de publicar
+no autoriza reiniciar automáticamente durante esa restauración.
 
 Una previa experimental puede restaurarse como snapshot operativo anterior sin
 promoverla a última buena. El fallo no promueve una nueva última buena ni convierte

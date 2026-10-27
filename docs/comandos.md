@@ -50,7 +50,7 @@ Ps y el dashboard sí agregan observación de servicios conocidos, sin mutar inv
 | --- | --- |
 | up | Validar, preparar y publicar conjunto propio; preguntar ante destino detenido. |
 | up --start-service | Autorizar inicio del destino detenido; después publicar. No reiniciar activo. |
-| up -d | Misma publicación sin seguimiento; si debe iniciar, usar recuperación desacoplada. No autoriza inicio por sí solo. |
+| up/down | Publicación interactiva, independiente del modo de inicio del servicio; advertencia y decisión según [ocupación](servidores.md#plazos-y-control). |
 | down | Retirar conjunto publicado propio, conservando archivos, servicio y entradas ajenas. |
 | service start -d | Preparar, iniciar, comprobar salud y salir sin supervisor. |
 | service stop | Detener proceso verificado; afecta a todos sus consumidores. |
@@ -221,8 +221,9 @@ Véase [servidores](servidores.md#aplicación-dinámica-y-memoria).
 En daemon se recupera la última buena local cuando falla la candidata, con warning,
 sin bucle infinito. Sin recuperación posible, se informa y termina.
 En interactivo se ofrecen reintento/recuperación según disponibilidad.
-La TUI ejecuta las operaciones desacopladas y presenta resultados/acciones;
-no cambia esa política por estar abierta.
+La TUI ejecuta el ciclo del servicio desacoplado y presenta resultados/acciones;
+no cambia esa recuperación por estar abierta. La publicación de presets conserva
+su decisión interactiva independiente del modo de ejecución del proceso.
 
 ## Home
 
@@ -275,7 +276,7 @@ coincida con un verbo se usa --service. `service default set` es asignación de 
 init [<directorio>]
 import <receta.yaml> [--select <categorías>] [--as-default]
        [--replace <entidad>]... [--force]
-up [-d] [--start-service]
+up [--start-service]
 down
 service [<nombre|default|self>] start|stop|restart [-d]
 service [<nombre|default|self>] remove
@@ -299,10 +300,13 @@ param list|show|define|set|unset|remove|reset
 ```
 
 `server` es alias de service y `runtime` de backend: misma selección/estado.
-`-d` sólo pertenece a start/restart y up; stop no inicia otro proceso. Omitir
+`-d` sólo pertenece a service start/restart; stop no inicia otro proceso. Omitir
 verbo en familias mutantes muestra ayuda y no realiza cambios.
-`--start-service` es la autorización no interactiva de up; ante rechazo o falta
-de stdin interactivo se informa destino detenido. Import nunca inicia, aun con force.
+`--start-service` autoriza iniciar el destino detenido sin una pregunta adicional
+de inicio. Up sigue siendo interactivo para publicar; el flag no acepta riesgos
+de interrupción. Up/down y apply/withdraw sin interacción disponible se rechazan
+antes de publicar o retirar entradas, según [servidores](servidores.md#plazos-y-control).
+Import nunca inicia, aun con force.
 
 Las categorías de import son `service,presets,model,params`, sin repetidos ni vacíos.
 Los selectores de reemplazo son `service:<nombre>`, `model:<clave>`,

@@ -32,6 +32,7 @@ Las reglas funcionales de los documentos enlazados prevalecen. Esta tarjeta defi
 ## Trabajo y aceptación
 
 - [ ] Mostrar tabla central con servicio, entrada/preset y modelo correlacionado, slot, tarea y fase; conservar estas identidades al navegar y distinguir instancias.
+- [ ] Separar resumen por entrada (acumulados, medias del backend, actividad/cola agregada y período) del detalle por tarea, según el Salt actualizado y observabilidad. Mostrar totales compatibles sin sumar medias como velocidad instantánea; señalar huecos y ausencia de fuentes por tarea. Distinguir generaciones del hijo e IDs reutilizados.
 - [ ] Visualizar procesamiento de prompt con tokens procesados/cacheados y progreso disponible, tiempo de fase, generación con tokens de salida y tasa etiquetada; mostrar curvas de prompt/generación según fuentes acreditadas.
 - [ ] Diferenciar cola, prompt, generación, finalización y fallo cuando estén observados; preservar cifras desconocidas/no disponibles y su motivo, sin deducir inactividad de silencio de logs.
 - [ ] Mostrar tareas simultáneas y finalizadas con histórico configurable, scroll y último valor observado; el límite sólo afecta finalizadas. Mantener activas visibles y diferenciadas.

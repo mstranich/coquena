@@ -156,6 +156,11 @@ if (args.Length is 1 or 2 && args[0] == "--backend-update-tests")
     await Coquena.Tests.BackendUpdateTests.Run(args.Length == 2 ? Path.GetFullPath(args[1]) : null);
     return;
 }
+if (args.Length is 3 or 5 && args[0] == "--router-evidence")
+{
+    await Coquena.Tests.RouterEvidenceTests.Run(args[1], args[2], args.Length == 5 ? args[3] : null, args.Length == 5 ? args[4] : null);
+    return;
+}
 if (args.Length == 2 && args[0] == "--configuration-backend-smoke")
 {
     await Coquena.Tests.ConfigurationTests.BackendSmoke(args[1]);

@@ -27,6 +27,11 @@
 | Apply | Aplicación explícita de presets compatibles a la instancia; no simple guardado. |
 | Salud | Comprobación de que el servidor/router atiende; no prueba de todos los modelos. |
 | Observador | CLI watch, TUI o Web UI conectado mientras está abierto; no supervisor residente. |
+| Tarea de inferencia | Operación individual con inicio y fin; su número es local al proceso del backend y puede reutilizarse tras reemplazarlo. No es una identidad global ni un contador de peticiones completadas. |
+| Slot | Posición de ejecución del backend que atiende tareas sucesivas; su número puede repetirse entre procesos y entradas. |
+| Puerto del servicio | Dirección de escucha por la que los clientes acceden al router. |
+| Puerto interno de modelo | Escucha del proceso hijo a la que el router reenvía peticiones de una entrada; puede cambiar o reutilizarse. Es una dirección temporal, no la identidad del modelo. |
+| Generación del proceso de una entrada | Ejecución concreta del hijo que atiende esa entrada; al reemplazarlo cambia aunque el router siga vivo. Se usa para separar observaciones y acumulados. |
 | Schema | Definición optativa de argumentos, tipos, reglas y presentación del proyecto. |
 | Metaschema | Contrato para escribir y validar esos schemas. |
 

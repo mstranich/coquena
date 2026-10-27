@@ -26,6 +26,7 @@ internal static class ObservabilityTests
         using var output = new StringWriter(); runtime.Ps(output, client);
         Check(output.ToString().Contains(instance.InstanceId.ToString()) && output.ToString().Contains("12.5") && output.ToString().Contains("=7"), "verified instance and throughput");
         Check(calls.SequenceEqual(new[] { "/models", "/metrics?model=chat&autoload=false" }), "router model and autoload disabled");
+        Check(output.ToString().Contains("tasas medias del backend, no por tarea ni instantáneas") && output.ToString().Contains("Período del bucket no informado"), "metric presentation distinguishes scope and unknown averaging period");
         var iniPath = home.PathFor(instance.IniPath); var ini = File.ReadAllText(iniPath);
         try
         {
@@ -68,6 +69,9 @@ internal static class ObservabilityTests
         }
         catch (ContractException) { checks++; }
         Check(ServerRuntime.ParseMetrics("llamacpp:prompt_tokens_seconds{model=\"chat two\"} 2.5 123")["llamacpp:prompt_tokens_seconds"] == 2.5, "valid labels and timestamp");
+        var counters = ServerRuntime.ParseMetrics("llamacpp:prompt_tokens_total 5\nllamacpp:prompt_tokens_cached_total 438\nllamacpp:tokens_predicted_total 16\nllamacpp:prompt_seconds_total 0.5\nllamacpp:tokens_predicted_seconds_total 1.7\nllamacpp:requests_processing 1\nllamacpp:requests_deferred 2\n");
+        Check(counters.Count == 7 && counters["llamacpp:prompt_tokens_total"] == 5 && counters["llamacpp:prompt_tokens_cached_total"] == 438 && counters["llamacpp:requests_deferred"] == 2, "processed and cached counters remain separate from output and queue");
+        Check(!ServerRuntime.ParseMetrics("llamacpp:predicted_tokens_seconds 7").ContainsKey("llamacpp:prompt_tokens_cached_total"), "missing cache metric is not fabricated as zero");
         foreach (var bad in new[] { "bogus", "llamacpp:prompt_tokens_seconds Infinity", "llamacpp:prompt_tokens_seconds -1", "llamacpp:prompt_tokens_seconds 1\nllamacpp:prompt_tokens_seconds 2", "llamacpp:prompt_tokens_seconds{broken 1", "llamacpp:prompt_tokens_seconds 1 invalid-timestamp" })
         {
             try { ServerRuntime.ParseMetrics(bad); throw new Exception("expected invalid metrics"); }

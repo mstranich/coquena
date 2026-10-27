@@ -16,9 +16,13 @@ de consulta puede existir sin editor ni acciones de control. Los formularios y
 acciones son capacidades diferenciadas; compartir contratos no obliga a mostrarlas
 todas en cualquier vista.
 
-Abrir no inicia automáticamente; cerrar no detiene. Las acciones de ejecución usan
+Abrir no inicia automáticamente; cerrar no detiene. Las acciones de ciclo del servicio usan
 modo daemon: primero recuperación automática cuando corresponda, luego notificación
 accionable. El panel no intercepta fallback para exigir decisión interactiva.
+Las publicaciones de presets son acciones interactivas independientes: muestran
+ocupación conocida o desconocida y permiten continuar aceptando el riesgo o cancelar,
+según [servidores](servidores.md#plazos-y-control). Que el servicio esté desacoplado
+no acepta automáticamente ese riesgo.
 Observación en [observabilidad](observabilidad.md).
 
 ## Dashboards de observación
@@ -40,7 +44,9 @@ ampliarlo o pausarlo visualmente no detiene la captura ni las peticiones.
 
 La pantalla Servicios muestra consumo de la máquina por dispositivo arriba,
 actividad por entrada/slot/tarea en
-el centro y logs con selección de servicio abajo. La tabla permite distinguir
+el centro y logs con selección de servicio abajo. El centro separa resumen de
+acumulados/tasas por entrada y detalle de cifras atribuibles a cada tarea, según
+[observabilidad](observabilidad.md#cifras-por-tarea-entrada-y-servicio). La tabla permite distinguir
 actividad en cola, procesamiento de prompt, generación y resultados recientes,
 cuando las fuentes permitan identificar esos estados y conservar su historial.
 La selección del log no filtra implícitamente el consumo global de hardware.
@@ -133,7 +139,10 @@ Cambiar backend requiere reiniciar; preservar recursos y vida de instancia segú
 
 ## Recuperación y decisiones del usuario
 
-Fallo de reinicio/apply puede recuperar automáticamente según modo daemon.
+Fallo de reinicio puede recuperar automáticamente según modo daemon del ciclo
+del servicio. Fallo de publicación intenta restauración acotada según
+[servidores](servidores.md#restauración-acotada-de-presets), independientemente de
+la decisión interactiva que autorizó publicar.
 Mostrar qué falló, qué configuración sigue funcionando y acciones posibles.
 El usuario actúa luego por tecla/clic para corregir, detener o reintentar.
 No aplicar cambios ocultos por cerrar una notificación.

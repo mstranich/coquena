@@ -52,6 +52,11 @@ No hay supervisor Coquena permanente. TUI, Web UI y watch observan mientras est�
 abiertos, sin ser propietarios de la vida del servidor.
 Un schema describe argumentos; no proporciona por sí mismo las APIs de un fork.
 
+Desacoplar el servicio no desacopla las decisiones sobre sus presets: up/down y
+apply/withdraw son operaciones interactivas de publicación. La advertencia y
+aceptación del riesgo de interrupción se definen en
+[servidores](servidores.md#plazos-y-control).
+
 ## Documentos
 
 | Documento | Responsabilidad |

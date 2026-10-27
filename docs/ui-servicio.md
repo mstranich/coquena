@@ -6,7 +6,7 @@ de los servicios globales y de proyecto, y los logs del servicio seleccionado.
 ## Distribución vertical
 
 1. Hardware de la máquina: CPU, RAM y cada dispositivo GPU con su VRAM.
-2. Actividad: slots y tareas, distinguidos por servicio y entrada del modelo/preset.
+2. Actividad: resumen por entrada/modelo y detalle de slots/tareas, distinguidos por servicio.
 3. Logs: selector de servicio y salida que ocupa el resto del espacio disponible.
 
 El hardware aparece primero y conserva su alcance global al cambiar el servicio
@@ -36,6 +36,21 @@ Los datos disponibles incluyen tokens procesados y cacheados, progreso del promp
 tiempo de fase, tokens de salida y tasas con sus unidades/ventanas de medida.
 La semántica de fuentes, estimaciones y datos no disponibles sigue
 [observabilidad](observabilidad.md) e [interfaces visuales](interfaces-visuales.md).
+
+Sobre el detalle de tareas, un resumen por entrada muestra acumulados de prompt,
+caché y salida, tasas medias del backend, actividad y cola agregadas. Conserva
+fuente, período y generación del proceso. Un contador de cola sin identidades se
+presenta sólo en ese resumen, no como una tarea inventada. Los totales del servicio
+siguen las reglas de agregación de [observabilidad](observabilidad.md#cifras-por-tarea-entrada-y-servicio).
+
+Las filas individuales muestran cifras de la tarea, no tasas agregadas de entrada
+copiadas en cada fila. Identifican tiempo de prompt o generación, unidad y alcance
+de la tasa. Sin evidencia se muestra no disponible; el progreso porcentual, TTFT,
+ETA y picos no se suponen por tener un gráfico. Una tarea finalizada conserva
+valores confirmados o los últimos observados, distinguiéndolos.
+
+La identidad de la fila incluye también la generación del hijo: reemplazar el
+proceso de un modelo separa tareas aunque el servicio y router sigan activos.
 
 ## Histórico visual
 

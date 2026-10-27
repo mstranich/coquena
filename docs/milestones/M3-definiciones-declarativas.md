@@ -24,6 +24,8 @@ no requisitos para recibir, escribir o utilizar una receta, visualizar los servi
 - Service start/stop/restart (alias server); backend con alias runtime. Up/down
   publican/retiran el conjunto de la receta actual, sin detener el servicio.
   Up pregunta ante target detenido; --start-service autoriza inicio sin preguntar.
+  Up/down y apply/withdraw conservan interacción de publicación y advertencia de
+  ocupación/incertidumbre, independiente de service start/restart -d; up no admite -d.
 - Preset apply/withdraw individuales; INI operativo por servicio, recarga y protección
   de entradas ajenas. Precarga sólo declarada; aceptación, resultado e incertidumbre
   diferenciados. No se ofrecen políticas de espera/forzado por ocupación.

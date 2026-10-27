@@ -248,6 +248,7 @@ features:
       - src/Coquena/Servers/WindowsServerProcess.cs
       - src/Coquena/Servers/ServerObservability.cs
     tests:
+      - tests/Coquena.Tests/RouterEvidenceTests.cs
       - tests/Coquena.Tests/ServerTests.cs
       - tests/Coquena.Tests/ServerRuntimeTests.cs
       - tests/Coquena.Tests/ObservabilityTests.cs

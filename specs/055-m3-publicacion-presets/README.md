@@ -29,7 +29,8 @@ Las reglas funcionales de los documentos enlazados prevalecen. Esta tarjeta defi
 
 ## Trabajo y aceptación
 
-- [ ] Resolver target default salvo selección explícita, self o servicio nombrado; up pregunta ante destino detenido y --start-service autoriza inicio no interactivo, sin reiniciar uno activo.
+- [ ] Resolver target default salvo selección explícita, self o servicio nombrado; up pregunta ante destino detenido y --start-service autoriza sólo ese inicio sin pregunta adicional, sin reiniciar uno activo ni aceptar riesgos de publicación.
+- [ ] Mantener up/down y apply/withdraw interactivos, independientes del proceso desacoplado: consultar actividad sin cargas, advertir ocupación o incertidumbre en las entradas afectadas y permitir aplicar ahora o cancelar antes de publicar INI. Sin interacción disponible, rechazar sin mutación; no admitir up -d ni encolado/drenaje propios. Seguir la regla de servidores, sin crear una política no interactiva implícita.
 - [ ] Agregar/actualizar con up y remover con down los presets propios en el INI operativo del target; ambos publican INI y solicitan refresh, conservando entradas ajenas.
 - [ ] Down usa nombres/destino previos de .coquena/ aunque cambie carpeta o YAML; retirada confirmada permite adoptar name actual en up posterior sin dar de baja el servicio.
 - [ ] Probar rename, copia de estado, cambio de alias default, colisiones y retiradas inciertas; no apropiarse de publicaciones ajenas ni liberar referencias prematuramente.
