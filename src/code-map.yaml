@@ -3,6 +3,25 @@
 # References describe intended behavior; verify actual behavior in code and tests.
 version: 1
 features:
+  - id: combination-preparation
+    intent: Registrar combinaciones explícitas, reutilizar resoluciones exactas y publicar conjuntos preparados sin promover ejecución.
+    keywords: [combination, preparation, resolution, lock, HMAC, private, generation]
+    entrypoints:
+      - src/Coquena/Projects/CombinationPreparation.cs
+    implementation:
+      - src/Coquena/Projects/CombinationIdentity.cs
+      - src/Coquena/Projects/ScopedCombinationResources.cs
+      - src/Coquena/Projects/ScopeStore.cs
+      - src/Coquena/Recipes/RecipeReader.cs
+      - src/Coquena/Backends/ScopedBackends.cs
+      - src/Coquena/Models/ScopedModels.cs
+    tests:
+      - tests/Coquena.Tests/CombinationTests.cs
+    references:
+      - docs/persistencia-proyectos.md
+      - docs/definiciones-declarativas.md
+      - docs/formato-proyecto.md
+
   - id: scoped-local-models
     intent: Registrar pesos externos sin adoptar bytes, resolver rutas de argumentos y publicar una transición explícita verificada.
     keywords: [external, local, model, companion, shards, try-match, literal, reference, transition]

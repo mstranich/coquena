@@ -30,7 +30,7 @@ internal static class ScopedBackendTests
             foreach (var file in files) { using var output = archive.CreateEntry(file.Path).Open(); output.Write(file.Bytes); }
         return memory.ToArray();
     }
-    private sealed class Fixture : IDownloadTransport
+    internal sealed class Fixture : IDownloadTransport
     {
         public int Calls;
         public int Resolutions;

@@ -37,14 +37,15 @@ public sealed class EffectiveRecipe
 {
     public RecipeSelection Selection { get; }
     public RecipeValue Root { get; }
+    public RecipeValue SourceRoot { get; }
     public IReadOnlyList<RecipeValue> Layers { get; }
     public string Name { get; }
     public string Target => Root.Get("target")?.Text ?? "default";
     public string ArgsMode => Root.Get("args-mode")?.Text ?? "permissive";
 
-    internal EffectiveRecipe(RecipeSelection selection, RecipeValue root, RecipeValue[] layers, RecipeIdentity? identity)
+    internal EffectiveRecipe(RecipeSelection selection, RecipeValue root, RecipeValue[] layers, RecipeIdentity? identity, RecipeValue sourceRoot)
     {
-        Selection = selection; Root = root; Layers = Array.AsReadOnly(layers);
+        Selection = selection; Root = root; SourceRoot = sourceRoot; Layers = Array.AsReadOnly(layers);
         Name = identity?.RegisteredName ?? root.Get("name")?.Text ?? Path.GetFileName(selection.Base);
     }
 
@@ -91,10 +92,12 @@ public static class RecipeReader
         foreach (var file in selection.EnvFiles) variables.Load(file);
         var layers = new List<RecipeValue>();
         var effective = RecipeValue.Map(new(selection.Files[0], 1, 1, "$"));
+        var source = effective;
         foreach (var file in selection.Files)
         {
             var layer = new RecipeYaml(file).Read();
             RecipeStructure.Layer(layer, true);
+            source = Merge(source, layer, "root");
             layer = Expand(layer, variables, "root");
             RecipeStructure.Layer(layer, false);
             layer = RecipeStructure.NormalizeModels(layer);
@@ -102,7 +105,7 @@ public static class RecipeReader
             effective = Merge(effective, layer, "root");
         }
         RecipeStructure.Effective(effective);
-        return new(selection, effective, layers.ToArray(), registeredIdentity);
+        return new(selection, effective, layers.ToArray(), registeredIdentity, source);
     }
 
     private static RecipeValue Expand(RecipeValue value, RecipeVariables variables, string context)

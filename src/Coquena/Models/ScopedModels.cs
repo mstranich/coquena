@@ -165,7 +165,7 @@ public sealed partial class ScopedModels(ScopeContext context)
     }
     public async Task<PreparedModel> AcquireAsync(SelectedModel selected, IDownloadTransport transport,
         bool explicitlyRequested = true, Action<OperationDocument>? progress = null, CancellationToken cancellation = default,
-        bool replaceExternal = false)
+        bool replaceExternal = false, bool restoreMissing = false)
     {
         var request = ModelRequest.Parse(selected.Name);
         if (request.Quantization is null || request.CompanionType != selected.CompanionType || request.Repository != selected.Selection.Repository) Fail("invalid-selection");
@@ -184,7 +184,11 @@ public sealed partial class ScopedModels(ScopeContext context)
                 if (!Same(prior, selected.Selection)) continue;
                 if (installation!["integrity-status"]?.GetValue<string>() is "invalid" or "mismatch") Fail("model-integrity-invalid");
                 var observed = ObserveInstallation(installation!);
-                if (observed["observed-availability"]!.GetValue<string>() != "available") Fail("model-unavailable");
+                if (observed["observed-availability"]!.GetValue<string>() != "available")
+                {
+                    if (restoreMissing && Paths(resource, installation!).Any(p => !File.Exists(p))) continue;
+                    Fail("model-unavailable");
+                }
                 var prepared = Prepared(resource, installation!);
                 if (explicitlyRequested) Protect(prepared.InstallationId, true);
                 return prepared;
@@ -269,6 +273,7 @@ public sealed partial class ScopedModels(ScopeContext context)
         // Active evidence blocks withdrawal even when process liveness is uncertain.
         var identities = new[] { resourceId }.Concat(resource["installations"]!.AsArray().Select(i => i!["installation-id"]!.GetValue<string>())).ToArray();
         if (snapshot.Documents.TryGetValue("local/active.json", out var active) && identities.Any(id => Contains(active, id))) UsageFailure(active);
+        if (snapshot.Documents.TryGetValue("local/combinations.json", out var combinations) && identities.Any(id => Contains(combinations, id))) UsageFailure(combinations);
         if (snapshot.Documents.TryGetValue("local/recipes.json", out var registry) && Contains(registry, resourceId) &&
             registry["data"]!["recipes"]!.AsArray().SelectMany(r => r!["entities"]!.AsArray()).Any(e => e!["instance"] is not null)) UsageFailure(registry);
         if (Directory.Exists(context.PathFor("downloads")) && Transfers.Downloads.List().Any(o =>

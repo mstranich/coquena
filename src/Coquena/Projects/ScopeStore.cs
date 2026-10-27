@@ -6,7 +6,7 @@ using Coquena.Storage;
 namespace Coquena.Projects;
 
 public sealed record ScopeSnapshot(long Revision, string? ScopeId, JsonObject? State, IReadOnlyDictionary<string, JsonObject> Documents);
-public sealed record ScopeChange(ScopeStore Store, long ExpectedRevision, IReadOnlyDictionary<string, JsonObject> Documents, string? DefaultServiceId = null);
+public sealed record ScopeChange(ScopeStore Store, long ExpectedRevision, IReadOnlyDictionary<string, JsonObject> Documents, string? DefaultServiceId = null, Action? Validate = null);
 public enum ScopeWriteStage { Prepared, Decided, ParticipantPublished, ProjectionsPublished }
 
 // A generation is immutable; state.json is the only publication pointer. Cross-scope
@@ -14,6 +14,7 @@ public enum ScopeWriteStage { Prepared, Decided, ParticipantPublished, Projectio
 public sealed class ScopeStore(ScopeContext context)
 {
     public ScopeContext Context { get; } = context;
+    internal T Locked<T>(Func<T> action) => WithLocks([this], action);
     private string StatePath => Context.PathFor("local/state.json");
     private string PendingPath => Context.PathFor("local/pending.json");
     private static StorageException Conflict() => new("scope-conflict", "Cambió el ámbito; releer antes de volver a preparar.");
@@ -54,6 +55,7 @@ public sealed class ScopeStore(ScopeContext context)
                 var store = change.Store;
                 var old = store.ReadLocked(detachCopy);
                 if (!detachCopy && old.Revision != change.ExpectedRevision) throw Conflict();
+                change.Validate?.Invoke();
                 var generation = ProjectDocuments.Id();
                 var scopeId = old.ScopeId ?? ProjectDocuments.Id();
                 var entries = new JsonObject();
@@ -65,7 +67,7 @@ public sealed class ScopeStore(ScopeContext context)
                     {
                         "local/inventory.json" => "inventory", "local/recipes.json" => "recipe-registry",
                         "local/active.json" => "active", "local/last-good.json" => "last-good",
-                        "local/update-plan.json" => "update-plan", _ => "combination-index"
+                        "local/update-plan.json" => "update-plan", _ => IsResolutionPath(path) ? "resolution" : "combination-index"
                     };
                     if (kind != expectedKind) ProjectDocuments.Invalid();
                     if (kind == "inventory") document["data"]!["scope-id"] = scopeId;
@@ -343,9 +345,16 @@ public sealed class ScopeStore(ScopeContext context)
     private static string Hash(byte[] bytes) => Convert.ToHexStringLower(SHA256.HashData(bytes));
     private static void ValidateDocumentPath(string path)
     {
-        if (path is not ("local/inventory.json" or "local/recipes.json" or "local/combinations.json" or "combinations.json" or "local/active.json" or "local/last-good.json" or "local/update-plan.json"))
+        if (path is not ("local/inventory.json" or "local/recipes.json" or "local/combinations.json" or "combinations.json" or "local/active.json" or "local/last-good.json" or "local/update-plan.json") && !IsResolutionPath(path))
             throw new StorageException("invalid-projection-path", "Documento fuera de las proyecciones admitidas del ámbito.");
     }
+    private static bool IsResolutionPath(string path)
+    {
+        var parts = path.Split('/');
+        return parts.Length == 3 && parts[0] == "combinations" && parts[2] == "resolved.json" && IsCombinationId(parts[1]) ||
+            parts.Length == 4 && parts[0] == "combinations" && parts[2] == "local" && parts[3] == "resolved.json" && IsCombinationId(parts[1]);
+    }
+    internal static bool IsCombinationId(string id) => id.Length == 64 && id.All(c => c is >= '0' and <= '9' or >= 'a' and <= 'f');
     private static void WriteNew(string path, byte[] bytes)
     {
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);

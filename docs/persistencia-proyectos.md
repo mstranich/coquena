@@ -128,6 +128,9 @@ editar contenido o mover la carpeta no.
 
 Una selección fuera de base usa `../` si puede relativizarse; si exige otra unidad
 se registra sólo en el índice local con su ruta absoluta. Una combinación con
+selecciones en otra unidad calcula un ID exclusivamente local usando esa ruta
+absoluta normalizada con `/` en el mismo JSON canónico. Cambiar esa ubicación
+cambia su ID local; no se publica como identidad portable. Una combinación con
 `.env`, capas privadas o referencias privadas sólo se publica en el índice local;
 no se filtran rutas privadas a índices portables. Archivo privado explícito se
 selecciona con `--private`; todo uso de `.env` hace privada la combinación.

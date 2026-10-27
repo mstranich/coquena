@@ -186,6 +186,32 @@ public sealed class ScopedBackends(ScopeContext context,
         return await ReadPrepared(found.Resource, found.Installation, hardware, force, null, cancellation);
     }
 
+    internal async Task<PreparedBackend> PrepareCombinationAsync(BackendIntent intent, HardwareContext hardware,
+        IDownloadTransport transport, BackendDownloadSelection? exact, bool force, Action<string>? warning, CancellationToken cancellation)
+    {
+        intent.Validate();
+        var pinnedByIntent = intent.Executable is null && intent.Version != "latest";
+        if (intent.Executable is not null)
+            return RegisterExternal(Path.GetFullPath(intent.Executable, context.Base), !Path.IsPathRooted(intent.Executable));
+        if (exact is not null)
+        {
+            foreach (var resource in List())
+                foreach (var installation in resource!["installations"]!.AsArray())
+                    if (resource["ownership"]!.GetValue<string>() == "managed" && SameSelection(installation!, exact))
+                        try
+                        {
+                            var reused = await ReadPrepared(resource, installation!, hardware, force, warning, cancellation);
+                            if (pinnedByIntent) Protect(reused.InstallationId, true);
+                            return reused;
+                        }
+                        catch (BackendException e) when (e.Code == "backend-installation-absent") { }
+            intent = new(exact.Release, exact.Variant);
+        }
+        var prepared = await DownloadAsync(intent, hardware, transport, false, force, warning, cancellation, exact);
+        if (pinnedByIntent) Protect(prepared.InstallationId, true);
+        return prepared;
+    }
+
     public void Protect(string installationId, bool value)
     {
         var snapshot = store.Read(); var docs = RecipeRegistry.Next(snapshot);

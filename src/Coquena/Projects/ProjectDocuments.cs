@@ -102,6 +102,27 @@ public static class ProjectDocuments
                     project["revision"]?.GetValue<long>() is not > 0 || project["volume"] is null || project["file-id"] is null) Invalid();
             }
         }
+        else if (kind == "resolution")
+        {
+            if (data["combination-id"]?.GetValue<string>() is not string id || !ScopeStore.IsCombinationId(id) ||
+                data["selections"] is not JsonObject || data["resources"] is not JsonArray) Invalid();
+            var keys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var resource in data["resources"]!.AsArray())
+                if (resource?["key"]?.GetValue<string>() is not string key || string.IsNullOrWhiteSpace(key) ||
+                    resource?["kind"]?.GetValue<string>() is not ("backend" or "model" or "companion") ||
+                    !keys.Add(resource["kind"]!.GetValue<string>() + ":" + key)) Invalid();
+        }
+        else if (kind == "combination-index")
+        {
+            if (data["combinations"] is not JsonObject) Invalid();
+            foreach (var combination in data["combinations"]!.AsObject())
+            {
+                if (!ScopeStore.IsCombinationId(combination.Key) || combination.Value?["files"] is not JsonArray { Count: > 0 } ||
+                    combination.Value?["env-files"] is not JsonArray) Invalid();
+                foreach (var path in combination.Value!["files"]!.AsArray().Concat(combination.Value["env-files"]!.AsArray()))
+                    if (string.IsNullOrWhiteSpace(path?.GetValue<string>())) Invalid();
+            }
+        }
         else if (kind == "operation") Uuid(data["operation-id"]);
     }
     private static void Check(JsonElement element)
