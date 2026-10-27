@@ -43,9 +43,9 @@ internal static class MtpResolutionTests
             return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(json) });
         }
     }
-    private sealed class Menu(int choice) : IModelSelectionInteraction
+    private sealed class Menu(int choice, bool interactive = true) : IModelSelectionInteraction
     {
-        public bool IsInteractive => true;
+        public bool IsInteractive => interactive;
         public string[] Options = [];
         public void Show(string text) { }
         public Task<int?> ChooseAsync(IReadOnlyList<string> options, CancellationToken cancellation)
@@ -132,21 +132,24 @@ internal static class MtpResolutionTests
         var source = new HuggingFaceStore(client);
         foreach (var selector in new[] { Repository + "#mtp", Repository + "#mtp:Q8_0", Repository + ":Q8_0" })
         {
-            var menu = new Menu(0);
-            var selected = await new ModelSelectionMenu(source, new Inspector()).SelectAsync(ModelRequest.Parse(selector), menu);
-            Check(selected!.Selection.Commit == Commit && selected.Selection.Files.Single().Path == (selector.Contains('#') ? Draft : Main), "explicit menu selects correct role " + selector);
-            Check(menu.Options.Length == 3, "one unit plus README/cancel");
-            if (selector.Contains('#')) Check(menu.Options[0].Contains("rol MTP candidato"), "menu discloses heuristic");
+            var request = ModelRequest.Parse(selector);
+            var direct = request.Quantization is not null;
+            var menu = new Menu(0, interactive: !direct);
+            var selected = await new ModelSelectionMenu(source, new Inspector()).SelectAsync(request, menu);
+            Check(selected!.Selection.Commit == Commit && selected.Selection.Files.Single().Path == (selector.Contains('#') ? Draft : Main), "selection preserves correct role " + selector);
+            Check(menu.Options.Length == (direct ? 0 : 3), direct ? "explicit unique quantization bypasses interaction" : "unspecified quantization offers unit plus README/cancel");
+            if (!direct && selector.Contains('#')) Check(menu.Options[0].Contains("rol MTP candidato"), "menu discloses heuristic");
         }
         var root = Path.Combine(Path.GetTempPath(), "coquena-mtp-" + Guid.NewGuid());
         try
         {
             var installer = new ModelInstaller(new Home(root)); var transport = new Transport(payload);
             using var output = new StringWriter(); using var error = new StringWriter();
-            Check(ModelCli.Run(["companion", "download", Repository + "#mtp:Q8_0"], output, error, installer, source, transport,
+            Check(ModelCli.Run(["companion", "download", Repository + "#mtp"], output, error, installer, source, transport,
                 new Menu(2), inspector: new Inspector()) == 0 && !Directory.Exists(root) && transport.Calls == 0, "CLI cancel creates no home/GUID/transfer");
+            var directMenu = new Menu(0, interactive: false);
             Check(ModelCli.Run(["companion", "download", Repository + "#mtp:Q8_0"], output, error, installer, source, transport,
-                new Menu(0), inspector: new Inspector()) == 0 && error.ToString().Length == 0, "CLI selects and installs fixture draft");
+                directMenu, inspector: new Inspector()) == 0 && error.ToString().Length == 0 && directMenu.Options.Length == 0, "CLI installs explicit unique fixture draft without interaction");
             var installed = installer.List().Single();
             Check(transport.Calls == 1 && installed.Record.CompanionType == "mtp" && installed.Record.Name == Repository + "#mtp:Q8_0" &&
                 installed.Record.Selection!.Commit == Commit, "only draft catalogued with pinned selection");
@@ -195,17 +198,22 @@ internal static class MtpResolutionTests
             using var output = new StringWriter(); using var error = new StringWriter();
             foreach (var selector in new[] { A4lgRepository + "#mtp", A4lgRepository + "#mtp:Q8_0" })
             {
-                var menu = new Menu(0);
-                var selected = await new ModelSelectionMenu(a4lgSource, new Inspector(commit: A4lgCommit)).SelectAsync(ModelRequest.Parse(selector), menu);
-                Check(selected?.Selection.Commit == A4lgCommit && selected.Selection.Files.Single().Path == A4lgDraft &&
-                    menu.Options[0].Contains("rol MTP candidato"), "MTP-ONLY selectable with candidate disclosure " + selector);
+                var request = ModelRequest.Parse(selector);
+                var direct = request.Quantization is not null;
+                var menu = new Menu(0, interactive: !direct);
+                var selected = await new ModelSelectionMenu(a4lgSource, new Inspector(commit: A4lgCommit)).SelectAsync(request, menu);
+                Check(selected?.Selection.Commit == A4lgCommit && selected.Selection.Files.Single().Path == A4lgDraft && selected.CompanionType == "mtp",
+                    "MTP-ONLY selection preserves role and commit " + selector);
+                Check(direct ? menu.Options.Length == 0 : menu.Options.Length == 3 && menu.Options[0].Contains("rol MTP candidato"),
+                    "MTP-ONLY explicit quantization bypasses menu; unspecified quantization discloses candidate");
             }
-            Check(ModelCli.Run(["companion", "download", A4lgRepository + "#mtp:Q8_0"], output, error, a4lgInstaller,
+            Check(ModelCli.Run(["companion", "download", A4lgRepository + "#mtp"], output, error, a4lgInstaller,
                 a4lgSource, a4lgTransport, new Menu(2), inspector: new Inspector(commit: A4lgCommit)) == 0 &&
                 !Directory.Exists(a4lgRoot) && a4lgTransport.Calls == 0, "MTP-ONLY cancellation creates no operation");
+            var directMenu = new Menu(0, interactive: false);
             Check(ModelCli.Run(["companion", "download", A4lgRepository + "#mtp:Q8_0"], output, error, a4lgInstaller,
-                a4lgSource, a4lgTransport, new Menu(0), inspector: new Inspector(commit: A4lgCommit)) == 0 && error.ToString().Length == 0,
-                "MTP-ONLY companion installed through CLI path");
+                a4lgSource, a4lgTransport, directMenu, inspector: new Inspector(commit: A4lgCommit)) == 0 && error.ToString().Length == 0 && directMenu.Options.Length == 0,
+                "MTP-ONLY companion installed without interaction through CLI path");
             var installed = a4lgInstaller.List().Single().Record;
             Check(installed.CompanionType == "mtp" && installed.Name == A4lgRepository + "#mtp:Q8_0" &&
                 installed.Selection!.Commit == A4lgCommit && installed.Selection.Files.Single().Path == A4lgDraft &&
