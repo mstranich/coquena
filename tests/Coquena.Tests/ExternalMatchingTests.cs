@@ -107,7 +107,7 @@ internal static class ExternalMatchingTests
                 foreach (var g in env.GroupBy(e => e.Key, StringComparer.OrdinalIgnoreCase)) start.Environment[g.Key] = g.Last().Value;
                 start.Environment["COQUENA_HOME"] = Path.Combine(root, "native");
                 foreach (var arg in new[] { "model", "add", record.Files[0].LocalPath, "--name", record.Name, "--try-match" }) start.ArgumentList.Add(arg);
-                using var process = System.Diagnostics.Process.Start(start)!; process.StandardInput.Close();
+                using var process = ModelEngineProcess.Start(start)!; process.StandardInput.Close();
                 var stdout = process.StandardOutput.ReadToEndAsync(); var stderr = process.StandardError.ReadToEndAsync();
                 if (!process.WaitForExit(20000)) { process.Kill(true); throw new Exception("Native match timeout"); }
                 Check(process.ExitCode == 0 && stdout.Result.Contains("sin emparejamiento") && stderr.Result.Length == 0, "native noninteractive add");

@@ -74,13 +74,19 @@ public sealed class RecipeRegistry(ScopeStore store)
 
     public ResourceIdentity RegisterResource(string logicalKey, string kind, string ownership)
     {
-        ValidateName(logicalKey);
+        if (kind is "model" or "companion" && logicalKey.Contains('/'))
+        {
+            var selector = Coquena.Models.ModelRequest.Parse(logicalKey);
+            if (selector.Quantization is null || (kind == "companion") != (selector.CompanionType is not null))
+                throw new StorageException("invalid-resource-name", "Se requiere selección canónica completa y rol coincidente.");
+        }
+        else ValidateName(logicalKey);
         if (kind is not ("model" or "companion" or "backend") || ownership is not ("managed" or "external")) throw new ArgumentException("Tipo/propiedad inválidos.");
         var snapshot = store.Read();
         var documents = Next(snapshot);
         var inventory = Data(documents, InventoryPath, "inventory", "resources");
         var resources = inventory["resources"]!.AsArray();
-        var existing = resources.FirstOrDefault(x => x!["logical-key"]!.GetValue<string>() == logicalKey && x["kind"]!.GetValue<string>() == kind);
+        var existing = resources.FirstOrDefault(x => x!["logical-key"]!.GetValue<string>().Equals(logicalKey, StringComparison.OrdinalIgnoreCase) && x["kind"]!.GetValue<string>() == kind);
         if (existing is not null)
         {
             if (existing["ownership"]!.GetValue<string>() != ownership) throw new StorageException("resource-ownership-conflict", "La ubicación o clave no autoriza cambiar propiedad.");

@@ -188,6 +188,9 @@ Mantiene presets nombrados de la intención efectiva.
 Set asigna literales; bind escribe referencias `model://` o `companion://` dentro de `args`, resueltas por identidad al componer. Un nombre escrito como
 literal no se transforma automáticamente en vínculo. Clone copia valores y vínculos
 sin copiar archivos ni mantener herencia viva.
+Un selector canónico remoto completo sin prefijo en args de un preset es una
+referencia directa que evita declarar un alias. El envoltorio `literal` conserva
+ese mismo texto como literal, según el [formato del proyecto](formato-proyecto.md#modelos-companions-y-referencias).
 
 Un override puede modificar parte de un preset y desasignar un companion con valor
 vacío. Retirar/desactivar un preset no borra sus pesos. Persistir no lo aplica

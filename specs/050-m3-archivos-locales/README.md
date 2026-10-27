@@ -29,6 +29,7 @@ Las reglas funcionales de los documentos enlazados prevalecen. Esta tarjeta defi
 
 - [ ] Registrar principales/companions y shards locales en el ámbito seleccionado; usar la copia actual, incluso si proviene de otro gestor.
 - [ ] Resolver model:// y companion:// en args a la ruta de entrada de la unidad, con literal explícito y error por referencia inexistente.
+- [ ] Resolver también selectores canónicos remotos completos sin prefijo en args de presets, sin exigir declaración de alias; respetar el envoltorio literal. Decisión aprobada por el usuario durante 049; aplicar la regla de formato-proyecto.md y compartir identidad con aliases equivalentes.
 - [ ] Persistir alta antes del --try-match opcional; fallo remoto, cancelación o falta de interacción conservan registro y uso sin certificar procedencia.
 - [ ] Conservar externos dentro/fuera de base sin mover, adoptar o borrar bytes; referencias relativas usan la base canónica.
 - [ ] Mantener transición externo a gestionado sólo explícita, verificada y sin destruir originales o referencias activas.

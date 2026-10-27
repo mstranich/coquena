@@ -4,6 +4,25 @@ using Coquena;
 // Match the product's output contract, including fixture and failure diagnostics.
 Console.OutputEncoding = new System.Text.UTF8Encoding(false);
 
+if (args.Length is 1 or 2 && args[0] == "--scoped-model-tests")
+{ await Coquena.Tests.ScopedModelTests.Run(args.Length == 2 ? Path.GetFullPath(args[1]) : null); return; }
+
+if (args.Length > 1 && args[0] == "--m2-model-api")
+{ Environment.ExitCode = ModelCli.Run(args[1..], Console.Out, Console.Error); return; }
+
+if (args.Length is 1 or 2 && args[0] == "--model-engine-tests")
+{
+    var published = args.Length == 2 ? Path.GetFullPath(args[1]) : null;
+    await Coquena.Tests.ModelInstallerTests.Run(published);
+    Coquena.Tests.ExternalModelTests.Run(published);
+    await Coquena.Tests.LocalIntegrityTests.Run(published);
+    Coquena.Tests.ExternalMatchingTests.Run(published);
+    await Coquena.Tests.ModelUpdateTests.Run(published);
+    await Coquena.Tests.ModelUpgradeTests.Run(published);
+    Coquena.Tests.RemovalTests.Run(published);
+    return;
+}
+
 if (args.Length is 1 or 2 && args[0] == "--scoped-backend-tests")
 { await Coquena.Tests.ScopedBackendTests.Run(args.Length == 2 ? Path.GetFullPath(args[1]) : null); return; }
 
@@ -247,6 +266,7 @@ Coquena.Tests.StorageTests.Run();
 Coquena.Tests.ProjectPersistenceTests.Run();
 Coquena.Tests.RecipeTests.Run();
 await Coquena.Tests.ScopedBackendTests.Run(executable);
+await Coquena.Tests.ScopedModelTests.Run(executable);
 await Coquena.Tests.BackendTests.Run(executable);
 await Coquena.Tests.DownloadTests.Run(executable);
 await Coquena.Tests.ScopeTransferTests.Run(executable);

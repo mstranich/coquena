@@ -672,7 +672,7 @@ internal static class ModelInstallerTests
         var start = new ProcessStartInfo(executable) { UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true, RedirectStandardError = true };
         start.Environment["COQUENA_HOME"] = home;
         foreach (var arg in args) start.ArgumentList.Add(arg);
-        using var process = Process.Start(start)!;
+        using var process = ModelEngineProcess.Start(start)!;
         var stdout = process.StandardOutput.ReadToEndAsync(); var stderr = process.StandardError.ReadToEndAsync();
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
         try { await process.WaitForExitAsync(timeout.Token); }

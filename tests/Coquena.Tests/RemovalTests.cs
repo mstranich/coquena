@@ -143,9 +143,9 @@ internal static class RemovalTests
                 var output = new StringWriter(); var error = new StringWriter();
                 Check(Coquena.Cli.Run(["backend", "uninstall", "bad-id"], output, error) == 2, "strict backend CLI");
                 Check(Coquena.Cli.Run(["model", "remove"], output, error) == 2, "strict model CLI");
-                Check(Coquena.Cli.Run(["model", "companion", "remove", reused.Name], output, error) == 1, "CLI scopes companions");
+                Check(Coquena.ModelCli.Run(["companion", "remove", reused.Name], output, error) == 1, "M2 API scopes companions");
                 SaveModels(reused);
-                Check(Coquena.Cli.Run(["model", "remove", reused.Name], output, error) == 0 && output.ToString().Contains("Espacio efectivamente"), "CLI bytes output");
+                Check(Coquena.ModelCli.Run(["remove", reused.Name], output, error) == 0 && output.ToString().Contains("Espacio efectivamente"), "M2 API bytes output");
                 if (executable is not null)
                 {
                     SaveModels(external);
@@ -154,7 +154,7 @@ internal static class RemovalTests
                     foreach (System.Collections.DictionaryEntry pair in Environment.GetEnvironmentVariables()) environment[(string)pair.Key] = (string)pair.Value!;
                     info.Environment.Clear(); foreach (var pair in environment) info.Environment[pair.Key] = pair.Value;
                     foreach (var arg in new[] { "model", "remove", external.Name }) info.ArgumentList.Add(arg);
-                    using var process = Process.Start(info)!;
+                    using var process = ModelEngineProcess.Start(info)!;
                     var stdout = process.StandardOutput.ReadToEndAsync(); var stderr = process.StandardError.ReadToEndAsync();
                     if (!process.WaitForExit(10000)) { process.Kill(true); throw new Exception("Published removal timed out"); }
                     Check(process.ExitCode == 0 && stdout.Result.Contains("archivos conservados") && stderr.Result.Length == 0 && File.Exists(externalPath), "published CLI external removal");

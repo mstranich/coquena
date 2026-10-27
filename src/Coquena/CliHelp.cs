@@ -63,38 +63,29 @@ internal static class CliHelp
             Un ejecutable externo se declara en service.backend.executable.
 
         Modelos:
-          model list                       Listar modelos registrados
+          model list                       Listar inventario y progreso conocido
+          model show [<alias>]             Consultar intención sin descargar
           model download <repositorio[:cuantización]>
             Elegir y descargar un modelo de Hugging Face
-          model add <archivo.gguf> --name <nombre> [--try-match]
-            Registrar un modelo local; --try-match busca su origen en Hugging Face
-          model refresh <nombre>           Actualizar información de archivos locales
-          model verify <nombre> [--set-baseline]
-            Comprobar integridad; --set-baseline fija una referencia para un externo
-          model update [<nombre>]          Buscar actualizaciones sin descargar pesos
-          model upgrade [<nombre>]         Descargar la actualización encontrada
-          model remove <nombre>            Retirar el modelo; conservar archivos
-            externos
+          model remove <nombre|id>         Retirar archivos propios; conservar externos
+          model protect|unprotect <installation-id>
+            Cambiar protección explícita sin borrar ni retirar referencias
 
             repositorio: usuario/repositorio. Nombre local:
             usuario/repositorio:cuantización.
-            update/upgrade sin nombre incluyen todos los modelos y auxiliares.
+            --base <carpeta>, --file <receta> / -f (repetible),
+            --env-file <archivo> (repetible), --global / -g, --json.
+            Una descarga explícita protege sin editar YAML ni crear presets.
 
         Auxiliares:
-          model companion list             Listar auxiliares registrados
+          model companion list             Listar auxiliares y progreso conocido
+          model companion show [<alias>]   Consultar intención sin descargar
           model companion download <repositorio#tipo[:cuantización]>
             Elegir y descargar un auxiliar; tipo: mmproj o mtp
-          model companion add <archivo.gguf> --name <nombre> [--try-match]
-            Registrar un auxiliar local; nombre: usuario/repositorio#tipo:cuantización
-          model companion refresh <nombre> Actualizar información de archivos locales
-          model companion verify <nombre> [--set-baseline]
-            Comprobar integridad; --set-baseline fija una referencia para un externo
-          model companion update [<nombre>]
-            Buscar actualizaciones de auxiliares sin descargar pesos
-          model companion upgrade [<nombre>]
-            Descargar las actualizaciones encontradas
-          model companion remove <nombre>  Retirar el auxiliar; conservar archivos
-            externos
+          model companion remove <nombre|id>
+            Retirar archivos propios de la unidad; conservar archivos externos
+          model companion protect|unprotect <installation-id>
+            Cambiar protección explícita con los mismos selectores de ámbito
 
         Descargas:
           download list [--model|--companion|--backend]

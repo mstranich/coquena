@@ -113,7 +113,7 @@ internal static class ExternalModelTests
                     foreach (var group in env.GroupBy(e => e.Key, StringComparer.OrdinalIgnoreCase)) start.Environment[group.Key] = group.Last().Value;
                     start.Environment["COQUENA_HOME"] = nativeHome.Root;
                     foreach (var arg in args) start.ArgumentList.Add(arg);
-                    using var process = Process.Start(start)!;
+                    using var process = ModelEngineProcess.Start(start)!;
                     var stdout = process.StandardOutput.ReadToEndAsync(); var stderr = process.StandardError.ReadToEndAsync();
                     if (!process.WaitForExit(20000)) { process.Kill(true); throw new Exception("Native timeout"); }
                     return (process.ExitCode, stdout.GetAwaiter().GetResult() + stderr.GetAwaiter().GetResult());

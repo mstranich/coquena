@@ -180,7 +180,7 @@ internal static class ModelUpdateTests
                 foreach (System.Collections.DictionaryEntry entry in Environment.GetEnvironmentVariables()) env[(string)entry.Key] = (string?)entry.Value;
                 start.Environment.Clear(); foreach (var entry in env) start.Environment[entry.Key] = entry.Value;
                 start.Environment["COQUENA_HOME"] = root;
-                using var process = Process.Start(start)!;
+                using var process = ModelEngineProcess.Start(start)!;
                 var stdout = process.StandardOutput.ReadToEndAsync(); var stderr = process.StandardError.ReadToEndAsync();
                 await process.WaitForExitAsync();
                 Check(process.ExitCode == 0 && (await stdout).Contains("no aplica") && (await stderr).Length == 0, "published CLI external scope");

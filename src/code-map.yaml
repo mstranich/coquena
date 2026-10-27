@@ -3,6 +3,25 @@
 # References describe intended behavior; verify actual behavior in code and tests.
 version: 1
 features:
+  - id: scoped-model-inventory
+    intent: Adquirir unidades GGUF por ámbito, compartir aliases por identidad y retirar archivos propios de forma recuperable.
+    keywords: [model, companion, alias, inventory, scope, protection, removal]
+    entrypoints:
+      - src/Coquena/ScopedModelCli.cs
+      - src/Coquena/Models/ScopedModels.cs
+    implementation:
+      - src/Coquena/Models/ModelSelection.cs
+      - src/Coquena/Models/ModelResolution.cs
+      - src/Coquena/Downloads/ScopeTransfers.cs
+      - src/Coquena/Projects/PhysicalDirectory.cs
+    tests:
+      - tests/Coquena.Tests/ScopedModelTests.cs
+      - tests/Coquena.Tests/ScopeTransferTests.cs
+    references:
+      - docs/modelos-y-companions.md
+      - docs/formato-proyecto.md
+      - docs/descargas.md
+
   - id: scoped-service-backends
     intent: Preparar backends oficiales o externos por ámbito, conservar pins y revisiones y diagnosticar compatibilidad sin modificar ejecución.
     keywords: [backend, runtime, service, version, variant, executable, force, protection, scope]
@@ -101,7 +120,7 @@ features:
     intent: Seleccionar una cuantización GGUF de Hugging Face y descargarla con integridad.
     keywords: [model download, model companion download, Hugging Face, cuantización, shards, GGUF, mmproj, MTP]
     entrypoints:
-      - src/Coquena/ModelCli.cs
+      - src/Coquena/ScopedModelCli.cs
     implementation:
       - src/Coquena/Models/ModelSelection.cs
       - src/Coquena/Models/ModelResolution.cs

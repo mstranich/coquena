@@ -280,7 +280,7 @@ internal static class ModelUpgradeTests
             using var f = new Fixture();
             var info = new System.Diagnostics.ProcessStartInfo(executable) { UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true };
             info.ArgumentList.Add("model"); info.ArgumentList.Add("upgrade"); info.Environment["COQUENA_HOME"] = f.Home.Root;
-            using var process = System.Diagnostics.Process.Start(info)!;
+            using var process = ModelEngineProcess.Start(info)!;
             var output = await process.StandardOutput.ReadToEndAsync(); var error = await process.StandardError.ReadToEndAsync(); await process.WaitForExitAsync();
             Check(process.ExitCode == 0 && error.Length == 0 && output.Contains("Sin unidades"), "published CLI upgrade");
         }

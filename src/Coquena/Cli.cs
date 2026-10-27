@@ -15,7 +15,7 @@ public static class Cli
         if (args.Length > 0 && args[0] == "download")
             return ScopeDownloadCli.Run(args[1..], output, error);
         if (args.Length > 0 && args[0] == "model")
-            return ModelCli.Run(args[1..], output, error);
+            return ScopedModelCli.Run(args[1..], output, error);
         if (args.Length == 0 ||
             (args.Length == 1 && args[0] is "--help" or "-h" or "help"))
         {

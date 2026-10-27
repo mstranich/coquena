@@ -21,7 +21,7 @@ internal static class HelpTests
                 Check(result.Code == 0 && result.Error == "", "help exit");
                 help ??= result.Output;
                 Check(result.Output == help, "help aliases agree");
-                foreach (var syntax in new[] { "backend download --version <versión>", "model companion verify <nombre> [--set-baseline]",
+                foreach (var syntax in new[] { "backend download --version <versión>", "model companion protect|unprotect <installation-id>",
                     "download list [--model|--companion|--backend]", "download status [<id-descarga>]",
                     "server [<nombre>] start [-d]", "server [<nombre>] restart", "server [<nombre>] logs [-f]",
                     "--alias y --values pueden repetirse", "--dry-run muestra los cambios sin aplicarlos" })

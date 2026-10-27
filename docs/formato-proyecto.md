@@ -193,6 +193,8 @@ claves de `service` se combinan por clave.
 Las claves de `models` y `companions` son nombres de referencia de la receta;
 no son rutas ni nombres de preset. Se resuelven en el proyecto y conservan la
 selección canónica y la identidad estable en inventario/resoluciones.
+Son aliases: dos claves que resuelven la misma selección concreta comparten registro
+e instalación física. Los aliases no crean propietarios distintos de los archivos.
 
 Una selección remota declara `repository`, `revision` y `quantization` o `files`
 remotos explícitos para desambiguar. Los shards necesarios forman una unidad;
@@ -217,7 +219,14 @@ La resolución concreta conserva commit, archivos y shards con las mismas reglas
 `args` contiene tanto literales como referencias `model://nombre` y
 `companion://nombre`. Se resuelven a la ruta de entrada de la unidad antes de emitir
 CLI/INI; no se expanden todos sus shards como argumentos separados. Un nombre sin
-prefijo sigue siendo literal. Para un literal con prefijo reservado se utiliza:
+prefijo sigue siendo literal, salvo un selector canónico remoto completo
+`usuario/repositorio:cuantización` o `usuario/repositorio#tipo:cuantización`.
+Estos selectores pueden usarse directamente como valores de `args` de un preset,
+sin declarar un alias en `models` o `companions`; identifican el mismo recurso
+que una referencia a un alias de esa selección. No se infiere una referencia de
+un repositorio sin cuantización. Los prefijos de aliases son `model://` y
+`companion://`, en singular. Para escribir como texto un selector canónico o una
+cadena con prefijo reservado se utiliza el envoltorio `literal`:
 
 ```yaml
 args:

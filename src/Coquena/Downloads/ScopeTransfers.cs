@@ -53,9 +53,10 @@ public sealed class ScopeTransfers
         foreach (var path in requiredFiles ?? []) Safe(path);
         var snapshot = inventory.Read();
         var resources = snapshot.Documents["local/inventory.json"]["data"]!["resources"]!.AsArray();
-        var matches = resources.Where(r => r!["logical-key"]!.GetValue<string>() == selection.Name &&
+        var matches = resources.Where(r => r!["logical-key"]!.GetValue<string>().Equals(selection.Name, StringComparison.OrdinalIgnoreCase) &&
             r["kind"]!.GetValue<string>() == selection.ResourceKind).ToArray();
         if (matches.Length > 1 || matches.Any(r => r!["ownership"]!.GetValue<string>() != "managed")) Fail("resource-ownership-conflict");
+        if (matches.Any(r => r!["removal-pending"]?.GetValue<bool>() == true)) Fail("removal-pending");
         var resourceId = matches.Length == 0 ? Guid.NewGuid() : Guid.Parse(matches[0]!["resource-id"]!.GetValue<string>());
         var installationId = Guid.NewGuid();
         var prefix = $"{(selection.ResourceKind == "backend" ? "backends" : "models")}/installations/{installationId:D}";
@@ -138,7 +139,9 @@ public sealed class ScopeTransfers
                 var observed = await FileIntegrity.VerifyAsync(path, null, cancellation);
                 if (observed.Observed is null) Fail("prepared-integrity-failed");
                 files.Add((JsonNode)new JsonObject { ["path"] = Path.GetRelativePath(prepared, path).Replace('\\', '/'),
-                    ["size"] = new FileInfo(path).Length, ["integrity"] = Identity(observed.Observed!) });
+                    ["size"] = new FileInfo(path).Length, ["integrity"] = Identity(observed.Observed!),
+                    ["last-write-utc"] = File.GetLastWriteTimeUtc(path).Ticks,
+                    ["volume"] = PhysicalDirectory.Read(path).Volume, ["file-id"] = PhysicalDirectory.Read(path).FileId });
             }
             var physical = PhysicalDirectory.Read(prepared);
             manifest = ProjectDocuments.Create("operation", 1, new JsonObject
@@ -198,8 +201,9 @@ public sealed class ScopeTransfers
         var resources = document["data"]!["resources"]!.AsArray();
         var plan = operation.ScopePublication!;
         var resource = resources.SingleOrDefault(r => r!["resource-id"]!.GetValue<string>() == plan.ResourceId.ToString("D"));
-        if (resources.Any(r => r != resource && r!["logical-key"]!.GetValue<string>() == operation.Name && r["kind"]!.GetValue<string>() == operation.ResourceKind))
+        if (resources.Any(r => r != resource && r!["logical-key"]!.GetValue<string>().Equals(operation.Name, StringComparison.OrdinalIgnoreCase) && r["kind"]!.GetValue<string>() == operation.ResourceKind))
             Fail("resource-ownership-conflict");
+        if (resource?["removal-pending"]?.GetValue<bool>() == true) Fail("removal-pending");
         if (resource is null)
         {
             resource = new JsonObject { ["resource-id"] = plan.ResourceId.ToString("D"), ["logical-key"] = operation.Name,

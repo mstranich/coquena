@@ -106,7 +106,10 @@ valores globales, por familia ni por modelo. Los parámetros del proceso pertene
 Los companions y modelos auxiliares se eligen mediante `preset bind`, indicando el
 parámetro que recibe su ruta y el nombre del recurso registrado. El vínculo
 se guarda por ID estable y se resuelve a ruta absoluta al generar el INI. Un literal
-continúa siendo literal aunque coincida con el nombre de un registro. Coquena comprueba
+explícito continúa siendo literal aunque coincida con el nombre de un registro.
+En args de presets también se admite un selector canónico remoto completo sin
+prefijo, sin declarar previamente un alias; véase [formato del proyecto](formato-proyecto.md#modelos-companions-y-referencias).
+Coquena comprueba
 referencias y archivos; la compatibilidad funcional de la combinación la decide el backend.
 
 Clonar un preset copia sus valores y referencias al modelo destino, sin copiar archivos

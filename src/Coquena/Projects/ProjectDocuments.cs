@@ -72,6 +72,18 @@ public static class ProjectDocuments
         else if (kind == "inventory")
         {
             Uuid(data["scope-id"]);
+            if (data["model-aliases"] is JsonNode aliases)
+            {
+                if (aliases is not JsonArray) Invalid();
+                var keys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                foreach (var alias in aliases.AsArray())
+                {
+                    Uuid(alias?["resource-id"]); Uuid(alias?["installation-id"]);
+                    if (alias?["kind"]?.GetValue<string>() is not ("model" or "companion") ||
+                        string.IsNullOrWhiteSpace(alias["key"]?.GetValue<string>()) ||
+                        !keys.Add(alias["kind"]!.GetValue<string>() + ":" + alias["key"]!.GetValue<string>())) Invalid();
+                }
+            }
             if (data["resources"] is not JsonArray) Invalid();
             foreach (var resource in data["resources"]!.AsArray())
             {

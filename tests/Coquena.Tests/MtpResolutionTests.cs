@@ -162,7 +162,7 @@ internal static class MtpResolutionTests
                     foreach (var entry in environment) info.Environment[entry.Key] = entry.Value;
                     info.Environment["COQUENA_HOME"] = root;
                     info.ArgumentList.Add("model"); if (companion) info.ArgumentList.Add("companion"); info.ArgumentList.Add("list");
-                    using var process = Process.Start(info)!;
+                    using var process = ModelEngineProcess.Start(info)!;
                     var stdout = process.StandardOutput.ReadToEndAsync(); var stderr = process.StandardError.ReadToEndAsync();
                     await process.WaitForExitAsync();
                     Check(process.ExitCode == 0 && (await stderr).Length == 0 && (await stdout).Contains(Repository + "#mtp:Q8_0") == companion,

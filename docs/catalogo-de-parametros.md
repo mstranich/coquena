@@ -102,7 +102,10 @@ El backend interpreta argumentos libres; Coquena siempre valida la estructura ge
 ## Asignaciones de recursos
 
 Set guarda literal; bind vincula identidad de recurso del proyecto y resuelve su
-ruta al componer. No inferir referencias porque un literal coincida con un nombre.
+ruta al componer. Un nombre corto sin prefijo no crea una referencia por coincidir
+con un alias. Los selectores canónicos remotos completos en args de presets son
+referencias directas, según [formato del proyecto](formato-proyecto.md#modelos-companions-y-referencias);
+el envoltorio `literal` permite conservarlos como texto.
 Un vínculo reemplaza el literal del mismo parámetro y viceversa; unset retira el
 valor, no el recurso físico. No inferir método de especulación por el companion.
 

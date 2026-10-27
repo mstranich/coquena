@@ -90,6 +90,10 @@ Campos mínimos de `data` por documento:
 | project-index | projects con scope-id, base absoluta conocida, identidad física de directorio (volumen y archivo) y revisión local observada. Sólo navegación; no acredita propiedad ni sustituye el registro de recetas. |
 
 Los campos opcionales se omiten; null no equivale a registro vacío válido.
+El inventario puede conservar `model-aliases` locales con clave, tipo, UUID de recurso
+y UUID de instalación. Varias claves pueden referenciar la misma selección física;
+una baja conserva los IDs rotos hasta su sustitución explícita, sin reconectarlos
+por coincidencia de nombre canónico.
 SHA-256 de un artefacto usa algoritmo `sha256`, dominio `file-bytes` y 64 hex
 lowercase; otras identidades conservan algoritmo y dominio propios. Commit no
 sustituye hash. Metadatos desconocidos no prueban integridad ni procedencia.
