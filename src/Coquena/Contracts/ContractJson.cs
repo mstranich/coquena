@@ -360,6 +360,11 @@ public static class ContractValidation
                 scoped.Origin is "explicit" or "automatic" && scoped.RequiredFiles is not null,
                 "Plan de publicación por ámbito inválido.");
             foreach (var required in scoped.RequiredFiles!) Text(required);
+            if (scoped.ExternalPrevious is { } external)
+                Require(value.ResourceKind is "model" or "companion" && scoped.Origin == "explicit" &&
+                    external["ownership"]?.GetValue<string>() == "external" && external["resource-id"]?.GetValue<string>() == scoped.ResourceId.ToString("D") &&
+                    external["logical-key"]?.GetValue<string>() == value.Name && external["kind"]?.GetValue<string>() == value.ResourceKind &&
+                    external["installations"] is System.Text.Json.Nodes.JsonArray { Count: > 0 }, "Origen de transición externa inválido.");
             Require(value.ResourceKind != "backend" || scoped.RequiredFiles!.Any(p => p.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)),
                 "Backend requiere ejecutable declarado.");
         }

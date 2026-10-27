@@ -4,6 +4,9 @@ using Coquena;
 // Match the product's output contract, including fixture and failure diagnostics.
 Console.OutputEncoding = new System.Text.UTF8Encoding(false);
 
+if (args.Length is 1 or 2 && args[0] == "--scoped-local-model-tests")
+{ await Coquena.Tests.ScopedLocalModelTests.Run(args.Length == 2 ? Path.GetFullPath(args[1]) : null); return; }
+
 if (args.Length is 1 or 2 && args[0] == "--scoped-model-tests")
 { await Coquena.Tests.ScopedModelTests.Run(args.Length == 2 ? Path.GetFullPath(args[1]) : null); return; }
 
@@ -267,6 +270,7 @@ Coquena.Tests.ProjectPersistenceTests.Run();
 Coquena.Tests.RecipeTests.Run();
 await Coquena.Tests.ScopedBackendTests.Run(executable);
 await Coquena.Tests.ScopedModelTests.Run(executable);
+await Coquena.Tests.ScopedLocalModelTests.Run(executable);
 await Coquena.Tests.BackendTests.Run(executable);
 await Coquena.Tests.DownloadTests.Run(executable);
 await Coquena.Tests.ScopeTransferTests.Run(executable);

@@ -7,7 +7,7 @@ using Coquena.Storage;
 
 namespace Coquena.Models;
 
-public sealed record ModelIntent(string Key, string Kind, ModelRequest Request, string Revision, string[] Files)
+public sealed record ModelIntent(string Key, string Kind, ModelRequest? Request, string Revision, string[] Files, string? LocalType = null)
 {
     public static ModelIntent[] FromRecipe(EffectiveRecipe recipe)
     {
@@ -25,7 +25,11 @@ public sealed record ModelIntent(string Key, string Kind, ModelRequest Request, 
                 else
                 {
                     if (value.Get("repository")?.Text is not string repository)
-                        throw new ModelSourceException("local-resource-required", "El recurso aportado requiere registro local explícito.");
+                    {
+                        var localFiles = value.Get("files")!.Items.Select(f => f.Text!).ToArray();
+                        result.Add(new(key, group == "models" ? "model" : "companion", null, "", localFiles, value.Get("type")?.Text));
+                        continue;
+                    }
                     var type = value.Get("type")?.Text;
                     var quant = value.Get("quantization")?.Text;
                     request = ModelRequest.Parse(repository + (type is null ? "" : "#" + type) + (quant is null ? "" : ":" + quant));
@@ -45,15 +49,16 @@ public sealed record PreparedModel(string ResourceId, string InstallationId, str
 public sealed record ModelRemoval(bool Complete, long FreedBytes, string[] Pending);
 
 // Canonical inventory and immutable physical revisions are independent of recipe aliases.
-public sealed class ScopedModels(ScopeContext context)
+public sealed partial class ScopedModels(ScopeContext context)
 {
     private readonly ScopeStore store = new(context);
     private ScopeTransfers? transfers;
     public ScopeTransfers Transfers => transfers ??= new(context);
     private static void Fail(string code) => throw new ModelSourceException(code, "Operación de modelo no confirmada; se conserva el estado del ámbito.");
     public JsonArray List(bool companion = false)
+        => List(store.Read(), companion);
+    private JsonArray List(ScopeSnapshot snapshot, bool companion)
     {
-        var snapshot = store.Read();
         var resources = new JsonArray((snapshot.Documents.GetValueOrDefault("local/inventory.json")?["data"]?["resources"]?.AsArray() ?? [])
             .Where(r => r!["kind"]!.GetValue<string>() == (companion ? "companion" : "model")).Select(r => r!.DeepClone()).ToArray());
         try
@@ -64,8 +69,9 @@ public sealed class ScopedModels(ScopeContext context)
                 foreach (var installation in resource!["installations"]!.AsArray())
                 {
                     ProjectDocuments.Uuid(installation!["installation-id"]);
+                    if (resource["ownership"]!.GetValue<string>() != "managed")
+                    { _ = ExternalPaths(installation); continue; }
                     _ = context.PathFor(installation["location"]!.GetValue<string>());
-                    if (resource["ownership"]!.GetValue<string>() != "managed") continue;
                     var selection = ReadSelection(installation);
                     ContractValidation.Remote(selection);
                     if (installation["files"] is not JsonArray { Count: > 0 }) ProjectDocuments.Invalid();
@@ -114,6 +120,7 @@ public sealed class ScopedModels(ScopeContext context)
     public async Task<SelectedModel?> SelectAsync(ModelIntent intent, HuggingFaceStore source, IModelSelectionInteraction interaction,
         IRemoteGgufInspector? inspector = null, CancellationToken cancellation = default)
     {
+        if (intent.Request is null) throw new ModelSourceException("local-resource-required", "La selección local se registra sin consultar el origen remoto.");
         if (intent.Files.Length == 0)
             return await new ModelSelectionMenu(source, inspector).SelectAsync(intent.Request, interaction, cancellation, intent.Revision);
         var revision = await source.ResolveAsync(intent.Request.Repository, intent.Revision, cancellation);
@@ -133,6 +140,7 @@ public sealed class ScopedModels(ScopeContext context)
     public async Task<PreparedModel> PrepareAsync(ModelIntent intent, HuggingFaceStore source, IDownloadTransport transport,
         IModelSelectionInteraction interaction, IRemoteGgufInspector? inspector = null, CancellationToken cancellation = default)
     {
+        if (intent.Request is null) { cancellation.ThrowIfCancellationRequested(); return PrepareLocal(intent); }
         var selected = await SelectAsync(intent, source, interaction, inspector, cancellation)
             ?? throw new OperationCanceledException(cancellation);
         var prepared = await AcquireAsync(selected, transport, false, cancellation: cancellation);
@@ -156,7 +164,8 @@ public sealed class ScopedModels(ScopeContext context)
         store.Commit(snapshot.Revision, docs);
     }
     public async Task<PreparedModel> AcquireAsync(SelectedModel selected, IDownloadTransport transport,
-        bool explicitlyRequested = true, Action<OperationDocument>? progress = null, CancellationToken cancellation = default)
+        bool explicitlyRequested = true, Action<OperationDocument>? progress = null, CancellationToken cancellation = default,
+        bool replaceExternal = false)
     {
         var request = ModelRequest.Parse(selected.Name);
         if (request.Quantization is null || request.CompanionType != selected.CompanionType || request.Repository != selected.Selection.Repository) Fail("invalid-selection");
@@ -166,8 +175,9 @@ public sealed class ScopedModels(ScopeContext context)
         if (resource is not null)
         {
             if (resource["removal-pending"]?.GetValue<bool>() == true) Fail("removal-pending");
-            if (resource["ownership"]!.GetValue<string>() != "managed") Fail("resource-ownership-conflict");
-            foreach (var installation in resource["installations"]!.AsArray().Reverse())
+            if (resource["ownership"]!.GetValue<string>() != "managed" && !replaceExternal) Fail("resource-ownership-conflict");
+            if (resource["ownership"]!.GetValue<string>() == "external") EnsureInactive(resource);
+            foreach (var installation in resource["ownership"]!.GetValue<string>() == "managed" ? resource["installations"]!.AsArray().Reverse() : [])
             {
                 var prior = ReadSelection(installation!);
                 if (prior.Commit == selected.Selection.Commit && !Same(prior, selected.Selection)) Fail("canonical-selection-collision");
@@ -188,7 +198,8 @@ public sealed class ScopedModels(ScopeContext context)
         var operation = Transfers.Create(new(1, id, selected.CompanionType is null ? "model" : "companion", name,
             selected.Selection, null, selected.Selection.Files.Select((f, i) => new TransferRecord(f.Path,
                 $"downloads/{id:D}/files/{i}.part", "models/" + f.Path, 0, f.Size, f.Identity, null, null, "pending")).ToArray(),
-            "pending", "transfer", DateTimeOffset.UtcNow, null), explicitlyRequested ? "explicit" : "automatic");
+            "pending", "transfer", DateTimeOffset.UtcNow, null), explicitlyRequested ? "explicit" : "automatic",
+            externalPrevious: resource?["ownership"]?.GetValue<string>() == "external" ? resource.AsObject() : null);
         progress?.Invoke(operation);
         var result = await Transfers.RunAsync(operation.Id, transport, progress, cancellation);
         if (result is not null) throw new DownloadException(result.State == "failed" ? "model-transfer-failed" : "model-transfer-interrupted", "Continuar con download resume en el mismo ámbito.");
@@ -221,7 +232,8 @@ public sealed class ScopedModels(ScopeContext context)
     }
     private JsonObject ObserveInstallation(JsonNode installation)
     {
-        var paths = installation["files"]!.AsArray().Select(f => context.PathFor(installation["location"]!.GetValue<string>() + "/" + f!["path"]!.GetValue<string>())).ToArray();
+        var paths = installation["external"]?.GetValue<bool>() == true ? ExternalPaths(installation) :
+            installation["files"]!.AsArray().Select(f => context.PathFor(installation["location"]!.GetValue<string>() + "/" + f!["path"]!.GetValue<string>())).ToArray();
         var unit = GgufInspection.InspectPaths(paths);
         var status = unit.Status switch { "complete" => "available", "incomplete" => paths.Length > 1 ? "incomplete" : "inaccessible", "missing" => "inaccessible", "read-error" => "inaccessible", _ => "invalid" };
         var changed = installation["files"]!.AsArray().Select((f, i) => (File: f!, Path: paths[i])).Any(p => File.Exists(p.Path) &&
@@ -232,6 +244,9 @@ public sealed class ScopedModels(ScopeContext context)
     public void Protect(string installationId, bool protect)
     {
         var snapshot = store.Read(); var docs = RecipeRegistry.Next(snapshot);
+        if (Directory.Exists(context.PathFor("downloads")) && Transfers.Downloads.List().Any(o =>
+            o.ScopePublication?.ExternalPrevious?["installations"]?.AsArray().Any(i => i!["installation-id"]!.GetValue<string>() == installationId) == true))
+            Fail("resource-operation-pending");
         var matches = docs.GetValueOrDefault("local/inventory.json")?["data"]?["resources"]?.AsArray()
             .Where(r => r!["kind"]!.GetValue<string>() is "model" or "companion").SelectMany(r => r!["installations"]!.AsArray())
             .Where(i => i!["installation-id"]!.GetValue<string>() == installationId).ToArray() ?? [];

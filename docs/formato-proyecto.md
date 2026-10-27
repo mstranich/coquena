@@ -193,8 +193,19 @@ claves de `service` se combinan por clave.
 Las claves de `models` y `companions` son nombres de referencia de la receta;
 no son rutas ni nombres de preset. Se resuelven en el proyecto y conservan la
 selección canónica y la identidad estable en inventario/resoluciones.
-Son aliases: dos claves que resuelven la misma selección concreta comparten registro
-e instalación física. Los aliases no crean propietarios distintos de los archivos.
+Para selecciones remotas son aliases: dos claves que resuelven la misma selección
+concreta comparten registro e instalación física. Los aliases no crean propietarios
+distintos de los archivos.
+
+Para una declaración local sin `repository`, la clave es el nombre del registro:
+`models.my-model.files: [./weights/modelo.gguf]` equivale al alta local
+`model add ./weights/modelo.gguf --name my-model`. Se referencia mediante
+`model://my-model`. En `companions`, la clave cumple la misma función y `type`
+declara el rol auxiliar. Repetir el mismo nombre y unidad reutiliza el registro;
+otro nombre para los mismos archivos colisiona, igual que un alta externa por CLI.
+La receta compartida conserva nombres y rutas, no UUID locales. Una ruta relativa
+requiere que quien recibe la receta aporte los archivos respecto de su propia base;
+para obtener pesos desde un origen remoto se declara una selección remota.
 
 Una selección remota declara `repository`, `revision` y `quantization` o `files`
 remotos explícitos para desambiguar. Los shards necesarios forman una unidad;

@@ -104,7 +104,8 @@ public sealed record OperationDocument(int SchemaVersion, Guid Id, string Resour
 public sealed record TransferExecutor(int Pid, long StartedAtUtcTicks, string Executable);
 
 public sealed record ScopePublicationPlan(Guid ResourceId, Guid InstallationId, string Origin,
-    string[] RequiredFiles);
+    string[] RequiredFiles,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] System.Text.Json.Nodes.JsonObject? ExternalPrevious = null);
 
 public sealed record ModelInstallPlan(Guid ModelId, InstalledFile[]? VerifiedFiles = null,
     int MovedFiles = 0, int MovingFile = -1,

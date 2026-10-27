@@ -68,7 +68,8 @@ los demás candidatos; una exploración limitada se informa como parcial/no conc
 
 ## Identificación en el catálogo local
 
-El **nombre canónico** identifica la selección en el inventario del proyecto.
+El **nombre del registro** identifica la unidad en el inventario del proyecto.
+Para una selección remota se utiliza su nombre canónico:
 No debe confundirse con los nombres/aliases de entradas publicados en el router:
 
 ```text
@@ -81,6 +82,13 @@ Ejemplos: `ggml-org/Qwen3.8-27B-GGUF:Q4_K_M` y
 La cuantización del companion es independiente de la del principal; puede compartirse
 entre cuantizaciones y modelos sin duplicar su registro. `#tipo` es una extensión
 de Coquena; `:cuantización` sigue la convención de llama.cpp.
+
+Un externo también admite un nombre local explícito, como `my-model`, sin repositorio,
+cuantización ni procedencia remota inventados. La clave de una declaración YAML con
+archivos locales es ese nombre, equivalente a `model add <ruta.gguf> --name my-model`;
+su referencia es `model://my-model`. Para un companion con nombre local, el rol se
+declara mediante `type` en YAML o `--type mmproj|mtp` en el alta CLI. Un nombre local
+es un componente no vacío, sin separadores de ruta, `:`, `#` ni caracteres de control.
 
 Los nombres locales son case insensitive y conservan su escritura. Las rutas remotas
 se conservan exactamente como las informa el origen. Una colisión se rechaza; también
@@ -254,8 +262,9 @@ companion no es su estado sino su relación con los modelos:
 
 - **No depende de un modelo principal para estar disponible.** Un proyector sin su
   modelo instalado sigue disponible.
-- **Registro:** `model companion add <ruta.gguf> --name <usuario/repositorio#tipo:cuantización> [--try-match]`.
-  El tipo está en el nombre, sin `--type`; no configura un preset.
+- **Registro:** `model companion add <ruta.gguf> --name <usuario/repositorio#tipo:cuantización> [--try-match]`,
+  con tipo en el nombre, o `model companion add <ruta.gguf> --name <nombre-local> --type mmproj|mtp`.
+  No configura un preset.
 - **Retiro:** `model companion remove <nombre>` resuelve el registro por su nombre canónico.
 - **Uso:** un parámetro del preset referencia al companion registrado. Cada preset
   guarda su propia referencia; Coquena la resuelve a una ruta absoluta
@@ -317,7 +326,10 @@ completo. Basta la referencia del catálogo a sus rutas: no necesita symlinks ni
 Si otra herramienta mueve, elimina o reemplaza esos archivos, Coquena informa lo que
 observa; no los repara, actualiza ni adopta automáticamente.
 
-El alta exige `--name <nombre-canónico>`: declaración del usuario, no prueba de procedencia.
+El alta exige `--name <nombre>`: nombre local o nombre canónico remoto declarado por
+el usuario, sin constituir prueba de procedencia. Un nombre local sin repositorio no
+permite consultar un origen de matching: `--try-match` conserva el alta e informa
+esa ausencia sin inventar un repositorio ni iniciar consultas de red.
 Sin `--try-match`, el registro es exclusivamente local. `--try-match` es un flag opcional
 sin valor: intenta emparejar la selección en el repositorio declarado usando metadatos
 locales. Fallo de red, ausencia de coincidencias o ambigüedad no invalidan el registro

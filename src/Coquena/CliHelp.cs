@@ -65,6 +65,8 @@ internal static class CliHelp
         Modelos:
           model list                       Listar inventario y progreso conocido
           model show [<alias>]             Consultar intención sin descargar
+          model add <ruta.gguf> --name <nombre> [--try-match]
+            Registrar un externo; matching informativo opcional, sin adoptar bytes
           model download <repositorio[:cuantización]>
             Elegir y descargar un modelo de Hugging Face
           model remove <nombre|id>         Retirar archivos propios; conservar externos
@@ -80,6 +82,9 @@ internal static class CliHelp
         Auxiliares:
           model companion list             Listar auxiliares y progreso conocido
           model companion show [<alias>]   Consultar intención sin descargar
+          model companion add <ruta.gguf> --name <nombre> [--try-match]
+            Nombre local: agregar --type mmproj|mtp
+            Nombre remoto: usuario/repositorio#tipo:cuantización
           model companion download <repositorio#tipo[:cuantización]>
             Elegir y descargar un auxiliar; tipo: mmproj o mtp
           model companion remove <nombre|id>

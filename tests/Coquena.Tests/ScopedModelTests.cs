@@ -146,6 +146,23 @@ internal static class ScopedModelTests
         var a = await models.PrepareAsync(main, source, transport, menu, new ResolutionTests.NamedInspector());
         var b = await models.PrepareAsync(main with { Key = "alternativo" }, source, transport, menu, new ResolutionTests.NamedInspector());
         Check(a.InstallationId == b.InstallationId && transport.Calls == 2, "equivalent recipe aliases share one physical installation");
+        File.WriteAllText(Path.Combine(directory, "coquena.yaml"), "presets:\n  p:\n    args:\n      model: fixture/repository:Q4_0\n");
+        var direct = await models.PrepareReferenceAsync(RecipeReader.Read(new(directory)), new("model", "fixture/repository:Q4_0", true),
+            source, transport, menu, new ResolutionTests.NamedInspector());
+        Check(direct.ResourceId == a.ResourceId && direct.InstallationId == a.InstallationId && transport.Calls == 2,
+            "direct canonical reference shares prepared alias installation without transfer");
+        var directFolder = Path.Combine(directory, "direct-only"); Directory.CreateDirectory(directFolder);
+        File.WriteAllText(Path.Combine(directFolder, "coquena.yaml"), "presets:\n  p:\n    args:\n      model: fixture/repository:Q4_0\n");
+        var directModels = new ScopedModels(ScopeContext.Project(Path.Combine(directFolder, "coquena.yaml")));
+        var directTransport = new Transport(bytes);
+        var directRecipe = RecipeReader.Read(new(directFolder));
+        var initial = await directModels.PrepareReferenceAsync(directRecipe, new("model", "fixture/repository:Q4_0", true), source,
+            directTransport, menu, new ResolutionTests.NamedInspector());
+        Check(directTransport.Calls == 1 && directModels.ResolveReference(new("model", "fixture/repository:Q4_0", true)) == initial.EntryPath,
+            "direct canonical reference prepares an undeclared selection");
+        var laterAlias = await directModels.PrepareAsync(main, source, directTransport, menu, new ResolutionTests.NamedInspector());
+        Check(laterAlias.ResourceId == initial.ResourceId && laterAlias.InstallationId == initial.InstallationId && directTransport.Calls == 1,
+            "subsequent alias shares the initially direct selection");
         var before = new ScopeStore(context).Read().Revision;
         output.GetStringBuilder().Clear(); error.GetStringBuilder().Clear();
         Check(ScopedModelCli.Run(["list", "--base", directory, "--json"], output, error) == 0 &&

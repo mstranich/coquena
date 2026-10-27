@@ -15,37 +15,52 @@ public static class ScopedModelCli
     {
         var companion = args.Length > 0 && args[0] == "companion";
         if (companion) args = args[1..];
-        if (args.Length == 0) { output.WriteLine("model [companion]: list, show, download, remove, protect, unprotect."); return 0; }
+        if (args.Length == 0) { output.WriteLine("model [companion]: list, show, add, download, remove, protect, unprotect."); return 0; }
         try
         {
             var action = args[0];
-            if (action is not ("list" or "show" or "download" or "remove" or "protect" or "unprotect")) return Invalid(error);
-            var global = false; var json = false; string? basePath = null, value = null;
+            if (action is not ("list" or "show" or "add" or "download" or "remove" or "protect" or "unprotect")) return Invalid(error);
+            var global = false; var json = false; var tryMatch = false; string? basePath = null, value = null, name = null, type = null;
             var files = new List<string>(); var env = new List<string>(); var seen = new HashSet<string>();
             for (var i = 1; i < args.Length; i++)
             {
                 var option = args[i] switch { "-g" => "--global", "-f" => "--file", _ => args[i] };
-                if (option is "--global" or "--json")
+                if (option is "--global" or "--json" or "--try-match")
                 {
                     if (!seen.Add(option)) return Invalid(error);
-                    if (option == "--global") global = true; else json = true;
+                    if (option == "--global") global = true; else if (option == "--json") json = true; else tryMatch = true;
                 }
-                else if (option is "--base" or "--file" or "--env-file")
+                else if (option is "--base" or "--file" or "--env-file" or "--name" or "--type")
                 {
-                    if (++i == args.Length || option == "--base" && !seen.Add(option)) return Invalid(error);
-                    if (option == "--base") basePath = args[i]; else if (option == "--file") files.Add(args[i]); else env.Add(args[i]);
+                    if (++i == args.Length || option is "--base" or "--name" or "--type" && !seen.Add(option)) return Invalid(error);
+                    if (option == "--base") basePath = args[i]; else if (option == "--name") name = args[i]; else if (option == "--type") type = args[i]; else if (option == "--file") files.Add(args[i]); else env.Add(args[i]);
                 }
                 else if (!option.StartsWith('-') && value is null) value = option;
                 else return Invalid(error);
             }
             if (global && (basePath is not null || files.Count > 0 || env.Count > 0) || action == "list" && value is not null ||
-                action is "download" or "remove" or "protect" or "unprotect" && value is null) return Invalid(error);
+                action is "add" or "download" or "remove" or "protect" or "unprotect" && value is null ||
+                action == "add" && name is null || action != "add" && (name is not null || tryMatch || type is not null)) return Invalid(error);
             ModelRequest? request = action == "download" ? ModelRequest.Parse(value!) : null;
             if (request is not null && companion != (request.CompanionType is not null)) return Invalid(error);
             if (action is "protect" or "unprotect" && (!Guid.TryParseExact(value, "D", out var id) || id == Guid.Empty)) return Invalid(error);
             var selection = global ? null : new RecipeSelection(Environment.CurrentDirectory, files, basePath, env);
             var context = global ? ScopeContext.Global(Home.Resolve()) : ScopeContext.Project(selection!.Files[0], selection.Base);
             var models = new ScopedModels(context);
+            if (action == "add")
+            {
+                var added = models.AddExternal(value!, name!, companion, type: type);
+                output.WriteLine(new JsonObject { ["resource-id"] = added.ResourceId, ["installation-id"] = added.InstallationId,
+                    ["ownership"] = "external", ["provenance-certified"] = false }.ToJsonString());
+                if (tryMatch)
+                {
+                    using var matchClient = source is null ? HuggingFaceStore.CreateClient() : null;
+                    try { models.TryMatchAsync(added, source ?? new(matchClient!), interaction ?? new SelectionInteraction(output, !Console.IsInputRedirected, json)).GetAwaiter().GetResult(); }
+                    catch (Exception e) when (e is ModelSourceException or System.Net.Http.HttpRequestException or IOException or OperationCanceledException)
+                    { error.WriteLine("Aviso: emparejamiento no confirmado; alta externa conservada y utilizable según disponibilidad."); }
+                }
+                return 0;
+            }
             if (action == "show" && !global)
             {
                 var recipe = RecipeReader.Read(selection!);
@@ -64,7 +79,9 @@ public static class ScopedModelCli
                 {
                     foreach (var resource in resources)
                         foreach (var installation in resource!["installations"]!.AsArray())
-                            output.WriteLine($"{resource["logical-key"]!.GetValue<string>()} | {resource["resource-id"]!.GetValue<string>()} | {installation!["installation-id"]!.GetValue<string>()} | {installation["observed-availability"]!.GetValue<string>()} | cambio={installation["changed"]!.GetValue<bool>()}");
+                            output.WriteLine($"{resource["logical-key"]!.GetValue<string>()} | {resource["resource-id"]!.GetValue<string>()} | {installation!["installation-id"]!.GetValue<string>()} | {installation["observed-availability"]!.GetValue<string>()} | cambio={installation["changed"]!.GetValue<bool>()}" +
+                                (resource["ownership"]?.GetValue<string>() == "external" ? " | externo; sin baseline de integridad" +
+                                    (resource["informative-match"] is null ? "" : "; equivalencia informativa no certificada") : ""));
                     foreach (var operation in resources.SelectMany(r => r!["operations"] as JsonArray ?? []))
                         output.WriteLine($"{operation!["id"]!.GetValue<string>()} | {operation["state"]!.GetValue<string>()} | {operation["phase"]!.GetValue<string>()}");
                     if (resources.Count == 0) output.WriteLine("Sin recursos instalados en el ámbito seleccionado.");
@@ -97,11 +114,22 @@ public static class ScopedModelCli
                 var selected = new ModelSelectionMenu(source ?? new(client!), inspector).SelectAsync(request!,
                     interaction ?? new SelectionInteraction(output, !Console.IsInputRedirected, json), stopped.Token).GetAwaiter().GetResult();
                 if (selected is null) return 0;
+                var external = models.List(companion).SingleOrDefault(r => r!["logical-key"]!.GetValue<string>().Equals(selected.Name, StringComparison.OrdinalIgnoreCase) && r["ownership"]!.GetValue<string>() == "external");
+                var replace = false;
+                if (external is not null)
+                {
+                    var prompt = interaction ?? new SelectionInteraction(output, !Console.IsInputRedirected, json);
+                    if (!prompt.IsInteractive) throw new ModelSourceException("interaction-required", "La transición requiere confirmación explícita.");
+                    var choice = prompt.ChooseAsync(["Descargar copia gestionada conservando los archivos externos", "Cancelar; conservar registro externo"], stopped.Token).GetAwaiter().GetResult();
+                    if (choice is null or 1) return 0;
+                    if (choice != 0) throw new ModelSourceException("invalid-choice", "Selección inválida.");
+                    replace = true;
+                }
                 var result = models.AcquireAsync(selected, transport ?? provider!, progress: operation =>
                 {
                     if (json) output.WriteLine(ContractJson.Write(operation, ContractJsonContext.Default.OperationDocument));
                     else DownloadCli.Show(operation, output);
-                }, cancellation: stopped.Token).GetAwaiter().GetResult();
+                }, cancellation: stopped.Token, replaceExternal: replace).GetAwaiter().GetResult();
                 output.WriteLine(new JsonObject { ["resource-id"] = result.ResourceId, ["installation-id"] = result.InstallationId }.ToJsonString());
                 return 0;
             }

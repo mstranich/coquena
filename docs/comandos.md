@@ -131,6 +131,11 @@ Los [criterios GGUF](modelos-y-companions.md) gobiernan candidatos y ambigüedad
 Registrar un externo requiere rutas y nombre; --try-match es un intento informativo
 opcional de correspondencia, no adopción ni certificación de procedencia.
 El registro persiste aunque falle o se cancele el emparejamiento.
+El nombre puede ser local: `model add ./weights/modelo.gguf --name my-model`
+equivale a declarar `my-model` con esos `files` locales en `models` del YAML.
+Para companions con nombre local se indica `--type mmproj|mtp`, equivalente al
+campo `type` de su declaración. Un nombre canónico remoto conserva el tipo en
+`#tipo`. Sin repositorio declarado, el matching se omite con diagnóstico.
 Retirar externo no borra bytes; retirar gestionado actúa sólo sobre archivos propios
 y conserva pendientes si la eliminación es parcial.
 

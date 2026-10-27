@@ -94,6 +94,16 @@ El inventario puede conservar `model-aliases` locales con clave, tipo, UUID de r
 y UUID de instalación. Varias claves pueden referenciar la misma selección física;
 una baja conserva los IDs rotos hasta su sustitución explícita, sin reconectarlos
 por coincidencia de nombre canónico.
+Las instalaciones externas conservan su lista ordenada de rutas y observaciones de
+tamaño/fecha, con ausencia explícita de baseline de integridad. Las rutas relativas
+se resuelven contra la base canónica del proyecto. Al registrar desde otra base para
+un ámbito global, se conservan absolutas contra la base de origen; no se reinterpretan
+contra la home. Estos campos son estado local privado, no una resolución portable.
+La equivalencia informativa opcional se guarda separada de la selección gestionada.
+Una transición explícita conserva el registro externo de partida en el checkpoint:
+la publicación verificada comprueba ese registro, conserva su UUID y actualiza las
+referencias a la nueva instalación física en una misma generación. Hasta entonces
+se conserva la propiedad externa y la operación pendiente reserva la unidad.
 SHA-256 de un artefacto usa algoritmo `sha256`, dominio `file-bytes` y 64 hex
 lowercase; otras identidades conservan algoritmo y dominio propios. Commit no
 sustituye hash. Metadatos desconocidos no prueban integridad ni procedencia.

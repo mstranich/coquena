@@ -95,7 +95,7 @@ public static class ArgumentEmission
         {
             var rule = Rule(argument, block.Scope, "ini", adapter);
             if (!keys.Add(rule.Name)) throw argument.Value.Error("emission-key-collision", "emission", "Varios argumentos emiten la misma clave INI.");
-            foreach (var value in Values(recipe, argument, rule, "ini", adapter, resolve))
+            foreach (var value in Values(recipe, argument, rule, "ini", adapter, resolve, block.Scope == "preset"))
                 result.Append(codec.Entry(rule.Name, value, argument.Value.Origin));
         }
         return result.ToString();
@@ -168,7 +168,7 @@ public static class ArgumentEmission
             if (argument.Value.Text == "true") return ["--" + rule.Name];
             return rule.NegativeName is null ? [] : ["--" + rule.NegativeName];
         }
-        return Values(recipe, argument, rule, "cli", adapter, resolve).SelectMany(value => new[] { "--" + rule.Name, value });
+        return Values(recipe, argument, rule, "cli", adapter, resolve, block.Scope == "preset").SelectMany(value => new[] { "--" + rule.Name, value });
     }
 
     private static ArgumentEmitRule Rule(ValidatedArgument argument, string scope, string destination, IArgumentAdapter? adapter)
@@ -187,12 +187,12 @@ public static class ArgumentEmission
     }
 
     private static IReadOnlyList<string> Values(EffectiveRecipe recipe, ValidatedArgument argument, ArgumentEmitRule rule, string destination,
-        IArgumentAdapter? adapter, Func<ArgumentReference, string>? resolve)
+        IArgumentAdapter? adapter, Func<ArgumentReference, string>? resolve, bool canonical)
     {
         var value = argument.Value;
         string Scalar(RecipeValue item)
         {
-            var reference = ArgumentValidation.Reference(recipe, item, argument.Literal);
+            var reference = ArgumentValidation.Reference(recipe, item, argument.Literal, canonical);
             var text = reference is not null
                 ? resolve?.Invoke(reference) ?? throw item.Error("unresolved-resource-reference", "emission", "La referencia necesita una ruta de entrada resuelta.")
                 : item.Kind switch

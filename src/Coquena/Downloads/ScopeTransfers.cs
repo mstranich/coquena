@@ -34,7 +34,8 @@ public sealed class ScopeTransfers
         this.validateBackend = validateBackend;
     }
 
-    public OperationDocument Create(OperationDocument selection, string origin = "explicit", string[]? requiredFiles = null)
+    public OperationDocument Create(OperationDocument selection, string origin = "explicit", string[]? requiredFiles = null,
+        JsonObject? externalPrevious = null)
     {
         if (selection.BackendInstall is not null || selection.ModelInstall is not null || selection.ScopePublication is not null ||
             origin is not ("explicit" or "automatic")) Fail("invalid-scoped-selection");
@@ -55,12 +56,23 @@ public sealed class ScopeTransfers
         var resources = snapshot.Documents["local/inventory.json"]["data"]!["resources"]!.AsArray();
         var matches = resources.Where(r => r!["logical-key"]!.GetValue<string>().Equals(selection.Name, StringComparison.OrdinalIgnoreCase) &&
             r["kind"]!.GetValue<string>() == selection.ResourceKind).ToArray();
-        if (matches.Length > 1 || matches.Any(r => r!["ownership"]!.GetValue<string>() != "managed")) Fail("resource-ownership-conflict");
+        if (matches.Length > 1 || matches.Any(r => r!["ownership"]!.GetValue<string>() != "managed" &&
+            !JsonNode.DeepEquals(r, externalPrevious))) Fail("resource-ownership-conflict");
+        if (externalPrevious is not null && (selection.ResourceKind is not ("model" or "companion") || matches.Length != 1 ||
+            !JsonNode.DeepEquals(matches[0], externalPrevious) || externalPrevious["ownership"]?.GetValue<string>() != "external")) Fail("external-changed");
         if (matches.Any(r => r!["removal-pending"]?.GetValue<bool>() == true)) Fail("removal-pending");
         var resourceId = matches.Length == 0 ? Guid.NewGuid() : Guid.Parse(matches[0]!["resource-id"]!.GetValue<string>());
         var installationId = Guid.NewGuid();
         var prefix = $"{(selection.ResourceKind == "backend" ? "backends" : "models")}/installations/{installationId:D}";
-        return Downloads.Create(selection with { ScopePublication = new(resourceId, installationId, origin, requiredFiles ?? []),
+        if (externalPrevious is not null)
+        {
+            var ids = new[] { resourceId.ToString("D") }.Concat(externalPrevious["installations"]!.AsArray().Select(i => i!["installation-id"]!.GetValue<string>())).ToArray();
+            if (snapshot.Documents.TryGetValue("local/active.json", out var active) && ids.Any(id => HasIdentity(active, id))) Fail("resource-in-use");
+            foreach (var file in externalPrevious["installations"]!.AsArray().SelectMany(i => i!["files"]!.AsArray()))
+                if (selection.Files.Any(f => string.Equals(Path.GetFullPath(file!["path"]!.GetValue<string>(), Context.Base),
+                    Context.PathFor(prefix + "/" + f.SourcePath), StringComparison.OrdinalIgnoreCase))) Fail("external-destination-conflict");
+        }
+        return Downloads.Create(selection with { ScopePublication = new(resourceId, installationId, origin, requiredFiles ?? [], externalPrevious),
             Files = selection.Files.Select(f => f with { DestinationPath = prefix + "/" + f.SourcePath }).ToArray() });
     }
 
@@ -210,6 +222,18 @@ public sealed class ScopeTransfers
                 ["kind"] = operation.ResourceKind, ["ownership"] = "managed", ["installations"] = new JsonArray() };
             resources.Add(resource);
         }
+        if (resource["ownership"]!.GetValue<string>() == "external")
+        {
+            if (plan.ExternalPrevious is null || !JsonNode.DeepEquals(resource, plan.ExternalPrevious)) Fail("external-changed");
+            var ids = new[] { plan.ResourceId.ToString("D") }.Concat(resource["installations"]!.AsArray().Select(i => i!["installation-id"]!.GetValue<string>())).ToArray();
+            if (snapshot.Documents.TryGetValue("local/active.json", out var active) && ids.Any(id => HasIdentity(active, id))) Fail("resource-in-use");
+            resource["ownership"] = "managed";
+            resource["installations"] = new JsonArray();
+            resource.AsObject().Remove("informative-match");
+            foreach (var alias in document["data"]!["model-aliases"] as JsonArray ?? [])
+                if (alias!["resource-id"]!.GetValue<string>() == plan.ResourceId.ToString("D")) alias["installation-id"] = plan.InstallationId.ToString("D");
+        }
+        else if (plan.ExternalPrevious is not null && !resource["installations"]!.AsArray().Any(i => i!["operation-id"]?.GetValue<string>() == operation.Id.ToString("D"))) Fail("external-changed");
         if (resource["ownership"]!.GetValue<string>() != "managed" || resource["logical-key"]!.GetValue<string>() != operation.Name ||
             resource["kind"]!.GetValue<string>() != operation.ResourceKind) Fail("resource-ownership-conflict");
         var installations = resource["installations"]!.AsArray();
@@ -227,6 +251,12 @@ public sealed class ScopeTransfers
         foreach (var doc in docs.Values) doc["revision"] = checked(doc["revision"]!.GetValue<long>() + 1);
         inventory.Commit(snapshot.Revision, docs);
     }
+
+    private static bool HasIdentity(JsonNode? node, string id) => node switch
+    {
+        JsonObject obj => obj.Any(p => HasIdentity(p.Value, id)), JsonArray array => array.Any(p => HasIdentity(p, id)),
+        JsonValue value => value.TryGetValue<string>(out var text) && text == id, _ => false
+    };
 
     private async Task<bool> BeforeCancel(OperationDocument operation)
     {

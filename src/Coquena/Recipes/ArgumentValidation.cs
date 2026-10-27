@@ -5,7 +5,7 @@ namespace Coquena.Recipes;
 
 public sealed record ArgumentBackend(string? Distribution = null, string? Build = null, IReadOnlySet<string>? Capabilities = null);
 public sealed record ArgumentDiagnostic(string Code, RecipeOrigin Origin, string Detail);
-public sealed record ArgumentReference(string Kind, string Name);
+public sealed record ArgumentReference(string Kind, string Name, bool Canonical = false);
 public sealed record ValidatedArgument(string Name, RecipeValue Value, RecipeValue? Definition, ArgumentReference? Reference, bool Literal);
 public sealed record ValidatedArgumentBlock(string Scope, string Key, IReadOnlyDictionary<string, ValidatedArgument> Arguments, IReadOnlyList<ArgumentDiagnostic> Diagnostics);
 
@@ -58,9 +58,9 @@ public static class ArgumentValidation
                 if (!ArgumentSchema.Matches(definition, value)) throw value.Error("invalid-argument-value", "validation", "El valor no satisface el tipo o las restricciones del argumento.");
                 Availability(definition, backend, diagnostics);
             }
-            var reference = Reference(recipe, value, literal);
+            var reference = Reference(recipe, value, literal, scope == "preset");
             // Lists can contain references as well. Validate identity before resolution.
-            foreach (var item in value.Items) Reference(recipe, item, false);
+            foreach (var item in value.Items) Reference(recipe, item, false, scope == "preset");
             if (!arguments.TryAdd(name, new(name, value, definition, reference, literal)))
                 throw value.Error("duplicate-argument", "validation", "Un nombre canónico y sus aliases no pueden asignarse más de una vez.");
         }
@@ -73,13 +73,13 @@ public static class ArgumentValidation
             {
                 foreach (var condition in (rule.Get("when") is { } conditionWhen ? new[] { conditionWhen } : [])
                     .Concat((rule.Get("requires")?.Fields.Values ?? []).Concat(rule.Get("conflicts")?.Fields.Values ?? [])))
-                    if ((condition.Get("equals") ?? condition.Get("contains")) is { } operand) Reference(recipe, operand, false);
-                var active = rule.Get("when") is { } when ? Test(recipe, when, owner) : owner is not null;
+                    if ((condition.Get("equals") ?? condition.Get("contains")) is { } operand) Reference(recipe, operand, false, scope == "preset");
+                var active = rule.Get("when") is { } when ? Test(recipe, when, owner, scope == "preset") : owner is not null;
                 if (!active) continue;
                 foreach (var relation in new[] { "requires", "conflicts" })
                     foreach (var target in rule.Get(relation)?.Fields ?? new Dictionary<string, RecipeValue>())
                     {
-                        var matches = Test(recipe, target.Value, arguments.GetValueOrDefault(target.Key));
+                        var matches = Test(recipe, target.Value, arguments.GetValueOrDefault(target.Key), scope == "preset");
                         if (relation == "requires" ? !matches : matches)
                             throw (owner?.Value ?? block).Error("argument-" + relation, "validation", "No se satisface una relación declarativa del argumento " + definition.Key + " con " + target.Key + ".");
                     }
@@ -88,25 +88,35 @@ public static class ArgumentValidation
         return new(scope, key, new ReadOnlyDictionary<string, ValidatedArgument>(arguments), diagnostics.AsReadOnly());
     }
 
-    private static bool Test(EffectiveRecipe recipe, RecipeValue condition, ValidatedArgument? argument)
+    private static bool Test(EffectiveRecipe recipe, RecipeValue condition, ValidatedArgument? argument, bool canonical)
     {
         var value = argument?.Value;
         if (condition.Get("present") is { } present) return (value is not null) == (present.Text == "true");
         if (value is null) return false;
         var operand = condition.Get("equals") ?? condition.Get("contains")!;
-        if (Reference(recipe, operand, false) is not null && argument!.Literal) return false;
+        if (Reference(recipe, operand, false, canonical) is not null && argument!.Literal) return false;
         if (condition.Get("equals") is { } equals) return ArgumentSchema.Equal(equals, value);
         return value.Kind == RecipeKind.Sequence && value.Items.Any(x => ArgumentSchema.Equal(x, condition.Get("contains")!));
     }
 
-    internal static ArgumentReference? Reference(EffectiveRecipe recipe, RecipeValue value, bool literal)
+    internal static ArgumentReference? Reference(EffectiveRecipe recipe, RecipeValue value, bool literal, bool canonical = false)
     {
         if (literal || value.Kind != RecipeKind.String) return null;
         var text = value.Text!;
         var kind = text.StartsWith("model://", StringComparison.Ordinal) ? "model" : text.StartsWith("companion://", StringComparison.Ordinal) ? "companion" : null;
-        if (kind is null) return null;
+        if (kind is null)
+        {
+            // The direct selector form is reserved for preset arguments.
+            if (!canonical) return null;
+            try
+            {
+                var request = Coquena.Models.ModelRequest.Parse(text);
+                return request.Quantization is null ? null : new(request.CompanionType is null ? "model" : "companion", text, true);
+            }
+            catch (Coquena.Models.ModelSourceException) { return null; }
+        }
         var name = text[(text.IndexOf("://", StringComparison.Ordinal) + 3)..];
-        if (recipe.Root.Get(kind == "model" ? "models" : "companions")?.Get(name) is null)
+        if (recipe.Root.Get(kind == "model" ? "models" : "companions")?.Fields.Keys.Any(key => key.Equals(name, StringComparison.OrdinalIgnoreCase)) != true)
             throw value.Error("unknown-resource-reference", "validation", "La referencia tipada no existe en la receta.");
         return new(kind, name);
     }
