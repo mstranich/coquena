@@ -1,10 +1,10 @@
 ---
-status: complete
+status: archived
 created: 2026-10-10
 tags:
 - m2
 created_at: 2026-10-10T16:36:43.597969200Z
-updated_at: 2026-10-12T22:15:00.530635800Z
+updated_at: 2026-10-28T10:21:41.654016800Z
 completed_at: 2026-10-12T22:15:00.530635800Z
 transitions:
 - status: planned
@@ -13,6 +13,8 @@ transitions:
   at: 2026-10-12T21:53:32.267663500Z
 - status: complete
   at: 2026-10-12T22:15:00.530635800Z
+- status: archived
+  at: 2026-10-28T10:21:41.654016800Z
 ---
 # Descargar y catalogar companions gestionados
 

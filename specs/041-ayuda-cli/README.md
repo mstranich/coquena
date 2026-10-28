@@ -1,18 +1,20 @@
 ---
-status: complete
+status: archived
 created: 2026-10-21
 priority: medium
 tags:
 - m3
 - correctivo
 created_at: 2026-10-21T23:16:24.363330300Z
-updated_at: 2026-10-22T15:08:42.370576800Z
+updated_at: 2026-10-28T10:21:41.673467Z
 completed_at: 2026-10-22T15:08:42.370576800Z
 transitions:
 - status: in-progress
   at: 2026-10-22T14:07:56.266835700Z
 - status: complete
   at: 2026-10-22T15:08:42.370576800Z
+- status: archived
+  at: 2026-10-28T10:21:41.673467Z
 ---
 # Organizar la ayuda según la sintaxis real del ejecutable
 

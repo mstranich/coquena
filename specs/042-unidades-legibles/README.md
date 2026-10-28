@@ -1,18 +1,20 @@
 ---
-status: complete
+status: archived
 created: 2026-10-21
 priority: high
 tags:
 - m3
 - correctivo
 created_at: 2026-10-21T23:16:24.450198500Z
-updated_at: 2026-10-22T16:31:07.423745Z
+updated_at: 2026-10-28T10:21:41.674910400Z
 completed_at: 2026-10-22T16:31:07.423745Z
 transitions:
 - status: in-progress
   at: 2026-10-22T15:33:46.680845400Z
 - status: complete
   at: 2026-10-22T16:31:07.423745Z
+- status: archived
+  at: 2026-10-28T10:21:41.674910400Z
 ---
 # Unificar tamaños y memoria con escala 1024 y presentación legible
 

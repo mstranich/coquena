@@ -1,5 +1,5 @@
 ---
-status: complete
+status: archived
 created: 2026-10-10
 tags:
 - m2
@@ -7,7 +7,7 @@ depends_on:
 - 026-m2-registro-modelos-externos
 - 027-m2-descarga-companions
 created_at: 2026-10-10T16:36:43.892788900Z
-updated_at: 2026-10-12T22:52:12.419629900Z
+updated_at: 2026-10-28T10:21:41.655340900Z
 completed_at: 2026-10-12T22:52:12.419629900Z
 transitions:
 - status: planned
@@ -16,6 +16,8 @@ transitions:
   at: 2026-10-12T22:16:30.475274700Z
 - status: complete
   at: 2026-10-12T22:52:12.419629900Z
+- status: archived
+  at: 2026-10-28T10:21:41.655340900Z
 ---
 # Actualizar metadatos y verificar integridad local
 

@@ -1,10 +1,10 @@
 ---
-status: complete
+status: archived
 created: 2026-10-10
 tags:
 - m2
 created_at: 2026-10-10T16:35:37.958318600Z
-updated_at: 2026-10-12T13:40:08.163389200Z
+updated_at: 2026-10-28T10:21:41.649013Z
 completed_at: 2026-10-12T13:40:08.163389200Z
 transitions:
 - status: planned
@@ -13,6 +13,8 @@ transitions:
   at: 2026-10-12T05:23:06.096030500Z
 - status: complete
   at: 2026-10-12T13:40:08.163389200Z
+- status: archived
+  at: 2026-10-28T10:21:41.649013Z
 ---
 # Registrar y seleccionar backends externos
 

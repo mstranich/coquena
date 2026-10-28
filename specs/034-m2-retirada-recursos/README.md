@@ -1,5 +1,5 @@
 ---
-status: complete
+status: archived
 created: 2026-10-10
 tags:
 - m2
@@ -8,7 +8,7 @@ depends_on:
 - 026-m2-registro-modelos-externos
 - 027-m2-descarga-companions
 created_at: 2026-10-10T16:36:45.885192400Z
-updated_at: 2026-10-13T15:45:09.414100300Z
+updated_at: 2026-10-28T10:21:41.663253200Z
 completed_at: 2026-10-13T15:45:09.414100300Z
 transitions:
 - status: planned
@@ -17,6 +17,8 @@ transitions:
   at: 2026-10-13T15:21:12.960650200Z
 - status: complete
   at: 2026-10-13T15:45:09.414100300Z
+- status: archived
+  at: 2026-10-28T10:21:41.663253200Z
 ---
 # Retirar recursos según propiedad y uso
 

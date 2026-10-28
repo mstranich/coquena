@@ -1,18 +1,20 @@
 ---
-status: complete
+status: archived
 created: 2026-10-07
 tags:
 - m1
 depends_on:
 - '003'
 created_at: 2026-10-07T22:02:19.189521800Z
-updated_at: 2026-10-09T11:56:50.687906200Z
+updated_at: 2026-10-28T10:21:41.635396900Z
 completed_at: 2026-10-09T11:56:50.687906200Z
 transitions:
 - status: in-progress
   at: 2026-10-08T23:10:14.232688500Z
 - status: complete
   at: 2026-10-09T11:56:50.687906200Z
+- status: archived
+  at: 2026-10-28T10:21:41.635396900Z
 ---
 # Configuración, presets y generación de INI
 

@@ -1,9 +1,9 @@
 ---
-status: complete
+status: archived
 created: 2026-10-09
 priority: medium
 created_at: 2026-10-09T14:07:09.965469Z
-updated_at: 2026-10-11T13:33:25.947805500Z
+updated_at: 2026-10-28T10:21:41.642826700Z
 completed_at: 2026-10-11T13:33:25.947805500Z
 transitions:
 - status: draft
@@ -14,6 +14,8 @@ transitions:
   at: 2026-10-11T13:05:16.904437400Z
 - status: complete
   at: 2026-10-11T13:33:25.947805500Z
+- status: archived
+  at: 2026-10-28T10:21:41.642826700Z
 ---
 # Configuración de retención de logs y separación de config/preset
 

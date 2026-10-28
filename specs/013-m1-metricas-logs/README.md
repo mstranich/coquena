@@ -1,18 +1,20 @@
 ---
-status: complete
+status: archived
 created: 2026-10-07
 tags:
 - m1
 depends_on:
 - '012'
 created_at: 2026-10-07T22:02:22.125315100Z
-updated_at: 2026-10-09T16:44:51.741007200Z
+updated_at: 2026-10-28T10:21:41.638034300Z
 completed_at: 2026-10-09T16:44:51.741007200Z
 transitions:
 - status: in-progress
   at: 2026-10-09T14:03:05.365238Z
 - status: complete
   at: 2026-10-09T16:44:51.741007200Z
+- status: archived
+  at: 2026-10-28T10:21:41.638034300Z
 ---
 # Instantánea de métricas y consulta de logs
 

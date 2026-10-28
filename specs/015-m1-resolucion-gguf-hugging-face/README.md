@@ -1,5 +1,5 @@
 ---
-status: complete
+status: archived
 created: 2026-10-08
 priority: high
 tags:
@@ -9,13 +9,15 @@ depends_on:
 - '008'
 - '009'
 created_at: 2026-10-08T18:05:45.537866700Z
-updated_at: 2026-10-08T23:01:58.053585700Z
+updated_at: 2026-10-28T10:21:41.640360800Z
 completed_at: 2026-10-08T23:01:58.053585700Z
 transitions:
 - status: in-progress
   at: 2026-10-08T20:25:30.162045200Z
 - status: complete
   at: 2026-10-08T23:01:58.053585700Z
+- status: archived
+  at: 2026-10-28T10:21:41.640360800Z
 ---
 # Resolver unidades GGUF de Hugging Face sin depender de nombres convencionales
 

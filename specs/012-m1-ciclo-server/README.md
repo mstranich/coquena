@@ -1,5 +1,5 @@
 ---
-status: complete
+status: archived
 created: 2026-10-07
 tags:
 - m1
@@ -8,13 +8,15 @@ depends_on:
 - '009'
 - '011'
 created_at: 2026-10-07T22:02:21.184749700Z
-updated_at: 2026-10-09T13:55:15.222111100Z
+updated_at: 2026-10-28T10:21:41.637094300Z
 completed_at: 2026-10-09T13:55:15.222111100Z
 transitions:
 - status: in-progress
   at: 2026-10-09T12:48:36.331279Z
 - status: complete
   at: 2026-10-09T13:55:15.222111100Z
+- status: archived
+  at: 2026-10-28T10:21:41.637094300Z
 ---
 # Inicio, parada, reinicio e identidad de procesos
 

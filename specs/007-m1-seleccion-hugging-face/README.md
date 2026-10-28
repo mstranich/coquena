@@ -1,18 +1,20 @@
 ---
-status: complete
+status: archived
 created: 2026-10-07
 tags:
 - m1
 depends_on:
 - '002'
 created_at: 2026-10-07T22:02:16.165707400Z
-updated_at: 2026-10-08T13:29:20.164974700Z
+updated_at: 2026-10-28T10:21:41.631098700Z
 completed_at: 2026-10-08T13:29:20.164974700Z
 transitions:
 - status: in-progress
   at: 2026-10-08T13:17:08.906384500Z
 - status: complete
   at: 2026-10-08T13:29:20.164974700Z
+- status: archived
+  at: 2026-10-28T10:21:41.631098700Z
 ---
 # Selección Hugging Face y menú de descarga
 

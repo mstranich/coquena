@@ -1,18 +1,20 @@
 ---
-status: complete
+status: archived
 created: 2026-10-07
 tags:
 - m1
 depends_on:
 - '003'
 created_at: 2026-10-07T22:02:13.145733200Z
-updated_at: 2026-10-08T01:08:14.020741100Z
+updated_at: 2026-10-28T10:21:41.623989800Z
 completed_at: 2026-10-08T01:08:14.020741100Z
 transitions:
 - status: in-progress
   at: 2026-10-08T00:55:28.525138300Z
 - status: complete
   at: 2026-10-08T01:08:14.020741100Z
+- status: archived
+  at: 2026-10-28T10:21:41.623989800Z
 ---
 # Transferencias y comandos de descarga reanudable
 

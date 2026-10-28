@@ -1,5 +1,5 @@
 ---
-status: complete
+status: archived
 created: 2026-10-10
 tags:
 - m2
@@ -7,7 +7,7 @@ depends_on:
 - 017-configuracion-retencion-logs
 - 027-m2-descarga-companions
 created_at: 2026-10-10T16:36:45.595954800Z
-updated_at: 2026-10-13T15:06:35.955454500Z
+updated_at: 2026-10-28T10:21:41.661890600Z
 completed_at: 2026-10-13T15:06:35.955454500Z
 transitions:
 - status: planned
@@ -16,6 +16,8 @@ transitions:
   at: 2026-10-13T14:19:57.751421500Z
 - status: complete
   at: 2026-10-13T15:06:35.955454500Z
+- status: archived
+  at: 2026-10-28T10:21:41.661890600Z
 ---
 # Clonar presets y resolver referencias a companions
 

@@ -1,12 +1,12 @@
 ---
-status: complete
+status: archived
 created: 2026-10-10
 tags:
 - m2
 depends_on:
 - 027-m2-descarga-companions
 created_at: 2026-10-10T16:36:44.459342600Z
-updated_at: 2026-10-13T01:21:35.579839300Z
+updated_at: 2026-10-28T10:21:41.658042500Z
 completed_at: 2026-10-13T01:21:35.579839300Z
 transitions:
 - status: planned
@@ -15,6 +15,8 @@ transitions:
   at: 2026-10-13T00:49:17.500335300Z
 - status: complete
   at: 2026-10-13T01:21:35.579839300Z
+- status: archived
+  at: 2026-10-28T10:21:41.658042500Z
 ---
 # Detectar y resolver actualizaciones de modelos y companions
 

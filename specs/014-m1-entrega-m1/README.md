@@ -1,18 +1,20 @@
 ---
-status: complete
+status: archived
 created: 2026-10-07
 tags:
 - m1
 depends_on:
 - '013'
 created_at: 2026-10-07T22:02:23.095115200Z
-updated_at: 2026-10-09T18:05:28.730612300Z
+updated_at: 2026-10-28T10:21:41.639282700Z
 completed_at: 2026-10-09T18:05:28.730612300Z
 transitions:
 - status: in-progress
   at: 2026-10-09T17:25:30.663421400Z
 - status: complete
   at: 2026-10-09T18:05:28.730612300Z
+- status: archived
+  at: 2026-10-28T10:21:41.639282700Z
 ---
 # Recorrido real y entregable Native AOT M1
 

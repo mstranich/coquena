@@ -1,18 +1,20 @@
 ---
-status: complete
+status: archived
 created: 2026-10-16
 priority: medium
 tags:
 - m2
 - bugfix
 created_at: 2026-10-16T20:07:30.689473900Z
-updated_at: 2026-10-17T08:58:39.601495300Z
+updated_at: 2026-10-28T10:21:41.667516400Z
 completed_at: 2026-10-17T08:58:39.601495300Z
 transitions:
 - status: in-progress
   at: 2026-10-17T04:31:20.810248400Z
 - status: complete
   at: 2026-10-17T08:58:39.601495300Z
+- status: archived
+  at: 2026-10-28T10:21:41.667516400Z
 ---
 # Distinguir drafts MTP de modelos principales con MTP
 

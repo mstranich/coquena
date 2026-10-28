@@ -1,18 +1,20 @@
 ---
-status: complete
+status: archived
 created: 2026-10-07
 tags:
 - m1
 depends_on:
 - '001'
 created_at: 2026-10-07T22:02:11.164831800Z
-updated_at: 2026-10-08T00:18:12.522827Z
+updated_at: 2026-10-28T10:21:41.620871100Z
 completed_at: 2026-10-08T00:18:12.522827Z
 transitions:
 - status: in-progress
   at: 2026-10-08T00:15:04.973124300Z
 - status: complete
   at: 2026-10-08T00:18:12.522827Z
+- status: archived
+  at: 2026-10-28T10:21:41.620871100Z
 ---
 # Contratos y fixtures mínimos de M1
 

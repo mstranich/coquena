@@ -1,11 +1,11 @@
 ---
-status: complete
+status: archived
 created: 2026-10-10
 priority: medium
 tags:
 - m2
 created_at: 2026-10-10T10:53:13.328913500Z
-updated_at: 2026-10-11T17:26:31.256948Z
+updated_at: 2026-10-28T10:21:41.644827200Z
 completed_at: 2026-10-11T17:26:31.256948Z
 transitions:
 - status: planned
@@ -14,6 +14,8 @@ transitions:
   at: 2026-10-11T16:04:36.937347700Z
 - status: complete
   at: 2026-10-11T17:26:31.256948Z
+- status: archived
+  at: 2026-10-28T10:21:41.644827200Z
 ---
 # Configurar el directorio de backends
 

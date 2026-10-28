@@ -1,11 +1,11 @@
 ---
-status: complete
+status: archived
 created: 2026-10-10
 priority: medium
 tags:
 - m2
 created_at: 2026-10-10T10:53:13.495445100Z
-updated_at: 2026-10-11T20:20:00.803934500Z
+updated_at: 2026-10-28T10:21:41.646880600Z
 completed_at: 2026-10-11T20:20:00.803934500Z
 transitions:
 - status: planned
@@ -14,6 +14,8 @@ transitions:
   at: 2026-10-11T18:08:18.947227300Z
 - status: complete
   at: 2026-10-11T20:20:00.803934500Z
+- status: archived
+  at: 2026-10-28T10:21:41.646880600Z
 ---
 # Separar el sondeo del sistema mediante system probe
 

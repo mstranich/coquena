@@ -1,11 +1,11 @@
 ---
-status: complete
+status: archived
 created: 2026-10-10
 priority: medium
 tags:
 - m2
 created_at: 2026-10-10T10:53:13.413246100Z
-updated_at: 2026-10-11T18:06:53.266478400Z
+updated_at: 2026-10-28T10:21:41.645963200Z
 completed_at: 2026-10-11T18:06:53.266478400Z
 transitions:
 - status: planned
@@ -14,6 +14,8 @@ transitions:
   at: 2026-10-11T17:29:27.521931200Z
 - status: complete
   at: 2026-10-11T18:06:53.266478400Z
+- status: archived
+  at: 2026-10-28T10:21:41.645963200Z
 ---
 # Configurar el directorio de modelos
 

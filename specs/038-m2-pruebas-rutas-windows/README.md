@@ -1,18 +1,20 @@
 ---
-status: complete
+status: archived
 created: 2026-10-16
 priority: medium
 tags:
 - m2
 - bugfix
 created_at: 2026-10-16T20:07:31.646847900Z
-updated_at: 2026-10-17T15:00:57.304119600Z
+updated_at: 2026-10-28T10:21:41.668950800Z
 completed_at: 2026-10-17T15:00:57.304119600Z
 transitions:
 - status: in-progress
   at: 2026-10-17T09:03:16.302055600Z
 - status: complete
   at: 2026-10-17T15:00:57.304119600Z
+- status: archived
+  at: 2026-10-28T10:21:41.668950800Z
 ---
 # Comparar rutas Windows correctamente en las pruebas de runtime
 

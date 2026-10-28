@@ -1,5 +1,5 @@
 ---
-status: complete
+status: archived
 created: 2026-10-10
 tags:
 - m2
@@ -7,7 +7,7 @@ depends_on:
 - 026-m2-registro-modelos-externos
 - 031-m2-model-upgrade
 created_at: 2026-10-10T16:36:45.019442500Z
-updated_at: 2026-10-13T14:18:03.726119100Z
+updated_at: 2026-10-28T10:21:41.660621600Z
 completed_at: 2026-10-13T14:18:03.726119100Z
 transitions:
 - status: planned
@@ -16,6 +16,8 @@ transitions:
   at: 2026-10-13T12:40:25.317770400Z
 - status: complete
   at: 2026-10-13T14:18:03.726119100Z
+- status: archived
+  at: 2026-10-28T10:21:41.660621600Z
 ---
 # Convertir un registro externo en instalación gestionada
 

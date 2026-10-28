@@ -1,18 +1,20 @@
 ---
-status: complete
+status: archived
 created: 2026-10-07
 tags:
 - m1
 depends_on:
 - '002'
 created_at: 2026-10-07T22:02:17.123689500Z
-updated_at: 2026-10-08T15:16:35.703739Z
+updated_at: 2026-10-28T10:21:41.633606600Z
 completed_at: 2026-10-08T15:16:35.703739Z
 transitions:
 - status: in-progress
   at: 2026-10-08T14:34:17.570569400Z
 - status: complete
   at: 2026-10-08T15:16:35.703739Z
+- status: archived
+  at: 2026-10-28T10:21:41.633606600Z
 ---
 # Inspección GGUF y coherencia de shards
 

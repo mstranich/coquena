@@ -1,12 +1,12 @@
 ---
-status: complete
+status: archived
 created: 2026-10-10
 tags:
 - m2
 depends_on:
 - 030-m2-model-update
 created_at: 2026-10-10T16:36:44.729429400Z
-updated_at: 2026-10-13T01:54:08.099985300Z
+updated_at: 2026-10-28T10:21:41.659329200Z
 completed_at: 2026-10-13T01:54:08.099985300Z
 transitions:
 - status: planned
@@ -15,6 +15,8 @@ transitions:
   at: 2026-10-13T01:22:49.947583500Z
 - status: complete
   at: 2026-10-13T01:54:08.099985300Z
+- status: archived
+  at: 2026-10-28T10:21:41.659329200Z
 ---
 # Aplicar actualizaciones y reubicaciones de unidades gestionadas
 

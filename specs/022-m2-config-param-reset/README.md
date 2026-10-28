@@ -1,5 +1,5 @@
 ---
-status: complete
+status: archived
 created: 2026-10-10
 priority: medium
 tags:
@@ -7,7 +7,7 @@ tags:
 depends_on:
 - 018-m2-param-define
 created_at: 2026-10-10T15:24:01.531947400Z
-updated_at: 2026-10-12T05:21:30.295983Z
+updated_at: 2026-10-28T10:21:41.647916600Z
 completed_at: 2026-10-12T05:21:30.295983Z
 transitions:
 - status: planned
@@ -16,6 +16,8 @@ transitions:
   at: 2026-10-11T20:21:06.654742900Z
 - status: complete
   at: 2026-10-12T05:21:30.295983Z
+- status: archived
+  at: 2026-10-28T10:21:41.647916600Z
 ---
 # Restablecer el catálogo de parámetros de fábrica
 

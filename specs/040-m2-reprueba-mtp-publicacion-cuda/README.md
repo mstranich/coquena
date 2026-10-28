@@ -1,18 +1,20 @@
 ---
-status: complete
+status: archived
 created: 2026-10-17
 priority: medium
 tags:
 - m2
 - bugfix
 created_at: 2026-10-17T16:12:21.399365500Z
-updated_at: 2026-10-17T17:07:06.555409700Z
+updated_at: 2026-10-28T10:21:41.671967400Z
 completed_at: 2026-10-17T17:07:06.555409700Z
 transitions:
 - status: in-progress
   at: 2026-10-17T16:12:55.999616Z
 - status: complete
   at: 2026-10-17T17:07:06.555409700Z
+- status: archived
+  at: 2026-10-28T10:21:41.671967400Z
 ---
 # Contemplar MTP-ONLY y resolver el fallo de publicación CUDA observado en la reprueba
 

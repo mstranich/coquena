@@ -1,12 +1,12 @@
 ---
-status: complete
+status: archived
 created: 2026-10-10
 tags:
 - m2
 depends_on:
 - 026-m2-registro-modelos-externos
 created_at: 2026-10-10T16:36:44.181081300Z
-updated_at: 2026-10-13T00:43:11.721947900Z
+updated_at: 2026-10-28T10:21:41.656703600Z
 completed_at: 2026-10-13T00:43:11.721947900Z
 transitions:
 - status: planned
@@ -15,6 +15,8 @@ transitions:
   at: 2026-10-12T22:54:44.568434100Z
 - status: complete
   at: 2026-10-13T00:43:11.721947900Z
+- status: archived
+  at: 2026-10-28T10:21:41.656703600Z
 ---
 # Emparejar externos mediante selección asistida
 

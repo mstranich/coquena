@@ -1,11 +1,11 @@
 ---
-status: complete
+status: archived
 created: 2026-10-10
 priority: medium
 tags:
 - m2
 created_at: 2026-10-10T10:53:13.119314200Z
-updated_at: 2026-10-11T14:37:37.394921200Z
+updated_at: 2026-10-28T10:21:41.643846900Z
 completed_at: 2026-10-11T14:37:37.394921200Z
 transitions:
 - status: planned
@@ -14,6 +14,8 @@ transitions:
   at: 2026-10-11T13:35:24.561987800Z
 - status: complete
   at: 2026-10-11T14:37:37.394921200Z
+- status: archived
+  at: 2026-10-28T10:21:41.643846900Z
 ---
 # Gestión completa del catálogo de parámetros personalizados
 

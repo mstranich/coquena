@@ -1,18 +1,20 @@
 ---
-status: complete
+status: archived
 created: 2026-10-07
 tags:
 - m1
 depends_on:
 - '002'
 created_at: 2026-10-07T22:02:14.121129700Z
-updated_at: 2026-10-08T01:34:22.301135900Z
+updated_at: 2026-10-28T10:21:41.627678100Z
 completed_at: 2026-10-08T01:34:22.301135900Z
 transitions:
 - status: in-progress
   at: 2026-10-08T01:20:09.061492800Z
 - status: complete
   at: 2026-10-08T01:34:22.301135900Z
+- status: archived
+  at: 2026-10-28T10:21:41.627678100Z
 ---
 # Hardware y selección de backend oficial
 

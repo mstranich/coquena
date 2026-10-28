@@ -1,5 +1,5 @@
 ---
-status: complete
+status: archived
 created: 2026-10-07
 tags:
 - m1
@@ -8,13 +8,15 @@ depends_on:
 - '004'
 - '005'
 created_at: 2026-10-07T22:02:15.195656900Z
-updated_at: 2026-10-08T02:14:07.276661Z
+updated_at: 2026-10-28T10:21:41.628934800Z
 completed_at: 2026-10-08T02:14:07.276661Z
 transitions:
 - status: in-progress
   at: 2026-10-08T01:54:08.568309700Z
 - status: complete
   at: 2026-10-08T02:14:07.276661Z
+- status: archived
+  at: 2026-10-28T10:21:41.628934800Z
 ---
 # Instalación y selección del backend oficial
 

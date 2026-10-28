@@ -1,16 +1,18 @@
 ---
-status: complete
+status: archived
 created: 2026-10-07
 tags:
 - m1
 created_at: 2026-10-07T22:02:10.086621600Z
-updated_at: 2026-10-08T00:06:19.879828Z
+updated_at: 2026-10-28T10:21:41.618438Z
 completed_at: 2026-10-08T00:06:19.879828Z
 transitions:
 - status: in-progress
   at: 2026-10-08T00:05:14.873507800Z
 - status: complete
   at: 2026-10-08T00:06:19.879828Z
+- status: archived
+  at: 2026-10-28T10:21:41.618438Z
 ---
 # Base ejecutable C# y Native AOT
 

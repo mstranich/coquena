@@ -1,5 +1,5 @@
 ---
-status: complete
+status: archived
 created: 2026-10-07
 tags:
 - m1
@@ -9,13 +9,15 @@ depends_on:
 - '007'
 - '008'
 created_at: 2026-10-07T22:02:18.126842Z
-updated_at: 2026-10-08T18:04:21.516357500Z
+updated_at: 2026-10-28T10:21:41.634449Z
 completed_at: 2026-10-08T18:04:21.516357500Z
 transitions:
 - status: in-progress
   at: 2026-10-08T15:19:49.493772200Z
 - status: complete
   at: 2026-10-08T18:04:21.516357500Z
+- status: archived
+  at: 2026-10-28T10:21:41.634449Z
 ---
 # Descarga y publicación de modelos gestionados
 

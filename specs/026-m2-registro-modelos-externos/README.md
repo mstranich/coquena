@@ -1,10 +1,10 @@
 ---
-status: complete
+status: archived
 created: 2026-10-10
 tags:
 - m2
 created_at: 2026-10-10T16:36:43.321536100Z
-updated_at: 2026-10-12T21:52:11.139208400Z
+updated_at: 2026-10-28T10:21:41.652706200Z
 completed_at: 2026-10-12T21:52:11.139208400Z
 transitions:
 - status: planned
@@ -13,6 +13,8 @@ transitions:
   at: 2026-10-12T20:32:38.313669400Z
 - status: complete
   at: 2026-10-12T21:52:11.139208400Z
+- status: archived
+  at: 2026-10-28T10:21:41.652706200Z
 ---
 # Registrar modelos y companions externos
 

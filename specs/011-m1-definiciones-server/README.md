@@ -1,5 +1,5 @@
 ---
-status: complete
+status: archived
 created: 2026-10-07
 tags:
 - m1
@@ -7,13 +7,15 @@ depends_on:
 - '003'
 - '010'
 created_at: 2026-10-07T22:02:20.212362700Z
-updated_at: 2026-10-09T12:06:47.782159300Z
+updated_at: 2026-10-28T10:21:41.636284400Z
 completed_at: 2026-10-09T12:06:47.782159300Z
 transitions:
 - status: in-progress
   at: 2026-10-09T11:58:33.134006200Z
 - status: complete
   at: 2026-10-09T12:06:47.782159300Z
+- status: archived
+  at: 2026-10-28T10:21:41.636284400Z
 ---
 # Definiciones de servidor, defaults y puertos
 

@@ -1,18 +1,20 @@
 ---
-status: complete
+status: archived
 created: 2026-10-16
 priority: medium
 tags:
 - m2
 - bugfix
 created_at: 2026-10-16T20:07:32.586730500Z
-updated_at: 2026-10-17T15:15:45.913506Z
+updated_at: 2026-10-28T10:21:41.670413Z
 completed_at: 2026-10-17T15:15:45.913506Z
 transitions:
 - status: in-progress
   at: 2026-10-17T15:03:09.356273200Z
 - status: complete
   at: 2026-10-17T15:15:45.913506Z
+- status: archived
+  at: 2026-10-28T10:21:41.670413Z
 ---
 # Eliminar dependencia de la página de códigos en las pruebas de procesos
 

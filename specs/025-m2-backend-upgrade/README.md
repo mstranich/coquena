@@ -1,12 +1,12 @@
 ---
-status: complete
+status: archived
 created: 2026-10-10
 tags:
 - m2
 depends_on:
 - 024-m2-backend-update
 created_at: 2026-10-10T16:36:43.026561600Z
-updated_at: 2026-10-12T17:06:00.017104900Z
+updated_at: 2026-10-28T10:21:41.651444800Z
 completed_at: 2026-10-12T17:06:00.017104900Z
 transitions:
 - status: planned
@@ -15,6 +15,8 @@ transitions:
   at: 2026-10-12T14:48:49.136504200Z
 - status: complete
   at: 2026-10-12T17:06:00.017104900Z
+- status: archived
+  at: 2026-10-28T10:21:41.651444800Z
 ---
 # Actualizar backends y aplicar retención de builds
 

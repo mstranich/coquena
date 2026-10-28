@@ -1,10 +1,10 @@
 ---
-status: complete
+status: archived
 created: 2026-10-10
 tags:
 - m2
 created_at: 2026-10-10T16:36:42.739369Z
-updated_at: 2026-10-12T14:43:16.743876200Z
+updated_at: 2026-10-28T10:21:41.650182800Z
 completed_at: 2026-10-12T14:43:16.743876200Z
 transitions:
 - status: planned
@@ -13,6 +13,8 @@ transitions:
   at: 2026-10-12T14:24:35.516157800Z
 - status: complete
   at: 2026-10-12T14:43:16.743876200Z
+- status: archived
+  at: 2026-10-28T10:21:41.650182800Z
 ---
 # Consultar actualizaciones de backends oficiales
 

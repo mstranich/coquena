@@ -1,18 +1,20 @@
 ---
-status: complete
+status: archived
 created: 2026-10-16
 priority: high
 tags:
 - m2
 - bugfix
 created_at: 2026-10-16T20:07:29.755753600Z
-updated_at: 2026-10-17T04:30:02.013413500Z
+updated_at: 2026-10-28T10:21:41.666118100Z
 completed_at: 2026-10-17T04:30:02.013413500Z
 transitions:
 - status: in-progress
   at: 2026-10-16T21:38:58.094306Z
 - status: complete
   at: 2026-10-17T04:30:02.013413500Z
+- status: archived
+  at: 2026-10-28T10:21:41.666118100Z
 ---
 # Preservar descargas reanudables ante contención del home
 

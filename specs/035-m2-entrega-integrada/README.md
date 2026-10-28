@@ -1,5 +1,5 @@
 ---
-status: complete
+status: archived
 created: 2026-10-10
 tags:
 - m2
@@ -23,13 +23,15 @@ depends_on:
 - 033-m2-presets-clone-companions
 - 034-m2-retirada-recursos
 created_at: 2026-10-10T16:36:46.214181900Z
-updated_at: 2026-10-13T17:15:42.167209700Z
+updated_at: 2026-10-28T10:21:41.664685700Z
 completed_at: 2026-10-13T17:15:42.167209700Z
 transitions:
 - status: in-progress
   at: 2026-10-13T15:58:07.400355900Z
 - status: complete
   at: 2026-10-13T17:15:42.167209700Z
+- status: archived
+  at: 2026-10-28T10:21:41.664685700Z
 ---
 # Validar y preparar el entregable integrado M2
 

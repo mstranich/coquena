@@ -1,18 +1,20 @@
 ---
-status: complete
+status: archived
 created: 2026-10-09
 tags:
 - m1
 depends_on:
 - '011'
 created_at: 2026-10-09T13:41:51.558051500Z
-updated_at: 2026-10-09T19:18:58.773509100Z
+updated_at: 2026-10-28T10:21:41.641632100Z
 completed_at: 2026-10-09T19:18:58.773509100Z
 transitions:
 - status: in-progress
   at: 2026-10-09T18:07:58.344565700Z
 - status: complete
   at: 2026-10-09T19:18:58.773509100Z
+- status: archived
+  at: 2026-10-28T10:21:41.641632100Z
 ---
 # Alinear el puerto inicial de servidores con llama.cpp: 9931
 

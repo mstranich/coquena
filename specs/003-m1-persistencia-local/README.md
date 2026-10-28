@@ -1,18 +1,20 @@
 ---
-status: complete
+status: archived
 created: 2026-10-07
 tags:
 - m1
 depends_on:
 - '002'
 created_at: 2026-10-07T22:02:12.133402100Z
-updated_at: 2026-10-08T00:47:02.775724900Z
+updated_at: 2026-10-28T10:21:41.621779900Z
 completed_at: 2026-10-08T00:47:02.775724900Z
 transitions:
 - status: in-progress
   at: 2026-10-08T00:40:47.947106600Z
 - status: complete
   at: 2026-10-08T00:47:02.775724900Z
+- status: archived
+  at: 2026-10-28T10:21:41.621779900Z
 ---
 # Home y persistencia local segura
 
