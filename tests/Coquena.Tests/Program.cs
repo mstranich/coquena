@@ -4,8 +4,43 @@ using Coquena;
 // Match the product's output contract, including fixture and failure diagnostics.
 Console.OutputEncoding = new System.Text.UTF8Encoding(false);
 
+if (args.Length == 2 && args[0] == "--internal-server-signal" && Guid.TryParse(args[1], out var signalId))
+{ Environment.ExitCode = Coquena.Servers.ServerRuntime.SignalWorker(Coquena.Storage.Home.Resolve(), signalId); return; }
+if (args.Length >= 2 && args[0] == "--m2-server-api" && args[1] == "server")
+{ Environment.ExitCode = Coquena.ServerCli.Run(args[2..], Console.Out, Console.Error); return; }
+
+if (args.Length == 5 && args[0] == "--internal-scoped-signal")
+{ Environment.ExitCode = Coquena.Servers.ScopedServiceProcess.SignalWorker(args[1], args[2], args[3], args[4]); return; }
+
+if (args.Contains("--scoped-health-child"))
+{
+    var childMarker = Array.IndexOf(args, "--spawn-stubborn-child");
+    if (childMarker >= 0)
+    {
+        using var child = Process.Start(new ProcessStartInfo(Environment.ProcessPath!)
+        { UseShellExecute = false, ArgumentList = { "--runtime-child" } })!;
+        File.WriteAllText(args[childMarker + 1], child.Id.ToString());
+        if (args.Contains("--exit-with-child")) return;
+    }
+    var portValue = args.Length == 2 ? args[1] : args[Array.IndexOf(args, "--port") + 1];
+    var listener = new System.Net.Sockets.TcpListener(System.Net.IPAddress.Loopback, int.Parse(portValue));
+    listener.Start();
+    while (true)
+    {
+        using var connection = await listener.AcceptTcpClientAsync();
+        using var stream = connection.GetStream();
+        var buffer = new byte[4096];
+        var received = await stream.ReadAsync(buffer);
+        if (received == 0) continue;
+        var status = args.Contains("--health-unready") ? "503 Service Unavailable" : "200 OK";
+        await stream.WriteAsync(System.Text.Encoding.ASCII.GetBytes($"HTTP/1.1 {status}\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"));
+    }
+}
+
 if (args.Length == 1 && args[0] == "--combination-tests")
 { await Coquena.Tests.CombinationTests.Run(); return; }
+if (args.Length is 1 or 2 && args[0] == "--scoped-service-tests")
+{ await Coquena.Tests.ScopedServiceTests.Run(args.Length == 2 ? Path.GetFullPath(args[1]) : null); return; }
 if (args.Length == 3 && args[0] == "--combination-crash-worker")
 { await Coquena.Tests.CombinationTests.CrashWorker(args[1], Enum.Parse<Coquena.Projects.ScopeWriteStage>(args[2])); return; }
 

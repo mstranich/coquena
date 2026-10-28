@@ -297,7 +297,13 @@ public sealed class ScopedBackends(ScopeContext context,
         foreach (var old in resources.Where(r => r!["kind"]!.GetValue<string>() == "backend" && r["ownership"]!.GetValue<string>() == "external"))
             foreach (var installed in old!["installations"]!.AsArray())
                 if (string.Equals(Path.GetFullPath(installed!["executable"]!.GetValue<string>(), context.Base), executable, StringComparison.OrdinalIgnoreCase))
+                {
+                    if (installed["integrity-status"]?.GetValue<string>() is "invalid" or "mismatch")
+                        throw new BackendException("backend-integrity-invalid", "Integridad inválida conocida; no se omite durante el inicio.");
+                    if (old["removal-pending"]?.GetValue<bool>() == true || installed["availability"]?.GetValue<string>() != "available")
+                        throw new BackendException("backend-unavailable", "La instalación externa registrada no está disponible.");
                     return new(old["resource-id"]!.GetValue<string>(), installed["installation-id"]!.GetValue<string>(), executable, "external", null, null);
+                }
         var resourceId = Guid.NewGuid().ToString("D"); var installationId = Guid.NewGuid().ToString("D");
         resources.Add((JsonNode)new JsonObject { ["resource-id"] = resourceId, ["logical-key"] = "external-" + resourceId,
             ["kind"] = "backend", ["ownership"] = "external", ["installations"] = new JsonArray(new JsonObject {

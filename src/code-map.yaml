@@ -3,6 +3,29 @@
 # References describe intended behavior; verify actual behavior in code and tests.
 version: 1
 features:
+  - id: scoped-service-lifecycle
+    intent: Seleccionar servicios por ámbito y operar su proceso con identidad verificada, salud y preparación separada de presets.
+    keywords: [service, server, self, default, lifecycle, health, instance, restart]
+    entrypoints:
+      - src/Coquena/ScopedServiceCli.cs
+    implementation:
+      - src/Coquena/ServiceCommand.cs
+      - src/Coquena/Servers/ScopedServicePlan.cs
+      - src/Coquena/Servers/ScopedServiceProcess.cs
+      - src/Coquena/Servers/WindowsServerProcess.cs
+      - src/Coquena/Servers/WindowsListeningPorts.cs
+      - src/Coquena/Projects/RecipeRegistry.cs
+      - src/Coquena/Projects/CombinationPreparation.cs
+      - src/Coquena/Projects/ScopeStore.cs
+    tests:
+      - tests/Coquena.Tests/ScopedServiceTests.cs
+      - tests/Coquena.Tests/ProjectPersistenceTests.cs
+      - tests/Coquena.Tests/CombinationTests.cs
+    references:
+      - docs/servidores.md
+      - docs/servicios-recetas.md
+      - docs/persistencia-proyectos.md
+
   - id: combination-preparation
     intent: Registrar combinaciones explícitas, reutilizar resoluciones exactas y publicar conjuntos preparados sin promover ejecución.
     keywords: [combination, preparation, resolution, lock, HMAC, private, generation]

@@ -10,7 +10,7 @@ namespace Coquena.Projects;
 public sealed record PreparationRequest(string Key, string Kind, RecipeValue Intent, ArgumentReference? Reference = null, bool SensitiveSelection = false);
 public sealed record PreparationResource(string Key, string Kind, string ResourceId, string InstallationId, string EntryPath, JsonObject Resolution);
 public sealed record PreparationTarget(ScopeStore Store, string ServiceId);
-public sealed record PreparedCombination(string Id, bool Private, long Revision, IReadOnlyList<PreparationResource> Resources);
+public sealed record PreparedCombination(string Id, bool Private, long Revision, IReadOnlyList<PreparationResource> Resources, bool ProcessOnly = false);
 
 // The resource preparer operates outside writer leases. Exact is the previous
 // portable resolution, never a request to look for newer resources.
@@ -165,6 +165,88 @@ public sealed class CombinationPreparation(ScopeContext context)
         return new(identity.Id, identity.Private, checked(version + 1), prepared.AsReadOnly());
     }
 
+    // Service preparation is local and independent of the complete portable lock.
+    // It only resolves the backend and references used by the process itself.
+    public async Task<PreparedCombination> PrepareServiceAsync(RecipeSelection selection, ICombinationResources resources,
+        bool privateSelection = false, IReadOnlyDictionary<string, string?>? environment = null, CancellationToken cancellation = default)
+    {
+        if (!string.Equals(selection.Base, context.Base, StringComparison.OrdinalIgnoreCase))
+            throw new StorageException("preparation-base-conflict", "La selección debe pertenecer a la base del ámbito.");
+        var identity = CombinationIdentity.FromSelection(selection, privateSelection);
+        var inputs = new Dictionary<string, byte[]>(StringComparer.OrdinalIgnoreCase);
+        foreach (var path in selection.Files.Concat(selection.EnvFiles)) inputs[path] = File.ReadAllBytes(path);
+        var recipe = RecipeReader.Read(selection, environment);
+        foreach (var import in recipe.Layers.SelectMany(l => l.Get("arg-defs")?.Get("imports")?.Items ?? []))
+        { var path = selection.ResolvePath(import.Text!); inputs[path] = File.ReadAllBytes(path); }
+        var blocks = ArgumentValidation.Validate(recipe);
+        _ = ModelIntent.FromRecipe(recipe);
+        var requests = Requests(recipe, blocks.Where(block => block.Scope == "server").ToArray());
+        if (!identity.Private)
+            foreach (var path in inputs.Keys.Concat(LocalReferences(recipe, requests)))
+                if (Outside(selection.Base, path)) throw new StorageException("private-reference", "Una referencia exterior requiere --private.");
+        if (requests.Any(r => r.SensitiveSelection || Sensitive(r.Intent))) identity = identity with { Private = true };
+        EnsureIgnore(identity);
+        var before = store.Read();
+        var previousEntry = before.Documents.GetValueOrDefault(LocalIndex)?["data"]?["combinations"]?[identity.Id];
+        var prior = previousEntry?["service-preparation"];
+        var resolutionPath = previousEntry?["resolution-path"]?.GetValue<string>() ?? ResolutionPath(identity);
+        var complete = before.Documents.GetValueOrDefault(resolutionPath);
+        if (complete is null && !identity.Private && File.Exists(context.PathFor(resolutionPath)))
+        {
+            var bytes = File.ReadAllBytes(context.PathFor(resolutionPath));
+            inputs[context.PathFor(resolutionPath)] = bytes;
+            complete = ProjectDocuments.Read(bytes, "resolution");
+            if (complete["data"]!["combination-id"]!.GetValue<string>() != identity.Id) ProjectDocuments.Invalid();
+        }
+        var version = prior?["revision"]?.GetValue<long>() ?? 0;
+        var key = Key(); var keyId = KeyId(key);
+        var prepared = new List<PreparationResource>(); var fingerprints = new JsonObject();
+        foreach (var request in requests)
+        {
+            cancellation.ThrowIfCancellationRequested();
+            var name = request.Kind + ":" + request.Key;
+            var fingerprint = Hmac(key, Expanded(request.Intent).ToJsonString()); fingerprints[name] = fingerprint;
+            var exact = prior?["key-id"]?.GetValue<string>() == keyId && prior?["intent-hmacs"]?[name]?.GetValue<string>() == fingerprint
+                ? prior?["resolutions"]?.AsArray().SingleOrDefault(r => r!["key"]!.GetValue<string>() == request.Key && r["kind"]!.GetValue<string>() == request.Kind)?.AsObject() : null;
+            // A process-only preparation must honor an existing complete lock too;
+            // splitting preparation is not authorization to resolve latest again.
+            var unchanged = previousEntry?["key-id"]?.GetValue<string>() == keyId && previousEntry?["intent-hmacs"]?[name]?.GetValue<string>() == fingerprint ||
+                previousEntry?["intent-hmacs"] is null && !Sensitive(request.Intent) &&
+                JsonNode.DeepEquals(complete?["data"]?["selections"]?[name], SourceIntent(recipe, request));
+            if (exact is null && unchanged)
+                exact = complete?["data"]?["resources"]?.AsArray().SingleOrDefault(r =>
+                    r!["key"]!.GetValue<string>() == request.Key && r["kind"]!.GetValue<string>() == request.Kind)?.AsObject();
+            var item = await resources.PrepareAsync(request, exact?.DeepClone().AsObject(), cancellation);
+            if (item.Key != request.Key || item.Kind != request.Kind || exact?["artifacts"] is { } artifacts && !JsonNode.DeepEquals(artifacts, item.Resolution["artifacts"]))
+                throw new StorageException("resource-content-conflict", "El recurso no coincide con la resolución fijada.");
+            prepared.Add(item);
+        }
+        cancellation.ThrowIfCancellationRequested();
+        var current = store.Read(); var docs = RecipeRegistry.Next(current);
+        if (!docs.TryGetValue(LocalIndex, out var index))
+        { index = ProjectDocuments.Create("combination-index", 1, new JsonObject { ["combinations"] = new JsonObject() }); docs[LocalIndex] = index; }
+        var combinations = index["data"]!["combinations"]!.AsObject();
+        var entry = combinations[identity.Id] as JsonObject;
+        if ((entry?["service-preparation"]?["revision"]?.GetValue<long>() ?? 0) != version)
+            throw new StorageException("scope-conflict", "Otra operación cambió la preparación del servicio.");
+        if (entry is null) { entry = Selection(identity); entry["private"] = identity.Private; combinations[identity.Id] = entry; }
+        foreach (var item in prepared) ValidateBinding(current, item);
+        var resolutions = new JsonArray(prepared.Select(item =>
+        { var value = item.Resolution.DeepClone().AsObject(); value["key"] = item.Key; value["kind"] = item.Kind; return (JsonNode?)value; }).ToArray());
+        var bindings = new JsonArray(prepared.Select(item => (JsonNode?)new JsonObject
+        { ["key"] = item.Key, ["kind"] = item.Kind, ["resource-id"] = item.ResourceId,
+            ["installation-id"] = item.InstallationId, ["entry-path"] = item.EntryPath }).ToArray());
+        entry["service-preparation"] = new JsonObject { ["revision"] = checked(version + 1), ["key-id"] = keyId,
+            ["intent-hmacs"] = fingerprints, ["snapshot"] = Expanded(recipe.Root), ["resolutions"] = resolutions, ["bindings"] = bindings };
+        ScopeStore.CommitTogether([new(store, current.Revision, docs, Validate: () =>
+        {
+            CheckInputs(inputs);
+            if (!File.ReadAllBytes(context.PathFor("local/intent.key")).AsSpan().SequenceEqual(key))
+                throw new StorageException("scope-conflict", "Cambió la clave local durante la preparación.");
+        })]);
+        return new(identity.Id, identity.Private, checked(version + 1), prepared.AsReadOnly(), true);
+    }
+
     private ScopeSnapshot Register(CombinationIdentity identity, Dictionary<string, byte[]> inputs)
     {
         var snapshot = store.Read();
@@ -229,7 +311,7 @@ public sealed class CombinationPreparation(ScopeContext context)
         return Path.IsPathRooted(relative) || relative == ".." || relative.StartsWith("../", StringComparison.Ordinal);
     }
     private static bool Sensitive(RecipeValue value) => value.Sensitive || value.Fields.Values.Any(Sensitive) || value.Items.Any(Sensitive);
-    private static JsonNode Expanded(RecipeValue value) => value.Kind switch
+    internal static JsonNode Expanded(RecipeValue value) => value.Kind switch
     {
         RecipeKind.Map => new JsonObject(value.Fields.OrderBy(p => p.Key, StringComparer.Ordinal).Select(p => new KeyValuePair<string, JsonNode?>(p.Key, Expanded(p.Value)))),
         RecipeKind.Sequence => new JsonArray(value.Items.Select(v => (JsonNode?)Expanded(v)).ToArray()),
@@ -255,7 +337,8 @@ public sealed class CombinationPreparation(ScopeContext context)
         context.Ensure();
         var path = context.PathFor(".gitignore");
         var existing = File.Exists(path) ? File.ReadAllText(path) : "";
-        var missing = new[] { "/local/", "/combinations/*/local/", "/models/", "/backends/", "/downloads/", "/tmp/", "/logs/" }
+        var missing = new[] { "/local/", "/combinations/*/local/", "/models/", "/backends/", "/downloads/", "/tmp/", "/logs/",
+                "/services/*/local/", "/services/*/logs/" }
             .Concat(identity.Private ? ["/combinations/" + identity.Id + "/resolved.json"] : Array.Empty<string>())
             .Where(rule => !existing.Split('\n').Any(line => line.TrimEnd('\r') == rule)).ToArray();
         if (missing.Length != 0) ScopeStore.Replace(path, Encoding.UTF8.GetBytes(existing + (existing.Length != 0 && !existing.EndsWith('\n') ? "\n" : "") + string.Join('\n', missing) + "\n"));

@@ -5,8 +5,14 @@ using Coquena.Storage;
 
 namespace Coquena.Projects;
 
-public sealed record ScopeSnapshot(long Revision, string? ScopeId, JsonObject? State, IReadOnlyDictionary<string, JsonObject> Documents);
-public sealed record ScopeChange(ScopeStore Store, long ExpectedRevision, IReadOnlyDictionary<string, JsonObject> Documents, string? DefaultServiceId = null, Action? Validate = null);
+public sealed record ScopeSnapshot(long Revision, string? ScopeId, JsonObject? State, IReadOnlyDictionary<string, JsonObject> Documents)
+{
+    public IEnumerable<JsonObject> ActiveDocuments() => Documents.Values.Where(document =>
+        document["kind"]?.GetValue<string>() == "active" && document["data"]?["terminated"]?.GetValue<bool>() != true);
+    public IEnumerable<JsonObject> ProtectedRuntimeDocuments() => ActiveDocuments().Concat(Documents.Values.Where(document =>
+        document["kind"]?.GetValue<string>() == "last-good"));
+}
+public sealed record ScopeChange(ScopeStore Store, long ExpectedRevision, IReadOnlyDictionary<string, JsonObject> Documents, string? DefaultServiceId = null, Action? Validate = null, string? RemovedServiceId = null);
 public enum ScopeWriteStage { Prepared, Decided, ParticipantPublished, ProjectionsPublished }
 
 // A generation is immutable; state.json is the only publication pointer. Cross-scope
@@ -14,6 +20,8 @@ public enum ScopeWriteStage { Prepared, Decided, ParticipantPublished, Projectio
 public sealed class ScopeStore(ScopeContext context)
 {
     public ScopeContext Context { get; } = context;
+    internal string RuntimeDocumentPath(string serviceId, string kind) => Context.IsGlobal
+        ? $"services/{serviceId}/local/{kind}.json" : $"local/runtime/services/{serviceId}/{kind}.json";
     internal T Locked<T>(Func<T> action) => WithLocks([this], action);
     private string StatePath => Context.PathFor("local/state.json");
     private string PendingPath => Context.PathFor("local/pending.json");
@@ -67,7 +75,7 @@ public sealed class ScopeStore(ScopeContext context)
                     {
                         "local/inventory.json" => "inventory", "local/recipes.json" => "recipe-registry",
                         "local/active.json" => "active", "local/last-good.json" => "last-good",
-                        "local/update-plan.json" => "update-plan", _ => IsResolutionPath(path) ? "resolution" : "combination-index"
+                        "local/update-plan.json" => "update-plan", _ => IsResolutionPath(path) ? "resolution" : ServiceDocumentKind(path) ?? "combination-index"
                     };
                     if (kind != expectedKind) ProjectDocuments.Invalid();
                     if (kind == "inventory") document["data"]!["scope-id"] = scopeId;
@@ -95,6 +103,9 @@ public sealed class ScopeStore(ScopeContext context)
                         ? new JsonArray(registry["data"]!["recipes"]!.AsArray().SelectMany(r => r!["entities"]?.AsArray() ?? new JsonArray())
                             .Where(e => e!["kind"]!.GetValue<string>() == "service").Select(e => e!.DeepClone()).ToArray()) : new JsonArray();
                     data["aliases"] = old.State?["data"]?["aliases"]?.DeepClone() ?? new JsonObject();
+                    var defaultId = data["aliases"]!["default"]?.GetValue<string>();
+                    if (defaultId is not null && defaultId == change.RemovedServiceId && !data["services"]!.AsArray().Any(s => s!["id"]!.GetValue<string>() == defaultId))
+                        data["aliases"]!.AsObject().Remove("default");
                     if (change.DefaultServiceId is not null)
                     {
                         ProjectDocuments.Uuid(JsonValue.Create(change.DefaultServiceId));
@@ -345,8 +356,18 @@ public sealed class ScopeStore(ScopeContext context)
     private static string Hash(byte[] bytes) => Convert.ToHexStringLower(SHA256.HashData(bytes));
     private static void ValidateDocumentPath(string path)
     {
-        if (path is not ("local/inventory.json" or "local/recipes.json" or "local/combinations.json" or "combinations.json" or "local/active.json" or "local/last-good.json" or "local/update-plan.json") && !IsResolutionPath(path))
+        if (path is not ("local/inventory.json" or "local/recipes.json" or "local/combinations.json" or "combinations.json" or "local/active.json" or "local/last-good.json" or "local/update-plan.json") && !IsResolutionPath(path) && ServiceDocumentKind(path) is null)
             throw new StorageException("invalid-projection-path", "Documento fuera de las proyecciones admitidas del ámbito.");
+    }
+    private static string? ServiceDocumentKind(string path)
+    {
+        var parts = path.Split('/');
+        var global = parts.Length == 4 && parts[0] == "services" && parts[2] == "local";
+        var project = parts.Length == 5 && parts[0] == "local" && parts[1] == "runtime" && parts[2] == "services";
+        if (!global && !project) return null;
+        var idText = global ? parts[1] : parts[3];
+        if (!Guid.TryParseExact(idText, "D", out var id) || id == Guid.Empty || id.ToString("D") != idText) return null;
+        return parts[^1] switch { "active.json" => "active", "last-good.json" => "last-good", _ => null };
     }
     private static bool IsResolutionPath(string path)
     {

@@ -4,8 +4,18 @@ public static class Cli
 {
     public static int Run(string[] args, TextWriter output, TextWriter error)
     {
-        if (args.Length > 0 && args[0] == "server")
-            return ServerCli.Run(args[1..], output, error);
+        var prefix = 0;
+        while (prefix < args.Length)
+        {
+            if (args[prefix] is "--global" or "-g" or "--private") { prefix++; continue; }
+            if (args[prefix] is "--file" or "-f" or "--env-file" or "--project-directory" or "--base" or "--service")
+            { if (prefix + 1 >= args.Length) break; prefix += 2; continue; }
+            break;
+        }
+        if (prefix > 0 && prefix < args.Length && args[prefix] is "service" or "server")
+            return ScopedServiceCli.Run(args[..prefix].Concat(args[(prefix + 1)..]).ToArray(), output, error);
+        if (args.Length > 0 && args[0] is "server" or "service")
+            return ScopedServiceCli.Run(args[1..], output, error);
         if (args.Length > 0 && args[0] is "config" or "preset" or "param")
             return ConfigurationCli.Run(args[0], args[1..], output, error);
         if (args.Length > 0 && args[0] is "backend" or "runtime")

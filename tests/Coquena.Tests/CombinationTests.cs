@@ -54,6 +54,8 @@ internal static class CombinationTests
         Check(!resolution.ToJsonString().Contains("private-value") && !resolution.ToJsonString().Contains("hmac"), "portable lock has neither expanded secrets nor secret hashes");
         Check(!snapshot.Documents.ContainsKey("local/active.json") && !snapshot.Documents.ContainsKey("local/last-good.json"), "preparation never promotes active or last good");
         Check(preparation.List().Count == 1 && File.ReadAllText(context.PathFor(".gitignore")).Contains("/local/"), "explicit selection indexed with local exclusions");
+        Check(File.ReadAllText(context.PathFor(".gitignore")).Contains("/services/*/local/") &&
+            File.ReadAllText(context.PathFor(".gitignore")).Contains("/services/*/logs/"), "service runtime and logs remain excluded from Git");
         Check(!preparation.List().ToJsonString().Contains("private-value") && !preparation.List().ToJsonString().Contains("hmac"), "listing known combinations does not expose effective snapshots or HMACs");
         var again = await preparation.PrepareAsync(selection, fixture, environment: env);
         Check(again.Id == prepared.Id && fixture.Exact == 2 && fixture.Fresh == 2, "unchanged selections reuse exact locks");
@@ -123,6 +125,7 @@ internal static class CombinationTests
         Check(store.Read().Documents["combinations.json"]["data"]!["combinations"]![localPrivate.Id] is not null, "explicit public selection restores portable index");
         await LocalAndTarget(root, Check);
         await Remote(root, Check);
+        await ServicePlan(root, Check);
         foreach (var stage in new[] { ScopeWriteStage.Prepared, ScopeWriteStage.Decided, ScopeWriteStage.ParticipantPublished })
         {
             var folder = Path.Combine(root, "crash-" + stage); Directory.CreateDirectory(folder);
@@ -148,6 +151,50 @@ internal static class CombinationTests
         var context = ScopeContext.Project(Path.Combine(folder, "coquena.yaml"));
         await new CombinationPreparation(context).PrepareAsync(new(folder), new Resources(context), fault: point =>
         { if (point == stage) Environment.Exit(73); });
+    }
+
+    private static async Task ServicePlan(string parent, Action<bool, string> check)
+    {
+        var folder = Path.Combine(parent, "service-plan"); Directory.CreateDirectory(folder);
+        var yaml = Path.Combine(folder, "coquena.yaml");
+        File.WriteAllText(yaml, "service:\n  backend:\n    executable: ./server.exe\n  server:\n    health:\n      url: http://127.0.0.1:23456/health\n    args:\n      port: 23456\nmodels:\n  unused:\n    files: [./missing.gguf]\npresets:\n  demo:\n    args:\n      model: model://unused\n      ctx-size: 4096\n");
+        var selection = new RecipeSelection(folder); var context = ScopeContext.Project(yaml);
+        var preparation = new CombinationPreparation(context);
+        var prepared = await preparation.PrepareAsync(selection, new Resources(context));
+        var resolutionPath = $"combinations/{prepared.Id}/resolved.json";
+        var completeBefore = new ScopeStore(context).Read().Documents[resolutionPath]["data"]!.ToJsonString();
+        var clone = Path.Combine(parent, "service-lock-clone");
+        Directory.CreateDirectory(clone);
+        File.Copy(yaml, Path.Combine(clone, "coquena.yaml"));
+        var cloneContext = ScopeContext.Project(Path.Combine(clone, "coquena.yaml"));
+        var cloneLock = cloneContext.PathFor(resolutionPath);
+        Directory.CreateDirectory(Path.GetDirectoryName(cloneLock)!);
+        File.Copy(context.PathFor(resolutionPath), cloneLock);
+        var cloneResources = new Resources(cloneContext);
+        await new CombinationPreparation(cloneContext).PrepareServiceAsync(new RecipeSelection(clone), cloneResources);
+        check(cloneResources.Exact == 1 && cloneResources.Fresh == 0, "process preparation honors received portable lock without local state");
+        var processResources = new Resources(context);
+        var processPrepared = await preparation.PrepareServiceAsync(selection, processResources);
+        check(processResources.Fresh == 0 && processResources.Exact == 1 && processPrepared.Resources.Count == 1 && processPrepared.Resources[0].Kind == "backend",
+            "service preparation does not acquire preset models");
+        check(new ScopeStore(context).Read().Documents["local/combinations.json"]["data"]!["combinations"]![processPrepared.Id]!["service-preparation"]!["bindings"]!.ToJsonString().Contains(processPrepared.Resources[0].InstallationId),
+            "service preparation protects the exact installation before activation");
+        check(new ScopeStore(context).Read().Documents[resolutionPath]["data"]!.ToJsonString() == completeBefore,
+            "service preparation preserves complete resolution");
+        var processAgain = await preparation.PrepareServiceAsync(selection, processResources);
+        check(processResources.Exact == 2 && processAgain.Id == processPrepared.Id, "service preparation reuses exact backend selection");
+        processResources.During = () => File.AppendAllText(yaml, "# concurrent edit\n");
+        try { await preparation.PrepareServiceAsync(selection, processResources); throw new Exception("expected source conflict"); }
+        catch (StorageException e) { check(e.Code == "intention-conflict", "service preparation rejects concurrent source changes"); }
+        processResources.During = null;
+        var recipe = RecipeReader.Read(selection);
+        var plan = Coquena.Servers.ScopedServicePlan.Compose(context, recipe, processAgain, Path.Combine(folder, "test.log"));
+        check(plan.Arguments.Contains("--port") && !plan.Arguments.Contains("--ctx-size") && !plan.Arguments.Contains("--metrics"),
+            "external service emits only process arguments and adds no official defaults");
+        check(plan.HealthUrl.Port == 23456 && plan.Resources.Count == 1, "plan binds prepared backend and configured health");
+        File.AppendAllText(yaml, "    enable: false\n");
+        try { Coquena.Servers.ScopedServicePlan.Compose(context, RecipeReader.Read(selection), processAgain, Path.Combine(folder, "test.log")); throw new Exception("expected intention conflict"); }
+        catch (StorageException e) { check(e.Code == "intention-conflict", "changed effective recipe cannot reuse prepared snapshot"); }
     }
 
     private static async Task Remote(string parent, Action<bool, string> check)

@@ -133,7 +133,7 @@ public sealed partial class ServerRuntime(Home home, LocalStore? storage = null)
         arguments.AddRange(plan.Presets.CliArguments ?? []);
         return arguments.ToArray();
     }
-    private static void ProbePort(string host, int port)
+    internal static void ProbePort(string host, int port)
     {
         IPAddress[] addresses;
         try { addresses = IPAddress.TryParse(host, out var address) ? [address] : Dns.GetHostAddresses(host); }

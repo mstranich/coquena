@@ -272,7 +272,8 @@ public sealed partial class ScopedModels(ScopeContext context)
         var resourceId = resource!["resource-id"]!.GetValue<string>();
         // Active evidence blocks withdrawal even when process liveness is uncertain.
         var identities = new[] { resourceId }.Concat(resource["installations"]!.AsArray().Select(i => i!["installation-id"]!.GetValue<string>())).ToArray();
-        if (snapshot.Documents.TryGetValue("local/active.json", out var active) && identities.Any(id => Contains(active, id))) UsageFailure(active);
+        foreach (var active in snapshot.ProtectedRuntimeDocuments())
+            if (identities.Any(id => Contains(active, id))) UsageFailure(active);
         if (snapshot.Documents.TryGetValue("local/combinations.json", out var combinations) && identities.Any(id => Contains(combinations, id))) UsageFailure(combinations);
         if (snapshot.Documents.TryGetValue("local/recipes.json", out var registry) && Contains(registry, resourceId) &&
             registry["data"]!["recipes"]!.AsArray().SelectMany(r => r!["entities"]!.AsArray()).Any(e => e!["instance"] is not null)) UsageFailure(registry);

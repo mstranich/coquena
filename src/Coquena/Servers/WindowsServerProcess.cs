@@ -25,7 +25,7 @@ public sealed unsafe partial class WindowsServerProcess : IDisposable
     }
     internal static string JobName(Guid id) => "Local\\Coquena-" + id.ToString("N");
 
-    public static WindowsServerProcess Create(string executable, string[] arguments, string log, Guid id, string? homeRoot = null)
+    public static WindowsServerProcess Create(string executable, string[] arguments, string log, Guid id, string? homeRoot = null, bool newLog = false)
     {
         var job = CreateJobObjectW(0, null);
         if (job.IsInvalid) throw Error("Crear job");
@@ -35,9 +35,10 @@ public sealed unsafe partial class WindowsServerProcess : IDisposable
             if (lifetime.IsInvalid || !SetHandleInformation(lifetime, 1, 1)) throw Error("Crear job de instancia");
             ConfigureJob(job, true);
             var security = new Security { Size = sizeof(Security), Inherit = 1 };
-            using var output = CreateFileW(log, 0x40000000, 1 | 2 | 4, ref security, 2, 0x80, 0);
+            using var output = CreateFileW(log, 0x40000000, 1 | 2 | 4, ref security, newLog ? 1u : 2u, 0x80, 0);
+            if (output.IsInvalid) throw Error("Abrir salida del backend");
             using var input = CreateFileW("NUL", 0x80000000, 1 | 2, ref security, 3, 0x80, 0);
-            if (output.IsInvalid || input.IsInvalid) throw Error("Abrir salida del backend");
+            if (input.IsInvalid) throw Error("Abrir entrada del backend");
             nuint size = 0;
             _ = InitializeProcThreadAttributeList(0, 2, 0, ref size);
             var attributes = Marshal.AllocHGlobal(checked((int)size));
@@ -133,6 +134,43 @@ public sealed unsafe partial class WindowsServerProcess : IDisposable
         }
     }
     internal static bool Exited(SafeFileHandle handle, int milliseconds = 0) => WaitForSingleObject(handle, (uint)milliseconds) == 0;
+    internal static SafeFileHandle VerifiedGroup(InstanceDocument instance, SafeFileHandle verified)
+    {
+        var group = OpenJobObjectW(8 | 4, false, JobName(instance.InstanceId));
+        if (group.IsInvalid || !IsProcessInJob(verified, group, out var belongs) || !belongs)
+        {
+            group.Dispose();
+            throw new ConfigurationException("Grupo de instancia no verificable; se conserva el registro.");
+        }
+        return group;
+    }
+    internal static bool GroupExited(SafeFileHandle group)
+    {
+        if (!QueryInformationJobObject(group, 1, out var accounting, (uint)sizeof(JobAccounting), 0))
+            throw Error("Consultar grupo de instancia");
+        return accounting.ActiveProcesses == 0;
+    }
+    internal static void RequireGroupEnded(Guid instanceId)
+    {
+        using var group = OpenJobObjectW(4, false, JobName(instanceId));
+        if (group.IsInvalid)
+        {
+            if (Marshal.GetLastPInvokeError() == 2) return;
+            throw Error("Consultar grupo de instancia");
+        }
+        if (!GroupExited(group)) throw new ConfigurationException("El proceso principal terminó pero su grupo conserva procesos; no se libera la instancia.");
+    }
+    internal static void ForceGroup(SafeFileHandle group)
+    {
+        if (!TerminateJobObject(group, 1)) throw Error("Forzar cierre del grupo");
+    }
+    internal static bool BelongsToInstance(int pid, Guid instanceId)
+    {
+        using var process = OpenProcess(0x1000, false, (uint)pid);
+        if (process.IsInvalid) return false;
+        using var job = OpenJobObjectW(4, false, JobName(instanceId));
+        return !job.IsInvalid && IsProcessInJob(process, job, out var belongs) && belongs;
+    }
     internal static int ExitCode(SafeFileHandle handle)
     {
         if (!GetExitCodeProcess(handle, out var code)) throw Error("Leer salida");
@@ -207,6 +245,12 @@ public sealed unsafe partial class WindowsServerProcess : IDisposable
         public ulong ReadOperations, WriteOperations, OtherOperations, ReadBytes, WriteBytes, OtherBytes;
         public nuint ProcessMemory, JobMemory, PeakProcessMemory, PeakJobMemory;
     }
+    [StructLayout(LayoutKind.Sequential)] private struct JobAccounting
+    {
+        public long TotalUserTime, TotalKernelTime, PeriodUserTime, PeriodKernelTime;
+        public uint PageFaults, TotalProcesses, ActiveProcesses, TerminatedProcesses;
+    }
+    [DllImport("kernel32.dll", SetLastError = true)] private static extern bool QueryInformationJobObject(SafeFileHandle job, int type, out JobAccounting accounting, uint size, nint returned);
     [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)] private static extern SafeFileHandle CreateJobObjectW(nint security, string? name);
     [DllImport("kernel32.dll", SetLastError = true)] private static extern bool SetHandleInformation(SafeFileHandle handle, uint mask, uint flags);
     [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)] private static extern SafeFileHandle OpenJobObjectW(uint access, bool inherit, string name);

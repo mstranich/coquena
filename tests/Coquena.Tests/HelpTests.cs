@@ -23,7 +23,7 @@ internal static class HelpTests
                 Check(result.Output == help, "help aliases agree");
                 foreach (var syntax in new[] { "backend download --version <versión>", "model companion protect|unprotect <installation-id>",
                     "download list [--model|--companion|--backend]", "download status [<id-descarga>]",
-                    "server [<nombre>] start [-d]", "server [<nombre>] restart", "server [<nombre>] logs [-f]",
+                    "service [<nombre|default|self>] start|restart [-d]", "service default set <nombre>",
                     "--alias y --values pueden repetirse", "--dry-run muestra los cambios sin aplicarlos" })
                     Check(result.Output.Contains(syntax), "syntax: " + syntax);
                 Check(!result.Output.Contains('\u001b'), "redirected help has no ANSI escapes");
@@ -35,8 +35,8 @@ internal static class HelpTests
                 ["backend", "list", "--dry-run"], ["model", "list", "--dry-run"], ["download", "list", "--dry-run"],
                 ["config", "param-reset", "--dry"], ["param", "edit", "ctx-size", "--dry"],
                 ["param", "define", "x", "--type", "integer", "--scope", "model", "--target", "cli", "--dry-run"],
-                ["server", "restart", "-d"], ["server", "stop", "-d"], ["server", "logs", "-d"],
-                ["server", "start", "-f"], ["-f", "recipe.yaml"], ["service", "list"], ["runtime", "list", "--force"]];
+                ["server", "stop", "-d"], ["server", "logs", "-d"],
+                ["server", "start", "-f"], ["-f", "recipe.yaml"], ["service", "list", "-d"], ["runtime", "list", "--force"]];
             foreach (var arguments in invalid)
             {
                 var result = Invoke(arguments);

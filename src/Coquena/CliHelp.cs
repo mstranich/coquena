@@ -36,7 +36,7 @@ internal static class CliHelp
           model companion                  Administrar auxiliares mmproj y MTP
           download                         Consultar y controlar descargas
           preset                           Crear y configurar presets de modelos
-          server                           Configurar, iniciar y detener servidores
+          service (server)                 Administrar servicios y su ejecución
           config                           Configurar directorios y retención
           param                            Administrar definiciones de parámetros
 
@@ -124,40 +124,19 @@ internal static class CliHelp
           preset remove <nombre>           Eliminar un preset
 
         Servidores:
-          server create <nombre> [--port <N>]
-            Crear un servidor; opcionalmente indicar su puerto
-          server default [<nombre>]        Consultar o elegir el servidor predeterminado
-          server list                      Listar servidores configurados
-          server ps                        Mostrar estado de los procesos
-          server [<nombre>] show           Mostrar la configuración del servidor
-          server [<nombre>] use <backend|default>
-            Elegir backend; default usa el backend predeterminado
-          server [<nombre>] set <param> <valor>
-            Asignar un valor a un parámetro del servidor
-          server [<nombre>] unset <param>   Quitar el valor propio del parámetro
-          server [<nombre>] preset add <preset>...
-            Agregar uno o varios presets
-          server [<nombre>] preset remove <preset>...
-            Quitar uno o varios presets
-          server [<nombre>] preset list     Listar presets del servidor
-          server [<nombre>] start [-d]      Iniciar; -d permite salir dejándolo en
-            ejecución
-          server [<nombre>] stop            Detener el servidor
-          server stop --id <id-instancia>   Detener el proceso indicado por server ps
-          server [<nombre>] restart         Reiniciar el servidor
-          server [<nombre>] logs [-f]       Leer logs; -f sigue las nuevas entradas
-          server [<nombre>] remove          Eliminar un servidor detenido; conservar
-            logs
-          server [<nombre>] log-retention show
-            Consultar la retención de logs
-          server [<nombre>] log-retention set <tamaño>
-            Establecer el límite de logs del servidor
-          server [<nombre>] log-retention unset
-            Volver a la retención global
+          service list                     Listar servicios conocidos
+          service default set <nombre>     Asignar el alias global predeterminado
+          service [<nombre|default|self>] start|restart [-d]
+            Preparar e iniciar; -d devuelve el control sin detener el backend
+          service [<nombre|default|self>] stop
+            Detener la instancia verificada
+          service [<nombre|default|self>] remove
+            Retirar un servicio detenido conservando archivos y logs
 
-            Omitir nombre selecciona el predeterminado; escribir default selecciona
-            el servidor llamado default. Ctrl+C detiene el servidor en primer plano;
-            al seguir logs, sólo termina el seguimiento.
+            server es alias de service. Sin selector se usa default; self indica
+            el servicio de la receta del proyecto. --service selecciona un nombre.
+            -f/--file y --env-file son repetibles; --project-directory fija la base.
+            Ctrl+C detiene el proceso en primer plano; otro Ctrl+C fuerza el cierre.
 
         Configuración:
           config log-retention show        Consultar la retención global de logs

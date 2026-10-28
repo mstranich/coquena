@@ -67,7 +67,7 @@ public sealed class ScopeTransfers
         if (externalPrevious is not null)
         {
             var ids = new[] { resourceId.ToString("D") }.Concat(externalPrevious["installations"]!.AsArray().Select(i => i!["installation-id"]!.GetValue<string>())).ToArray();
-            if (snapshot.Documents.TryGetValue("local/active.json", out var active) && ids.Any(id => HasIdentity(active, id))) Fail("resource-in-use");
+            if (snapshot.ProtectedRuntimeDocuments().Any(active => ids.Any(id => HasIdentity(active, id)))) Fail("resource-in-use");
             foreach (var file in externalPrevious["installations"]!.AsArray().SelectMany(i => i!["files"]!.AsArray()))
                 if (selection.Files.Any(f => string.Equals(Path.GetFullPath(file!["path"]!.GetValue<string>(), Context.Base),
                     Context.PathFor(prefix + "/" + f.SourcePath), StringComparison.OrdinalIgnoreCase))) Fail("external-destination-conflict");
@@ -226,7 +226,7 @@ public sealed class ScopeTransfers
         {
             if (plan.ExternalPrevious is null || !JsonNode.DeepEquals(resource, plan.ExternalPrevious)) Fail("external-changed");
             var ids = new[] { plan.ResourceId.ToString("D") }.Concat(resource["installations"]!.AsArray().Select(i => i!["installation-id"]!.GetValue<string>())).ToArray();
-            if (snapshot.Documents.TryGetValue("local/active.json", out var active) && ids.Any(id => HasIdentity(active, id))) Fail("resource-in-use");
+            if (snapshot.ProtectedRuntimeDocuments().Any(active => ids.Any(id => HasIdentity(active, id)))) Fail("resource-in-use");
             resource["ownership"] = "managed";
             resource["installations"] = new JsonArray();
             resource.AsObject().Remove("informative-match");

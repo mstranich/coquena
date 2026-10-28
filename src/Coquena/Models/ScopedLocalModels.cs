@@ -11,7 +11,8 @@ public sealed partial class ScopedModels
     {
         var snapshot = store.Read();
         var ids = new[] { resource["resource-id"]!.GetValue<string>() }.Concat(resource["installations"]!.AsArray().Select(i => i!["installation-id"]!.GetValue<string>())).ToArray();
-        if (snapshot.Documents.TryGetValue("local/active.json", out var active) && ids.Any(id => Contains(active, id))) UsageFailure(active);
+        foreach (var active in snapshot.ProtectedRuntimeDocuments())
+            if (ids.Any(id => Contains(active, id))) UsageFailure(active);
         if (snapshot.Documents.TryGetValue("local/recipes.json", out var registry) && ids.Any(id => Contains(registry, id)) &&
             registry["data"]!["recipes"]!.AsArray().SelectMany(r => r!["entities"]!.AsArray()).Any(e => e!["instance"] is not null)) UsageFailure(registry);
     }

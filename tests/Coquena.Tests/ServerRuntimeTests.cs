@@ -54,8 +54,9 @@ internal static class ServerRuntimeTests
         var backendId = Guid.NewGuid(); var backendSlot = $"{backendId:D}/{Guid.NewGuid():D}";
         var backendDirectory = home.PathFor("custom-backends/" + backendSlot);
         var fixtureExecutable = Path.Combine(AppContext.BaseDirectory, "Coquena.Tests.exe");
-        var product = executable ?? Path.Combine(AppContext.BaseDirectory, "coquena.exe");
-        if (!File.Exists(product)) product = Path.GetFullPath("src/Coquena/bin/Debug/net10.0/coquena.exe");
+        // This suite exercises the retained M2 engine through the test apphost.
+        // Scoped M3 CLI behavior is covered separately against the product.
+        var product = fixtureExecutable;
         var live = new List<InstanceDocument>();
         try
         {
@@ -169,7 +170,7 @@ internal static class ServerRuntimeTests
                 Directory.Exists(backendDirectory), "blocked live transfer preserves process and installation");
             ObservabilityTests.Run(home, runtime, first);
             var followId = Guid.NewGuid(); var followCapture = Path.Combine(root, "follow.txt");
-            using (var follower = WindowsServerProcess.Create(product, ["server", "logs", "-f"], followCapture, followId, root))
+            using (var follower = WindowsServerProcess.Create(product, ["--m2-server-api", "server", "logs", "-f"], followCapture, followId, root))
             {
                 follower.Activate();
                 try
@@ -247,7 +248,7 @@ internal static class ServerRuntimeTests
 
             var consoleId = Guid.NewGuid(); var consoleLog = Path.Combine(root, "detached-console.txt");
             int consolePid;
-            using (var console = WindowsServerProcess.Create(product, ["server", "start", "-d"], consoleLog, consoleId, root))
+            using (var console = WindowsServerProcess.Create(product, ["--m2-server-api", "server", "start", "-d"], consoleLog, consoleId, root))
             {
                 consolePid = console.Pid; console.Activate(); Wait(() => !ProcessAlive(consolePid));
             }
@@ -385,7 +386,7 @@ internal static class ServerRuntimeTests
             void Foreground(bool twice)
             {
                 var controllerId = Guid.NewGuid(); var capture = Path.Combine(root, controllerId + ".txt");
-                using var controller = WindowsServerProcess.Create(product, ["server", "start"], capture, controllerId, root); controller.Activate();
+                using var controller = WindowsServerProcess.Create(product, ["--m2-server-api", "server", "start"], capture, controllerId, root); controller.Activate();
                 InstanceDocument? active = null;
                 try
                 {
@@ -447,7 +448,7 @@ internal static class ServerRuntimeTests
         (int Code, string Out, string Error, byte[] OutBytes, byte[] ErrorBytes) Cli(string[] arguments)
         {
             var start = new ProcessStartInfo(product) { UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true, CreateNoWindow = true };
-            start.Environment["COQUENA_HOME"] = root; foreach (var arg in arguments) start.ArgumentList.Add(arg);
+            start.Environment["COQUENA_HOME"] = root; start.ArgumentList.Add("--m2-server-api"); foreach (var arg in arguments) start.ArgumentList.Add(arg);
             using var process = Process.Start(start)!;
             using var stdout = new MemoryStream(); using var stderr = new MemoryStream();
             var outputCopy = process.StandardOutput.BaseStream.CopyToAsync(stdout);
