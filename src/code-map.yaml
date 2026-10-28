@@ -255,3 +255,16 @@ features:
     references:
       - docs/servidores.md
       - docs/observabilidad.md
+
+  - id: documentation-site
+    intent: Publicar docs/ como sitio Zensical en GitHub Pages con PlantUML renderizado a SVG sin modificar las fuentes.
+    keywords: [documentation, site, zensical, pages, plantuml, svg, brand]
+    entrypoints:
+      - .github/workflows/docs.yml
+      - docs-site/build.py
+    implementation:
+      - zensical.toml
+      - docs-site/assets/coquena.css
+    references:
+      - docs/README.md
+      - specs/075-sitio-documentacion/README.md

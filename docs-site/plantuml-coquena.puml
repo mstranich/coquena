@@ -1,0 +1,147 @@
+' Estilo de marca de Coquena para los diagramas del sitio (esquema oscuro).
+' Se antepone a cada diagrama con `-config`; las fuentes en docs/ no lo incluyen.
+
+skinparam backgroundColor transparent
+skinparam shadowing false
+skinparam roundCorner 8
+skinparam defaultFontName sans-serif
+skinparam defaultFontColor #EAEBED
+skinparam defaultFontSize 13
+
+skinparam ArrowColor #88929A
+skinparam ArrowFontColor #EAEBED
+skinparam ArrowThickness 1.2
+skinparam DatabaseBorderColor #2EC4B6
+skinparam DatabaseBackgroundColor #252B32
+
+skinparam activity {
+  BackgroundColor #252B32
+  BorderColor #2EC4B6
+  FontColor #EAEBED
+  StartColor #2EC4B6
+  EndColor #2EC4B6
+  BarColor #C85A32
+  DiamondBackgroundColor #1E2328
+  DiamondBorderColor #DDA15E
+  DiamondFontColor #EAEBED
+}
+skinparam partition {
+  BorderColor #3E4651
+  FontColor #DDA15E
+}
+skinparam swimlane {
+  BorderColor #3E4651
+  TitleFontColor #DDA15E
+}
+
+skinparam state {
+  BackgroundColor #252B32
+  BorderColor #2EC4B6
+  FontColor #EAEBED
+  StartColor #2EC4B6
+  EndColor #2EC4B6
+  AttributeFontColor #EAEBED
+}
+
+skinparam class {
+  BackgroundColor #252B32
+  BorderColor #2EC4B6
+  FontColor #EAEBED
+  HeaderBackgroundColor #1E2328
+  AttributeFontColor #EAEBED
+  StereotypeFontColor #88929A
+}
+skinparam circledCharacter {
+  FontColor #14171A
+}
+skinparam stereotypeCBackgroundColor #2EC4B6
+skinparam stereotypeABackgroundColor #DDA15E
+skinparam stereotypeIBackgroundColor #D57958
+skinparam stereotypeEBackgroundColor #E09F3E
+
+skinparam usecase {
+  BackgroundColor #252B32
+  BorderColor #2EC4B6
+  FontColor #EAEBED
+  ActorBorderColor #2EC4B6
+  ActorBackgroundColor #2EC4B6
+  ActorFontColor #EAEBED
+}
+skinparam rectangle {
+  BackgroundColor transparent
+  BorderColor #3E4651
+  FontColor #DDA15E
+}
+skinparam package {
+  BackgroundColor transparent
+  BorderColor #3E4651
+  FontColor #DDA15E
+}
+
+skinparam sequence {
+  ArrowColor #88929A
+  ArrowFontColor #EAEBED
+  LifeLineBorderColor #88929A
+  LifeLineBackgroundColor #1E2328
+  ParticipantBackgroundColor #252B32
+  ParticipantBorderColor #2EC4B6
+  ParticipantFontColor #EAEBED
+  ActorBackgroundColor #2EC4B6
+  ActorBorderColor #2EC4B6
+  ActorFontColor #EAEBED
+  BoxBackgroundColor #1E2328
+  BoxBorderColor #3E4651
+  BoxFontColor #DDA15E
+  GroupBackgroundColor #1E2328
+  GroupBorderColor #88929A
+  GroupHeaderFontColor #DDA15E
+  GroupFontColor #EAEBED
+  DividerBackgroundColor #252B32
+  DividerBorderColor #3E4651
+  DividerFontColor #EAEBED
+  ReferenceBackgroundColor #252B32
+  ReferenceBorderColor #3E4651
+}
+
+skinparam note {
+  BackgroundColor #1E2328
+  BorderColor #DDA15E
+  FontColor #EAEBED
+}
+
+skinparam legend {
+  BackgroundColor #1E2328
+  BorderColor #3E4651
+  FontColor #EAEBED
+}
+
+skinparam database {
+  BackgroundColor #252B32
+  BorderColor #2EC4B6
+  FontColor #EAEBED
+}
+skinparam entity {
+  BackgroundColor #252B32
+  BorderColor #2EC4B6
+  FontColor #EAEBED
+}
+
+' Líneas de vida y nodos de inicio/fin de actividades no responden a skinparam.
+<style>
+actor {
+  LineThickness 2
+}
+sequenceDiagram {
+  lifeLine {
+    LineColor #88929A
+    LineThickness 1.2
+    BackgroundColor #252B32
+  }
+}
+activityDiagram {
+  circle {
+    BackgroundColor #2EC4B6
+    LineColor #2EC4B6
+  }
+}
+</style>

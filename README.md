@@ -142,7 +142,8 @@ command above. Uninstalling the tool does not remove Coquena application data.
 
 ## Documentation
 
-The detailed documentation is currently in Spanish.
+The detailed documentation is currently in Spanish and is published at
+[mstranich.github.io/coquena](https://mstranich.github.io/coquena/).
 
 - [Documentation guide](docs/README.md): functional overview and project map.
 - [Commands](docs/comandos.md): planned syntax and behavior, including future

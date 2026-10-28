@@ -1,0 +1,83 @@
+# Sitio de documentación de Coquena. Las fuentes se preparan con
+# `uv run docs-site/build.py` (copia de docs/ con PlantUML renderizado)
+# y se construyen con `uvx zensical build --clean` o `uvx zensical serve`.
+
+[project]
+site_name = "Coquena"
+site_description = "Documentación funcional de Coquena"
+site_author = "Maximiliano Stranich"
+# Único lugar con la URL pública; con dominio propio basta cambiarla y agregar CNAME.
+site_url = "https://mstranich.github.io/coquena/"
+repo_url = "https://github.com/mstranich/coquena"
+repo_name = "mstranich/coquena"
+docs_dir = "artifacts/docs-site/docs"
+site_dir = "artifacts/docs-site/site"
+extra_css = ["stylesheets/coquena.css"]
+
+nav = [
+  { "Inicio" = "README.md" },
+  { "Reglas" = [
+    { "Formato del proyecto" = "formato-proyecto.md" },
+    { "Servicios y recetas" = "servicios-recetas.md" },
+    { "Persistencia de proyectos" = "persistencia-proyectos.md" },
+    { "Definiciones declarativas" = "definiciones-declarativas.md" },
+    { "Servidores" = "servidores.md" },
+    { "Modelos y companions" = "modelos-y-companions.md" },
+    { "Descargas" = "descargas.md" },
+    { "Parámetros" = "catalogo-de-parametros.md" },
+    { "Actualización y limpieza" = "actualizacion-y-limpieza.md" },
+    { "Observabilidad" = "observabilidad.md" },
+    { "Privacidad y datos compartibles" = "privacidad.md" },
+  ] },
+  { "Interfaces" = [
+    { "Interfaces visuales" = "interfaces-visuales.md" },
+    { "Pantalla Servicios" = "ui-servicio.md" },
+    { "Comandos" = "comandos.md" },
+  ] },
+  { "Modelos" = [
+    { "Modelo de datos" = "modelo-de-datos.md" },
+    { "Estados" = "estados.md" },
+    { "Casos de uso" = "casos-de-uso.md" },
+    { "Secuencias" = "secuencias.md" },
+    { "Actividades" = "actividades.md" },
+  ] },
+  { "Referencia" = [
+    { "Benchmarking" = "benchmarking.md" },
+    { "Glosario" = "glosario.md" },
+  ] },
+]
+
+[project.theme]
+language = "es"
+features = [
+  "content.code.copy",
+  "navigation.footer",
+  "navigation.indexes",
+  "navigation.instant",
+  "navigation.path",
+  "navigation.sections",
+  "navigation.top",
+  "navigation.tracking",
+  "search.highlight",
+  "toc.follow",
+]
+
+[project.theme.palette]
+scheme = "coquena"
+primary = "custom"
+accent = "custom"
+
+[project.markdown_extensions]
+admonition = {}
+attr_list = {}
+def_list = {}
+footnotes = {}
+md_in_html = {}
+tables = {}
+toc.permalink = true
+toc.slugify = { object = "pymdownx.slugs.slugify", kwds = { case = "lower" } }
+pymdownx.details = {}
+pymdownx.highlight.anchor_linenums = true
+pymdownx.inlinehilite = {}
+pymdownx.superfences = {}
+pymdownx.tasklist.custom_checkbox = true

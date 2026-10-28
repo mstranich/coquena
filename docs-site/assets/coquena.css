@@ -1,0 +1,108 @@
+/* Paleta de marca de Coquena aplicada al tema de Zensical (esquema oscuro). */
+
+:root {
+  --coquena-primary: #C85A32;
+  --coquena-primary-hover: #B24C26;
+  /* Propuesta pendiente de Figma: terracota aclarado (mismo tono) para texto chico
+     sobre fondos oscuros; ≥ 4,5:1 sobre base, surface y card. */
+  --coquena-primary-text: #D57958;
+  --coquena-accent: #2EC4B6;
+  --coquena-accent-hover: #25A89C;
+  --coquena-gold: #DDA15E;
+  --coquena-gold-hover: #C98E4B;
+  --coquena-bg-base: #14171A;
+  --coquena-bg-surface: #1E2328;
+  --coquena-bg-card: #252B32;
+  --coquena-border: #3E4651;
+  --coquena-text-main: #EAEBED;
+  --coquena-text-muted: #88929A;
+  --coquena-status-success: #2EC4B6;
+  --coquena-status-warning: #E09F3E;
+  --coquena-status-danger: #E63946;
+  --coquena-status-info: #457B9D;
+}
+
+[data-md-color-scheme="coquena"] {
+  color-scheme: dark;
+
+  --md-default-bg-color: var(--coquena-bg-base);
+  /* Zensical usa estas variantes translúcidas en la barra superior y superposiciones. */
+  --md-default-bg-color--light: rgb(37 43 50 / 70%);
+  --md-default-bg-color--lighter: rgb(37 43 50 / 30%);
+  --md-default-bg-color--lightest: rgb(37 43 50 / 12%);
+  --md-default-fg-color: var(--coquena-text-main);
+  --md-default-fg-color--light: var(--coquena-text-muted);
+  --md-default-fg-color--lighter: var(--coquena-border);
+  --md-default-fg-color--lightest: var(--coquena-bg-card);
+
+  /* Barra superior en superficie: el terracota no alcanza AA con texto claro. */
+  --md-primary-fg-color: var(--coquena-bg-surface);
+  --md-primary-fg-color--light: var(--coquena-bg-card);
+  --md-primary-fg-color--dark: var(--coquena-bg-base);
+  --md-primary-bg-color: var(--coquena-text-main);
+  --md-primary-bg-color--light: var(--coquena-text-muted);
+
+  --md-accent-fg-color: var(--coquena-gold);
+  --md-accent-fg-color--transparent: rgb(221 161 94 / 10%);
+
+  --md-typeset-color: var(--coquena-text-main);
+  --md-typeset-a-color: var(--coquena-accent);
+  --md-typeset-mark-color: rgb(221 161 94 / 30%);
+  --md-typeset-table-color: var(--coquena-border);
+  --md-typeset-table-color--light: var(--coquena-bg-surface);
+
+  --md-code-bg-color: var(--coquena-bg-surface);
+  --md-code-fg-color: var(--coquena-text-main);
+
+  /* Resaltado de sintaxis: sólo colores con contraste ≥ 4,5:1 sobre surface. */
+  --md-code-hl-color: rgb(46 196 182 / 100%);
+  --md-code-hl-color--light: rgb(46 196 182 / 12%);
+  --md-code-hl-keyword-color: var(--coquena-gold);
+  --md-code-hl-string-color: var(--coquena-accent);
+  --md-code-hl-number-color: var(--coquena-primary-text);
+  --md-code-hl-constant-color: var(--coquena-primary-text);
+  --md-code-hl-special-color: var(--coquena-status-warning);
+  --md-code-hl-function-color: var(--coquena-accent);
+  --md-code-hl-name-color: var(--coquena-text-main);
+  --md-code-hl-variable-color: var(--coquena-text-main);
+  --md-code-hl-operator-color: var(--coquena-text-muted);
+  --md-code-hl-punctuation-color: var(--coquena-text-muted);
+  --md-code-hl-comment-color: var(--coquena-text-muted);
+  --md-code-hl-generic-color: var(--coquena-text-muted);
+
+  --md-footer-bg-color: var(--coquena-bg-surface);
+  --md-footer-bg-color--dark: var(--coquena-bg-base);
+  --md-footer-fg-color: var(--coquena-text-main);
+  --md-footer-fg-color--light: var(--coquena-text-muted);
+}
+
+[data-md-color-scheme="coquena"] .md-header {
+  background-color: var(--coquena-bg-card);
+  border-bottom: 2px solid var(--coquena-primary);
+}
+
+/* Terracota en títulos: contraste ≥ 3:1, suficiente para texto grande. */
+[data-md-color-scheme="coquena"] .md-typeset h1,
+[data-md-color-scheme="coquena"] .md-typeset h2 {
+  color: var(--coquena-primary);
+}
+
+[data-md-color-scheme="coquena"] .md-typeset a:hover {
+  color: var(--coquena-gold);
+}
+
+[data-md-color-scheme="coquena"] .md-nav__link--active,
+[data-md-color-scheme="coquena"] .md-nav__item .md-nav__link--active {
+  color: var(--coquena-accent);
+}
+
+.md-typeset .cq-banner {
+  display: block;
+  width: 100%;
+  border-radius: 0.5rem;
+}
+
+/* Diagramas PlantUML con fondo transparente, directamente sobre la página. */
+.md-typeset img[src$=".svg"] {
+  background: none;
+}
