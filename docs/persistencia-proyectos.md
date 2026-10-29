@@ -83,7 +83,7 @@ Campos mínimos de `data` por documento:
 | inventory | scope-id, resources con UUID, logical-key, ownership, installations con UUID, ubicación, archivos propios, origen explícito/automático, disponibilidad y observaciones de integridad. |
 | state | scope-id, generation, transaction-id, documentos/revisiones, servicios y alias en ámbito global. |
 | active | service-id, instance-id, identidad de proceso (PID, inicio e identidad de ejecutable), endpoint, combinación, snapshot, recursos físicos y log. |
-| last-good | service-id, snapshot independiente, recursos exactos, checked-at y evidencia de salud. |
+| last-good | service-id, snapshot independiente, recursos exactos, ejecución y endpoint probados, checked-at y evidencia de salud con sus plazos. |
 | update-plan | scope-id, combination-id, revisión base, identidad local de intención y selecciones actuales/propuestas exactas. |
 | operation | operation-id, tipo, ámbitos, revisiones base, fase, recursos, candidatos, documentos nuevos y anteriores; remote-status cuando interviene router. |
 | recipe-registry | recipes con recipe-id, archivos relativos, nombre de receta registrado, entidades creadas y revisión. Local en el ámbito de la receta. |

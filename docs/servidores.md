@@ -151,8 +151,11 @@ Cambiar backend exige restart; capacidades de recarga son por build.
 - Interactivo ofrece reintentar o usar última buena disponible; no decide rollback.
 - Daemon recupera última buena en misma invocación ante fallo de nueva preparación/
   arranque, incluso primer fallo. Un candidato conocido como fallido no bloquea servicio.
-- Si la candidata ya falló, daemon usa la última buena con warning; no insiste
-  primero en la candidata ni busca otras configuraciones históricas más antiguas.
+- Cada invocación daemon intenta una vez la candidata, aunque haya fallado antes.
+  Si falla, usa la última buena con warning en terminal y log; no busca otras
+  configuraciones históricas más antiguas. Si funciona, la promueve como nueva
+  última buena y elimina su marca de fallo. En interactivo, reintentar requiere
+  una decisión explícita del usuario.
 - Si faltan recursos de última buena, intentar versión exacta, sin resolver latest.
   Si también falla o no existe última buena, informar/registrar y terminar sin bucles.
 - Integridad inválida conocida de recurso seleccionado es fatal en ambos modos:

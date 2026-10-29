@@ -12,6 +12,8 @@ features:
       - src/Coquena/ServiceCommand.cs
       - src/Coquena/Servers/ScopedServicePlan.cs
       - src/Coquena/Servers/ScopedServiceProcess.cs
+      - src/Coquena/Servers/ScopedServiceRecovery.cs
+      - src/Coquena/Servers/ScopedServiceSnapshot.cs
       - src/Coquena/Servers/WindowsServerProcess.cs
       - src/Coquena/Servers/WindowsListeningPorts.cs
       - src/Coquena/Projects/RecipeRegistry.cs
@@ -19,6 +21,7 @@ features:
       - src/Coquena/Projects/ScopeStore.cs
     tests:
       - tests/Coquena.Tests/ScopedServiceTests.cs
+      - tests/Coquena.Tests/ServiceRecoveryTests.cs
       - tests/Coquena.Tests/ProjectPersistenceTests.cs
       - tests/Coquena.Tests/CombinationTests.cs
     references:

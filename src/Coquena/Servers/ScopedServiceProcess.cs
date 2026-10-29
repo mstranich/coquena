@@ -8,10 +8,11 @@ namespace Coquena.Servers;
 
 public sealed record ScopedStartPlan(string Executable, string[] Arguments, string LogPath,
     string Combination, JsonObject Snapshot, JsonArray Resources, JsonObject Endpoint,
-    Uri HealthUrl, TimeSpan Timeout, TimeSpan Interval, Guid? InstanceId = null, Action? ValidateIntent = null);
+    Uri HealthUrl, TimeSpan Timeout, TimeSpan Interval, Guid? InstanceId = null, Action? ValidateIntent = null,
+    bool IsDraft = false);
 
 // Lifecycle leases are per service and separate from the short catalog writer lease.
-public sealed class ScopedServiceProcess(ScopeStore store, TextWriter? output = null)
+public sealed partial class ScopedServiceProcess(ScopeStore store, TextWriter? output = null, TextWriter? diagnostics = null)
 {
     private FileStream Lease(string serviceId)
     {
@@ -170,7 +171,9 @@ public sealed class ScopedServiceProcess(ScopeStore store, TextWriter? output = 
         var port = plan.Endpoint["port"]?.GetValue<int>();
         cancellation.ThrowIfCancellationRequested();
         plan.ValidateIntent?.Invoke();
-        ServerRuntime.ProbePort(host!, port!.Value);
+        try { ServerRuntime.ProbePort(host!, port!.Value); }
+        catch (ConfigurationException error)
+        { throw new StorageException("endpoint-unavailable", error.Message, inner: error); }
         Directory.CreateDirectory(Path.GetDirectoryName(plan.LogPath)!);
         var id = plan.InstanceId ?? Guid.NewGuid();
         if (id == Guid.Empty) throw new StorageException("invalid-instance-id", "Identidad de instancia inválida.");
@@ -178,7 +181,7 @@ public sealed class ScopedServiceProcess(ScopeStore store, TextWriter? output = 
         var active = new JsonObject { ["service-id"] = serviceId, ["instance-id"] = id.ToString("D"),
             ["process"] = new JsonObject { ["pid"] = child.Pid, ["creation-time"] = child.Created, ["executable"] = child.Executable },
             ["combination"] = plan.Combination, ["snapshot"] = plan.Snapshot.DeepClone(), ["resources"] = plan.Resources.DeepClone(),
-            ["endpoint"] = plan.Endpoint.DeepClone(), ["log"] = plan.LogPath,
+            ["endpoint"] = plan.Endpoint.DeepClone(), ["log"] = plan.LogPath, ["draft"] = plan.IsDraft,
             ["execution"] = new JsonObject { ["executable"] = plan.Executable,
                 ["arguments"] = new JsonArray(plan.Arguments.Select(value => (JsonNode?)JsonValue.Create(value)).ToArray()),
                 ["working-directory"] = Path.GetDirectoryName(plan.Executable) } };
@@ -209,7 +212,8 @@ public sealed class ScopedServiceProcess(ScopeStore store, TextWriter? output = 
                         { RecordEnded(serviceId, id.ToString("D")); throw new StorageException("process-exited", "El proceso terminó durante el inicio."); }
                         if (WindowsListeningPorts.IsOwned(host!, port.Value, id))
                         {
-                            registry.PromoteHealthy(serviceId, id.ToString("D"), plan.HealthUrl, (int)response.StatusCode);
+                            registry.PromoteHealthy(serviceId, id.ToString("D"), plan.HealthUrl, (int)response.StatusCode,
+                                plan.Timeout, plan.Interval);
                             return id.ToString("D");
                         }
                         diagnostic = "la escucha no corresponde al grupo de la instancia";

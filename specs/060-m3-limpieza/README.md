@@ -44,6 +44,14 @@ Las reglas funcionales de los documentos enlazados prevalecen. Esta tarjeta defi
 
 Ejecutar pruebas pertinentes de los escenarios anteriores y registrar resultados reproducibles. Las entregas de runtime requieren publicar Native AOT win-x64 y ejecutar el binario publicado, con estado y recursos de prueba en D:. Evaluar dependencias en ese camino antes de adoptarlas. Las tarjetas visuales requieren uso en terminal real; mocks y snapshots aislados no acreditan integración. Utilizar recursos locales o fixtures, sin descargas costosas implícitas.
 
+## Hallazgos relacionados
+
+- [002: Coordinación entre monitor de descargas y limpieza](../../findings/002-coordinacion-monitor-limpieza.md).
+  La retirada del área temporal puede causar FileNotFoundException desde el monitor
+  y ocultar una finalización exitosa. Es distinta del clean de instalaciones de esta
+  tarjeta; la referencia facilita encontrar la evaluación, sin incorporar su
+  corrección al alcance ni añadir una dependencia.
+
 ## Límites
 
 Sin deduplicación, barrido de YAML desconocidos o cascadas de archivos ajenos.

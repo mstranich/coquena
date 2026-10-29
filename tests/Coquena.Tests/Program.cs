@@ -41,6 +41,8 @@ if (args.Length == 1 && args[0] == "--combination-tests")
 { await Coquena.Tests.CombinationTests.Run(); return; }
 if (args.Length is 1 or 2 && args[0] == "--scoped-service-tests")
 { await Coquena.Tests.ScopedServiceTests.Run(args.Length == 2 ? Path.GetFullPath(args[1]) : null); return; }
+if (args.Length is 1 or 2 && args[0] == "--service-recovery-tests")
+{ await Coquena.Tests.ServiceRecoveryTests.Run(args.Length == 2 ? Path.GetFullPath(args[1]) : null); return; }
 if (args.Length == 3 && args[0] == "--combination-crash-worker")
 { await Coquena.Tests.CombinationTests.CrashWorker(args[1], Enum.Parse<Coquena.Projects.ScopeWriteStage>(args[2])); return; }
 

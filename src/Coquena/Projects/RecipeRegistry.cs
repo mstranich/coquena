@@ -315,7 +315,8 @@ public sealed class RecipeRegistry(ScopeStore store)
         store.Commit(snapshot.Revision, docs);
     }
 
-    public void PromoteHealthy(string serviceId, string instanceId, Uri healthUrl, int statusCode)
+    public void PromoteHealthy(string serviceId, string instanceId, Uri healthUrl, int statusCode,
+        TimeSpan? timeout = null, TimeSpan? interval = null)
     {
         if (statusCode is < 200 or >= 300 || !healthUrl.IsAbsoluteUri || !string.IsNullOrEmpty(healthUrl.UserInfo))
             throw new StorageException("invalid-health-evidence", "La promoción requiere salud HTTP 2xx sin credenciales en la URL.");
@@ -323,10 +324,16 @@ public sealed class RecipeRegistry(ScopeStore store)
         var active = docs.GetValueOrDefault(ActivePath(serviceId))?["data"]?.AsObject();
         if (active?["instance-id"]?.GetValue<string>() != instanceId || active["terminated"]?.GetValue<bool>() == true)
             throw new StorageException("instance-conflict", "La instancia cambió antes de promover salud.");
+        if (active["draft"]?.GetValue<bool>() == true &&
+            active["snapshot"]?["service"]?["recovery"]?["allow-draft-last-good"]?["value"]?.GetValue<string>() != "true")
+            return;
         var path = store.RuntimeDocumentPath(serviceId, "last-good");
         var data = new JsonObject { ["service-id"] = serviceId, ["snapshot"] = active["snapshot"]!.DeepClone(),
             ["resources"] = active["resources"]!.DeepClone(), ["checked-at"] = DateTimeOffset.UtcNow.ToString("O"),
-            ["health"] = new JsonObject { ["url"] = healthUrl.ToString(), ["status"] = statusCode } };
+            ["draft"] = active["draft"]?.DeepClone(),
+            ["health"] = new JsonObject { ["url"] = healthUrl.ToString(), ["status"] = statusCode,
+                ["timeout-ms"] = (timeout ?? TimeSpan.FromSeconds(120)).TotalMilliseconds,
+                ["interval-ms"] = (interval ?? TimeSpan.FromMilliseconds(500)).TotalMilliseconds } };
         foreach (var key in new[] { "combination", "endpoint", "execution" })
             if (active[key] is { } value) data[key] = value.DeepClone();
         docs[path] = ProjectDocuments.Create("last-good", docs.GetValueOrDefault(path)?["revision"]?.GetValue<long>() ?? 1, data);

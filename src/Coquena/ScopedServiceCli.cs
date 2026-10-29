@@ -34,7 +34,7 @@ public static class ScopedServiceCli
             if (!target.Context.IsGlobal) new ProjectIndex(home).Refresh(new ScopeStore(target.Context));
             return Operate(command, target, output, error);
         }
-        catch (Exception e) when (e is StorageException or RecipeException or BackendException or DownloadException or ContractException or
+        catch (Exception e) when (e is StorageException or RecipeException or BackendException or DownloadException or ModelSourceException or ContractException or
             Configuration.ConfigurationException or System.ComponentModel.Win32Exception or IOException or UnauthorizedAccessException or ArgumentException or HttpRequestException or OperationCanceledException)
         {
             return Failure(e, error);
@@ -68,7 +68,7 @@ public static class ScopedServiceCli
             var registry = new RecipeRegistry(new ScopeStore(context));
             if (command.Action is not ("start" or "restart"))
                 return new(context, selection, registry.FindProjectService(selection.Files));
-            if (command.Action == "start")
+            if (command.Action is "start" or "restart")
             {
                 try { return new(context, selection, registry.FindProjectService(selection.Files)); }
                 catch (StorageException e) when (e.Code == "unknown-service") { }
@@ -89,7 +89,7 @@ public static class ScopedServiceCli
     private static int Operate(ServiceCommand command, Target target, TextWriter output, TextWriter error)
     {
         var service = target.Service;
-        var lifecycle = new ScopedServiceProcess(new ScopeStore(target.Context), output);
+        var lifecycle = new ScopedServiceProcess(new ScopeStore(target.Context), output, error);
         if (command.Action == "remove")
         {
             lifecycle.Remove(service.ServiceId);
@@ -120,10 +120,18 @@ public static class ScopedServiceCli
                 return 0;
             }
             Task<ScopedStartPlan> Prepare(CancellationToken token) => PrepareAsync(command, target, error, token);
-            var instance = command.Action == "restart"
-                ? lifecycle.RestartAsync(service.ServiceId, Prepare, ForceRequested, cancellation.Token).GetAwaiter().GetResult()
-                : lifecycle.StartAsync(service.ServiceId, Prepare(cancellation.Token).GetAwaiter().GetResult(), cancellation.Token, ForceRequested).GetAwaiter().GetResult();
-            output.WriteLine($"Servicio {service.Name} iniciado; instancia {instance}.");
+            ServiceRecoveryChoice Decide(string code, bool available)
+            {
+                if (Console.IsInputRedirected) return ServiceRecoveryChoice.Cancel;
+                output.WriteLine($"Fallo de candidata ({code}). [r] Reintentar, " +
+                    (available ? "[u] Usar última buena, " : "") + "[c] Cancelar:");
+                return Console.ReadLine()?.Trim().ToLowerInvariant() switch
+                { "r" => ServiceRecoveryChoice.Retry, "u" when available => ServiceRecoveryChoice.LastGood, _ => ServiceRecoveryChoice.Cancel };
+            }
+            var instance = lifecycle.RunAsync(service.ServiceId, command.Action == "restart", command.Detached,
+                Prepare, (snapshot, token) => RestoreAsync(target, snapshot, error, token), Decide,
+                cancellation.Token, ForceRequested).GetAwaiter().GetResult();
+            output.WriteLine($"Servicio {service.Name}; instancia {instance}.");
             return command.Detached ? 0 : lifecycle.Foreground(service.ServiceId, instance, output, interrupt);
         }
         finally { Console.CancelKeyPress -= handler; }
@@ -145,12 +153,25 @@ public static class ScopedServiceCli
         return ScopedServicePlan.Compose(target.Context, recipe, prepared, logs) with { InstanceId = id };
     }
 
+    private static async Task<ScopedStartPlan> RestoreAsync(Target target, System.Text.Json.Nodes.JsonObject snapshot,
+        TextWriter error, CancellationToken cancellation)
+    {
+        using var http = new HttpClient();
+        using var transport = new OfficialArtifactTransport();
+        var resources = new ScopedCombinationResources(target.Context, HardwareProbe.Inspect(), new HuggingFaceStore(http), transport,
+            new ConsoleModelSelectionInteraction(), warning: message => error.WriteLine(message));
+        var log = target.Context.IsGlobal
+            ? target.Context.PathFor($"services/{target.Service.ServiceId}/logs/{Guid.NewGuid():D}.log")
+            : target.Context.PathFor($"logs/{Guid.NewGuid():D}.log");
+        return await ScopedServiceSnapshot.RestoreAsync(target.Context, snapshot, resources, log, cancellation);
+    }
+
     private static int Failure(Exception e, TextWriter error)
     {
         var code = e switch
         {
             StorageException s => s.Code, RecipeException r => r.Code, BackendException b => b.Code,
-            DownloadException d => d.Code, ContractException c => c.Code, OperationCanceledException => "cancelled", _ => "service-error"
+            DownloadException d => d.Code, ModelSourceException m => m.Code, ContractException c => c.Code, OperationCanceledException => "cancelled", _ => "service-error"
         };
         error.WriteLine($"Error: {code}. {e.Message}");
         if (e is OperationCanceledException) return 130;
@@ -159,7 +180,7 @@ public static class ScopedServiceCli
         if (code.Contains("integrity", StringComparison.Ordinal)) return 6;
         if (code is "backend-incompatible" or "unsupported-platform" or "health-required") return 5;
         if (e is HttpRequestException || code is "remote-unavailable" or "remote-timeout" or "remote-rate-limit") return 4;
-        if (e is Configuration.ConfigurationException or System.ComponentModel.Win32Exception || code is "health-timeout" or "process-exited" or "service-already-running") return 8;
+        if (e is Configuration.ConfigurationException or System.ComponentModel.Win32Exception || code is "health-timeout" or "process-exited" or "service-already-running" or "service-recovery-failed" or "endpoint-unavailable") return 8;
         if (e is IOException or UnauthorizedAccessException or DownloadException) return 7;
         return 1;
     }

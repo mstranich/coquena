@@ -166,6 +166,7 @@ public sealed class ScopedBackends(ScopeContext context,
                 {
                     if (installation!["integrity-status"]?.GetValue<string>() is "invalid" or "mismatch")
                         throw new BackendException("backend-integrity-invalid", "Integridad inválida conocida; no se redescarga automáticamente.");
+                    if (expectedSelection is not null && MissingManagedFiles(installation)) continue;
                     if (!Directory.Exists(context.PathFor(installation["location"]!.GetValue<string>()))) continue;
                     var result = await ReadPrepared(resource, installation!, hardware, force, null, cancellation);
                     if (explicitlyRequested) Protect(result.InstallationId, true);
@@ -204,13 +205,18 @@ public sealed class ScopedBackends(ScopeContext context,
                             if (pinnedByIntent) Protect(reused.InstallationId, true);
                             return reused;
                         }
-                        catch (BackendException e) when (e.Code == "backend-installation-absent") { }
+                        catch (BackendException e) when (e.Code == "backend-installation-absent" ||
+                            e.Code == "backend-installation-incomplete" && MissingManagedFiles(installation!)) { }
             intent = new(exact.Release, exact.Variant);
         }
         var prepared = await DownloadAsync(intent, hardware, transport, false, force, warning, cancellation, exact);
         if (pinnedByIntent) Protect(prepared.InstallationId, true);
         return prepared;
     }
+
+    private bool MissingManagedFiles(JsonNode installation) =>
+        installation["files"]!.AsArray().Any(file => !File.Exists(context.PathFor(
+            installation["location"]!.GetValue<string>() + "/" + file!["path"]!.GetValue<string>())));
 
     public void Protect(string installationId, bool value)
     {

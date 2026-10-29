@@ -177,7 +177,7 @@ internal static class ProjectPersistenceTests
         try
         {
             try { lifecycleWithHealth.StartAsync(otherGlobalService.ServiceId, plan).GetAwaiter().GetResult(); throw new Exception("expected occupied port"); }
-            catch (Coquena.Configuration.ConfigurationException) { Require(true, "puerto ocupado no se reasigna"); }
+            catch (StorageException error) when (error.Code == "endpoint-unavailable") { Require(true, "puerto ocupado no se reasigna"); }
         }
         finally { listener.Stop(); }
         Require(!lifecycleWithHealth.Reconcile(otherGlobalService.ServiceId), "puerto ocupado no crea instancia");
@@ -211,7 +211,8 @@ internal static class ProjectPersistenceTests
             Cli("service", "self", "start", "-d", "--project-directory", cliFolder);
             File.WriteAllText(recipeFile, originalRecipe.Replace(apphost.Replace('\\', '/'), Path.Combine(root, "missing.exe").Replace('\\', '/')));
             using (var failedOutput = new StringWriter()) using (var failedError = new StringWriter())
-                Require(Coquena.Cli.Run(["service", "self", "restart", "-d", "--private", "--project-directory", cliFolder], failedOutput, failedError) != 0, "restart CLI falla al preparar backend ausente");
+                Require(Coquena.Cli.Run(["service", "self", "restart", "-d", "--private", "--project-directory", cliFolder], failedOutput, failedError) == 0 &&
+                    failedError.ToString().Contains("se conserva la instancia activa"), "restart CLI informa candidata fallida y disponibilidad conservada con warning");
             var cliStore = new ScopeStore(ScopeContext.Project(recipeFile));
             var own = new RecipeRegistry(cliStore).FindProjectService([recipeFile]);
             Require(new Coquena.Servers.ScopedServiceProcess(cliStore).Reconcile(own.ServiceId), "fallo CLI conserva instancia anterior");
