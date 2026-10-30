@@ -38,11 +38,22 @@ Si el nuevo nombre colisiona, no se publica ni se recupera otro nombre de receta
 inferencia; se conserva evidencia de la retirada y se informa el conflicto.
 Este ciclo sólo opera sobre publicaciones de presets.
 
-`target`, también raíz, acepta `self`, `default` o el nombre de un servicio global.
-Omitirlo equivale a `default`, incluso si existe `service`; `self` exige un servicio
-en la receta. `default` es un alias global asignado explícitamente por el usuario,
-no otro servicio ni un campo de la receta. No se busca un sustituto si no resuelve.
-Los nombres de servicio `default` y `self` están reservados para estos selectores.
+`target`, también raíz, admite únicamente los strings lowercase `global` y `self`.
+Omitirlo equivale a `global`, incluso si existe `service`; `self` exige ese bloque
+y selecciona el servicio propio de la receta. No acepta nombres de servidores ni
+`default` como valor.
+
+Global es un ámbito: puede contener varios servicios. Default es la designación
+de uno de esos servicios como predeterminado dentro del ámbito global; no es
+sinónimo de global. Un servicio propio de proyecto no es elegible como default
+global. `target: global` utiliza el servicio global marcado como default.
+La elección de cuál es default pertenece a la configuración global de Coquena,
+independiente de la receta consumidora. Puede asignarlo el usuario o establecerse
+al preparar por primera vez el
+[servidor global predeterminado](servidores.md#servidor-global-predeterminado).
+Un valor de target distinto de global o self es un error de validación; no se
+interpreta como nombre de servicio ni se elige otro destino.
+Los nombres de servicio `global`, `default` y `self` están reservados para los selectores.
 
 Los identificadores distinguen mayúsculas por comparación ordinal. No admiten NUL,
 CR/LF ni separadores de selector `:`. Un componente de nombre de receta,
@@ -72,6 +83,59 @@ sin tratar un cambio de carpeta o intención como una baja y alta implícitas.
 Copiar un proyecto crea otro consumidor local; moverlo con identidad de carpeta
 comprobada conserva propietario. El nombre de carpeta o nombre de receta no prueba identidad.
 
+## Compartir un servidor entre proyectos
+
+Un servidor es un destino reutilizable para distintos trabajos. Las publicaciones
+base globales y las de cada proyecto se combinan en él; publicar desde otro proyecto
+no sustituye lo que ya ofrecen los demás. Cambiar de carpeta de trabajo tampoco
+retira publicaciones. Cada contribución conserva su propietario para poder
+actualizarla o retirarla independientemente.
+
+La analogía de uso es Docker Compose: llama.cpp cumple el papel de infraestructura
+de ejecución compartida; las recetas componen presets y modelos para los trabajos
+de cada proyecto. Los conjuntos preset/modelo son las unidades que esos trabajos
+consumen. La analogía explica la reutilización y composición, sin atribuir a
+llama.cpp aislamiento de contenedores o virtualización.
+
+Al aplicar otra combinación YAML del mismo proyecto sobre el mismo target, up
+reconcilia la contribución anterior de ese proyecto con el conjunto efectivo nuevo:
+agrega los presets nuevos, actualiza los modificados y retira los que dejan de
+formar parte del conjunto habilitado. Los presets sin cambios se conservan y no
+se fuerzan ciclos de retirada y alta. La combinación nueva no se agrega como otro
+consumidor independiente ni conserva acumulados los presets de la combinación
+anterior. Las contribuciones ajenas permanecen intactas. Apply/withdraw permiten
+operar individualmente sobre los presets seleccionados.
+
+Por ejemplo, un proyecto publica primero con `coquena.yaml` y después aplica
+`coquena.yaml` junto con `coquena.local.yaml`. La composición efectiva de ambos
+archivos pasa a definir su contribución en ese destino, con la precedencia y las
+reglas de [composición](formato-proyecto.md). Los presets heredados que sigan
+habilitados permanecen; añadir una capa no equivale a retirar todo lo publicado
+por el archivo base. Conservar las resoluciones de ambas combinaciones tampoco
+significa mantener ambas contribuciones publicadas.
+
+Un uso habitual es un servidor global con presets de programación al que un
+proyecto de procesamiento de medios agrega presets para resúmenes diarios.
+El usuario puede programar mientras la aplicación solicita resúmenes al mismo
+servidor. Cada trabajo selecciona sus presets y el backend administra los modelos
+según demanda y configuración, compartiendo la capacidad de la instancia. También
+puede utilizarse un servicio propio mediante los selectores de destino admitidos;
+su ciclo de proceso sigue siendo independiente de las publicaciones.
+
+Publicar y retirar en caliente no exige detener el servidor. No garantiza que todos
+los modelos quepan en memoria ni ausencia de interrupciones durante una recarga.
+La residencia, alternancia y carga ante peticiones corresponden al backend;
+Coquena reconcilia presets y sólo solicita precarga cuando se declara warmup.
+Las comprobaciones de actividad, decisiones de publicación y resultados siguen
+el contrato de [servidores](servidores.md#plazos-y-control).
+
+Los presets permanecen publicados hasta su retirada explícita mediante down,
+withdraw o como parte de un cambio aplicado que los retire. Cambiar el target no
+acredita por sí solo una retirada del destino anterior: se conserva el registro
+de sus publicaciones hasta confirmar su retirada. Una retirada que forme parte
+del cambio sigue las mismas comprobaciones de propietario, actividad y resultado;
+no se detiene el servidor ni se afectan contribuciones ajenas.
+
 ## Ejemplos
 
 Servicio para importación global:
@@ -93,7 +157,7 @@ Consumidor sin proceso propio:
 
 ```yaml
 name: noticias
-target: default
+target: global
 models:
   principal:
     files: [./weights/modelo.gguf]

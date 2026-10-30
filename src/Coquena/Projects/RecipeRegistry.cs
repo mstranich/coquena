@@ -38,6 +38,28 @@ public sealed class RecipeRegistry(ScopeStore store)
     public RecipeIdentity[] Recipes() => store.Read().Documents.TryGetValue(RegistryPath, out var doc)
         ? doc["data"]!["recipes"]!.AsArray().Select(x => Recipe(x!)).ToArray() : [];
 
+    public RecipeIdentity EnsureProjectConsumer(IReadOnlyList<string> files, string? declaredName)
+    {
+        var snapshot = store.Read(); var docs = Next(snapshot);
+        var registry = Data(docs, RegistryPath, "recipe-registry", "recipes");
+        var recipes = registry["recipes"]!.AsArray();
+        var entry = recipes.SingleOrDefault(r => r!["project-consumer"]?.GetValue<bool>() == true)?.AsObject();
+        if (entry is not null) return Recipe(entry);
+        var normalized = Normalize(files);
+        entry = recipes.SingleOrDefault(r => r!["service-selection"]?.GetValue<string>() == normalized[0])?.AsObject();
+        if (entry is null)
+        {
+            var name = declaredName ?? Path.GetFileName(store.Context.Base); ValidateName(name);
+            entry = new JsonObject { ["recipe-id"] = ProjectDocuments.Id(), ["consumer-id"] = ProjectDocuments.Id(),
+                ["name"] = name, ["files"] = Strings(normalized), ["revision"] = 1,
+                ["entities"] = new JsonArray(), ["pending-withdrawals"] = new JsonArray() };
+            recipes.Add((JsonNode)entry);
+        }
+        entry["project-consumer"] = true;
+        store.Commit(snapshot.Revision, docs);
+        return Recipe(entry);
+    }
+
     public RecipeIdentity Get(string recipeId)
     {
         ProjectDocuments.Uuid(JsonValue.Create(recipeId));
@@ -56,7 +78,7 @@ public sealed class RecipeRegistry(ScopeStore store)
         var existing = recipe["entities"]!.AsArray().FirstOrDefault(x => x!["kind"]!.GetValue<string>() == "service");
         if (existing is not null) return new(existing["id"]!.GetValue<string>(), recipeId, existing["name"]!.GetValue<string>());
         var name = recipe["name"]!.GetValue<string>();
-        if (name is "self" or "default") throw new StorageException("reserved-service-name", "Nombre de servicio reservado.");
+        if (name is "self" or "global" or "default") throw new StorageException("reserved-service-name", "Nombre de servicio reservado.");
         var entities = registry["recipes"]!.AsArray().SelectMany(x => x!["entities"]!.AsArray());
         if (entities.Any(x => x!["kind"]!.GetValue<string>() == "service" && x["name"]!.GetValue<string>() == name))
             throw new StorageException("service-name-conflict", "Nombre de servicio ya registrado en el ámbito.");
@@ -92,7 +114,7 @@ public sealed class RecipeRegistry(ScopeStore store)
         }
         var name = declaredName ?? Path.GetFileName(store.Context.Base);
         ValidateName(name);
-        if (name is "self" or "default") throw new StorageException("reserved-service-name", "Nombre de servicio reservado.");
+        if (name is "self" or "global" or "default") throw new StorageException("reserved-service-name", "Nombre de servicio reservado.");
         if (recipes.SelectMany(r => r!["entities"]!.AsArray()).Any(e => e!["kind"]!.GetValue<string>() == "service" && e["name"]!.GetValue<string>() == name))
             throw new StorageException("service-name-conflict", "Nombre de servicio ya registrado en el ámbito.");
         var recipeEntry = matches.Length == 1 ? matches[0]!.AsObject() : new JsonObject
@@ -138,7 +160,7 @@ public sealed class RecipeRegistry(ScopeStore store)
             var entities = recipe!["entities"]!.AsArray();
             var service = entities.SingleOrDefault(e => e!["kind"]!.GetValue<string>() == "service" && e["id"]!.GetValue<string>() == serviceId);
             if (service is null) continue;
-            if (service["instance"] is not null || service["consumers"] is JsonArray consumers && consumers.Count != 0 ||
+            if (service["instance"] is not null || service["publication-operation"] is not null || service["consumers"] is JsonArray consumers && consumers.Count != 0 ||
                 service["preparations"] is JsonArray preparations && preparations.Count != 0)
                 throw new StorageException("service-in-use", "El servicio conserva una instancia o referencias; no se puede retirar.");
             entities.Remove(service);

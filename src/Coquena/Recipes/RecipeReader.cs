@@ -40,7 +40,7 @@ public sealed class EffectiveRecipe
     public RecipeValue SourceRoot { get; }
     public IReadOnlyList<RecipeValue> Layers { get; }
     public string Name { get; }
-    public string Target => Root.Get("target")?.Text ?? "default";
+    public string Target => Root.Get("target")?.Text ?? "global";
     public string ArgsMode => Root.Get("args-mode")?.Text ?? "permissive";
 
     internal EffectiveRecipe(RecipeSelection selection, RecipeValue root, RecipeValue[] layers, RecipeIdentity? identity, RecipeValue sourceRoot)
@@ -62,7 +62,7 @@ public sealed class EffectiveRecipe
         }
         try
         {
-            var id = globalResolver(selector);
+            var id = globalResolver(selector == "global" ? "default" : selector);
             if (string.IsNullOrEmpty(id)) throw new StorageException("unknown-service", "No resuelve el destino.");
             return new(selector, false, id);
         }

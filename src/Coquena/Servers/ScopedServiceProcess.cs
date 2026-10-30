@@ -9,12 +9,12 @@ namespace Coquena.Servers;
 public sealed record ScopedStartPlan(string Executable, string[] Arguments, string LogPath,
     string Combination, JsonObject Snapshot, JsonArray Resources, JsonObject Endpoint,
     Uri HealthUrl, TimeSpan Timeout, TimeSpan Interval, Guid? InstanceId = null, Action? ValidateIntent = null,
-    bool IsDraft = false);
+    bool IsDraft = false, bool PresetIni = false);
 
 // Lifecycle leases are per service and separate from the short catalog writer lease.
 public sealed partial class ScopedServiceProcess(ScopeStore store, TextWriter? output = null, TextWriter? diagnostics = null)
 {
-    private FileStream Lease(string serviceId)
+    internal FileStream Lease(string serviceId)
     {
         if (!Guid.TryParseExact(serviceId, "D", out var id) || id == Guid.Empty || id.ToString("D") != serviceId)
             throw new StorageException("invalid-service-id", "Identidad de servicio inválida.");
@@ -139,6 +139,8 @@ public sealed partial class ScopedServiceProcess(ScopeStore store, TextWriter? o
         Func<bool>? forceRequested = null, CancellationToken cancellation = default)
     {
         using var lease = Lease(serviceId);
+        if (PresetPublication.Service(store.Read(), serviceId)["publication-operation"] is not null)
+            throw new StorageException("publication-pending", "Reconciliar la publicación antes de reiniciar.");
         var plan = await prepare(cancellation);
         ValidatePlan(plan);
         ValidateBindings(plan);
@@ -177,11 +179,19 @@ public sealed partial class ScopedServiceProcess(ScopeStore store, TextWriter? o
         Directory.CreateDirectory(Path.GetDirectoryName(plan.LogPath)!);
         var id = plan.InstanceId ?? Guid.NewGuid();
         if (id == Guid.Empty) throw new StorageException("invalid-instance-id", "Identidad de instancia inválida.");
+        if (plan.PresetIni || plan.Arguments.Contains("--models-preset", StringComparer.Ordinal) || plan.Snapshot["service"]?["backend"]?["version"] is not null)
+        {
+            var ini = new PresetPublication(store, store, serviceId).IniPath;
+            PresetPublication.WriteIni(ini, PresetPublication.CurrentIni(store, serviceId));
+            if (!plan.Arguments.Contains("--models-preset", StringComparer.Ordinal))
+                plan = plan with { Arguments = [.. plan.Arguments, "--models-preset", ini] };
+        }
         using var child = WindowsServerProcess.Create(plan.Executable, plan.Arguments, plan.LogPath, id, newLog: true);
         var active = new JsonObject { ["service-id"] = serviceId, ["instance-id"] = id.ToString("D"),
             ["process"] = new JsonObject { ["pid"] = child.Pid, ["creation-time"] = child.Created, ["executable"] = child.Executable },
             ["combination"] = plan.Combination, ["snapshot"] = plan.Snapshot.DeepClone(), ["resources"] = plan.Resources.DeepClone(),
             ["endpoint"] = plan.Endpoint.DeepClone(), ["log"] = plan.LogPath, ["draft"] = plan.IsDraft,
+            ["preset-composition"] = PresetPublication.Service(store.Read(), serviceId)["consumers"]?.DeepClone() ?? new JsonArray(),
             ["execution"] = new JsonObject { ["executable"] = plan.Executable,
                 ["arguments"] = new JsonArray(plan.Arguments.Select(value => (JsonNode?)JsonValue.Create(value)).ToArray()),
                 ["working-directory"] = Path.GetDirectoryName(plan.Executable) } };
@@ -212,6 +222,17 @@ public sealed partial class ScopedServiceProcess(ScopeStore store, TextWriter? o
                         { RecordEnded(serviceId, id.ToString("D")); throw new StorageException("process-exited", "El proceso terminó durante el inicio."); }
                         if (WindowsListeningPorts.IsOwned(host!, port.Value, id))
                         {
+                            var warmups = active["preset-composition"]!.AsArray().SelectMany(c => c!["presets"]!.AsArray())
+                                .Where(p => p!["warmup"]?.GetValue<bool>() == true).Select(p => p!["name"]!.GetValue<string>()).ToArray();
+                            if (warmups.Length != 0)
+                            {
+                                var router = new LlamaPresetRouter(client, plan.HealthUrl);
+                                var failures = new List<string>();
+                                foreach (var name in warmups)
+                                    if (!await router.WarmupAsync(name, cancellation)) failures.Add(name);
+                                if (failures.Count != 0)
+                                    throw new StorageException("preset-warmup-failed", "Servicio disponible; precarga fallida: " + string.Join(", ", failures));
+                            }
                             registry.PromoteHealthy(serviceId, id.ToString("D"), plan.HealthUrl, (int)response.StatusCode,
                                 plan.Timeout, plan.Interval);
                             return id.ToString("D");

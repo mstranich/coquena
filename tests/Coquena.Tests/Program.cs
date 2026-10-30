@@ -39,6 +39,10 @@ if (args.Contains("--scoped-health-child"))
 
 if (args.Length == 1 && args[0] == "--combination-tests")
 { await Coquena.Tests.CombinationTests.Run(); return; }
+if (args.Length == 1 && args[0] == "--publication-tests")
+{ await Coquena.Tests.PresetPublicationTests.Run(); return; }
+if (args.Length == 3 && args[0] == "--publication-router")
+{ await Coquena.Tests.PresetPublicationTests.RealRouter(Path.GetFullPath(args[1]), Path.GetFullPath(args[2])); return; }
 if (args.Length is 1 or 2 && args[0] == "--scoped-service-tests")
 { await Coquena.Tests.ScopedServiceTests.Run(args.Length == 2 ? Path.GetFullPath(args[1]) : null); return; }
 if (args.Length is 1 or 2 && args[0] == "--service-recovery-tests")
@@ -319,6 +323,7 @@ await Coquena.Tests.ScopedBackendTests.Run(executable);
 await Coquena.Tests.ScopedModelTests.Run(executable);
 await Coquena.Tests.ScopedLocalModelTests.Run(executable);
 await Coquena.Tests.CombinationTests.Run();
+await Coquena.Tests.PresetPublicationTests.Run();
 await Coquena.Tests.BackendTests.Run(executable);
 await Coquena.Tests.DownloadTests.Run(executable);
 await Coquena.Tests.ScopeTransferTests.Run(executable);

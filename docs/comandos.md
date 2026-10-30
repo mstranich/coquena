@@ -48,7 +48,7 @@ Ps y el dashboard sí agregan observación de servicios conocidos, sin mutar inv
 
 | Operación | Efecto |
 | --- | --- |
-| up | Validar, preparar y publicar conjunto propio; preguntar ante destino detenido. |
+| up | Validar, preparar y publicar conjunto propio; preparar el global predeterminado en el primer uso y preguntar ante destino detenido. |
 | up --start-service | Autorizar inicio del destino detenido; después publicar. No reiniciar activo. |
 | up/down | Publicación interactiva, independiente del modo de inicio del servicio; advertencia y decisión según [ocupación](servidores.md#plazos-y-control). |
 | down | Retirar conjunto publicado propio, conservando archivos, servicio y entradas ajenas. |
@@ -260,6 +260,12 @@ Los `-f` posteriores y todos los `--env-file` relativos parten de esa base. Sin 
 se lee `coquena.yaml` de base; no se asciende buscando otro proyecto. `--global`
 es incompatible con `-f`, env-file, private y project-directory, salvo `import`, que
 recibe archivo fuente y siempre escribe global. No hay `-f -` ni entrada YAML por stdin.
+
+El campo target de la receta sólo admite `global` y `self`, y usa `global` al
+omitirse. `self` selecciona el servicio propio. El alias default del registro de
+servicios identifica el global predeterminado entre los servicios de ese ámbito;
+se elige con `service default set <nombre>`. Los nombres y `default` no son valores
+admitidos del campo target.
 
 `--service` selecciona servicio para control/observación y backend global. En up/apply
 sobrescribe target sólo para esa operación y se registra como destino publicado,

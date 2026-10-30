@@ -29,13 +29,19 @@ del servicio que pueda definir la propia receta:
 
 | Selección | Destino |
 | --- | --- |
-| `target: default` | Servicio registrado marcado como predeterminado. También se usa al omitir target. |
+| `target: global` | Servidor global predeterminado. También se usa al omitir target. |
 | `target: self` | Único servicio definido en esta receta; requiere que exista el bloque service. |
-| `target: <nombre>` | Otro servicio registrado, seleccionado explícitamente por su nombre. |
+
+El campo target sólo acepta los strings lowercase `global` y `self`. Un nombre
+de servidor, `default` o cualquier otro valor se rechazan. Global identifica el
+ámbito y default designa al servicio elegido dentro de ese ámbito; un servicio
+propio de proyecto no puede ser el default global. La elección del default se
+administra globalmente, sin escribir su nombre en la receta consumidora.
 
 Seleccionar un destino no transfiere la propiedad de los presets al servicio ni
-lo inicia por sí solo. Si el nombre o el alias default no resuelve, se diagnostica
-sin elegir un sustituto ni crear otro servicio implícitamente.
+lo inicia por sí solo. La primera preparación del destino global sigue la
+[provisión del servidor global](servidores.md#servidor-global-predeterminado).
+Un alias incoherente se diagnostica sin elegir un sustituto.
 
 Nombres, importación y ámbito en [servicios y recetas](servicios-recetas.md).
 Cada preset admite `enable`, `warmup`, `args-mode` y `args`; modelos admiten

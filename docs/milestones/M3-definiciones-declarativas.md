@@ -15,6 +15,10 @@ no requisitos para recibir, escribir o utilizar una receta, visualizar los servi
 
 - Servicios globales en COQUENA_HOME y servicios propios de proyectos; default como
   alias. Configuración e inventario de cada ámbito separados, sin migraciones M2.
+- Primera preparación del global predeterminado en up mediante selección del backend
+  oficial más reciente compatible según sistema/hardware, sin reemplazar un servicio
+  ya configurado. La entrega de publicación acredita este recorrido y la combinación
+  de contribuciones de proyectos sobre una misma instancia.
 - Importación de receta completa o selectiva: import <receta.yaml> --as-default
   --select service,presets,model,params. Oficial gestionado se prepara en el ámbito
   correspondiente; externos se usan in situ sin copiar ni adoptar.

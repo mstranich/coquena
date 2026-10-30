@@ -150,7 +150,14 @@ public static class ScopedServiceCli
         var logs = target.Context.IsGlobal
             ? target.Context.PathFor($"services/{target.Service.ServiceId}/logs/{id:D}.log")
             : target.Context.PathFor($"logs/{id:D}.log");
-        return ScopedServicePlan.Compose(target.Context, recipe, prepared, logs) with { InstanceId = id };
+        var plan = ScopedServicePlan.Compose(target.Context, recipe, prepared, logs) with { InstanceId = id };
+        if (BackendIntent.FromRecipe(recipe).Executable is not null && Path.GetFileNameWithoutExtension(plan.Executable).Equals("llama-server", StringComparison.OrdinalIgnoreCase))
+        {
+            var version = await BackendInstaller.ProbeAsync(plan.Executable, cancellation);
+            // This external build was exercised by the router evidence protocol.
+            plan = plan with { PresetIni = version.Contains("build 11899, commit c6fb3b5be", StringComparison.Ordinal) };
+        }
+        return plan;
     }
 
     private static async Task<ScopedStartPlan> RestoreAsync(Target target, System.Text.Json.Nodes.JsonObject snapshot,
@@ -176,11 +183,11 @@ public static class ScopedServiceCli
         error.WriteLine($"Error: {code}. {e.Message}");
         if (e is OperationCanceledException) return 130;
         if (e is RecipeException or ArgumentException || code is "unknown-service" or "self-requires-service" or "invalid-start-plan" or "invalid-endpoint" or "invalid-health-url" or "reserved-service-name") return 2;
-        if (code is "scope-conflict" or "service-conflict" or "instance-conflict" or "service-in-use" or "service-busy" or "writer-busy" or "instance-already-registered" or "intention-conflict" or "service-name-conflict") return 3;
+        if (code is "scope-conflict" or "service-conflict" or "instance-conflict" or "service-in-use" or "service-busy" or "writer-busy" or "instance-already-registered" or "intention-conflict" or "service-name-conflict" or "publication-pending") return 3;
         if (code.Contains("integrity", StringComparison.Ordinal)) return 6;
-        if (code is "backend-incompatible" or "unsupported-platform" or "health-required") return 5;
+        if (code is "backend-incompatible" or "unsupported-platform" or "health-required" or "publication-snapshot-required") return 5;
         if (e is HttpRequestException || code is "remote-unavailable" or "remote-timeout" or "remote-rate-limit") return 4;
-        if (e is Configuration.ConfigurationException or System.ComponentModel.Win32Exception || code is "health-timeout" or "process-exited" or "service-already-running" or "service-recovery-failed" or "endpoint-unavailable") return 8;
+        if (e is Configuration.ConfigurationException or System.ComponentModel.Win32Exception || code is "health-timeout" or "process-exited" or "service-already-running" or "service-recovery-failed" or "endpoint-unavailable" or "preset-warmup-failed") return 8;
         if (e is IOException or UnauthorizedAccessException or DownloadException) return 7;
         return 1;
     }

@@ -62,10 +62,25 @@ public static class ProjectDocuments
                 if (string.IsNullOrWhiteSpace(entry?["name"]?.GetValue<string>()) || entry?["files"] is not JsonArray ||
                     entry["entities"] is not JsonArray || entry["pending-withdrawals"] is not JsonArray || entry["revision"]?.GetValue<long>() is not > 0) Invalid();
                 foreach (var file in entry!["files"]!.AsArray()) if (string.IsNullOrEmpty(file?.GetValue<string>())) Invalid();
+                if (entry["project-consumer"] is JsonNode consumer) _ = consumer.GetValue<bool>();
+                if (entry["publication"] is JsonNode publication) Publication(publication);
+                if (entry["publications"] is JsonNode publications)
+                {
+                    if (publications is not JsonArray) Invalid();
+                    foreach (var item in publications.AsArray()) Publication(item!);
+                }
+                if (entry["publication-operation"] is JsonNode operation) PublicationOperation(operation);
+                if (entry["publication-previous"] is JsonNode previous)
+                {
+                    Uuid(previous["service-id"]); Presets(previous["presets"]);
+                    if (previous["affected"] is not JsonArray || previous["combination"]?.GetValue<string>() is null || previous["recipe-name"]?.GetValue<string>() is null) Invalid();
+                }
                 foreach (var entity in entry["entities"]!.AsArray())
                 {
                     Uuid(entity?["id"]); Uuid(entity?["owner"]);
                     if (entity?["kind"]?.GetValue<string>() is not ("service" or "preset") || string.IsNullOrWhiteSpace(entity["name"]?.GetValue<string>())) Invalid();
+                    if (entity!["publication-operation"] is JsonNode pending) PublicationOperation(pending);
+                    if (entity["consumers"] is JsonNode contributions) Contributions(contributions);
                 }
             }
         }
@@ -124,6 +139,47 @@ public static class ProjectDocuments
             }
         }
         else if (kind == "operation") Uuid(data["operation-id"]);
+    }
+
+    private static void Publication(JsonNode node)
+    {
+        if (node is not JsonObject) Invalid();
+        Uuid(node["service-id"]); Uuid(node["target-scope-id"]);
+        foreach (var key in new[] { "target-root", "target-base" })
+            if (node[key]?.GetValue<string>() is not string path || !Path.IsPathFullyQualified(path)) Invalid();
+        _ = node["global"]?.GetValue<bool>() ?? throw new InvalidOperationException();
+        Presets(node["presets"]);
+    }
+    private static void PublicationOperation(JsonNode node)
+    {
+        if (node is not JsonObject) Invalid();
+        Uuid(node["operation-id"]); Uuid(node["consumer-id"]); Uuid(node["recipe-id"]); Uuid(node["service-id"]);
+        if (node["phase"]?.GetValue<string>() is not ("prepared" or "sent" or "observed" or "uncertain") ||
+            node["affected"] is not JsonArray || node["ini-before"]?.GetValue<string>() is null || node["ini-candidate"]?.GetValue<string>() is null) Invalid();
+        Contributions(node["before"]); Contributions(node["after"]);
+        if (node["restore"] is JsonNode restoration) Contributions(restoration);
+    }
+    private static void Contributions(JsonNode? node)
+    {
+        if (node is not JsonArray) Invalid();
+        foreach (var contribution in node!.AsArray())
+        {
+            Uuid(contribution?["consumer-id"]); Uuid(contribution?["scope-id"]);
+            // Older registration records may reserve names before definitions exist.
+            if (contribution?["presets"] is JsonNode presets) Presets(presets);
+        }
+    }
+    private static void Presets(JsonNode? node)
+    {
+        if (node is not JsonArray) Invalid();
+        var names = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var preset in node!.AsArray())
+        {
+            if (preset?["name"]?.GetValue<string>() is not string name || !names.Add(name) ||
+                preset["ini"]?.GetValue<string>() is null || preset["expected-arguments"] is not JsonArray || preset["resources"] is not JsonArray) Invalid();
+            _ = preset!["warmup"]?.GetValue<bool>() ?? throw new InvalidOperationException();
+            foreach (var resource in preset["resources"]!.AsArray()) { Uuid(resource?["resource-id"]); Uuid(resource?["installation-id"]); }
+        }
     }
     private static void Check(JsonElement element)
     {

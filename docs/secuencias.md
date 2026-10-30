@@ -176,7 +176,8 @@ La recuperación ante fallo individual tardío se concreta con evidencia del bui
 Up y down modifican el mismo INI operativo del servicio target gestionado por
 Coquena: up agrega o actualiza los presets del consumidor; down los remueve.
 Después ambos solicitan al servidor en funcionamiento refrescar sus fuentes de
-presets. Target es default salvo selección explícita. La retirada comprueba además
+presets. Target sólo admite global y self; omitirlo selecciona el global marcado
+como default. La retirada comprueba además
 el destino registrado de la publicación, para no actuar sobre otro servicio si
 cambió el alias o se editó la receta.
 
@@ -190,7 +191,7 @@ database "INI operativo del target" as INI
 participant Router
 Usuario -> Coquena : up / combinación seleccionada
 Coquena -> Consumidor : validar y preparar recursos propios
-Coquena -> Servicio : resolver target (default salvo selección explícita) e identidad
+Coquena -> Servicio : resolver target (global salvo selección explícita) e identidad
 alt destino detenido
   Coquena -> Usuario : pedir inicio salvo autorización --start-service
   opt inicio autorizado
@@ -213,7 +214,7 @@ else detenido o no disponible
   Coquena --> Usuario : no acreditar publicación
 end
 Usuario -> Coquena : down
-Coquena -> Servicio : resolver target (default salvo selección explícita)\ncomprobar identidad y destino publicado registrado
+Coquena -> Servicio : resolver target (global salvo selección explícita)\ncomprobar identidad y destino publicado registrado
 Coquena -> Router : consultar actividad disponible sin cargar
 Coquena -> Usuario : advertir ocupacion o incertidumbre\ny permitir retirar ahora o cancelar
 note over Usuario, Coquena : Sin interaccion o ante cancelacion, terminar sin publicar.

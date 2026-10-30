@@ -90,7 +90,11 @@ cambio sin actualizar los otros latest. Up prepara cambios explícitos/faltantes
 sin exigir update/upgrade solo por editar intención.
 
 Cada combinación registra archivos, orden, intención de referencia y resoluciones.
-Alternar combinaciones no reemplaza las otras. Una invocación explícita la vuelve
+Alternar combinaciones conserva los registros y resoluciones de las otras; esto
+no mantiene publicadas simultáneamente sus contribuciones. Aplicar otra combinación
+del mismo proyecto al mismo target reconcilia su conjunto publicado según
+[servicios compartidos](servicios-recetas.md#compartir-un-servidor-entre-proyectos).
+Una invocación explícita la vuelve
 conocida aunque falle por hardware; no la acredita funcional ni crea bloqueo de
 integridad. No descubrir otros YAML para actualizarlos o protegerlos por adivinación.
 

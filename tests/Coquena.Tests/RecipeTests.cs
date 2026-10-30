@@ -29,7 +29,7 @@ internal static class RecipeTests
         RecipeValue Args(EffectiveRecipe recipe) => recipe.Root.Get("presets")!.Get("p")!.Get("args")!;
 
         var editable = Read("");
-        Check(editable.Root.Fields.Count == 0 && editable.Target == "default" && editable.ArgsMode == "permissive", "empty editable recipe and defaults");
+        Check(editable.Root.Fields.Count == 0 && editable.Target == "global" && editable.ArgsMode == "permissive", "empty editable recipe and defaults");
         Check(!Directory.Exists(Path.Combine(root, ".coquena")), "pure reading creates no project state");
         Check(Read("{}").Root.Fields.Count == 0, "flow root");
         Check(Read("# comentario\n").Root.Fields.Count == 0, "comment-only root");
@@ -108,6 +108,9 @@ internal static class RecipeTests
         Check(consumer.ResolveTarget(selector => selector, "named").ServiceId == "named", "explicit target override");
         Fail(() => consumer.ResolveTarget(_ => "id", "self"), "self-requires-service");
         Bad("target: self", "self-requires-service");
+        Bad("target: default", "invalid-target");
+        Bad("target: named-server", "invalid-target");
+        Bad("target: Global", "invalid-target");
         Bad("service: {}", "backend-required");
         Bad("service: {backend: {executable: a, version: latest}}", "invalid-backend-selection");
         Bad("service: {backend: {version: latest}}", "invalid-backend-selection");
@@ -313,11 +316,11 @@ internal static class RecipeTests
         Check(stable.Name == "original" && stable.Root.Get("name")!.Text == "changed", "explicit identity preserves registered name without inferring by filenames");
         var home = new Home(Path.Combine(root, "home"));
         var globals = new RecipeRegistry(new ScopeStore(ScopeContext.Global(home)));
-        var recipeIdentity = globals.Register(["a.yaml"], "global"); var service = globals.RegisterService(recipeIdentity.RecipeId);
+        var recipeIdentity = globals.Register(["a.yaml"], "shared"); var service = globals.RegisterService(recipeIdentity.RecipeId);
         globals.SetDefaultService(service.ServiceId);
         var beforeRevision = new ScopeStore(ScopeContext.Global(home)).Read().Revision;
         Check(editable.ResolveTarget(globals.ResolveGlobalService).ServiceId == service.ServiceId, "real global default registry lookup");
-        Check(editable.ResolveTarget(globals.ResolveGlobalService, "global").ServiceId == service.ServiceId, "real named registry lookup");
+        Check(editable.ResolveTarget(globals.ResolveGlobalService, "shared").ServiceId == service.ServiceId, "real named registry lookup");
         Check(new ScopeStore(ScopeContext.Global(home)).Read().Revision == beforeRevision, "target resolution does not write registry");
         Fail(() => editable.ResolveTarget(globals.ResolveGlobalService, "absent"), "unknown-service");
         Fail(() => editable.ResolveTarget(_ => throw new StorageException("corrupt-state", "sensitive-content-123")), "corrupt-state");

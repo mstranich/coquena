@@ -275,6 +275,10 @@ public sealed partial class ScopedModels(ScopeContext context)
         foreach (var active in snapshot.ProtectedRuntimeDocuments())
             if (identities.Any(id => Contains(active, id))) UsageFailure(active);
         if (snapshot.Documents.TryGetValue("local/combinations.json", out var combinations) && identities.Any(id => Contains(combinations, id))) UsageFailure(combinations);
+        if (snapshot.Documents.TryGetValue("local/recipes.json", out var publicationRegistry))
+            foreach (var recipe in publicationRegistry["data"]!["recipes"]!.AsArray())
+                foreach (var key in new[] { "publication", "publications", "publication-operation", "publication-previous" })
+                    if (recipe![key] is JsonNode publication && identities.Any(id => Contains(publication, id))) UsageFailure(publication);
         if (snapshot.Documents.TryGetValue("local/recipes.json", out var registry) && Contains(registry, resourceId) &&
             registry["data"]!["recipes"]!.AsArray().SelectMany(r => r!["entities"]!.AsArray()).Any(e => e!["instance"] is not null)) UsageFailure(registry);
         if (Directory.Exists(context.PathFor("downloads")) && Transfers.Downloads.List().Any(o =>

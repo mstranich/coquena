@@ -255,7 +255,21 @@ referencia de consumidor y permitir borrar su recurso deben quedar serializados.
 ## INI y estado remoto
 
 El servicio mantiene un registro local por `consumer-id`, nombre publicado y
-snapshot de recurso. Preparar una publicación incluye protección provisional de
+snapshot de recurso. Cambiar la combinación YAML aplicada por un proyecto al mismo
+servicio conserva la identidad de su contribución; el ID de combinación no crea
+otro consumidor. El registro distingue la combinación publicada de las otras
+combinaciones preparadas y conserva el conjunto anterior hasta confirmar el
+resultado de su reconciliación. Las contribuciones de otros proyectos conservan
+sus identidades y snapshots independientes.
+
+Un consumidor puede conservar publicaciones en más de un destino. Su registro
+mantiene por destino la identidad de ámbito y servicio, nombres, combinación y
+snapshots aplicados. Publicar en otro destino no borra la evidencia del anterior;
+down sin selección explícita retira sus contribuciones registradas, aun si cambió
+el alias default o el YAML. Una retirada seleccionada debe corresponder a una
+publicación propia registrada en ese servicio.
+
+Preparar una publicación incluye protección provisional de
 sus recursos antes de exponer rutas al backend. Una operación pendiente reserva
 la revisión del servicio: otros escritores pueden observar pero no publicar otra
 composición encima hasta reconciliarla. No se retiene un bloqueo de archivo durante HTTP.

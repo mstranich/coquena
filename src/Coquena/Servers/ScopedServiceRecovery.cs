@@ -24,6 +24,8 @@ public sealed partial class ScopedServiceProcess
         using var lease = Lease(serviceId);
         var running = ReconcileLocked(serviceId);
         var before = store.Read();
+        if (PresetPublication.Service(before, serviceId)["publication-operation"] is not null)
+            throw new StorageException("publication-pending", "Reconciliar la publicación antes de iniciar o reiniciar.");
         var activePath = store.RuntimeDocumentPath(serviceId, "active");
         var originalInstance = running ? before.Documents[activePath]["data"]!["instance-id"]!.GetValue<string>() : null;
         if (running && !restart) return originalInstance!;

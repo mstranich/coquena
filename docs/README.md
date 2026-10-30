@@ -5,6 +5,19 @@ Una receta define un servicio con su backend, presets consumidores de un servici
 o ambos. El usuario puede experimentar sobre un router vivo, observar resultados
 y conservar lo útil como una receta que puede llevar a otra máquina compatible.
 
+Además de configurar y distribuir recetas, Coquena permite reutilizar un servidor
+entre proyectos: sus presets se combinan en el mismo router y se publican o retiran
+en caliente, sin detenerlo. El target predeterminado es `global`; `self` permite
+seleccionar el servicio propio del proyecto. Un servidor global puede atender, por ejemplo, modelos
+de programación y de resumen de medios para trabajos concurrentes. Compartir la
+instancia permite que el backend gestione la demanda de esos trabajos sobre los
+mismos recursos, en lugar de requerir una instancia por proyecto compitiendo por
+la GPU. No implica que todos los modelos deban permanecer cargados simultáneamente.
+
+Al aplicar otra combinación YAML del mismo proyecto al mismo destino, se reconcilia
+su contribución y se conservan las de los demás proyectos. El recorrido y sus
+reglas se describen en [servicios compartidos](servicios-recetas.md#compartir-un-servidor-entre-proyectos).
+
 El estado local en `.coquena/` conserva la referencia y nombre de receta usados al cargar
 la receta. La home mantiene un índice de localización. Los nombres
 de servicios y presets creados permanecen hasta su baja y nueva alta explícitas;

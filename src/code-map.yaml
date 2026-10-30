@@ -3,6 +3,28 @@
 # References describe intended behavior; verify actual behavior in code and tests.
 version: 1
 features:
+  - id: scoped-preset-publication
+    intent: Combinar contribuciones de proyectos en servicios compartidos y reconciliar presets con protección y resultado remoto observable.
+    keywords: [up, down, apply, withdraw, target, global, self, INI, reload, warmup, consumer]
+    entrypoints:
+      - src/Coquena/PublicationCli.cs
+    implementation:
+      - src/Coquena/Servers/PresetPublication.cs
+      - src/Coquena/Servers/LlamaPresetRouter.cs
+      - src/Coquena/Projects/RecipeRegistry.cs
+      - src/Coquena/Projects/CombinationPreparation.cs
+      - src/Coquena/Servers/ScopedServiceProcess.cs
+      - src/Coquena/Recipes/RecipeReader.cs
+      - src/Coquena/Recipes/RecipeStructure.cs
+    tests:
+      - tests/Coquena.Tests/PresetPublicationTests.cs
+      - tests/Coquena.Tests/RecipeTests.cs
+      - tests/Coquena.Tests/ScopedServiceTests.cs
+    references:
+      - docs/servicios-recetas.md
+      - docs/servidores.md
+      - docs/persistencia-proyectos.md
+
   - id: scoped-service-lifecycle
     intent: Seleccionar servicios por ámbito y operar su proceso con identidad verificada, salud y preparación separada de presets.
     keywords: [service, server, self, default, lifecycle, health, instance, restart]

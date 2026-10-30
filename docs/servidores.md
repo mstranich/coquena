@@ -13,6 +13,36 @@ Down retira ese conjunto; service stop detiene el proceso y afecta a todos sus
 consumidores. Router compatible puede iniciarse sin modelos cargados e incorporar
 presets después; no se exige un preset como condición universal de creación.
 
+## Servidor global predeterminado
+
+Al omitir target o declarar `target: global`, un proyecto utiliza el servicio
+global predeterminado, infraestructura compartida reutilizable entre proyectos:
+publicar una receta no exige crear un proceso exclusivo para ella.
+`target: self` selecciona el servicio propio de la receta.
+
+Si todavía no hay servicios globales registrados, up prepara uno
+con el backend oficial de llama.cpp. Sondea sistema y hardware, consulta los builds
+oficiales disponibles y selecciona el más reciente con artefactos completos y una
+variante compatible, priorizando la aceleración que pueda justificar con la
+evidencia disponible (CUDA, Vulkan o CPU). Descarga y verifica lo necesario en el
+ámbito global y registra el servicio y su alias default. La selección y sus motivos
+se informan al usuario; el sondeo no acredita un óptimo de rendimiento ni inferencia.
+Si no puede establecer una selección compatible, diagnostica antes de iniciar.
+Si ya hay servicios globales pero ninguno está designado default, se requiere
+elegirlo explícitamente con `service default set <nombre>`; no se crea otro ni
+se deduce cuál de los existentes debe atender a todos los proyectos.
+
+Si el servicio ya está configurado pero falta su backend gestionado, se prepara
+la resolución exacta registrada. No se vuelve a resolver latest por cada proyecto
+ni se reemplaza la configuración del usuario por otra deducida del hardware.
+Un backend externo ausente requiere intervención. Un alias incoherente, estado
+corrupto o identidad incierta no se interpretan como una primera instalación.
+
+La preparación inicial automática no inicia el proceso por sí sola: up solicita
+el inicio del destino detenido salvo --start-service. La publicación conserva sus
+comprobaciones e interacción. Consultar estado o leer una receta no aprovisiona
+infraestructura. Una instancia activa se reutiliza sin reiniciarla.
+
 ## Identificación de backends
 
 Distinguir distribución, familia/variante, versión/build, plataforma y recursos.

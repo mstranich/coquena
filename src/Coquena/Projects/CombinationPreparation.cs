@@ -39,7 +39,8 @@ public sealed class CombinationPreparation(ScopeContext context)
 
     public async Task<PreparedCombination> PrepareAsync(RecipeSelection selection, ICombinationResources resources,
         bool privateSelection = false, IReadOnlyDictionary<string, string?>? environment = null,
-        PreparationTarget? target = null, Action<ScopeWriteStage>? fault = null, CancellationToken cancellation = default)
+        PreparationTarget? target = null, Action<ScopeWriteStage>? fault = null, CancellationToken cancellation = default,
+        bool presetsOnly = false, string? presetKey = null)
     {
         if (!string.Equals(selection.Base, context.Base, StringComparison.OrdinalIgnoreCase))
             throw new StorageException("preparation-base-conflict", "La selección debe pertenecer a la base del ámbito.");
@@ -55,7 +56,8 @@ public sealed class CombinationPreparation(ScopeContext context)
         var blocks = ArgumentValidation.Validate(recipe);
         _ = ModelIntent.FromRecipe(recipe);
         CheckInputs(inputs);
-        var requests = Requests(recipe, blocks);
+        var requests = Requests(recipe, presetsOnly ? blocks.Where(b => b.Scope == "preset" && (presetKey is null || b.Key == presetKey)).ToArray() : blocks);
+        if (presetsOnly) requests.RemoveAll(r => r.Kind == "backend");
         // Outside references require an explicit private context. Environment
         // selections and cross-volume selections are private by definition.
         if (!identity.Private)

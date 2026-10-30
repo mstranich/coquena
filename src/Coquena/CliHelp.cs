@@ -37,11 +37,24 @@ internal static class CliHelp
           download                         Consultar y controlar descargas
           preset                           Crear y configurar presets de modelos
           service (server)                 Administrar servicios y su ejecución
+          up [--start-service]             Publicar presets de la combinación elegida
+          down                             Retirar presets propios sin detener servicio
+          apply|withdraw <clave>           Publicar o retirar un preset individual
           config                           Configurar directorios y retención
           param                            Administrar definiciones de parámetros
 
         Ayuda:
           -h, --help                       Mostrar esta ayuda (también: coquena help)
+
+        Publicación:
+          preset apply|withdraw <clave>     Equivalente a los atajos apply/withdraw
+          -f/--file <yaml>                  Capas ordenadas; --env-file es explícito
+          --project-directory <carpeta>     Base del proyecto (alias --base)
+          --private                        Permitir referencias exteriores privadas
+            target YAML sólo admite global (predeterminado) o self.
+            Global usa el servicio global designado default; self usa el propio.
+            Requiere interacción; no admite -d. --start-service sólo autoriza el inicio.
+            Otra combinación reconcilia los propios y conserva los de otros proyectos.
 
         Backends:
           backend show                     Consultar el backend de la receta

@@ -60,7 +60,7 @@ internal static class ProjectPersistenceTests
         var globalStore = new ScopeStore(ScopeContext.Global(new Home(homePath)));
         var global = new RecipeRegistry(globalStore);
         Fail(() => global.ResolveGlobalService("default"), "unknown-service");
-        var globalRecipe = global.Register(["recipe.yaml"], "global");
+        var globalRecipe = global.Register(["recipe.yaml"], "shared");
         var globalService = global.RegisterService(globalRecipe.RecipeId);
         global.SetDefaultService(globalService.ServiceId);
         var serviceDocuments = globalStore.Read();
@@ -75,7 +75,7 @@ internal static class ProjectPersistenceTests
         serviceNext[activeA]["data"]!["terminated"] = true;
         globalStore.Commit(serviceDocuments.Revision, serviceNext);
         Require(globalStore.Read().ActiveDocuments().Count() == 1, "terminación no retira la otra instancia");
-        Require(global.ResolveGlobalService("default") == globalService.ServiceId && global.ResolveGlobalService("global") == globalService.ServiceId, "alias global por identidad");
+        Require(global.ResolveGlobalService("default") == globalService.ServiceId && global.ResolveGlobalService("shared") == globalService.ServiceId, "alias global por identidad");
         global.RemoveStoppedService(globalService.ServiceId);
         Fail(() => global.ResolveGlobalService("default"), "unknown-service");
         Require(global.Services().Length == 0, "baja retira servicio y alias sin reemplazo");

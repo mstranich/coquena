@@ -195,7 +195,8 @@ internal static partial class RecipeStructure
     internal static void Effective(RecipeValue root)
     {
         if (root.Get("name") is { } name) Name(name.Text!, name);
-        if (root.Get("target") is { } target) Name(target.Text!, target);
+        if (root.Get("target") is { } target && target.Text is not ("global" or "self"))
+            throw target.Error("invalid-target", "validation", "Target sólo admite global o self.");
         if (root.Get("target")?.Text == "self" && root.Get("service") is null)
             throw root.Get("target")!.Error("self-requires-service", "validation", "Target self requiere service.");
         if (root.Get("service") is { } service)
