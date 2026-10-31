@@ -74,6 +74,7 @@ public sealed class ScopeStore(ScopeContext context)
                     var expectedKind = path switch
                     {
                         "local/inventory.json" => "inventory", "local/recipes.json" => "recipe-registry",
+                        _ when IsIntentionPath(path) => "recipe-intention",
                         "local/active.json" => "active", "local/last-good.json" => "last-good",
                         "local/update-plan.json" => "update-plan", _ => IsResolutionPath(path) ? "resolution" : ServiceDocumentKind(path) ?? "combination-index"
                     };
@@ -304,7 +305,7 @@ public sealed class ScopeStore(ScopeContext context)
                     throw new StorageException("invalid-generation", "Estado de generación discrepante.");
                 _ = LoadDocuments(store.Context, next);
             }
-            return (Store: store, Next: next);
+            return (Store: store, Next: next, Previous: previous);
         }).ToArray();
         if (committed)
         {
@@ -314,8 +315,23 @@ public sealed class ScopeStore(ScopeContext context)
                 fault?.Invoke(ScopeWriteStage.ParticipantPublished);
             }
             foreach (var item in participants)
+            {
+                var previous = item.Previous is null ? null : LoadDocuments(item.Store.Context, item.Previous);
                 foreach (var (path, doc) in LoadDocuments(item.Store.Context, item.Next))
-                    Replace(item.Store.Context.PathFor(path), ProjectDocuments.Bytes(doc));
+                {
+                    if (doc["kind"]!.GetValue<string>() == "recipe-intention")
+                    {
+                        // Unchanged intention must not overwrite an editor's changes
+                        // during unrelated inventory/runtime commits.
+                        if (previous?.GetValueOrDefault(path)?["data"]?["text"]?.GetValue<string>() == doc["data"]!["text"]!.GetValue<string>() &&
+                            File.Exists(item.Store.Context.PathFor(path))) continue;
+                        var bytes = ProjectDocuments.Utf8.GetBytes(doc["data"]!["text"]!.GetValue<string>());
+                        if (!File.Exists(item.Store.Context.PathFor(path)) || !File.ReadAllBytes(item.Store.Context.PathFor(path)).AsSpan().SequenceEqual(bytes))
+                            Replace(item.Store.Context.PathFor(path), bytes);
+                    }
+                    else Replace(item.Store.Context.PathFor(path), ProjectDocuments.Bytes(doc));
+                }
+            }
             fault?.Invoke(ScopeWriteStage.ProjectionsPublished);
         }
         // Prepared without decision: leave immutable candidates and manifest for
@@ -356,8 +372,15 @@ public sealed class ScopeStore(ScopeContext context)
     private static string Hash(byte[] bytes) => Convert.ToHexStringLower(SHA256.HashData(bytes));
     private static void ValidateDocumentPath(string path)
     {
-        if (path is not ("local/inventory.json" or "local/recipes.json" or "local/combinations.json" or "combinations.json" or "local/active.json" or "local/last-good.json" or "local/update-plan.json") && !IsResolutionPath(path) && ServiceDocumentKind(path) is null)
+        if (path is not ("local/inventory.json" or "local/recipes.json" or "local/combinations.json" or "combinations.json" or "local/active.json" or "local/last-good.json" or "local/update-plan.json") && !IsIntentionPath(path) && !IsResolutionPath(path) && ServiceDocumentKind(path) is null)
             throw new StorageException("invalid-projection-path", "Documento fuera de las proyecciones admitidas del ámbito.");
+    }
+    private static bool IsIntentionPath(string path)
+    {
+        if (path == "recipe.yaml") return true;
+        var parts = path.Split('/');
+        return parts.Length == 3 && parts[0] is "services" or "consumers" && parts[2] == "recipe.yaml" &&
+            Guid.TryParseExact(parts[1], "D", out var id) && id != Guid.Empty && id.ToString("D") == parts[1];
     }
     private static string? ServiceDocumentKind(string path)
     {

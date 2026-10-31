@@ -31,6 +31,7 @@ internal static class ScopedLocalModelTests
         var models = new ScopedModels(context);
         var added = models.AddExternal("weights.gguf", "fixture/repository:Q4_0");
         Check(added.EntryPath == file && File.Exists(file), "external registered in place");
+        Check(models.Query().Single()!["identity"]!.GetValue<string>() == "fixture/repository:Q4_0", "remote identity never inherits project prefix");
         Bad(() => models.AddExternal(file, "fixture/other:Q4_0"), "model-collision");
         var recipe = RecipeReader.Read(new(root));
         models.BindExternal("a", "model", added);
@@ -261,12 +262,20 @@ internal static class ScopedLocalModelTests
         var folder = Path.Combine(root, "local-names"); Directory.CreateDirectory(folder);
         Directory.CreateDirectory(Path.Combine(folder, "weights"));
         var file = Path.Combine(folder, "weights/modelo.gguf"); File.Copy(source, file);
-        File.WriteAllText(Path.Combine(folder, "coquena.yaml"), "models:\n  my-model:\n    files: [./weights/modelo.gguf]\npresets:\n  p:\n    args:\n      model: model://MY-MODEL\n");
+        File.WriteAllText(Path.Combine(folder, "coquena.yaml"), "name: named-project\nmodels:\n  my-model:\n    files: [./weights/modelo.gguf]\npresets:\n  p:\n    args:\n      model: model://MY-MODEL\n");
         var recipe = RecipeReader.Read(new(folder));
         var intent = ModelIntent.FromRecipe(recipe).Single();
         var models = new ScopedModels(ScopeContext.Project(recipe.Selection.Files[0]));
         var first = models.PrepareLocal(intent);
         Check(models.List().Single()!["logical-key"]!.GetValue<string>() == "my-model", "YAML local key is the registered name");
+        Check(models.Query().Single()!["identity"]!.GetValue<string>() == recipe.Name + "/my-model", "local model identity inherits project while YAML key remains local");
+        Check(models.ResolveKey(recipe.Name + "/my-model") == "my-model", "qualified local identity resolves to its YAML key");
+        var registeredYaml = Path.Combine(folder, "coquena.yaml"); var originalYaml = File.ReadAllText(registeredYaml);
+        File.WriteAllText(registeredYaml, originalYaml.Replace("named-project", "new-name"));
+        using (var namedOutput = new StringWriter()) using (var namedError = new StringWriter())
+            Check(ScopedModelCli.Run(["show", recipe.Name + "/my-model", "--base", folder], namedOutput, namedError) == 0,
+                "show accepts registered model identity after editing candidate project name");
+        File.WriteAllText(registeredYaml, originalYaml);
         var second = models.PrepareLocal(intent);
         Check(first.ResourceId == second.ResourceId && first.InstallationId == second.InstallationId && models.List().Count == 1, "unchanged local recipe reuses registration");
         Check(models.ResolveReference(new("model", "my-model")) == Path.GetFullPath(file), "local registered name resolves entry");
@@ -276,8 +285,14 @@ internal static class ScopedLocalModelTests
         var other = Path.Combine(folder, "other.gguf"); File.Copy(source, other);
         Bad(() => models.PrepareLocal(intent with { Files = ["other.gguf"] }), "model-collision");
         var companion = models.AddExternal(other, "vision", true, type: "mmproj");
+        Check(models.Query(true).Single()!["identity"]!.GetValue<string>() == recipe.Name + "/vision", "local companion inherits project identity");
         Check(models.ResolveReference(new("companion", "vision")) == other &&
             models.List(true).Single()!["companion-type"]!.GetValue<string>() == "mmproj", "named local companion preserves explicit type");
+        var mtp = models.PrepareLocal(new("vision", "companion", null, "", [other], "mtp", recipe.Name), allowNewRevision: true);
+        Check(mtp.ResourceId == companion.ResourceId && mtp.InstallationId != companion.InstallationId &&
+            models.List(true).Single()!["installations"]!.AsArray().Any(i => i!["installation-id"]!.GetValue<string>() == companion.InstallationId && i["companion-type"]!.GetValue<string>() == "mmproj"), "new companion role preserves previous typed installation");
+        Check(models.PrepareLocal(new("vision", "companion", null, "", [other], "mmproj", recipe.Name), allowNewRevision: true).InstallationId == companion.InstallationId,
+            "previous companion role reuses exact physical revision");
         Bad(() => models.AddExternal("missing.gguf", "ambiguous", true), "invalid-external-name");
         using var handler = new Metadata(24); using var client = new HttpClient(handler);
         models.TryMatchAsync(first, new HuggingFaceStore(client), new Interaction(_ => throw new Exception("no matching menu"))).GetAwaiter().GetResult();

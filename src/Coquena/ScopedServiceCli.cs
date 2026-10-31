@@ -82,7 +82,7 @@ public static class ScopedServiceCli
         var id = globalRegistry.ResolveGlobalService(command.Selector!);
         var service = globalRegistry.Services().SingleOrDefault(s => s.ServiceId == id)
             ?? throw new StorageException("service-conflict", "Cambió el servicio seleccionado; no se elige sustituto.");
-        var saved = new RecipeSelection(global.Base, [global.PathFor($"services/{id}/recipe.yaml")], global.Base);
+        var saved = new RecipeImporter(global).ServiceSelection(id);
         return new(global, saved, service);
     }
 
@@ -142,7 +142,7 @@ public static class ScopedServiceCli
         using var http = new HttpClient();
         using var transport = new OfficialArtifactTransport();
         var resources = new ScopedCombinationResources(target.Context, HardwareProbe.Inspect(), new HuggingFaceStore(http), transport,
-            new ConsoleModelSelectionInteraction(), warning: message => error.WriteLine(message));
+            new ConsoleModelSelectionInteraction(), warning: message => error.WriteLine(message), serviceName: target.Service.Name);
         var prepared = await new CombinationPreparation(target.Context).PrepareServiceAsync(target.Selection, resources,
             command.Private || target.Context.IsGlobal, cancellation: cancellation);
         var recipe = RecipeReader.Read(target.Selection);

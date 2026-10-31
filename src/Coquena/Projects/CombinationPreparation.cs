@@ -7,7 +7,7 @@ using Coquena.Storage;
 
 namespace Coquena.Projects;
 
-public sealed record PreparationRequest(string Key, string Kind, RecipeValue Intent, ArgumentReference? Reference = null, bool SensitiveSelection = false);
+public sealed record PreparationRequest(string Key, string Kind, RecipeValue Intent, ArgumentReference? Reference = null, bool SensitiveSelection = false, string? ProjectName = null);
 public sealed record PreparationResource(string Key, string Kind, string ResourceId, string InstallationId, string EntryPath, JsonObject Resolution);
 public sealed record PreparationTarget(ScopeStore Store, string ServiceId);
 public sealed record PreparedCombination(string Id, bool Private, long Revision, IReadOnlyList<PreparationResource> Resources, bool ProcessOnly = false);
@@ -275,7 +275,7 @@ public sealed class CombinationPreparation(ScopeContext context)
     private static List<PreparationRequest> Requests(EffectiveRecipe recipe, IReadOnlyList<ValidatedArgumentBlock> blocks)
     {
         var result = new Dictionary<string, PreparationRequest>(StringComparer.OrdinalIgnoreCase);
-        if (recipe.Root.Get("service")?.Get("backend") is { } backend) result["backend:backend"] = new("backend", "backend", backend);
+        if (recipe.Root.Get("service")?.Get("backend") is { } backend) result["backend:backend"] = new("backend", "backend", backend, ProjectName: recipe.Name);
         foreach (var block in blocks.Where(b => b.Scope != "preset" || recipe.PresetEnabled(b.Key)))
             foreach (var argument in block.Arguments.Values)
             {
@@ -287,7 +287,7 @@ public sealed class CombinationPreparation(ScopeContext context)
                     var intent = reference.Canonical ? value : recipe.Root.Get(reference.Kind == "model" ? "models" : "companions")?.Fields
                         .SingleOrDefault(p => p.Key.Equals(reference.Name, StringComparison.OrdinalIgnoreCase)).Value
                         ?? throw value.Error("unknown-resource", "preparation", "Referencia sin declaración.");
-                    result[reference.Kind + ":" + reference.Name] = new(reference.Name, reference.Kind, intent, reference, value.Sensitive);
+                    result[reference.Kind + ":" + reference.Name] = new(reference.Name, reference.Kind, intent, reference, value.Sensitive, recipe.Name);
                 }
             }
         return result.Values.ToList();

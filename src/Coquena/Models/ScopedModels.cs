@@ -7,7 +7,7 @@ using Coquena.Storage;
 
 namespace Coquena.Models;
 
-public sealed record ModelIntent(string Key, string Kind, ModelRequest? Request, string Revision, string[] Files, string? LocalType = null)
+public sealed record ModelIntent(string Key, string Kind, ModelRequest? Request, string Revision, string[] Files, string? LocalType = null, string? ProjectName = null)
 {
     public static ModelIntent[] FromRecipe(EffectiveRecipe recipe)
     {
@@ -27,7 +27,7 @@ public sealed record ModelIntent(string Key, string Kind, ModelRequest? Request,
                     if (value.Get("repository")?.Text is not string repository)
                     {
                         var localFiles = value.Get("files")!.Items.Select(f => f.Text!).ToArray();
-                        result.Add(new(key, group == "models" ? "model" : "companion", null, "", localFiles, value.Get("type")?.Text));
+                        result.Add(new(key, group == "models" ? "model" : "companion", null, "", localFiles, value.Get("type")?.Text, recipe.Name));
                         continue;
                     }
                     var type = value.Get("type")?.Text;
@@ -140,7 +140,7 @@ public sealed partial class ScopedModels(ScopeContext context)
     public async Task<PreparedModel> PrepareAsync(ModelIntent intent, HuggingFaceStore source, IDownloadTransport transport,
         IModelSelectionInteraction interaction, IRemoteGgufInspector? inspector = null, CancellationToken cancellation = default)
     {
-        if (intent.Request is null) { cancellation.ThrowIfCancellationRequested(); return PrepareLocal(intent); }
+        if (intent.Request is null) { cancellation.ThrowIfCancellationRequested(); return PrepareLocal(intent, allowNewRevision: true); }
         var selected = await SelectAsync(intent, source, interaction, inspector, cancellation)
             ?? throw new OperationCanceledException(cancellation);
         var prepared = await AcquireAsync(selected, transport, false, cancellation: cancellation);
@@ -226,6 +226,7 @@ public sealed partial class ScopedModels(ScopeContext context)
     public JsonObject Observe(JsonObject resource)
     {
         var result = (JsonObject)resource.DeepClone();
+        result["identity"] = Identity(result);
         foreach (var installation in result["installations"]!.AsArray())
         {
             var observed = ObserveInstallation(installation!);
@@ -233,6 +234,14 @@ public sealed partial class ScopedModels(ScopeContext context)
             if (result["removal-pending"]?.GetValue<bool>() == true) installation!["observed-availability"] = "removal-pending";
         }
         return result;
+    }
+    public string ResolveKey(string selector, bool companion = false) => List(companion)
+        .SingleOrDefault(r => Identity(r!).Equals(selector, StringComparison.OrdinalIgnoreCase))?["logical-key"]?.GetValue<string>() ?? selector;
+    private string Identity(JsonNode resource)
+    {
+        var key = resource["logical-key"]!.GetValue<string>();
+        return context.IsGlobal || key.Contains('/') ? key :
+            (resource["project-name"]?.GetValue<string>() ?? Path.GetFileName(context.Base)) + "/" + key;
     }
     private JsonObject ObserveInstallation(JsonNode installation)
     {
@@ -260,6 +269,7 @@ public sealed partial class ScopedModels(ScopeContext context)
     }
     public ModelRemoval Remove(string nameOrId, bool companion)
     {
+        nameOrId = ResolveKey(nameOrId, companion);
         _ = List(companion); // Validate recorded paths and selections before persisting withdrawal.
         var snapshot = store.Read(); var docs = RecipeRegistry.Next(snapshot);
         var inventory = docs.GetValueOrDefault("local/inventory.json")?["data"]?["resources"]?.AsArray();

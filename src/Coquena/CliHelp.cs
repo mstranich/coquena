@@ -37,6 +37,7 @@ internal static class CliHelp
           download                         Consultar y controlar descargas
           preset                           Crear y configurar presets de modelos
           service (server)                 Administrar servicios y su ejecución
+          import <receta.yaml>             Promover intención al ámbito global sin iniciar
           up [--start-service]             Publicar presets de la combinación elegida
           down                             Retirar presets propios sin detener servicio
           apply|withdraw <clave>           Publicar o retirar un preset individual
@@ -45,6 +46,14 @@ internal static class CliHelp
 
         Ayuda:
           -h, --help                       Mostrar esta ayuda (también: coquena help)
+
+        Importación:
+          --select service,presets,model,params  Importar sólo categorías declaradas
+          --as-default                     Designar el servicio importado predeterminado
+          --replace <entidad>               Autorizar reemplazo; opción repetible
+          --force                          Reemplazar conflictos; incompatible con select/replace
+            Selectores: service:nombre, preset:clave, model:clave, companion:clave, param:clave.
+            Presets y recursos locales pierden el prefijo del proyecto; remotos lo conservan.
 
         Publicación:
           preset apply|withdraw <clave>     Equivalente a los atajos apply/withdraw

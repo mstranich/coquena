@@ -12,13 +12,14 @@ namespace Coquena.Projects;
 public sealed class ScopedCombinationResources(ScopeContext context, HardwareContext hardware,
     HuggingFaceStore source, IDownloadTransport transport, IModelSelectionInteraction interaction,
     IRemoteGgufInspector? inspector = null, bool force = false, Action<string>? warning = null,
-    ScopedBackends? backends = null) : ICombinationResources
+    ScopedBackends? backends = null, bool allowNewLocalRevision = true, string? serviceName = null) : ICombinationResources
 {
     private readonly ScopedModels models = new(context);
     private readonly ScopedBackends backends = backends ?? new(context);
 
     public async Task<PreparationResource> PrepareAsync(PreparationRequest request, JsonObject? exact, CancellationToken cancellation)
     {
+        exact ??= ImportedResolutions.Exact(context, request, serviceName);
         if (request.Kind == "backend")
         {
             var value = request.Intent;
@@ -46,10 +47,10 @@ public sealed class ScopedCombinationResources(ScopeContext context, HardwareCon
             var quantization = intentValue.Get("quantization")?.Text;
             var parsed = repository is null ? null : ModelRequest.Parse(repository + (type is null ? "" : "#" + type) + (quantization is null ? "" : ":" + quantization));
             modelIntent = new(request.Key, request.Kind, parsed, intentValue.Get("revision")?.Text ?? "main",
-                intentValue.Get("files")?.Items.Select(f => f.Text!).ToArray() ?? [], type);
+                intentValue.Get("files")?.Items.Select(f => f.Text!).ToArray() ?? [], type, request.ProjectName);
         }
         PreparedModel model;
-        if (modelIntent.Request is null) model = models.PrepareLocal(modelIntent);
+        if (modelIntent.Request is null) model = models.PrepareLocal(modelIntent, allowNewRevision: allowNewLocalRevision);
         else
         {
             SelectedModel? selected = null;
@@ -68,7 +69,7 @@ public sealed class ScopedCombinationResources(ScopeContext context, HardwareCon
                 {
                     var path = models.ResolveReference(request.Reference);
                     return new(request.Key, request.Kind, external["resource-id"]!.GetValue<string>(),
-                        external["installations"]!.AsArray().Single()!["installation-id"]!.GetValue<string>(), path,
+                        external["installations"]!.AsArray().Last()!["installation-id"]!.GetValue<string>(), path,
                         new JsonObject { ["origin"] = "external" });
                 }
             }

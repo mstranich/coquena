@@ -3,6 +3,28 @@
 # References describe intended behavior; verify actual behavior in code and tests.
 version: 1
 features:
+  - id: global-recipe-import
+    intent: Promover intención seleccionada a global, preparar recursos y publicar presets con recuperación y protección de consumidores.
+    keywords: [import, select, replace, force, promotion]
+    entrypoints:
+      - src/Coquena/ImportCli.cs
+    implementation:
+      - src/Coquena/Projects/RecipeImporter.cs
+      - src/Coquena/Projects/ImportedResolutions.cs
+      - src/Coquena/Recipes/RecipeImportSelection.cs
+      - src/Coquena/Recipes/RecipeIntention.cs
+      - src/Coquena/Recipes/RecipeReader.cs
+      - src/Coquena/Projects/ScopeStore.cs
+      - src/Coquena/Servers/PresetPublication.cs
+    tests:
+      - tests/Coquena.Tests/RecipeImportTests.cs
+      - tests/Coquena.Tests/RecipeImportIntegrationTests.cs
+      - tests/Coquena.Tests/RecipeImportRuntimeTests.cs
+    references:
+      - docs/servicios-recetas.md
+      - docs/comandos.md
+      - docs/persistencia-proyectos.md
+
   - id: scoped-preset-publication
     intent: Combinar contribuciones de proyectos en servicios compartidos y reconciliar presets con protección y resultado remoto observable.
     keywords: [up, down, apply, withdraw, target, global, self, INI, reload, warmup, consumer]

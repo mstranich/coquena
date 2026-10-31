@@ -27,7 +27,8 @@ COQUENA_HOME/
 ```
 
 `global/recipe.yaml` mantiene models, companions y arg-defs globales. Cada
-contribución importada conserva nombre de receta y presets en `consumers/<id>/recipe.yaml`;
+contribución importada conserva procedencia de receta y presets globales, sin prefijo
+de proyecto, en `consumers/<id>/recipe.yaml`;
 el índice global relaciona nombre publicado, consumidor y servicio destino.
 Cada servicio conserva su definición en su recipe.yaml. Los IDs de directorios
 son UUID locales, no nombres de usuario interpolados en una ruta. La tabla de
@@ -51,8 +52,8 @@ coherente; una proyección discrepante no se acepta como catálogo vacío.
 
 Los documentos persistidos tienen envoltura `kind`, `format`, `revision` y `data`.
 `format` es el entero 1; kind distingue `combination-index`, `resolution`,
-`inventory`, `state`, `active`, `last-good`, `update-plan`, `operation`, `recipe-registry`
-y `project-index` (índice de ubicaciones de la home).
+`inventory`, `state`, `active`, `last-good`, `update-plan`, `operation`, `recipe-registry`,
+`recipe-intention` y `project-index` (índice de ubicaciones de la home).
 No es una versión de receta YAML. Lectura rechaza claves duplicadas, un format
 desconocido o kind incorrecto, sin sobrescribir. Revisión entera monotónica por
 documento, UUID canónico lowercase y fecha UTC RFC 3339. Codificación UTF-8 sin BOM.
@@ -87,6 +88,7 @@ Campos mínimos de `data` por documento:
 | update-plan | scope-id, combination-id, revisión base, identidad local de intención y selecciones actuales/propuestas exactas. |
 | operation | operation-id, tipo, ámbitos, revisiones base, fase, recursos, candidatos, documentos nuevos y anteriores; remote-status cuando interviene router. |
 | recipe-registry | recipes con recipe-id, archivos relativos, nombre de receta registrado, entidades creadas y revisión. Local en el ámbito de la receta. |
+| recipe-intention | Texto YAML sin expansiones congeladas y bases de origen locales por referencia de ruta; su proyección editable es el archivo YAML correspondiente. |
 | project-index | projects con scope-id, base absoluta conocida, identidad física de directorio (volumen y archivo) y revisión local observada. Sólo navegación; no acredita propiedad ni sustituye el registro de recetas. |
 
 Los campos opcionales se omiten; null no equivale a registro vacío válido.
@@ -98,8 +100,15 @@ Las instalaciones externas conservan su lista ordenada de rutas y observaciones 
 tamaño/fecha, con ausencia explícita de baseline de integridad. Las rutas relativas
 se resuelven contra la base canónica del proyecto. Al registrar desde otra base para
 un ámbito global, se conservan absolutas contra la base de origen; no se reinterpretan
-contra la home. Estos campos son estado local privado, no una resolución portable.
+contra la home. Se conserva la base de origen para resolver rutas relativas tras
+evaluar las expresiones en cada comando; las rutas observadas no sustituyen esas
+expresiones en la intención importada. Una última ruta conocida no autoriza un
+fallback automático. Estos campos son estado local privado, no una resolución portable.
 La equivalencia informativa opcional se guarda separada de la selección gestionada.
+Los recursos locales de proyecto conservan su nombre de proyecto registrado; la
+identidad visible combina ese nombre con la clave local, sin convertirla en una
+ruta física. Una nueva resolución externa conserva las instalaciones anteriores
+y sus tipos cuando siguen referenciadas, sin cambiar sus archivos ni su propiedad.
 Una transición explícita conserva el registro externo de partida en el checkpoint:
 la publicación verificada comprueba ese registro, conserva su UUID y actualiza las
 referencias a la nueva instalación física en una misma generación. Hasta entonces
@@ -204,6 +213,25 @@ original después de importar. Un proyecto que consume ese servicio conserva su
 propia identidad en `.coquena/`; su nombre de receta no se recalcula por mover la home.
 Perder el índice global no destruye el registro del proyecto. Perder el estado local
 no permite reconstruir propietario o éxito por inferencia desde el YAML.
+
+Las copias YAML importadas participan en la generación recuperable mediante
+documentos `recipe-intention`. Un commit ajeno a su contenido conserva las
+ediciones manuales del YAML; una importación relee sus bytes y rechaza cambios
+concurrentes antes de sustituirlos. Las bases de origen son metadatos locales,
+no campos adicionales de la receta. El registro conserva los presets pendientes
+de publicación; resolver una incertidumbre observa la operación anterior sin
+reenviar la mutación ni acreditar una nueva candidata como aplicada.
+La importación interpreta los bytes capturados de YAML, env y schemas, sin
+mezclar lecturas posteriores al materializar la intención; vuelve a comprobar
+los orígenes tras preparar la generación y antes de decidir el commit.
+
+El registro global conserva resoluciones importadas por entidad, con HMAC local
+de vigencia, selección exacta e IDs de recurso e instalación. Una intención idéntica
+reutiliza esa resolución aunque se importe desde otra fuente o se prepare por
+primera vez el archivo generado del servicio; no vuelve a seguir `latest` por
+cambiar de archivo interno. Cambiar la intención invalida su correspondencia,
+sin quitar pins ni referencias de revisiones anteriores.
+
 ## Secretos y vigencia
 
 Las selecciones portables contienen expresiones originales, nunca valores

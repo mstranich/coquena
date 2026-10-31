@@ -17,8 +17,14 @@ varios servicios. `service` define backend y configuración del proceso.
 `presets` es otro bloque raíz: sus entidades se registran independientemente y se
 publican en el target seleccionado. No se anidan dentro de service ni pertenecen
 al servicio por estar en la misma receta. Un preset resumen de la receta noticias
-se publica como `noticias/resumen`. Modelos, companions y parámetros conservan
-sus claves, sin ese prefijo.
+se publica como `noticias/resumen` mientras pertenece al proyecto. Los modelos y
+companions definidos con nombre propio local y archivos también tienen identidad de proyecto:
+`noticias/principal`. Sus claves YAML y las referencias `model://principal` o
+`companion://auxiliar` se resuelven dentro de ese contexto; el prefijo no renombra
+archivos físicos. Una publicación remota conserva su identidad, por ejemplo
+`unsloth/LFM2.5-8B-A1B-GGUF`, y su selección de cuantización/revisión; un alias
+local no convierte esa publicación en un modelo propio. Los parámetros no reciben
+el prefijo del proyecto.
 
 El nombre efectivo y las entidades creadas se conservan en `.coquena/local/`;
 la home mantiene su localización conocida.
@@ -211,8 +217,13 @@ originales y se registra; usos posteriores conservan esa asociación. No pasa a
 ser el nombre de una carpeta interna de la home. Replace/force reemplazan contenido
 seleccionado, sin autorizar por sí mismos renombrar entidades registradas.
 
-Modelos, companions y parámetros conservan sus claves en destino. Referencias
-`model://principal` y `companion://auxiliar` se vinculan a sus identidades globales
+La importación promociona las entidades locales al ámbito global: el modelo
+`mi-proyecto/mi-modelo` pasa a `mi-modelo` y el preset
+`mi-proyecto/mi-preset` pasa a `mi-preset`. Lo mismo ocurre con companions locales.
+No conservan el prefijo del proyecto en sus identidades globales. Las publicaciones
+remotas conservan sus identidades; los parámetros conservan sus claves. La promoción
+no modifica ni retira entidades del proyecto original ni renombra archivos físicos.
+Las referencias `model://principal` y `companion://auxiliar` se vinculan a sus identidades globales
 tras validar todas las categorías seleccionadas. Nombre de receta no evita sus colisiones.
 Igual nombre e igual intención normalizada es una importación idempotente; igual
 nombre con contenido diferente se rechaza por defecto, mostrando el impacto.
@@ -224,11 +235,22 @@ entidades ausentes del archivo. Ninguna opción omite validación, integridad,
 referencias, propiedad o protección de una instancia activa. Un reemplazo no
 retira referencias ajenas ni reinicia un servicio para aplicar su nuevo backend.
 
-Un backend oficial se prepara en el ámbito global. Externos relativos se resuelven
-contra la base original y se registran localmente con su ruta absoluta, sin copiar
-binarios, bibliotecas ni pesos; moverlos exige corregir la referencia explícitamente.
+Un backend oficial se prepara en el ámbito global. Las referencias externas admiten
+rutas absolutas o relativas y expresiones de variables. La copia de intención conserva
+las expresiones; cada comando que necesita resolverlas utiliza sus variables actuales.
+Una ruta relativa resultante se resuelve contra la base original conservada localmente,
+sin reinterpretarla contra la home. No se copian binarios, bibliotecas ni pesos.
+Corregir una referencia puede consistir en actualizar su variable, sin editar el YAML.
+Las rutas resueltas se conservan como datos locales de instalaciones y snapshots,
+sin sustituir las expresiones de intención ni modificar una instancia ya iniciada.
+Los comandos posteriores reciben sus variables por los mecanismos que admiten;
+no reutilizan valores ni siguen el archivo env de la importación anterior.
+Una última ubicación conocida sirve para diagnóstico; no sustituye automáticamente
+una variable ausente ni una ruta actual inexistente y no inicia búsquedas por el disco.
 Los imports JSON locales de parámetros se materializan en la copia de intención;
 no quedan dependiendo de que el autor conserve esos archivos de schema.
+La materialización conserva la precedencia por capa. Las cadenas JSON no pasan
+a ser expresiones de interpolación por convertirse a YAML.
 No se guarda un `.env` ni se congelan secretos expandidos como literales de receta.
 
 Importar no inicia un servicio. Si está activo, publica los presets seleccionados

@@ -49,7 +49,8 @@ public static class ScopedModelCli
             var models = new ScopedModels(context);
             if (action == "add")
             {
-                var added = models.AddExternal(value!, name!, companion, type: type);
+                var added = models.AddExternal(value!, name!, companion, type: type,
+                    projectName: !global && File.Exists(selection!.Files[0]) ? RecipeReader.ProjectName(selection) : null);
                 output.WriteLine(new JsonObject { ["resource-id"] = added.ResourceId, ["installation-id"] = added.InstallationId,
                     ["ownership"] = "external", ["provenance-certified"] = false }.ToJsonString());
                 if (tryMatch)
@@ -64,6 +65,8 @@ public static class ScopedModelCli
             if (action == "show" && !global)
             {
                 var recipe = RecipeReader.Read(selection!);
+                if (value is not null && File.Exists(context.PathFor("local/state.json"))) value = models.ResolveKey(value, companion);
+                if (value?.StartsWith(recipe.Name + "/", StringComparison.Ordinal) == true) value = value[(recipe.Name.Length + 1)..];
                 var entries = recipe.Root.Get(companion ? "companions" : "models");
                 if (value is null) output.WriteLine(entries?.Redacted()?.ToJsonString() ?? "{}");
                 else output.WriteLine(entries?.Get(value)?.Redacted()?.ToJsonString() ?? throw new ModelSourceException("unknown-alias", "Alias inexistente."));
@@ -73,13 +76,14 @@ public static class ScopedModelCli
             {
                 var resources = models.Query(companion);
                 if (value is not null) resources = new JsonArray(resources.Where(r => r!["resource-id"]?.GetValue<string>() == value ||
-                    r["logical-key"]!.GetValue<string>().Equals(value, StringComparison.OrdinalIgnoreCase)).Select(r => r!.DeepClone()).ToArray());
+                    r["logical-key"]!.GetValue<string>().Equals(value, StringComparison.OrdinalIgnoreCase) ||
+                    r["identity"]?.GetValue<string>().Equals(value, StringComparison.OrdinalIgnoreCase) == true).Select(r => r!.DeepClone()).ToArray());
                 if (json || action == "show") output.WriteLine(resources.ToJsonString());
                 else
                 {
                     foreach (var resource in resources)
                         foreach (var installation in resource!["installations"]!.AsArray())
-                            output.WriteLine($"{resource["logical-key"]!.GetValue<string>()} | {resource["resource-id"]!.GetValue<string>()} | {installation!["installation-id"]!.GetValue<string>()} | {installation["observed-availability"]!.GetValue<string>()} | cambio={installation["changed"]!.GetValue<bool>()}" +
+                            output.WriteLine($"{resource["identity"]!.GetValue<string>()} | {resource["resource-id"]!.GetValue<string>()} | {installation!["installation-id"]!.GetValue<string>()} | {installation["observed-availability"]!.GetValue<string>()} | cambio={installation["changed"]!.GetValue<bool>()}" +
                                 (resource["ownership"]?.GetValue<string>() == "external" ? " | externo; sin baseline de integridad" +
                                     (resource["informative-match"] is null ? "" : "; equivalencia informativa no certificada") : ""));
                     foreach (var operation in resources.SelectMany(r => r!["operations"] as JsonArray ?? []))

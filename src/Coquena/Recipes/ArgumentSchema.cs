@@ -63,10 +63,12 @@ public sealed class ArgumentSchema
                 RecipeValue document;
                 try
                 {
-                    using var json = JsonDocument.Parse(RecipeYaml.ReadText(path), new JsonDocumentOptions { MaxDepth = 64 });
+                    using var json = JsonDocument.Parse(RecipeYaml.ReadText(path, captured: recipe.Selection.CapturedFiles?.GetValueOrDefault(path)), new JsonDocumentOptions { MaxDepth = 64 });
                     var count = 0;
-                    document = Json(json.RootElement, new(path, 1, 1, "$"), ref count);
+                    document = Json(json.RootElement, import.Sensitive ? import.Origin with { Path = import.Origin.Path + ".schema" } : new(path, 1, 1, "$"), ref count);
                 }
+                catch (RecipeException e) when (import.Sensitive)
+                { throw new RecipeException(e.Code, "schema", import.Origin, "No se pudo leer el schema seleccionado mediante una variable."); }
                 catch (JsonException) { throw import.Error("invalid-schema-json", "schema", "El catálogo importado no es JSON válido."); }
                 Object(document, "definitions reference-build");
                 if (document.Get("reference-build") is { } build) Text(build);
@@ -367,6 +369,7 @@ public sealed class ArgumentSchema
             _ => RecipeValue.IsInteger(raw) ? RecipeKind.Integer : RecipeKind.Number
         };
         if (kind == RecipeKind.Number && !RecipeValue.IsNumber(raw)) throw new RecipeException("non-finite-number", "schema", origin, "Número no finito.");
-        return new(kind, origin, kind == RecipeKind.String ? element.GetString() : raw);
+        return new(kind, origin, kind == RecipeKind.String ? element.GetString() : raw,
+            kind == RecipeKind.String ? RecipeStyle.SingleQuoted : RecipeStyle.Plain);
     }
 }

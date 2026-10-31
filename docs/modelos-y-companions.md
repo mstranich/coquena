@@ -100,6 +100,16 @@ el registro; el INI recibe rutas absolutas. Cada registro tiene un ID interno es
 para mantener referencias ante renombres. La resolución física distingue revisiones para conservar recursos activos y anteriores.
 Los locks transportan selecciones; los identificadores locales no presuponen una home compartida.
 
+Un modelo o companion con nombre propio local y archivos en un proyecto tiene identidad
+`nombre-proyecto/clave-local`. El componente local conserva las restricciones anteriores;
+el separador distingue el contexto y no forma parte de la clave YAML. Una publicación
+remota conserva su identidad de origen, sin añadir el nombre del proyecto. Importar
+al ámbito global promociona los recursos locales a `clave-local`, sin cambiar sus
+archivos físicos ni la definición original. Los conflictos y las referencias siguen
+[las reglas de importación](servicios-recetas.md#importación-global).
+Reutilizar archivos externos bajo un nombre remoto explícito conserva ese nombre
+sin certificar su procedencia, según las reglas de registro externo.
+
 ## Presets
 
 Cada preset pertenece a un modelo principal y guarda sus propios valores de parámetros.

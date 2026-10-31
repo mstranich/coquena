@@ -255,6 +255,12 @@ No hay sección `bindings` ni campo especial de modelo principal en el preset:
 `preset bind` escribe la referencia en el argumento correspondiente; `set` escribe
 un literal. Una referencia inexistente es error incluso en modo permisivo.
 
+Las claves de modelos/companions locales son relativas al contexto del proyecto:
+`model://principal` identifica su modelo `nombre-proyecto/principal`, sin exigir
+escribir ese prefijo en el YAML. La importación global lo promociona a `principal`.
+Las publicaciones remotas mantienen su identidad remota. Las reglas de nombres y
+promoción se describen en [servicios y recetas](servicios-recetas.md#importación-global).
+
 Un companion no equivale a una modalidad. El `mmproj` de llama.cpp puede contener
 componentes de visión y audio en el mismo archivo. Su argumento recibe una sola
 ruta: repetirlo reemplaza el valor, no acumula proyectores. No se admite una lista
@@ -288,6 +294,10 @@ antes de combinar, sólo sobre valores, no sobre claves; no se ejecuta shell.
 Los `.env` se seleccionan explícitamente en orden; el último prevalece y el entorno
 del proceso tiene prioridad. A diferencia de Compose, una variable ausente sin
 default produce error, según la regla de seguridad de [definiciones](definiciones-declarativas.md).
+Las rutas admiten valores absolutos y relativos, también producidos por expresiones.
+Cada comando que trabaja con la receta evalúa las variables que necesita; importar
+no convierte sus valores expandidos en literales de intención. Una ruta resuelta o
+una última ubicación conocida en el estado local no reemplaza esa evaluación.
 La interpolación no debe interpretar un resultado como una nueva estructura YAML.
 La expansión sin tipo explícito conserva tipo string, aunque el campo o schema
 espere un número o booleano. El sufijo de Coquena `|string`, `|integer`, `|number`

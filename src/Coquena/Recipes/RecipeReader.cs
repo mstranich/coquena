@@ -9,6 +9,11 @@ public sealed class RecipeSelection
     public string Base { get; }
     public IReadOnlyList<string> Files { get; }
     public IReadOnlyList<string> EnvFiles { get; }
+    internal ScopeContext? ImportedScope { get; set; }
+    internal System.Text.Json.Nodes.JsonObject? ImportedPathBases { get; set; }
+    internal bool FilterUnusedModels { get; set; }
+    internal IReadOnlySet<string>? ImportCategories { get; set; }
+    internal IReadOnlyDictionary<string, byte[]>? CapturedFiles { get; set; }
 
     public RecipeSelection(string workingDirectory, IEnumerable<string>? files = null,
         string? projectDirectory = null, IEnumerable<string>? envFiles = null)
@@ -83,20 +88,70 @@ public sealed class EffectiveRecipe
 
 public static class RecipeReader
 {
+    internal static string ProjectName(RecipeSelection selection)
+    {
+        var environment = Environment.GetEnvironmentVariables().Cast<DictionaryEntry>()
+            .ToDictionary(x => (string)x.Key, x => (string?)x.Value, StringComparer.Ordinal);
+        var variables = new RecipeVariables(environment);
+        foreach (var file in selection.EnvFiles) variables.Load(file, selection.CapturedFiles?.GetValueOrDefault(file));
+        RecipeValue? name = null;
+        foreach (var file in selection.Files)
+        {
+            var root = new RecipeYaml(file, selection.CapturedFiles?.GetValueOrDefault(file)).Read();
+            if (root.Get("name") is { } selected) name = selected.Kind == RecipeKind.Null ? null : Expand(selected, variables, "root.name");
+        }
+        name ??= new(RecipeKind.String, new(selection.Files[0], 1, 1, "$.name"), Path.GetFileName(selection.Base));
+        var namedRoot = RecipeValue.Map(name.Origin, new Dictionary<string, RecipeValue> { ["name"] = name });
+        RecipeStructure.Layer(namedRoot, false); RecipeStructure.Effective(namedRoot);
+        return name.Text!;
+    }
+
     public static EffectiveRecipe Read(RecipeSelection selection, IReadOnlyDictionary<string, string?>? environment = null,
         RecipeIdentity? registeredIdentity = null)
     {
         environment ??= Environment.GetEnvironmentVariables().Cast<DictionaryEntry>()
             .ToDictionary(x => (string)x.Key, x => (string?)x.Value, StringComparer.Ordinal);
         var variables = new RecipeVariables(environment);
-        foreach (var file in selection.EnvFiles) variables.Load(file);
+        foreach (var file in selection.EnvFiles) variables.Load(file, selection.CapturedFiles?.GetValueOrDefault(file));
         var layers = new List<RecipeValue>();
         var effective = RecipeValue.Map(new(selection.Files[0], 1, 1, "$"));
         var source = effective;
-        foreach (var file in selection.Files)
+        var rawLayers = selection.Files.Select(file => new RecipeYaml(file, selection.CapturedFiles?.GetValueOrDefault(file)).Read()).ToArray();
+        var selectedLayers = rawLayers.Select(raw =>
         {
-            var layer = new RecipeYaml(file).Read();
-            RecipeStructure.Layer(layer, true);
+            RecipeStructure.Layer(raw, true);
+            if (selection.ImportCategories is not { } categories) return raw;
+            return raw.WithFields(raw.Fields.Where(p => p.Key switch
+            {
+                "service" => categories.Contains("service"),
+                "presets" => categories.Contains("presets"),
+                "models" or "companions" => categories.Contains("model"),
+                "arg-defs" => categories.Contains("params"),
+                "args-mode" => categories.Contains("service") || categories.Contains("presets"),
+                _ => true
+            }).ToDictionary(StringComparer.Ordinal));
+        }).ToArray();
+        HashSet<string>? needed = null;
+        if (selection.FilterUnusedModels)
+        {
+            needed = new(StringComparer.OrdinalIgnoreCase);
+            var lightLayers = selectedLayers.Select(raw => Expand(raw.WithFields(raw.Fields.Where(p => p.Key is not ("models" or "companions")).ToDictionary(StringComparer.Ordinal)), variables, "root")).ToArray();
+            var lightRoot = lightLayers.Aggregate(RecipeValue.Map(effective.Origin), (previous, next) => Merge(previous, next, "root"));
+            if (lightRoot.Get("service")?.Get("server")?.Get("args") is { } serverArgs) CollectReferences(serverArgs, needed);
+            foreach (var preset in lightRoot.Get("presets")?.Fields.Values ?? [])
+                if (preset.Get("args") is { } args) CollectReferences(args, needed);
+            var lightRecipe = new EffectiveRecipe(selection, lightRoot, lightLayers, registeredIdentity, lightRoot);
+            if (selection.CapturedFiles is Dictionary<string, byte[]> captured) CaptureSchemas(lightRecipe, captured);
+            var scopes = new HashSet<string>(StringComparer.Ordinal);
+            if (lightRoot.Get("service")?.Get("server") is not null) scopes.Add("server");
+            if ((lightRoot.Get("presets")?.Fields.Count ?? 0) != 0) scopes.Add("preset");
+            foreach (var definition in ArgumentSchema.Load(lightRecipe).Definitions.Values)
+                if (scopes.Count != 0 && (definition.Get("scope") is not { } argumentScope || scopes.Contains(argumentScope.Text!)))
+                    if (definition.Get("rules") is { } rules) CollectReferences(rules, needed);
+        }
+        foreach (var selected in selectedLayers)
+        {
+            var layer = needed is null ? selected : FilterModels(selected, needed);
             source = Merge(source, layer, "root");
             layer = Expand(layer, variables, "root");
             RecipeStructure.Layer(layer, false);
@@ -104,8 +159,74 @@ public static class RecipeReader
             layers.Add(layer);
             effective = Merge(effective, layer, "root");
         }
+        if (selection.ImportCategories is { } importedCategories && effective.Get("target")?.Text == "self" && !importedCategories.Contains("service"))
+            throw effective.Error("import-self-requires-service", "import", "Target self requiere importar service.");
         RecipeStructure.Effective(effective);
+        if (selection.ImportedPathBases is { } selectedBases) effective = Rebase(effective, selectedBases);
+        if (selection.ImportedScope is { } scope)
+        {
+            // Read a single immutable generation, also when the caller already
+            // holds the scope writer lease during ValidateIntent. Taking another
+            // OS writer lease here would deadlock with that caller.
+            var statePath = scope.PathFor("local/state.json");
+            var state = ProjectDocuments.Read(File.ReadAllBytes(statePath), "state");
+            var generation = ProjectDocuments.Uuid(state["data"]!["generation"]);
+            foreach (var file in selection.Files)
+            {
+                var relative = Path.GetRelativePath(scope.Root, file).Replace('\\', '/');
+                var entry = state["data"]!["documents"]?[relative];
+                if (entry?["kind"]?.GetValue<string>() != "recipe-intention") continue;
+                var bytes = File.ReadAllBytes(scope.PathFor($"local/generations/{generation}/{relative}"));
+                if (Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(bytes)) != entry["sha256"]!.GetValue<string>())
+                    throw new StorageException("invalid-generation", "La intención importada no coincide con la generación.");
+                var document = ProjectDocuments.Read(bytes, "recipe-intention");
+                effective = Rebase(effective, document["data"]!["path-bases"]!.AsObject());
+            }
+        }
         return new(selection, effective, layers.ToArray(), registeredIdentity, source);
+    }
+
+    internal static void CollectReferences(RecipeValue value, HashSet<string> names)
+    {
+        if (value.Kind == RecipeKind.Map && value.Get("literal") is not null) return;
+        if (value.Kind == RecipeKind.String)
+            foreach (var kind in new[] { "model", "companion" })
+                if (value.Text!.StartsWith(kind + "://", StringComparison.Ordinal)) names.Add(kind + ":" + value.Text[(kind.Length + 3)..]);
+        foreach (var child in value.Fields.Values.Concat(value.Items)) CollectReferences(child, names);
+    }
+    internal static void CaptureSchemas(EffectiveRecipe recipe, Dictionary<string, byte[]> inputs)
+    {
+        foreach (var import in recipe.Layers.SelectMany(l => l.Get("arg-defs")?.Get("imports")?.Items ?? []))
+        {
+            var path = recipe.Selection.ResolvePath(import.Text!);
+            if (inputs.ContainsKey(path)) continue;
+            try { inputs[path] = RecipeYaml.ReadBytes(path); }
+            catch (RecipeException e) when (import.Sensitive)
+            { throw new RecipeException(e.Code, "schema", import.Origin, "No se pudo leer el schema seleccionado mediante una variable."); }
+        }
+    }
+    internal static RecipeValue FilterModels(RecipeValue root, HashSet<string> needed)
+    {
+        var fields = root.Fields.ToDictionary(StringComparer.Ordinal);
+        foreach (var pair in new[] { ("models", "model"), ("companions", "companion") })
+            if (fields.GetValueOrDefault(pair.Item1) is { Kind: RecipeKind.Map } entries)
+                fields[pair.Item1] = entries.WithFields(entries.Fields.Where(p => needed.Contains(pair.Item2 + ":" + p.Key)).ToDictionary(StringComparer.Ordinal));
+        return root.WithFields(fields);
+    }
+
+    private static RecipeValue Rebase(RecipeValue root, System.Text.Json.Nodes.JsonObject bases)
+    {
+        return Walk(root, "");
+        RecipeValue Walk(RecipeValue value, string path)
+        {
+            if (bases[path]?.GetValue<string>() is string origin && value.Kind == RecipeKind.String)
+                return new(RecipeKind.String, value.Origin, Path.GetFullPath(value.Text!, origin), value.Style, value.Sensitive);
+            if (value.Kind == RecipeKind.Map)
+                return value.WithFields(value.Fields.ToDictionary(p => p.Key, p => Walk(p.Value, path.Length == 0 ? p.Key : path + "/" + p.Key), StringComparer.Ordinal));
+            if (value.Kind == RecipeKind.Sequence)
+                return new(value.Kind, value.Origin, items: value.Items.Select((v, i) => Walk(v, path + "/" + i)));
+            return value;
+        }
     }
 
     private static RecipeValue Expand(RecipeValue value, RecipeVariables variables, string context)
@@ -124,8 +245,10 @@ public static class RecipeReader
         var expansion = variables.Expand(value.Text!, value.Origin);
         var kind = expansion.Type switch
         {
-            "integer" => RecipeKind.Integer, "number" => RecipeKind.Number,
-            "boolean" => RecipeKind.Boolean, _ => RecipeKind.String
+            "integer" => RecipeKind.Integer,
+            "number" => RecipeKind.Number,
+            "boolean" => RecipeKind.Boolean,
+            _ => RecipeKind.String
         };
         return new(kind, value.Origin, expansion.Text, value.Style, expansion.Sensitive);
     }

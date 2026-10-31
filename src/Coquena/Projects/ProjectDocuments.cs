@@ -9,7 +9,7 @@ namespace Coquena.Projects;
 public static class ProjectDocuments
 {
     private static readonly HashSet<string> Kinds = new(StringComparer.Ordinal)
-    { "combination-index", "resolution", "inventory", "state", "active", "last-good", "update-plan", "operation", "recipe-registry", "project-index" };
+    { "combination-index", "resolution", "inventory", "state", "active", "last-good", "update-plan", "operation", "recipe-registry", "project-index", "recipe-intention" };
     internal static readonly UTF8Encoding Utf8 = new(false, true);
 
     public static JsonObject Create(string kind, long revision, JsonObject data)
@@ -46,6 +46,12 @@ public static class ProjectDocuments
     internal static void Invalid() => throw new StorageException("invalid-project-document", "Documento de proyecto inválido; se conserva sin sobrescribir.");
     private static void ValidateData(string kind, JsonObject data)
     {
+        if (kind == "recipe-intention")
+        {
+            if (data["text"]?.GetValue<string>() is not string text || text.Length > 16777216 || data["path-bases"] is not JsonObject) Invalid();
+            foreach (var pair in data["path-bases"]!.AsObject())
+                if (pair.Value?.GetValue<string>() is not string path || !Path.IsPathFullyQualified(path)) Invalid();
+        }
         if (kind == "state")
         {
             foreach (var key in new[] { "scope-id", "generation", "transaction-id" }) Uuid(data[key]);
@@ -56,6 +62,16 @@ public static class ProjectDocuments
         else if (kind == "recipe-registry")
         {
             if (data["recipes"] is not JsonArray) Invalid();
+            if (data["import-resolutions"] is JsonNode resolutions)
+            {
+                if (resolutions is not JsonObject) Invalid();
+                foreach (var pair in resolutions.AsObject())
+                {
+                    if (pair.Value?["fingerprint"]?.GetValue<string>() is not string fingerprint || !ScopeStore.IsCombinationId(fingerprint) || pair.Value["resolution"] is not JsonObject)
+                        Invalid();
+                    Uuid(pair.Value!["resource-id"]); Uuid(pair.Value["installation-id"]);
+                }
+            }
             foreach (var entry in data["recipes"]!.AsArray())
             {
                 Uuid(entry?["recipe-id"]); Uuid(entry?["consumer-id"]);
@@ -63,6 +79,21 @@ public static class ProjectDocuments
                     entry["entities"] is not JsonArray || entry["pending-withdrawals"] is not JsonArray || entry["revision"]?.GetValue<long>() is not > 0) Invalid();
                 foreach (var file in entry!["files"]!.AsArray()) if (string.IsNullOrEmpty(file?.GetValue<string>())) Invalid();
                 if (entry["project-consumer"] is JsonNode consumer) _ = consumer.GetValue<bool>();
+                if (entry["import-source"] is JsonNode imported && imported.GetValue<bool>())
+                {
+                    if (entry["source-files"] is not JsonArray { Count: > 0 } || string.IsNullOrEmpty(entry["source-volume"]?.GetValue<string>()) || string.IsNullOrEmpty(entry["source-file-id"]?.GetValue<string>())) Invalid();
+                    foreach (var file in entry["source-files"]!.AsArray()) if (string.IsNullOrEmpty(file?.GetValue<string>())) Invalid();
+                    if (entry["source-entrypoint-volume"] is not null || entry["source-entrypoint-file-id"] is not null)
+                        if (string.IsNullOrEmpty(entry["source-entrypoint-volume"]?.GetValue<string>()) || string.IsNullOrEmpty(entry["source-entrypoint-file-id"]?.GetValue<string>())) Invalid();
+                }
+                if (entry["global-preset"] is JsonNode globalPreset && string.IsNullOrWhiteSpace(globalPreset.GetValue<string>())) Invalid();
+                if (entry["import-pending"] is JsonNode pendingImport)
+                {
+                    if (pendingImport is not JsonArray) Invalid();
+                    var pendingNames = new HashSet<string>(StringComparer.Ordinal);
+                    foreach (var pending in pendingImport.AsArray())
+                        if (pending?.GetValue<string>() is not string key || string.IsNullOrWhiteSpace(key) || !pendingNames.Add(key)) Invalid();
+                }
                 if (entry["publication"] is JsonNode publication) Publication(publication);
                 if (entry["publications"] is JsonNode publications)
                 {

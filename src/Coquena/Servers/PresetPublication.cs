@@ -42,7 +42,7 @@ public sealed class PresetPublication(ScopeStore consumer, ScopeStore target, st
     public async Task<PublicationResult> PublishAsync(string recipeId, PublishedPreset[] presets, string combination,
         string recipeName, bool stopped, bool interactive, Func<string, bool> confirm,
         IPresetRouter? router, Action? validate = null, CancellationToken cancellation = default, Action<PublicationStage>? fault = null,
-        long? expectedConsumerRevision = null, bool skipWarmup = false)
+        long? expectedConsumerRevision = null, bool skipWarmup = false, bool resumeWarmup = false)
     {
         if (!interactive) throw new StorageException("interaction-required", "La publicación requiere interacción.");
         using var lifecycle = new ScopedServiceProcess(target).Lease(serviceId);
@@ -88,6 +88,18 @@ public sealed class PresetPublication(ScopeStore consumer, ScopeStore target, st
                 var failures = observed.Where(p => names.Contains(p!["id"]!.GetValue<string>()) && p["status"]?["failed"]?.GetValue<bool>() == true)
                     .Select(p => p!["id"]!.GetValue<string>()).ToArray();
                 if (failures.Length != 0) return new(true, true, failures);
+                if (resumeWarmup && !skipWarmup)
+                {
+                    var pendingWarmup = presets.Where(p => p.Warmup && observed.SingleOrDefault(o => o!["id"]!.GetValue<string>() == p.Name)?["status"]?["value"]?.GetValue<string>() != "loaded").ToArray();
+                    if (pendingWarmup.Length != 0)
+                    {
+                        if (!confirm(await router.ActivityAsync(pendingWarmup.Select(p => p.Name).ToArray(), cancellation))) throw new OperationCanceledException();
+                        var failed = new List<string>();
+                        foreach (var preset in pendingWarmup)
+                            if (!await router.WarmupAsync(preset.Name, cancellation)) failed.Add(preset.Name);
+                        if (failed.Count != 0) return new(true, true, failed.ToArray());
+                    }
+                }
             }
             return new(true);
         }

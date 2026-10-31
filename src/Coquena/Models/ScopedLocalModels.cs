@@ -37,7 +37,7 @@ public sealed partial class ScopedModels
         return type;
     }
 
-    public PreparedModel AddExternal(string path, string name, bool companion = false, string? originBase = null, string? type = null)
+    public PreparedModel AddExternal(string path, string name, bool companion = false, string? originBase = null, string? type = null, string? projectName = null)
     {
         type = ExternalType(name, companion, type);
         if (!path.EndsWith(".gguf", StringComparison.OrdinalIgnoreCase)) Fail("invalid-external-path");
@@ -45,10 +45,10 @@ public sealed partial class ScopedModels
         var unit = GgufInspection.Inspect(Path.GetFullPath(path, originBase));
         if (unit.Status is "invalid" or "unsupported") Fail("external-gguf-" + unit.Status);
         return RegisterExternal(unit.Expected, name, companion, relative: !context.IsGlobal && !Path.IsPathRooted(path) &&
-            string.Equals(Path.TrimEndingDirectorySeparator(originBase), context.Base, StringComparison.OrdinalIgnoreCase), type);
+            string.Equals(Path.TrimEndingDirectorySeparator(originBase), context.Base, StringComparison.OrdinalIgnoreCase), type, projectName);
     }
 
-    public PreparedModel PrepareLocal(ModelIntent intent, string? originBase = null)
+    public PreparedModel PrepareLocal(ModelIntent intent, string? originBase = null, bool allowNewRevision = false)
     {
         if (intent.Request is not null || intent.Files.Length == 0 || intent.Kind is not ("model" or "companion")) Fail("invalid-local-intent");
         var type = ExternalType(intent.Key, intent.Kind == "companion", intent.LocalType);
@@ -63,19 +63,52 @@ public sealed partial class ScopedModels
         {
             if (existing["removal-pending"]?.GetValue<bool>() == true) Fail("removal-pending");
             if (existing["ownership"]!.GetValue<string>() != "external") Fail("model-collision");
-            var installation = existing["installations"]!.AsArray().Single()!;
-            if (!ExternalPaths(installation).SequenceEqual(unit.Expected, StringComparer.OrdinalIgnoreCase) ||
-                existing["companion-type"]?.GetValue<string>() != type) Fail("model-collision");
+            var installation = existing["installations"]!.AsArray().LastOrDefault(i => ExternalPaths(i!).SequenceEqual(unit.Expected, StringComparer.OrdinalIgnoreCase) &&
+                (i!["companion-type"]?.GetValue<string>() ?? existing["companion-type"]?.GetValue<string>()) == type);
+            if (installation is null)
+            {
+                if (!allowNewRevision) Fail("model-collision");
+                var snapshot = store.Read(); var docs = RecipeRegistry.Next(snapshot);
+                if (docs["local/inventory.json"]["data"]!["resources"]!.AsArray().Any(r =>
+                    r!["kind"]!.GetValue<string>() is "model" or "companion" &&
+                    r["resource-id"]!.GetValue<string>() != existing["resource-id"]!.GetValue<string>() &&
+                    r["installations"]!.AsArray().Any(i => Paths(r, i!).Intersect(unit.Expected, StringComparer.OrdinalIgnoreCase).Any()))) Fail("model-collision");
+                if (Directory.Exists(context.PathFor("downloads")) && Transfers.Downloads.List().Any(o =>
+                    o.ScopePublication?.ResourceId.ToString("D") == existing["resource-id"]!.GetValue<string>())) Fail("resource-operation-pending");
+                var current = docs["local/inventory.json"]["data"]!["resources"]!.AsArray().Single(r => r!["resource-id"]!.GetValue<string>() == existing["resource-id"]!.GetValue<string>())!;
+                if (!JsonNode.DeepEquals(current, existing)) Fail("model-changed");
+                installation = new JsonObject { ["installation-id"] = ProjectDocuments.Id(), ["external"] = true,
+                    ["origin"] = "explicit", ["protected"] = true, ["integrity-status"] = "no-baseline",
+                    ["files"] = new JsonArray(unit.Expected.Select(p => (JsonNode?)new JsonObject { ["path"] = p,
+                        ["size"] = new FileInfo(p).Length, ["last-write-utc"] = File.GetLastWriteTimeUtc(p).Ticks }).ToArray()) };
+                if (type is not null)
+                {
+                    foreach (var previous in current["installations"]!.AsArray())
+                        if (previous!["companion-type"] is null) previous["companion-type"] = current["companion-type"]?.DeepClone();
+                    installation["companion-type"] = type; current["companion-type"] = type;
+                }
+                current["installations"]!.AsArray().Add(installation.DeepClone());
+                store.Commit(snapshot.Revision, docs);
+            }
+            else if (existing["companion-type"]?.GetValue<string>() != type)
+            {
+                if (!allowNewRevision) Fail("model-collision");
+                var snapshot = store.Read(); var docs = RecipeRegistry.Next(snapshot);
+                var current = docs["local/inventory.json"]["data"]!["resources"]!.AsArray().Single(r => r!["resource-id"]!.GetValue<string>() == existing["resource-id"]!.GetValue<string>())!;
+                if (!JsonNode.DeepEquals(current, existing)) Fail("model-changed");
+                current["companion-type"] = type;
+                store.Commit(snapshot.Revision, docs);
+            }
             prepared = new(existing["resource-id"]!.GetValue<string>(), installation["installation-id"]!.GetValue<string>(), unit.Expected[0]);
         }
         else prepared = RegisterExternal(unit.Expected, intent.Key, intent.Kind == "companion",
             !context.IsGlobal && intent.Files.All(p => !Path.IsPathRooted(p)) &&
-            string.Equals(Path.TrimEndingDirectorySeparator(originBase), context.Base, StringComparison.OrdinalIgnoreCase), type);
+            string.Equals(Path.TrimEndingDirectorySeparator(originBase), context.Base, StringComparison.OrdinalIgnoreCase), type, intent.ProjectName);
         BindExternal(intent.Key, intent.Kind, prepared);
         return prepared;
     }
 
-    private PreparedModel RegisterExternal(string[] paths, string name, bool companion, bool relative, string? type)
+    private PreparedModel RegisterExternal(string[] paths, string name, bool companion, bool relative, string? type, string? projectName = null)
     {
         var snapshot = store.Read();
         var resources = List().Concat(List(true)).ToArray();
@@ -104,6 +137,9 @@ public sealed partial class ScopedModels
             })
         };
         if (type is not null) resource["companion-type"] = type;
+        if (!context.IsGlobal && !name.Contains('/'))
+            resource["project-name"] = new RecipeRegistry(store).Recipes().FirstOrDefault()?.RegisteredName ?? projectName ??
+                (File.Exists(Path.Combine(context.Base, "coquena.yaml")) ? RecipeReader.ProjectName(new(context.Base)) : Path.GetFileName(context.Base));
         docs["local/inventory.json"]["data"]!["resources"]!.AsArray().Add((JsonNode)resource);
         store.Commit(snapshot.Revision, docs);
         return new(resourceId, installationId, paths[0]);
@@ -162,7 +198,7 @@ public sealed partial class ScopedModels
         {
             var intent = ModelIntent.FromRecipe(recipe).SingleOrDefault(i => i.Kind == reference.Kind && i.Key.Equals(reference.Name, StringComparison.OrdinalIgnoreCase))
                 ?? throw new ModelSourceException("unknown-resource-reference", "La referencia no existe en la receta.");
-            if (intent.Request is null) { cancellation.ThrowIfCancellationRequested(); return PrepareLocal(intent, recipe.Selection.Base); }
+            if (intent.Request is null) { cancellation.ThrowIfCancellationRequested(); return PrepareLocal(intent, recipe.Selection.Base, allowNewRevision: true); }
             return await PrepareAsync(intent, source, transport, interaction, inspector, cancellation);
         }
         var request = ModelRequest.Parse(reference.Name);

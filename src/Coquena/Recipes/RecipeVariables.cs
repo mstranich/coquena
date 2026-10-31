@@ -114,9 +114,9 @@ internal sealed partial class RecipeVariables(IReadOnlyDictionary<string, string
         return result.ToString();
     }
 
-    internal void Load(string file)
+    internal void Load(string file, byte[]? captured = null)
     {
-        var text = RecipeYaml.ReadText(file).Replace("\r\n", "\n");
+        var text = RecipeYaml.ReadText(file, captured: captured).Replace("\r\n", "\n");
         var lines = text.Split('\n');
         for (var index = 0; index < lines.Length; index++)
         {

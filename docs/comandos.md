@@ -316,9 +316,11 @@ Import nunca inicia, aun con force.
 
 Las categorías de import son `service,presets,model,params`, sin repetidos ni vacíos.
 Los selectores de reemplazo son `service:<nombre>`, `model:<clave>`,
-`companion:<clave>`, `preset:<name/clave>` y `param:<clave>`. Deben existir
+`companion:<clave>`, `preset:<clave>` y `param:<clave>`. Deben existir
 en la selección importada. El selector de servicio usa el name raíz; el de preset
-usa name/clave. Modelos, companions y parámetros mantienen sus claves sin prefijo.
+usa la clave global promovida, sin el prefijo del proyecto. Modelos y companions
+locales también pierden ese prefijo al importar; las identidades remotas se conservan.
+Los parámetros mantienen sus claves.
 `--force` no se combina con select/replace y no elimina entidades ausentes.
 
 Selectores de recursos para update/upgrade/verify: `backend`, `model:<clave>` y

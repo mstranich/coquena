@@ -20,7 +20,7 @@ reglas se describen en [servicios compartidos](servicios-recetas.md#compartir-un
 
 El estado local en `.coquena/` conserva la referencia y nombre de receta usados al cargar
 la receta. La home mantiene un índice de localización. Los nombres
-de servicios y presets creados permanecen hasta su baja y nueva alta explícitas;
+de servicios, presets y recursos locales creados permanecen hasta su baja y nueva alta explícitas;
 renombrar la carpeta no los cambia.
 
 El YAML expresa intención; los locks conservan resoluciones concretas. CLI, TUI y

@@ -108,6 +108,12 @@ if (args.Length >= 1 && args[0] == "--argument-echo")
 if (args.Length == 1 && args[0] == "--recipe-tests")
 { Coquena.Tests.RecipeTests.Run(); return; }
 
+if (args.Length == 1 && args[0] == "--recipe-import-tests")
+{ Coquena.Tests.RecipeImportTests.Run(); await Coquena.Tests.RecipeImportIntegrationTests.Run(); return; }
+
+if (args.Length == 4 && args[0] == "--recipe-import-runtime")
+{ await Coquena.Tests.RecipeImportRuntimeTests.Run(Path.GetFullPath(args[1]), Path.GetFullPath(args[2]), Path.GetFullPath(args[3])); return; }
+
 if (args.Length == 1 && args[0] == "--project-persistence-tests")
 { Coquena.Tests.ProjectPersistenceTests.Run(); return; }
 if (args.Length == 4 && args[0] == "--project-crash-worker")
@@ -319,6 +325,8 @@ Coquena.Tests.ServerRuntimeTests.Run(executable);
 Coquena.Tests.StorageTests.Run();
 Coquena.Tests.ProjectPersistenceTests.Run();
 Coquena.Tests.RecipeTests.Run();
+Coquena.Tests.RecipeImportTests.Run();
+await Coquena.Tests.RecipeImportIntegrationTests.Run();
 await Coquena.Tests.ScopedBackendTests.Run(executable);
 await Coquena.Tests.ScopedModelTests.Run(executable);
 await Coquena.Tests.ScopedLocalModelTests.Run(executable);

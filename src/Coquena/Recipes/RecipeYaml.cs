@@ -4,7 +4,7 @@ using YamlDotNet.Core.Events;
 
 namespace Coquena.Recipes;
 
-internal sealed class RecipeYaml(string file)
+internal sealed class RecipeYaml(string file, byte[]? captured = null)
 {
     internal const int MaxBytes = 16 * 1024 * 1024;
     private int nodes;
@@ -14,7 +14,7 @@ internal sealed class RecipeYaml(string file)
     {
         try
         {
-            parser = new Parser(new StringReader(ReadText(file, false)));
+            parser = new Parser(new StringReader(ReadText(file, false, captured)));
             parser.Consume<StreamStart>();
             if (parser.Accept<StreamEnd>(out _)) return RecipeValue.Map(new(file, 1, 1, "$"));
             var document = parser.Consume<DocumentStart>();
@@ -110,7 +110,7 @@ internal sealed class RecipeYaml(string file)
     }
     private RecipeException Fail(string code, ParsingEvent item, string path, string detail) => new(code, "yaml", new(file, checked((int)item.Start.Line), checked((int)item.Start.Column), path), detail);
 
-    internal static string ReadText(string path, bool utf8Only = true)
+    internal static byte[] ReadBytes(string path)
     {
         var origin = new RecipeOrigin(path, 1, 1, "$");
         try
@@ -126,7 +126,19 @@ internal sealed class RecipeYaml(string file)
                 if (bytes.Length + count > MaxBytes) throw new RecipeException("file-limit", "read", origin, "El archivo supera 16 MiB.");
                 bytes.Write(buffer, 0, count);
             }
-            var data = bytes.ToArray();
+            return bytes.ToArray();
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        { throw new RecipeException("file-unreadable", "read", origin, "No se pudo leer el archivo seleccionado."); }
+    }
+
+    internal static string ReadText(string path, bool utf8Only = true, byte[]? captured = null)
+    {
+        var origin = new RecipeOrigin(path, 1, 1, "$");
+        try
+        {
+            var data = captured ?? ReadBytes(path);
+            if (data.Length > MaxBytes) throw new RecipeException("file-limit", "read", origin, "El archivo supera 16 MiB.");
             var offset = data.AsSpan().StartsWith(new byte[] { 0xef, 0xbb, 0xbf }) ? 3 : 0;
             Encoding encoding = new UTF8Encoding(false, true);
             if (!utf8Only && offset == 0)
