@@ -52,8 +52,8 @@ internal static class ResourceVerificationTests
         File.WriteAllBytes(file, bytes);
         Check((await verifier.VerifyAsync([selected])).Verified, "restored bytes require successful verification");
         using var output = new StringWriter(); using var error = new StringWriter();
-        Check(Cli.Run(["verify", "--base", root, "--select", "model:unknown"], output, error) == 2, "unknown selector fails without auditing all resources");
-        Check(Cli.Run(["verify", "--base", root, "--select", "model:local"], output, error) == 2, "even valid resource filters require global scope");
+        Check(Cli.Run(["verify", "--base", root, "--select", "model://unknown"], output, error) == 2, "unknown selector fails without auditing all resources");
+        Check(Cli.Run(["verify", "--base", root, "--select", "model://local"], output, error) == 0, "valid resource URI filters the project scope");
         Check(Cli.Run(["verify", "--base", root], output, error) == 0, "CLI audits selected local resource without preparing");
         var revisionBeforeInvalid = store.Read().Revision;
         File.WriteAllText(yaml, "presets: [");
@@ -80,12 +80,25 @@ internal static class ResourceVerificationTests
             output.GetStringBuilder().Clear();
             Check(Cli.Run(["verify", "--global"], output, error) == 0 && !output.ToString().Contains("global-model"), "global default excludes unreferenced catalog installation");
             output.GetStringBuilder().Clear();
-            Check(Cli.Run(["verify", "--global", "--select", "model:global-model"], output, error) == 0 && output.ToString().Contains("verified"), "global selector can explicitly audit an unused resource");
+            Check(Cli.Run(["verify", "--global", "--select", "model://global-model"], output, error) == 0 && output.ToString().Contains("verified"), "global selector can explicitly audit an unused resource");
+            var canonicalFile = Path.Combine(root, "canonical-weights.gguf"); File.WriteAllBytes(canonicalFile, bytes);
+            var canonical = new ScopedModels(globalContext).AddExternal(canonicalFile, "fixture/repository:Q4_0");
+            await globalVerifier.SetBaselineAsync(canonical.ResourceId, canonical.InstallationId);
+            output.GetStringBuilder().Clear();
+            Check(Cli.Run(["verify", "--global", "--select", "model://fixture/repository:Q4_0"], output, error) == 0 &&
+                output.ToString().Contains(canonical.ResourceId) && !output.ToString().Contains(globalModel.ResourceId), "canonical URI audits exactly its registered model");
+            var globalStore = new ScopeStore(globalContext); var globalState = globalStore.Read();
+            var aliasDocs = globalState.Documents.ToDictionary(p => p.Key, p => ProjectDocuments.Create(p.Value["kind"]!.GetValue<string>(), p.Value["revision"]!.GetValue<long>() + 1, p.Value["data"]!.AsObject()));
+            aliasDocs["local/inventory.json"]["data"]!["model-aliases"] = new JsonArray((JsonNode)new JsonObject { ["key"] = "remote-alias", ["kind"] = "model", ["resource-id"] = canonical.ResourceId, ["installation-id"] = canonical.InstallationId });
+            globalStore.Commit(globalState.Revision, aliasDocs);
+            Check(Cli.Run(["verify", "--global", "--select", "model://remote-alias"], output, error) == 0, "local URI resolves an inventory alias even when unused");
+            var invalidRevision = globalStore.Read().Revision;
+            Check(Cli.Run(["verify", "--global", "--select", "model:global-model"], output, error) == 2 && globalStore.Read().Revision == invalidRevision, "legacy selector syntax fails without auditing the catalog");
             File.AppendAllText(globalFile, "global corruption");
             Check(Cli.Run(["verify", "--global", "--include-unused"], output, error) == 6, "global include-unused detects unreferenced corruption");
             File.WriteAllText(yaml, original);
             Check(Cli.Run(["verify", "--base", root], output, error) == 0, "project audit never includes corrupt global catalog resource");
-            Check(Cli.Run(["verify", "--global", "--include-unused", "--select", "model:unknown"], output, error) == 2, "unknown global selector cannot broaden audit");
+            Check(Cli.Run(["verify", "--global", "--include-unused", "--select", "model://unknown"], output, error) == 2, "unknown global selector cannot broaden audit");
             File.WriteAllBytes(globalFile, bytes);
         }
         finally { Environment.SetEnvironmentVariable("COQUENA_HOME", previousHome); }
@@ -148,6 +161,13 @@ internal static class ResourceVerificationTests
             using var invalid = System.Diagnostics.Process.Start(start)!;
             _ = await invalid.StandardOutput.ReadToEndAsync(); var invalidError = await invalid.StandardError.ReadToEndAsync(); await invalid.WaitForExitAsync();
             Check(invalid.ExitCode == 2 && invalidError.Contains("invalid-selection"), "published Native AOT rejects global-only flags in project scope");
+            var globalStart = new System.Diagnostics.ProcessStartInfo(product) { UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true };
+            globalStart.Environment["COQUENA_HOME"] = globalHome.Root;
+            foreach (var arg in new[] { "verify", "--global", "--select", "model://fixture/repository:Q4_0" }) globalStart.ArgumentList.Add(arg);
+            using var globalProcess = System.Diagnostics.Process.Start(globalStart)!;
+            var globalOut = await globalProcess.StandardOutput.ReadToEndAsync(); var globalError = await globalProcess.StandardError.ReadToEndAsync(); await globalProcess.WaitForExitAsync();
+            Check(globalProcess.ExitCode == 0 && globalOut.Contains("verified") && globalOut.Contains("fixture/repository:Q4_0") && !globalOut.Contains("global-model") && globalError.Length == 0,
+                "published Native AOT verifies exactly the model chosen by canonical URI");
         }
         Console.WriteLine($"Resource verification: {checks} checks passed.");
     }

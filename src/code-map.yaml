@@ -3,6 +3,24 @@
 # References describe intended behavior; verify actual behavior in code and tests.
 version: 1
 features:
+  - id: recipe-update-plans
+    intent: Consultar metadatos y conservar propuestas exactas locales sin modificar resoluciones ni archivos instalados.
+    keywords: [update, plan, latest, pin, rename, selection, alias]
+    entrypoints:
+      - src/Coquena/UpdateCli.cs
+    implementation:
+      - src/Coquena/Projects/RecipeUpdatePlans.cs
+      - src/Coquena/Projects/ResourceUpdateProbe.cs
+      - src/Coquena/Projects/ResourceSelector.cs
+      - src/Coquena/Models/ModelUpdater.cs
+    tests:
+      - tests/Coquena.Tests/RecipeUpdateTests.cs
+      - tests/Coquena.Tests/BackendAliasTests.cs
+    references:
+      - docs/actualizacion-y-limpieza.md
+      - docs/modelos-y-companions.md
+      - docs/comandos.md
+
   - id: recipe-resource-verification
     intent: Auditar recetas y recursos sin reparar, conservar observaciones locales y bloquear nuevos inicios por fallos conocidos.
     keywords: [verify, integrity, sha256, baseline, include-unused, select]
@@ -11,12 +29,14 @@ features:
       - src/Coquena/ScopedModelCli.cs
     implementation:
       - src/Coquena/Projects/ResourceVerification.cs
+      - src/Coquena/Projects/ResourceSelector.cs
       - src/Coquena/Projects/CombinationPreparation.cs
       - src/Coquena/Projects/ImportedResolutions.cs
       - src/Coquena/Models/FileIntegrity.cs
       - src/Coquena/Servers/ScopedServiceRecovery.cs
     tests:
       - tests/Coquena.Tests/ResourceVerificationTests.cs
+      - tests/Coquena.Tests/BackendAliasTests.cs
     references:
       - docs/actualizacion-y-limpieza.md
       - docs/modelos-y-companions.md

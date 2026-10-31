@@ -169,6 +169,31 @@ public static class ProjectDocuments
                     if (string.IsNullOrWhiteSpace(path?.GetValue<string>())) Invalid();
             }
         }
+        else if (kind == "update-plan")
+        {
+            if (data["plans"] is not JsonObject plans) { Invalid(); return; }
+            foreach (var pair in plans)
+            {
+                if (!ScopeStore.IsCombinationId(pair.Key) || pair.Value is not JsonObject plan) { Invalid(); return; }
+                Uuid(plan["scope-id"]);
+                if (plan["combination-id"]?.GetValue<string>() != pair.Key || plan["base-revision"]?.GetValue<long>() is not >= 0 ||
+                    !DateTimeOffset.TryParse(plan["created-at"]?.GetValue<string>(), out _) ||
+                    plan["intent-hmac"]?.GetValue<string>() is not string intent || !ScopeStore.IsCombinationId(intent) ||
+                    plan["resolution-hmac"]?.GetValue<string>() is not string resolution || !ScopeStore.IsCombinationId(resolution) ||
+                    plan["selectors"] is not JsonArray || plan["resources"] is not JsonArray) Invalid();
+                foreach (var selector in plan["selectors"]!.AsArray())
+                    try { _ = ResourceSelector.Parse(selector!.GetValue<string>()); }
+                    catch (Exception e) when (e is ArgumentException or Coquena.Models.ModelSourceException) { Invalid(); }
+                foreach (var resource in plan["resources"]!.AsArray())
+                {
+                    if (resource?["kind"]?.GetValue<string>() is not ("backend" or "model" or "companion") ||
+                        string.IsNullOrWhiteSpace(resource["key"]?.GetValue<string>()) ||
+                        resource["status"]?.GetValue<string>() is not ("not-applicable" or "not-prepared" or "inconclusive" or "unchanged" or "update-available" or "intervention-required" or "orphaned" or "query-failed")) Invalid();
+                    if (resource!["installation-id"] is not null) { Uuid(resource["installation-id"]); Uuid(resource["resource-id"]); }
+                    if (resource["proposed"] is not null && resource["status"]!.GetValue<string>() != "update-available") Invalid();
+                }
+            }
+        }
         else if (kind == "operation") Uuid(data["operation-id"]);
     }
 

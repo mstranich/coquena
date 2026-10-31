@@ -14,6 +14,15 @@ admisibles por el router.
 La receta admite como máximo un bloque `service`, cuyo nombre es el name efectivo
 de raíz; no declara otro nombre dentro del bloque ni admite una lista o mapa de
 varios servicios. `service` define backend y configuración del proceso.
+Su backend puede tener un alias independiente mediante `service.backend.name`;
+si se omite, el alias es el nombre efectivo de la receta. `backend://alias` se
+resuelve dentro del ámbito elegido, y `backend://proyecto/alias` lo califica con
+el nombre efectivo de la receta, sin buscar otro ámbito ni descubrir carpetas.
+La importación conserva el alias y esa calificación. Un alias global ambiguo
+requiere la forma calificada; no selecciona varios servicios por semejanza.
+Las referencias de variante oficial, como `backend://cuda@13`, identifican la
+variante, no un alias coincidente; un alias con ese nombre requiere calificación.
+El alias no adopta archivos externos ni convierte un backend en oficial.
 `presets` es otro bloque raíz: sus entidades se registran independientemente y se
 publican en el target seleccionado. No se anidan dentro de service ni pertenecen
 al servicio por estar en la misma receta. Un preset resumen de la receta noticias

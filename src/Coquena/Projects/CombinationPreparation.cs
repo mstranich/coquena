@@ -7,7 +7,7 @@ using Coquena.Storage;
 
 namespace Coquena.Projects;
 
-public sealed record PreparationRequest(string Key, string Kind, RecipeValue Intent, ArgumentReference? Reference = null, bool SensitiveSelection = false, string? ProjectName = null);
+public sealed record PreparationRequest(string Key, string Kind, RecipeValue Intent, ArgumentReference? Reference = null, bool SensitiveSelection = false, string? ProjectName = null, string? Alias = null);
 public sealed record PreparationResource(string Key, string Kind, string ResourceId, string InstallationId, string EntryPath, JsonObject Resolution);
 public sealed record PreparationTarget(ScopeStore Store, string ServiceId);
 public sealed record PreparedCombination(string Id, bool Private, long Revision, IReadOnlyList<PreparationResource> Resources, bool ProcessOnly = false);
@@ -321,7 +321,9 @@ public sealed class CombinationPreparation(ScopeContext context)
     internal static List<PreparationRequest> Requests(EffectiveRecipe recipe, IReadOnlyList<ValidatedArgumentBlock> blocks)
     {
         var result = new Dictionary<string, PreparationRequest>(StringComparer.OrdinalIgnoreCase);
-        if (recipe.Root.Get("service")?.Get("backend") is { } backend) result["backend:backend"] = new("backend", "backend", backend, ProjectName: recipe.Name);
+        if (recipe.Root.Get("service")?.Get("backend") is { } backend)
+            result["backend:backend"] = new("backend", "backend", backend.WithFields(backend.Fields.Where(p => p.Key != "name").ToDictionary(StringComparer.Ordinal)),
+                SensitiveSelection: backend.Get("name")?.Sensitive == true, ProjectName: recipe.Name, Alias: backend.Get("name")?.Text ?? recipe.Name);
         foreach (var block in blocks.Where(b => b.Scope != "preset" || recipe.PresetEnabled(b.Key)))
             foreach (var argument in block.Arguments.Values)
             {

@@ -37,11 +37,17 @@ internal static class CliHelp
           download                         Consultar y controlar descargas
           preset                           Crear y configurar presets de modelos
           service (server)                 Administrar servicios y su ejecución
-          import <receta.yaml>             Promover intención al ámbito global sin iniciar
-          verify                            Comprobar receta y recursos de este proyecto
+          import <receta.yaml>             Importar intención global sin iniciar
+          update [--global]               Consultar novedades y guardar un plan
+            --select referencia           Filtrar recursos; opción repetible
+          verify [--select referencia]     Comprobar receta y recursos del proyecto
           verify --global                   Auditar definiciones y recursos globales
             --select recurso                Elegir recurso global; opción repetible
             --include-unused                Incluir instalaciones globales no usadas
+            Referencias: backend://cuda@12, model://clave, companion://clave.
+            Backend por alias: backend://alias o backend://proyecto/alias.
+            También model://autor/repositorio:cuantización.
+            Companions: companion://autor/repositorio#tipo:cuantización.
           up [--start-service]             Publicar presets de la combinación elegida
           down                             Retirar presets propios sin detener servicio
           apply|withdraw <clave>           Publicar o retirar un preset individual
@@ -55,9 +61,12 @@ internal static class CliHelp
           --select service,presets,model,params  Importar sólo categorías declaradas
           --as-default                     Designar el servicio importado predeterminado
           --replace <entidad>               Autorizar reemplazo; opción repetible
-          --force                          Reemplazar conflictos; incompatible con select/replace
-            Selectores: service:nombre, preset:clave, model:clave, companion:clave, param:clave.
-            Presets y recursos locales pierden el prefijo del proyecto; remotos lo conservan.
+          --force                          Reemplazar conflictos
+            Incompatible con --select y --replace.
+            Selectores: service:nombre, preset:clave, model:clave,
+            companion:clave, param:clave.
+            Presets y recursos locales pierden el prefijo del proyecto.
+            Los recursos remotos lo conservan.
 
         Publicación:
           preset apply|withdraw <clave>     Equivalente a los atajos apply/withdraw

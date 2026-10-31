@@ -72,7 +72,8 @@ internal static partial class RecipeStructure
             Object(value, "backend server recovery");
             Field(value, "backend", backend =>
             {
-                Object(backend, "version variant executable");
+                Object(backend, "name version variant executable");
+                Field(backend, "name", Text);
                 Field(backend, "version", Text); Field(backend, "variant", Text); Field(backend, "executable", Text);
             });
             Field(value, "server", server =>
@@ -207,6 +208,8 @@ internal static partial class RecipeStructure
             if (external is null ? version is null || variant is null : version is not null || variant is not null)
                 throw backend.Error("invalid-backend-selection", "validation", "Usar version y variant, o executable, excluyentes.");
             foreach (var child in backend.Fields.Values) Nonempty(child);
+            if (backend.Get("name") is { } alias && (alias.Text!.IndexOfAny([':', '/', '\\']) >= 0 || alias.Text.Any(char.IsControl)))
+                throw alias.Error("invalid-backend-name", "validation", "El alias del backend es un componente, sin separadores.");
             if (service.Get("server")?.Get("health")?.Get("interval-ms") is { } interval &&
                 (BigInteger.Parse(interval.Text!, CultureInfo.InvariantCulture) < 100 || BigInteger.Parse(interval.Text!, CultureInfo.InvariantCulture) > 10000))
                 throw interval.Error("invalid-health-interval", "validation", "Interval-ms debe estar entre 100 y 10000.");

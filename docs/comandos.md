@@ -299,7 +299,7 @@ ps [-w|--watch]
 logs [list|follow|show <log-id>] [-f]
 update [--select <recurso>]...
 upgrade [--select <recurso>]...
-verify
+verify [--select <recurso>]...
 verify --global [--select <recurso>]... [--include-unused]
 clean [--dry-run|--yes]
 combination list|forget <combination-id>
@@ -328,19 +328,33 @@ locales también pierden ese prefijo al importar; las identidades remotas se con
 Los parámetros mantienen sus claves.
 `--force` no se combina con select/replace y no elimina entidades ausentes.
 
-Selectores de recursos para update/upgrade y verify --global: `backend`, `model:<clave>` y
-`companion:<clave>`, repetibles como unión. Sin select se usa la combinación
-seleccionada; un selector desconocido no amplía al conjunto completo. Un plan
-parcial nuevo no autoriza aplicar propuestas excluidas. `combination forget`
+Selectores de recursos para update/upgrade y verify: referencias
+`backend://<variante>`, `backend://<alias>`, `backend://<proyecto>/<alias>`,
+`model://<clave>` y `companion://<clave>`, repetibles como unión.
+El ámbito lo define el contexto de proyecto o `--global`; calificar un alias no
+cambia el ámbito de búsqueda. Alias, calificación y ambigüedad se definen en
+[servicios y recetas](servicios-recetas.md#nombres-y-destino).
+Por ejemplo, `--select backend://cuda@12` selecciona esa variante en el ámbito elegido;
+puede corresponder a más de un servicio global. Para modelos y companions también
+se admite la identidad remota completa: `model://unsloth/LFM2.5-8B-A1B-GGUF:UD-IQ1_M`
+o `companion://autor/repositorio#mmproj:BF16`. El tipo debe coincidir con el esquema
+y la identidad remota debe incluir cuantización. Las claves locales se resuelven
+dentro del ámbito, sin buscar recursos de otros proyectos ni del target global.
+Estas referencias seleccionan recursos existentes en la combinación o catálogo;
+no son solicitudes de descarga ni cambian la selección declarada.
+Sin select se usa la combinación seleccionada; con `--global`, las intenciones
+registradas del catálogo global. Un selector desconocido no amplía al conjunto completo.
+Un plan parcial nuevo no autoriza aplicar propuestas excluidas. `combination forget`
 requiere ID completo del ámbito y no olvida una instancia activa ni retira presets.
 
 En proyecto, verify comprueba la receta completa de la combinación elegida y los
-recursos que utiliza; no admite `--select` ni `--include-unused`. No audita el
+recursos que utiliza; `--select` permite limitar esos recursos. No admite
+`--include-unused`. No audita el
 backend de un servicio target global ni los recursos de otros proyectos.
 Con `--global`, comprueba las definiciones y recursos usados del catálogo global;
 `--select` limita la comprobación a recursos de ese catálogo y permite elegir uno
 instalado sin uso. `--include-unused` agrega las instalaciones del inventario global
-que no estén utilizadas. Ambos flags son exclusivos del ámbito global.
+que no estén utilizadas. Sólo `--include-unused` es exclusivo del ámbito global.
 
 Set recibe entidad, argumento y valor YAML escalar/lista como un argumento de CLI:
 `preset set charla ctx-size 8192`, `preset set charla texto '"8192"'`.

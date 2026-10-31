@@ -39,10 +39,15 @@ Política de [servidores](servidores.md#recuperación-y-fallos).
 ## Verificación y bloqueos
 
 Verify comprueba la definición de la receta seleccionada y la existencia/integridad
-de los recursos que utiliza en su proyecto. No audita los recursos de su target global.
-`verify --global` comprueba las definiciones y recursos del ámbito global; sólo en
-ese ámbito admite `--select` para elegir recursos y `--include-unused` para incluir
-instalaciones no utilizadas del inventario global. SHA-256 completo por archivo
+de los recursos que utiliza en su proyecto. `--select` limita la comprobación de
+recursos dentro de esa combinación, sin omitir la validación de su definición.
+No audita los recursos de su target global. `verify --global` comprueba las
+definiciones y recursos del ámbito global; admite `--select` para elegir recursos
+de ese ámbito y `--include-unused` para incluir instalaciones no utilizadas del
+inventario global. Sólo `--include-unused` requiere el ámbito global.
+Los alias de backend y su calificación se resuelven según
+[servicios y recetas](servicios-recetas.md#nombres-y-destino).
+SHA-256 completo por archivo
 contra referencia, incluyendo binarios/dependencias gestionados, modelos/shards y
 companions. No equivale a autenticidad del publicador.
 

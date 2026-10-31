@@ -249,7 +249,8 @@ internal static class RecipeImportIntegrationTests
         }
         Integrity("invalid"); var beforeIntegrity = File.ReadAllText(context.PathFor("recipe.yaml"));
         try { await importer.ImportAsync(new(sourceDir, [integrityPath]), provider, force: true, environment: environment); throw new Exception("Expected invalid integrity"); }
-        catch (StorageException e) { Check(e.Code == "resource-integrity-invalid" && File.ReadAllText(context.PathFor("recipe.yaml")) == beforeIntegrity && File.Exists(newWeight), "force cannot bypass known integrity or repair external files"); }
+        catch (Exception e) when (e is StorageException { Code: "resource-integrity-invalid" } or ModelSourceException { Code: "model-integrity-invalid" })
+        { Check(File.ReadAllText(context.PathFor("recipe.yaml")) == beforeIntegrity && File.Exists(newWeight), "force cannot bypass known integrity or repair external files"); }
         Integrity("no-baseline");
 
         await fakeRouter.ReloadAsync(default);

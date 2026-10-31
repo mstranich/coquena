@@ -8,19 +8,21 @@ using Coquena.Storage;
 
 namespace Coquena.Backends;
 
-public sealed record BackendIntent(string? Version = null, string? Variant = null, string? Executable = null, bool Sensitive = false)
+public sealed record BackendIntent(string? Version = null, string? Variant = null, string? Executable = null, bool Sensitive = false, string? Name = null)
 {
     public static BackendIntent FromRecipe(EffectiveRecipe recipe)
     {
         var value = recipe.Root.Get("service")?.Get("backend") ??
             throw new BackendException("backend-required", "La receta no define backend propio.");
-        var intent = new BackendIntent(value.Get("version")?.Text, value.Get("variant")?.Text, value.Get("executable")?.Text, value.Fields.Values.Any(v => v.Sensitive));
+        var intent = new BackendIntent(value.Get("version")?.Text, value.Get("variant")?.Text, value.Get("executable")?.Text, value.Fields.Values.Any(v => v.Sensitive), value.Get("name")?.Text);
         intent.Validate();
         return intent;
     }
 
     public void Validate()
     {
+        if (Name is not null && (string.IsNullOrWhiteSpace(Name) || Name.Any(char.IsControl) || Name.IndexOfAny([':', '/', '\\']) >= 0))
+            throw new BackendException("invalid-backend-name", "Alias de backend inválido.");
         if (Executable is not null)
         {
             if (string.IsNullOrWhiteSpace(Executable) || Executable.Any(char.IsControl) || Version is not null || Variant is not null)
@@ -34,9 +36,13 @@ public sealed record BackendIntent(string? Version = null, string? Variant = nul
         }
     }
 
-    internal JsonObject Document() => Executable is null
-        ? new() { ["version"] = Version, ["variant"] = Variant }
-        : new() { ["executable"] = Executable };
+    internal JsonObject Document()
+    {
+        var result = Executable is null ? new JsonObject { ["version"] = Version, ["variant"] = Variant }
+            : new JsonObject { ["executable"] = Executable };
+        if (Name is not null) result["name"] = Name;
+        return result;
+    }
 }
 
 public sealed record PreparedBackend(string ResourceId, string InstallationId, string Executable,
@@ -335,8 +341,12 @@ public sealed class ScopedBackends(ScopeContext context,
             ?? throw new BackendException("unknown-service", "Servicio no registrado en el ámbito.")
             : throw new BackendException("unknown-service", "Servicio no registrado en el ámbito.");
     private JsonNode? FindIntent(JsonArray intents, BackendIntent intent, string originBase) => intents.SingleOrDefault(i =>
-        JsonNode.DeepEquals(i!["intent"], intent.Document()) && (!context.IsGlobal || intent.Executable is null ||
+        JsonNode.DeepEquals(WithoutAlias(i!["intent"]!), (intent with { Name = null }).Document()) && (!context.IsGlobal || intent.Executable is null ||
             string.Equals(i["origin-base"]!.GetValue<string>(), originBase, StringComparison.OrdinalIgnoreCase)));
+    private static JsonObject WithoutAlias(JsonNode intent)
+    {
+        var physical = intent.DeepClone().AsObject(); physical.Remove("name"); return physical;
+    }
     private void EnsureInventory()
     {
         var snapshot = store.Read();

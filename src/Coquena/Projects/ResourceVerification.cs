@@ -5,7 +5,7 @@ using Coquena.Storage;
 
 namespace Coquena.Projects;
 
-public sealed record VerificationSelection(string Key, string Kind, string? ResourceId, string? InstallationId, string[]? Paths = null);
+public sealed record VerificationSelection(string Key, string Kind, string? ResourceId, string? InstallationId, string[]? Paths = null, PreparationRequest? Request = null);
 public sealed record VerificationReport(JsonArray Resources, bool Verified);
 
 // Observations belong to the local inventory, never to portable resolutions.

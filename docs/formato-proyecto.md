@@ -56,7 +56,7 @@ Companion requiere type según los roles del [catálogo de recursos](modelos-y-c
 
 | Bloque | Campos y tipos |
 | --- | --- |
-| service.backend | version y variant (strings del oficial), o executable (ruta string), excluyentes. |
+| service.backend | name (alias string opcional); version y variant (strings del oficial), o executable (ruta string), excluyentes. |
 | service.server.args | Mapa de argumento a escalar, lista tipada o envoltura literal, según parámetros. |
 | service.server.logs | directory (ruta string), retention con max-bytes (entero positivo). Default en estado del servicio y retención global. |
 | service.server.hooks | start-failed con command (ruta string) y args (lista de strings, default vacía). |
@@ -174,6 +174,13 @@ Publicación, carga y diagnóstico siguen el contrato de
 
 ## Backend
 
+`service.backend.name` declara un alias opcional para seleccionar el backend.
+No cambia el nombre del servicio ni crea otra instalación. Si se omite, se usa
+el nombre efectivo de la receta como alias. Puede declararse tanto en un backend
+oficial como en uno externo; el alias no determina su propiedad ni su origen.
+Su calificación por proyecto y su conservación al importar se describen en
+[servicios y recetas](servicios-recetas.md#nombres-y-destino).
+
 `version` y `variant` seleccionan exclusivamente el backend oficial. La variante
 conserva su calificador, como `cuda@12` o `cuda@13`. Son filtros de selección, no
 órdenes de volver a descargar recursos ya preparados válidos. El lock fija el build.
@@ -184,11 +191,14 @@ La alternativa local es excluyente:
 ```yaml
 service:
   backend:
+    name: mi-backend
     executable: ./bin/llama-server.exe
 ```
 
 El ejecutable aportado admite ruta relativa a la base o absoluta; conserva
-propiedad del usuario y no admite filtros, seguimiento, update ni upgrade gestionados.
+propiedad del usuario y no admite filtros de versión/variante, seguimiento,
+update ni upgrade gestionados. Puede seleccionarse por alias para verificarlo;
+update informa que no le corresponde actualización gestionada.
 No se infiere compatibilidad con INI, router o APIs por su nombre o por su catálogo
 de argumentos. Las capacidades se comprueban según [servidores](servidores.md).
 Cada capa que declara `service.backend` reemplaza ese bloque completo; las otras
