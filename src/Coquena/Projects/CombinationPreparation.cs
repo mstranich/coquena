@@ -25,6 +25,52 @@ public sealed class CombinationPreparation(ScopeContext context)
     private const string LocalIndex = "local/combinations.json";
     private const string SharedIndex = "combinations.json";
 
+    internal static VerificationSelection VerificationBinding(ScopeContext context, EffectiveRecipe recipe, PreparationRequest request, bool privateSelection)
+    {
+        var state = new ScopeStore(context).Read();
+        var identity = CombinationIdentity.FromSelection(recipe.Selection, privateSelection);
+        var entry = state.Documents.GetValueOrDefault(LocalIndex)?["data"]?["combinations"]?[identity.Id];
+        var keyPath = context.PathFor("local/intent.key");
+        if (File.Exists(keyPath))
+        {
+            var key = File.ReadAllBytes(keyPath);
+            var name = request.Kind + ":" + request.Key;
+            foreach (var source in new[] { entry, entry?["service-preparation"] })
+                if (key.Length == 32 && source?["key-id"]?.GetValue<string>() == KeyId(key) &&
+                    source["intent-hmacs"]?[name]?.GetValue<string>() == Hmac(key, Expanded(request.Intent).ToJsonString()))
+                {
+                    var binding = source["bindings"]?.AsArray().SingleOrDefault(b => b!["kind"]!.GetValue<string>() == request.Kind &&
+                        b["key"]!.GetValue<string>().Equals(request.Key, StringComparison.OrdinalIgnoreCase));
+                    if (binding is not null) return new(request.Key, request.Kind, binding["resource-id"]!.GetValue<string>(), binding["installation-id"]!.GetValue<string>());
+                }
+        }
+        if (context.IsGlobal && ImportedResolutions.Binding(context, request, recipe.Name) is { } imported) return imported;
+        // An explicit local definition can be audited without preparing or registering it.
+        var resources = state.Documents.GetValueOrDefault("local/inventory.json")?["data"]?["resources"] as JsonArray ?? [];
+        var localPaths = request.Kind == "backend" ? request.Intent.Get("executable") is { } executable ? new[] { executable.Text! } : []
+            : request.Intent.Get("repository") is null ? request.Intent.Get("files")?.Items.Select(f => f.Text!).ToArray() ?? [] : [];
+        var modelIntent = request.Kind == "backend" ? null : ModelIntent.FromRecipe(recipe).SingleOrDefault(i => i.Kind == request.Kind && i.Key.Equals(request.Key, StringComparison.OrdinalIgnoreCase));
+        var remote = modelIntent?.Request;
+        var canonical = request.Reference?.Canonical == true ? request.Key : remote?.Quantization is not null
+            ? remote.Repository + (remote.CompanionType is null ? "" : "#" + remote.CompanionType) + ":" + remote.Quantization : null;
+        foreach (var resource in resources.Where(r => r!["kind"]!.GetValue<string>() == request.Kind))
+            foreach (var installation in resource!["installations"]!.AsArray().Reverse())
+            {
+                var external = resource["ownership"]!.GetValue<string>() == "external";
+                var files = request.Kind == "backend" && external ? new[] { installation!["executable"]!.GetValue<string>() }
+                    : installation!["files"]!.AsArray().Select(f => f!["path"]!.GetValue<string>()).ToArray();
+                if (external && (localPaths.Length > 0 && localPaths.Select(recipe.Selection.ResolvePath).SequenceEqual(files.Select(p => Path.GetFullPath(p, context.Base)), StringComparer.OrdinalIgnoreCase) ||
+                    request.Reference?.Canonical == true && resource["logical-key"]!.GetValue<string>().Equals(request.Key, StringComparison.OrdinalIgnoreCase)))
+                    return new(request.Key, request.Kind, resource["resource-id"]!.GetValue<string>(), installation!["installation-id"]!.GetValue<string>());
+                var recorded = installation["selection"]?["modelSelection"];
+                if (!external && canonical is not null && resource["logical-key"]!.GetValue<string>().Equals(canonical, StringComparison.OrdinalIgnoreCase) &&
+                    recorded?["requestedRevision"]?.GetValue<string>() == (modelIntent?.Revision ?? "main") &&
+                    (modelIntent?.Files.Length is null or 0 || modelIntent.Files.SequenceEqual(recorded["files"]!.AsArray().Select(f => f!["path"]!.GetValue<string>()))))
+                    return new(request.Key, request.Kind, resource["resource-id"]!.GetValue<string>(), installation!["installation-id"]!.GetValue<string>());
+            }
+        return new(request.Key, request.Kind, null, null, localPaths.Select(recipe.Selection.ResolvePath).ToArray());
+    }
+
     public JsonObject List()
     {
         var snapshot = store.Read();
@@ -272,7 +318,7 @@ public sealed class CombinationPreparation(ScopeContext context)
         return store.Read();
     }
 
-    private static List<PreparationRequest> Requests(EffectiveRecipe recipe, IReadOnlyList<ValidatedArgumentBlock> blocks)
+    internal static List<PreparationRequest> Requests(EffectiveRecipe recipe, IReadOnlyList<ValidatedArgumentBlock> blocks)
     {
         var result = new Dictionary<string, PreparationRequest>(StringComparer.OrdinalIgnoreCase);
         if (recipe.Root.Get("service")?.Get("backend") is { } backend) result["backend:backend"] = new("backend", "backend", backend, ProjectName: recipe.Name);

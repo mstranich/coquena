@@ -104,6 +104,9 @@ public sealed partial class ScopedModels
         else prepared = RegisterExternal(unit.Expected, intent.Key, intent.Kind == "companion",
             !context.IsGlobal && intent.Files.All(p => !Path.IsPathRooted(p)) &&
             string.Equals(Path.TrimEndingDirectorySeparator(originBase), context.Base, StringComparison.OrdinalIgnoreCase), type, intent.ProjectName);
+        var selected = List(intent.Kind == "companion").Single(r => r!["resource-id"]!.GetValue<string>() == prepared.ResourceId)!
+            ["installations"]!.AsArray().Single(i => i!["installation-id"]!.GetValue<string>() == prepared.InstallationId)!;
+        if (selected["integrity-status"]?.GetValue<string>() is "invalid" or "mismatch") Fail("model-integrity-invalid");
         BindExternal(intent.Key, intent.Kind, prepared);
         return prepared;
     }

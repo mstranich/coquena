@@ -9,6 +9,14 @@ namespace Coquena.Projects;
 // A scope HMAC binds the expanded intent without exporting secret fingerprints.
 internal static class ImportedResolutions
 {
+    internal static VerificationSelection? Binding(ScopeContext context, PreparationRequest request, string serviceName)
+    {
+        var selector = Selector(request, serviceName);
+        var record = new ScopeStore(context).Read().Documents.GetValueOrDefault("local/recipes.json")?["data"]?["import-resolutions"]?.AsObject()
+            .SingleOrDefault(p => p.Key.Equals(selector, Comparison(request))).Value;
+        return record is not null && record["fingerprint"]?.GetValue<string>() == Fingerprint(context, request)
+            ? new(request.Key, request.Kind, record["resource-id"]!.GetValue<string>(), record["installation-id"]!.GetValue<string>()) : null;
+    }
     internal static string? Selector(PreparationRequest request, string? serviceName) => request.Kind == "backend"
         ? (serviceName ?? request.ProjectName) is string name ? "service:" + name + ":backend" : null
         : request.Kind + ":" + request.Key;

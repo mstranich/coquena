@@ -182,7 +182,11 @@ public sealed partial class ScopedModels(ScopeContext context)
                 var prior = ReadSelection(installation!);
                 if (prior.Commit == selected.Selection.Commit && !Same(prior, selected.Selection)) Fail("canonical-selection-collision");
                 if (!Same(prior, selected.Selection)) continue;
-                if (installation!["integrity-status"]?.GetValue<string>() is "invalid" or "mismatch") Fail("model-integrity-invalid");
+                if (installation!["integrity-status"]?.GetValue<string>() is "invalid" or "mismatch")
+                {
+                    if (explicitlyRequested) continue;
+                    Fail("model-integrity-invalid");
+                }
                 var observed = ObserveInstallation(installation!);
                 if (observed["observed-availability"]!.GetValue<string>() != "available")
                 {

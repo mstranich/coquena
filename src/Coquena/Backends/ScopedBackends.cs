@@ -161,11 +161,14 @@ public sealed class ScopedBackends(ScopeContext context,
         if (expectedSelection is not null && !JsonNode.DeepEquals(SelectionNode(expectedSelection), SelectionNode(selected)))
             throw new BackendException("artifact-changed", "Los artefactos del build fijado cambiaron; no se reemplaza su resolución.");
         foreach (var resource in List())
-            foreach (var installation in resource!["installations"]!.AsArray())
+            foreach (var installation in resource!["installations"]!.AsArray().Reverse())
                 if (resource["ownership"]!.GetValue<string>() == "managed" && SameSelection(installation!, selected))
                 {
                     if (installation!["integrity-status"]?.GetValue<string>() is "invalid" or "mismatch")
+                    {
+                        if (explicitlyRequested) continue;
                         throw new BackendException("backend-integrity-invalid", "Integridad inválida conocida; no se redescarga automáticamente.");
+                    }
                     if (expectedSelection is not null && MissingManagedFiles(installation)) continue;
                     if (!Directory.Exists(context.PathFor(installation["location"]!.GetValue<string>()))) continue;
                     var result = await ReadPrepared(resource, installation!, hardware, force, null, cancellation);

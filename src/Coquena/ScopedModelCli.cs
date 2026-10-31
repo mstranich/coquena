@@ -15,11 +15,11 @@ public static class ScopedModelCli
     {
         var companion = args.Length > 0 && args[0] == "companion";
         if (companion) args = args[1..];
-        if (args.Length == 0) { output.WriteLine("model [companion]: list, show, add, download, remove, protect, unprotect."); return 0; }
+        if (args.Length == 0) { output.WriteLine("model [companion]: list, show, add, download, verify, baseline, remove, protect, unprotect."); return 0; }
         try
         {
             var action = args[0];
-            if (action is not ("list" or "show" or "add" or "download" or "remove" or "protect" or "unprotect")) return Invalid(error);
+            if (action is not ("list" or "show" or "add" or "download" or "remove" or "protect" or "unprotect" or "verify" or "baseline")) return Invalid(error);
             var global = false; var json = false; var tryMatch = false; string? basePath = null, value = null, name = null, type = null;
             var files = new List<string>(); var env = new List<string>(); var seen = new HashSet<string>();
             for (var i = 1; i < args.Length; i++)
@@ -47,6 +47,23 @@ public static class ScopedModelCli
             var selection = global ? null : new RecipeSelection(Environment.CurrentDirectory, files, basePath, env);
             var context = global ? ScopeContext.Global(Home.Resolve()) : ScopeContext.Project(selection!.Files[0], selection.Base);
             var models = new ScopedModels(context);
+            if (action is "verify" or "baseline")
+            {
+                if (value is null || tryMatch || name is not null || type is not null) return Invalid(error);
+                value = models.ResolveKey(value, companion);
+                var resource = models.List(companion).SingleOrDefault(r => r!["logical-key"]!.GetValue<string>().Equals(value, StringComparison.OrdinalIgnoreCase) || r["resource-id"]!.GetValue<string>() == value)
+                    ?? throw new ModelSourceException("unknown-resource", "Recurso inexistente en el ámbito.");
+                var installation = resource["installations"]!.AsArray().Last()!;
+                var verifier = new ResourceVerification(context);
+                var resourceId = resource["resource-id"]!.GetValue<string>(); var installationId = installation["installation-id"]!.GetValue<string>();
+                if (action == "baseline")
+                {
+                    output.WriteLine(verifier.SetBaselineAsync(resourceId, installationId).GetAwaiter().GetResult().ToJsonString());
+                    return 0;
+                }
+                var report = verifier.VerifyAsync([new(value!, companion ? "companion" : "model", resourceId, installationId)]).GetAwaiter().GetResult();
+                output.WriteLine(report.Resources.ToJsonString()); return report.Verified ? 0 : 6;
+            }
             if (action == "add")
             {
                 var added = models.AddExternal(value!, name!, companion, type: type,
@@ -84,7 +101,7 @@ public static class ScopedModelCli
                     foreach (var resource in resources)
                         foreach (var installation in resource!["installations"]!.AsArray())
                             output.WriteLine($"{resource["identity"]!.GetValue<string>()} | {resource["resource-id"]!.GetValue<string>()} | {installation!["installation-id"]!.GetValue<string>()} | {installation["observed-availability"]!.GetValue<string>()} | cambio={installation["changed"]!.GetValue<bool>()}" +
-                                (resource["ownership"]?.GetValue<string>() == "external" ? " | externo; sin baseline de integridad" +
+                                (resource["ownership"]?.GetValue<string>() == "external" ? (installation["baseline"] is null ? " | externo; sin baseline de integridad" : " | externo; baseline local sin procedencia certificada") +
                                     (resource["informative-match"] is null ? "" : "; equivalencia informativa no certificada") : ""));
                     foreach (var operation in resources.SelectMany(r => r!["operations"] as JsonArray ?? []))
                         output.WriteLine($"{operation!["id"]!.GetValue<string>()} | {operation["state"]!.GetValue<string>()} | {operation["phase"]!.GetValue<string>()}");
@@ -139,13 +156,13 @@ public static class ScopedModelCli
             }
             finally { Console.CancelKeyPress -= handler; }
         }
-        catch (Exception e) when (e is ModelSourceException or DownloadException or StorageException or RecipeException or ContractException or IOException or UnauthorizedAccessException or OperationCanceledException or System.Net.Http.HttpRequestException)
+        catch (Exception e) when (e is ModelSourceException or DownloadException or StorageException or RecipeException or ContractException or IOException or UnauthorizedAccessException or OperationCanceledException or System.Net.Http.HttpRequestException or ArgumentException)
         {
             var code = e switch { ModelSourceException m => m.Code, DownloadException d => d.Code, StorageException s => s.Code,
                 RecipeException r => r.Code, ContractException c => c.Code, _ => "model-operation-failed" };
             error.WriteLine($"Error: {code}. Estado conservado en el ámbito seleccionado.");
             if (e is ModelSourceException { Code: "resource-in-use" }) error.WriteLine(e.Message);
-            return e is OperationCanceledException ? 130 : code is "invalid-selector" or "unknown-resource" or "unknown-alias" or "unknown-installation" ? 2 : 1;
+            return e is OperationCanceledException ? 130 : e is ArgumentException || code is "invalid-selector" or "unknown-resource" or "unknown-alias" or "unknown-installation" ? 2 : 1;
         }
     }
     private static int Invalid(TextWriter error) { error.WriteLine("Error: argumentos de model inválidos. Consulte coquena --help."); return 2; }

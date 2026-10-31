@@ -13,6 +13,7 @@ public static class Cli
             break;
         }
         if (prefix < args.Length && args[prefix] == "import") return ImportCli.Run(args, output, error);
+        if (prefix < args.Length && args[prefix] == "verify") return VerifyCli.Run(args, output, error);
         if (prefix < args.Length && (args[prefix] is "up" or "down" or "apply" or "withdraw" ||
             args[prefix] == "preset" && prefix + 1 < args.Length && args[prefix + 1] is "apply" or "withdraw"))
             return PublicationCli.Run(args, output, error);

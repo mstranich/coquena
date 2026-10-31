@@ -132,6 +132,7 @@ public sealed partial class ScopedServiceProcess(ScopeStore store, TextWriter? o
         ValidatePlan(plan);
         using var lease = Lease(serviceId);
         ValidateBindings(plan);
+        ResourceVerification.CheckPublishedResources(store, serviceId);
         return await StartLockedAsync(serviceId, plan, cancellation, forceRequested);
     }
 
@@ -144,6 +145,7 @@ public sealed partial class ScopedServiceProcess(ScopeStore store, TextWriter? o
         var plan = await prepare(cancellation);
         ValidatePlan(plan);
         ValidateBindings(plan);
+        ResourceVerification.CheckPublishedResources(store, serviceId);
         plan.ValidateIntent?.Invoke();
         cancellation.ThrowIfCancellationRequested();
         StopLocked(serviceId, forceRequested);

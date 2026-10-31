@@ -149,6 +149,10 @@ Véase [reutilización local](modelos-y-companions.md#reutilizar-archivos-obteni
 Refresh relee disponibilidad/metadatos; no restablece integridad.
 Verify y update no son sinónimos de refresh ni acciones de reparación.
 Modelos y companions participan en update/upgrade mediante selecciones del proyecto.
+`model verify <nombre>` y `model companion verify <nombre>` comprueban una unidad
+del inventario del ámbito elegido. `model baseline <nombre>` y
+`model companion baseline <nombre>` establecen explícitamente una referencia local
+para externos; no certifican procedencia ni resuelven una discrepancia conocida.
 
 ### download
 
@@ -295,7 +299,8 @@ ps [-w|--watch]
 logs [list|follow|show <log-id>] [-f]
 update [--select <recurso>]...
 upgrade [--select <recurso>]...
-verify [--select <recurso>]... [--include-unused]
+verify
+verify --global [--select <recurso>]... [--include-unused]
 clean [--dry-run|--yes]
 combination list|forget <combination-id>
 download list|show|pause|resume|cancel [<operation-id>]
@@ -323,11 +328,19 @@ locales también pierden ese prefijo al importar; las identidades remotas se con
 Los parámetros mantienen sus claves.
 `--force` no se combina con select/replace y no elimina entidades ausentes.
 
-Selectores de recursos para update/upgrade/verify: `backend`, `model:<clave>` y
+Selectores de recursos para update/upgrade y verify --global: `backend`, `model:<clave>` y
 `companion:<clave>`, repetibles como unión. Sin select se usa la combinación
 seleccionada; un selector desconocido no amplía al conjunto completo. Un plan
 parcial nuevo no autoriza aplicar propuestas excluidas. `combination forget`
 requiere ID completo del ámbito y no olvida una instancia activa ni retira presets.
+
+En proyecto, verify comprueba la receta completa de la combinación elegida y los
+recursos que utiliza; no admite `--select` ni `--include-unused`. No audita el
+backend de un servicio target global ni los recursos de otros proyectos.
+Con `--global`, comprueba las definiciones y recursos usados del catálogo global;
+`--select` limita la comprobación a recursos de ese catálogo y permite elegir uno
+instalado sin uso. `--include-unused` agrega las instalaciones del inventario global
+que no estén utilizadas. Ambos flags son exclusivos del ámbito global.
 
 Set recibe entidad, argumento y valor YAML escalar/lista como un argumento de CLI:
 `preset set charla ctx-size 8192`, `preset set charla texto '"8192"'`.

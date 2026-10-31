@@ -71,6 +71,7 @@ public sealed class PresetPublication(ScopeStore consumer, ScopeStore target, st
         { ["name"] = p.Name, ["ini"] = p.Ini, ["expected-arguments"] = Strings(p.ExpectedArguments),
             ["resources"] = p.Resources.DeepClone(), ["warmup"] = p.Warmup }).ToArray());
         if (presets.Length != 0) after.Add((JsonNode)new JsonObject { ["consumer-id"] = owner, ["scope-id"] = own.ScopeId,
+            ["source-base"] = consumer.Context.Base, ["source-root"] = consumer.Context.Root, ["source-global"] = consumer.Context.IsGlobal,
             ["presets"] = proposed, ["names"] = Strings(presets.Select(p => p.Name)) });
         var oldEntries = previous?["presets"] as JsonArray ?? [];
         var affected = oldEntries.Concat(proposed).Select(p => p!["name"]!.GetValue<string>()).Distinct(StringComparer.Ordinal)

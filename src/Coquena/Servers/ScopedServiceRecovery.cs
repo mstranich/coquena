@@ -43,6 +43,7 @@ public sealed partial class ScopedServiceProcess
                 plan = plan with { InstanceId = Guid.ParseExact(candidateId, "D") };
                 ValidatePlan(plan);
                 ValidateBindings(plan);
+                ResourceVerification.CheckPublishedResources(store, serviceId);
                 plan.ValidateIntent?.Invoke();
                 cancellation.ThrowIfCancellationRequested();
                 if (running) { StopLocked(serviceId, forceRequested, originalInstance); stoppedOriginal = true; }
@@ -81,6 +82,7 @@ public sealed partial class ScopedServiceProcess
                     recovery = recovery with { InstanceId = Guid.ParseExact(recoveryId, "D"), ValidateIntent = null };
                     ValidatePlan(recovery);
                     ValidateBindings(recovery);
+                    ResourceVerification.CheckPublishedResources(store, serviceId);
                     var result = await StartLockedAsync(serviceId, recovery, cancellation, forceRequested);
                     RecordRecovery(serviceId, code, "last-good-succeeded", result);
                     ReportRecovery(serviceId, $"Última buena recuperada; instancia {result}. La candidata conserva su diagnóstico de fallo.");

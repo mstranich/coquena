@@ -3,6 +3,25 @@
 # References describe intended behavior; verify actual behavior in code and tests.
 version: 1
 features:
+  - id: recipe-resource-verification
+    intent: Auditar recetas y recursos sin reparar, conservar observaciones locales y bloquear nuevos inicios por fallos conocidos.
+    keywords: [verify, integrity, sha256, baseline, include-unused, select]
+    entrypoints:
+      - src/Coquena/VerifyCli.cs
+      - src/Coquena/ScopedModelCli.cs
+    implementation:
+      - src/Coquena/Projects/ResourceVerification.cs
+      - src/Coquena/Projects/CombinationPreparation.cs
+      - src/Coquena/Projects/ImportedResolutions.cs
+      - src/Coquena/Models/FileIntegrity.cs
+      - src/Coquena/Servers/ScopedServiceRecovery.cs
+    tests:
+      - tests/Coquena.Tests/ResourceVerificationTests.cs
+    references:
+      - docs/actualizacion-y-limpieza.md
+      - docs/modelos-y-companions.md
+      - docs/comandos.md
+
   - id: global-recipe-import
     intent: Promover intención seleccionada a global, preparar recursos y publicar presets con recuperación y protección de consumidores.
     keywords: [import, select, replace, force, promotion]

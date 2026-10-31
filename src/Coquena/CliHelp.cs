@@ -38,6 +38,10 @@ internal static class CliHelp
           preset                           Crear y configurar presets de modelos
           service (server)                 Administrar servicios y su ejecución
           import <receta.yaml>             Promover intención al ámbito global sin iniciar
+          verify                            Comprobar receta y recursos de este proyecto
+          verify --global                   Auditar definiciones y recursos globales
+            --select recurso                Elegir recurso global; opción repetible
+            --include-unused                Incluir instalaciones globales no usadas
           up [--start-service]             Publicar presets de la combinación elegida
           down                             Retirar presets propios sin detener servicio
           apply|withdraw <clave>           Publicar o retirar un preset individual
