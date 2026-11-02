@@ -18,8 +18,12 @@ public sealed record ServiceSnapshot(string ServiceId, string Name, string Scope
 
 public sealed class ServiceObservation(ScopeStore store, HttpClient? client = null, IInstanceProbe? instanceProbe = null)
 {
+    private JsonArray? catalog;
+    private string? catalogInstance;
+    private JsonNode? catalogComposition;
+    private DateTimeOffset catalogAt;
     public async Task<ServiceSnapshot> CaptureAsync(ServiceIdentity service, RecipeSelection? selection = null,
-        CancellationToken cancellation = default)
+        CancellationToken cancellation = default, bool reconcileCatalog = true)
     {
         var start = DateTimeOffset.UtcNow;
         var diagnostics = new List<string>(); var samples = new List<MetricSample>(); var entries = new List<EntrySnapshot>();
@@ -84,14 +88,19 @@ public sealed class ServiceObservation(ScopeStore store, HttpClient? client = nu
             catch (Exception e) when (ObservationError(e)) { health = "unavailable"; diagnostics.Add("Salud: " + e.GetType().Name); }
             try
             {
-                var models = JsonNode.Parse(await Fetch(http, new(address, "/models"), deadline.Token))?["data"]?.AsArray()
-                    ?? throw new FormatException("Catálogo sin data.");
+                var freshCatalog = reconcileCatalog || catalog is null || catalogInstance != instanceId ||
+                    DateTimeOffset.UtcNow - catalogAt >= TimeSpan.FromSeconds(5) ||
+                    !JsonNode.DeepEquals(catalogComposition, active["preset-composition"]);
+                var models = freshCatalog ? JsonNode.Parse(await Fetch(http, new(address, "/models"), deadline.Token))?["data"]?.AsArray()
+                    ?? throw new FormatException("Catálogo sin data.") : catalog!;
+                var observedCatalogAt = freshCatalog ? DateTimeOffset.UtcNow : catalogAt;
                 if (models.Count > 128) throw new FormatException("Catálogo excede 128 entradas por snapshot.");
                 var names = new HashSet<string>(StringComparer.Ordinal);
                 var composition = active["preset-composition"] as JsonArray ?? [];
                 var expected = composition.SelectMany(c => c!["presets"]!.AsArray()).Select(p => p!["name"]!.GetValue<string>()).ToHashSet(StringComparer.Ordinal);
-                api = "available";
-                current = PresetPublication.Matches(composition, models);
+                api = freshCatalog ? "available" : "cached-catalog";
+                current = freshCatalog && PresetPublication.Matches(composition, models);
+                if (!freshCatalog) diagnostics.Add($"Catálogo conservado desde {catalogAt:O}; esperando reconciliación, sin confirmar composición actual.");
                 var disabled = active["snapshot"]?["service"]?["server"]?["args"]?["metrics"]?["value"]?.GetValue<string>() == "false" ||
                     active["execution"]?["arguments"]?.AsArray().Any(a => a?.GetValue<string>() == "--no-metrics") == true;
                 foreach (var model in models)
@@ -115,11 +124,16 @@ public sealed class ServiceObservation(ScopeStore store, HttpClient? client = nu
                         }
                         catch (Exception e) when (ObservationError(e)) { diagnostic = "Métricas no disponibles: " + e.GetType().Name; }
                     }
-                    entries.Add(new(name, status, DateTimeOffset.UtcNow, entrySamples, diagnostic));
+                    entries.Add(new(name, status, observedCatalogAt, entrySamples, diagnostic));
                 }
-                foreach (var missing in expected.Except(names)) entries.Add(new(missing, "absent", DateTimeOffset.UtcNow, [], "Ausente del catálogo del router."));
+                foreach (var missing in expected.Except(names)) entries.Add(new(missing, "absent", observedCatalogAt, [], "Ausente del catálogo del router."));
+                if (freshCatalog)
+                {
+                    catalog = models; catalogInstance = instanceId; catalogAt = observedCatalogAt;
+                    catalogComposition = active["preset-composition"]?.DeepClone();
+                }
             }
-            catch (Exception e) when (ObservationError(e)) { api = "unavailable"; current = false; diagnostics.Add("API: " + e.GetType().Name); }
+            catch (Exception e) when (ObservationError(e)) { catalog = null; api = "unavailable"; current = false; diagnostics.Add("API: " + e.GetType().Name); }
             if (!process.IsAlive || !process.OwnsEndpoint(host, port) || !JsonNode.DeepEquals(store.ReadVerified().Documents.GetValueOrDefault(path)?["data"], active))
             { current = false; diagnostics.Add("Instancia/composición cambió durante la muestra; conservarla como histórica, sin enlazar con el reemplazo."); }
         }
@@ -154,14 +168,14 @@ public sealed class ServiceObservation(ScopeStore store, HttpClient? client = nu
         string[] registeredFiles() => new RecipeRegistry(store).Get(service.RecipeId).Files;
     }
 
-    private static InstanceDocument Identity(string serviceId, JsonObject active)
+    internal static InstanceDocument Identity(string serviceId, JsonObject active)
     {
         var process = active["process"]!;
         return new(1, Guid.ParseExact(active["instance-id"]!.GetValue<string>(), "D"), Guid.ParseExact(serviceId, "D"), Guid.Empty,
             "", process["pid"]!.GetValue<int>(), "", "", 0, false, [], [], "", "",
             process["creation-time"]!.GetValue<long>(), process["executable"]!.GetValue<string>());
     }
-    internal static bool ObservationError(Exception e) => e is Coquena.Storage.StorageException or ConfigurationException or RecipeException or
+    internal static bool ObservationError(Exception e) => e is Coquena.Storage.StorageException or ContractException or ConfigurationException or RecipeException or
         IOException or UnauthorizedAccessException or HttpRequestException or OperationCanceledException or JsonException or
         InvalidOperationException or KeyNotFoundException or FormatException or ArgumentException or NullReferenceException or OverflowException or System.ComponentModel.Win32Exception;
     private static string Unit(string name) => name.EndsWith("tokens_seconds", StringComparison.Ordinal) ? "tokens/s (backend mean)" :

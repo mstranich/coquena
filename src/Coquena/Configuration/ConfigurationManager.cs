@@ -134,6 +134,9 @@ public sealed class ConfigurationManager(Home home, LocalStore? storage = null)
         return true;
     });
 
+    public ObserverPreferences Observer() => Config().Observer ?? new();
+    public void SetObserver(ObserverPreferences? preferences) => store.Update(DocumentKind.Config, Json.ConfigDocument, ContractValidation.Config,
+        old => (old ?? new(1, null, null, new(5))) with { Observer = preferences });
     public RetentionView Retention() => store.Exclusive(() => LogRetentionPolicy.Resolve(Config().LogRetention));
     public BackendRetention BackendRetention() => Config().BackendRetention;
     public void SetBackendRetention(int? count)

@@ -13,9 +13,10 @@ public static class ObservationCli
         try
         {
             var ps = Array.IndexOf(args, "ps");
-            if (ps < 0 || args.Count(a => a == "ps") != 1 || args.Any(a => a is "-w" or "--watch"))
-                throw new ArgumentException("ps muestra una instantánea finita; seguimiento aún no disponible.");
-            var options = args.Where((_, i) => i != ps).ToArray();
+            if (ps < 0 || args.Count(a => a == "ps") != 1 || args.Count(a => a is "-w" or "--watch") > 1)
+                throw new ArgumentException("Use ps [-w|--watch] con una selección de servicio válida.");
+            var watch = args.Any(a => a is "-w" or "--watch");
+            var options = args.Where((a, i) => i != ps && a is not ("-w" or "--watch")).ToArray();
             // Use the same selector and recipe rules as service logs, without
             // its reconciliation, retention or index writes.
             var command = ServiceCommand.Parse([.. options, "logs"]);
@@ -32,13 +33,17 @@ public static class ObservationCli
             {
                 try
                 {
-                    var hardware = SystemMetrics.Create().CaptureAsync(cancellation.Token).GetAwaiter().GetResult();
-                    WriteHardware(hardware, output);
+                    if (!watch)
+                    {
+                        var hardware = SystemMetrics.Create().CaptureAsync(cancellation.Token).GetAwaiter().GetResult();
+                        WriteHardware(hardware, output);
+                    }
                 }
                 catch (OperationCanceledException) when (cancellation.IsCancellationRequested) { throw; }
                 catch (Exception e) when (ServiceObservation.ObservationError(e)) { error.WriteLine("Hardware no disponible: " + e.Message); }
                 if (!OperatingSystem.IsWindows())
                 {
+                    if (watch) return WatchAsync([], output, cancellation.Token).GetAwaiter().GetResult();
                     output.WriteLine("Servicios: identidad persistida sólo soportada en Windows; no se consultan PID/API desde Linux.");
                     return 0;
                 }
@@ -49,8 +54,20 @@ public static class ObservationCli
                     var target = ScopedServiceCli.Resolve(command, home);
                     targets.Add((new(target.Context), target.Service, explicitRecipe ? target.Selection : null));
                 }
-                else
+                else RefreshTargets();
+                if (watch) return WatchAsync(targets.ToArray(), output, cancellation.Token, selected ? null : () =>
                 {
+                    RefreshTargets(); return targets.ToArray();
+                }).GetAwaiter().GetResult();
+                foreach (var target in targets)
+                {
+                    var snapshot = new ServiceObservation(target.Store).CaptureAsync(target.Service, target.Selection, cancellation.Token).GetAwaiter().GetResult();
+                    WriteService(snapshot, output);
+                }
+                if (targets.Count == 0) output.WriteLine("Sin servicios conocidos en la selección.");
+                void RefreshTargets()
+                {
+                    targets.Clear(); discovered.Clear();
                     Discover(new ScopeStore(ScopeContext.Global(home)));
                     if (!command.Global)
                     {
@@ -71,12 +88,6 @@ public static class ObservationCli
                         }
                     }
                 }
-                foreach (var target in targets)
-                {
-                    var snapshot = new ServiceObservation(target.Store).CaptureAsync(target.Service, target.Selection, cancellation.Token).GetAwaiter().GetResult();
-                    WriteService(snapshot, output);
-                }
-                if (targets.Count == 0) output.WriteLine("Sin servicios conocidos en la selección.");
                 void Discover(ScopeStore store)
                 {
                     try
@@ -93,7 +104,135 @@ public static class ObservationCli
             finally { Console.CancelKeyPress -= handler; }
         }
         catch (OperationCanceledException) { return 130; }
-        catch (Exception e) when (ServiceObservation.ObservationError(e)) { error.WriteLine("Error: " + e.Message); return 2; }
+        catch (Exception e) when (ServiceObservation.ObservationError(e)) { error.WriteLine("Error: " + e.Message + " Consulte coquena --help."); return 2; }
+    }
+
+    public static async Task<int> WatchAsync(
+        IReadOnlyList<(ScopeStore Store, ServiceIdentity Service, RecipeSelection? Selection)> targets,
+        TextWriter output, CancellationToken cancellation,
+        Func<IReadOnlyList<(ScopeStore Store, ServiceIdentity Service, RecipeSelection? Selection)>>? discover = null)
+    {
+        var preferences = new Coquena.Configuration.ConfigurationManager(Home.Resolve()).Observer();
+        var latest = new Dictionary<string, WatchSnapshot?>();
+        HardwareSnapshot? hardware = null; string? hardwareError = null;
+        var sync = new object();
+        using var stop = CancellationTokenSource.CreateLinkedTokenSource(cancellation);
+        using var budget = new SemaphoreSlim(4);
+        var jobs = new List<Task>();
+        Add(targets);
+        jobs.Add(Hardware());
+        var discoveryClock = System.Diagnostics.Stopwatch.StartNew();
+        var interactive = ReferenceEquals(output, Console.Out) && !Console.IsOutputRedirected;
+        if (interactive) output.Write("\u001b[?1049h\u001b[?25l");
+        try
+        {
+            using var timer = new PeriodicTimer(TimeSpan.FromSeconds(1));
+            do
+            {
+                cancellation.ThrowIfCancellationRequested();
+                if (discover is not null && discoveryClock.Elapsed >= TimeSpan.FromSeconds(5))
+                { Add(discover()); discoveryClock.Restart(); }
+                using var frame = new StringWriter(CultureInfo.InvariantCulture);
+                frame.WriteLine($"Observación | Ctrl+C: cerrar observador | {DateTimeOffset.UtcNow:O}");
+                lock (sync)
+                {
+                    if (hardware is not null)
+                    {
+                        if (interactive) WriteCompactHardware(hardware, frame);
+                        else WriteHardware(hardware, frame);
+                    }
+                    else frame.WriteLine("Hardware: " + (hardwareError ?? "esperando muestra"));
+                    foreach (var sample in latest.Values)
+                    {
+                        if (sample is null) { frame.WriteLine("Servicio: esperando muestra"); continue; }
+                        if (interactive && sample.Snapshot is { } snapshot)
+                        {
+                            frame.WriteLine($"{snapshot.Name} | {snapshot.CompletedAt:HH:mm:ss} | proceso {snapshot.ProcessState} | API {snapshot.ApiState} | salud {snapshot.Health}");
+                            frame.WriteLine($"  Instancia {snapshot.InstanceId ?? "ninguna"}");
+                            frame.WriteLine("  Eventos: " + sample.Events);
+                            frame.WriteLine("  " + string.Join("; ", snapshot.Metrics.Where(m => m.Name is "cpu.utilization" or "ram.private-commit").Select(CompactSample)));
+                            foreach (var entry in snapshot.Entries)
+                                frame.WriteLine($"  {entry.Name}: {entry.State} | catálogo {entry.ObservedAt:HH:mm:ss} | " + string.Join("; ", entry.Metrics.Where(m => m.Unit.Contains("tokens/s")).Select(CompactSample)));
+                        }
+                        else
+                        {
+                            frame.WriteLine("Eventos: " + sample.Events);
+                            if (sample.Snapshot is not null) WriteService(sample.Snapshot, frame);
+                        }
+                        if (sample.Transition is not null) frame.WriteLine(sample.Transition);
+                    }
+                }
+                if (latest.Count == 0) frame.WriteLine("Sin servicios conocidos en la selección.");
+                if (interactive)
+                {
+                    output.Write("\u001b[H\u001b[2J");
+                    // Avoid scrolling the terminal; the full snapshot remains available when redirected.
+                    var width = Math.Max(1, Console.WindowWidth - 1); var height = Math.Max(1, Console.WindowHeight - 1);
+                    foreach (var line in frame.ToString().Split('\n').Take(height))
+                        output.WriteLine(line.TrimEnd('\r') is var text && text.Length > width ? text[..width] : text);
+                }
+                else { output.Write(frame.ToString()); output.WriteLine(); }
+                output.Flush();
+                if (jobs.Any(t => t.IsFaulted)) await Task.WhenAll(jobs.Where(t => t.IsFaulted));
+            } while (await timer.WaitForNextTickAsync(cancellation));
+            return 0;
+        }
+        finally
+        {
+            await stop.CancelAsync();
+            try { await Task.WhenAll(jobs); }
+            catch (OperationCanceledException) when (stop.IsCancellationRequested) { }
+            finally { if (interactive) { output.Write("\u001b[?25h\u001b[?1049l"); output.Flush(); } }
+        }
+
+        void Add(IReadOnlyList<(ScopeStore Store, ServiceIdentity Service, RecipeSelection? Selection)> found)
+        {
+            foreach (var target in found)
+            {
+                var key = target.Store.Context.PhysicalBase + "/" + target.Service.ServiceId;
+                lock (sync)
+                {
+                    if (latest.ContainsKey(key)) continue;
+                    latest[key] = null;
+                }
+                jobs.Add(new ServiceWatch(target.Store, target.Service, target.Selection, preferences)
+                    .RunAsync(sample =>
+                    {
+                        lock (sync) latest[key] = sample with { Transition = sample.Transition ?? latest[key]?.Transition };
+                    }, stop.Token, budget));
+            }
+        }
+
+        async Task Hardware()
+        {
+            var source = SystemMetrics.Create();
+            while (!stop.IsCancellationRequested)
+            {
+                try
+                {
+                    var sample = await source.CaptureAsync(stop.Token);
+                    lock (sync) { hardware = sample; hardwareError = null; }
+                }
+                catch (OperationCanceledException) when (stop.IsCancellationRequested) { return; }
+                catch (Exception e) when (ServiceObservation.ObservationError(e))
+                { lock (sync) { hardware = null; hardwareError = "no disponible: " + e.GetType().Name; } }
+                await Task.Delay(TimeSpan.FromSeconds(2), stop.Token);
+            }
+        }
+    }
+
+    private static string CompactSample(MetricSample sample)
+    {
+        var value = sample.Value is not double number ? "N/D: " + sample.UnavailableReason :
+            sample.Unit == "bytes" && number <= long.MaxValue ? ByteSize.Format((long)number) : number.ToString("0.##", CultureInfo.InvariantCulture) + " " + sample.Unit;
+        return $"{sample.Name} {value}";
+    }
+    private static void WriteCompactHardware(HardwareSnapshot hardware, TextWriter output)
+    {
+        output.WriteLine($"Hardware {hardware.Environment} | {hardware.CompletedAt:HH:mm:ss} | alcance máquina");
+        output.WriteLine("  " + string.Join("; ", hardware.Samples.Select(CompactSample)));
+        foreach (var device in hardware.Devices)
+            output.WriteLine($"  GPU {device.Name}: " + string.Join("; ", device.Samples.Select(CompactSample)));
     }
 
     public static void WriteHardware(HardwareSnapshot snapshot, TextWriter output)

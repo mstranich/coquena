@@ -183,6 +183,10 @@ Config configura Coquena globalmente en el perfil/home, sin requerir YAML.
 Preferencias de observadores/reconexión y retención predeterminada de logs
 pertenecen a ese ámbito. Un override de retención del servidor y el destino de sus
 logs pertenecen al YAML y se editan como configuración del proyecto.
+`config observer-retry show|unset` consulta o restablece la espera de reconexión;
+`config observer-retry set <inicial-s> <máximo-s>` establece los valores en segundos
+enteros. La [política de reconexión](observabilidad.md#reconexión) define límites,
+espera exponencial y cancelación.
 No hay selección global implícita de modelo/backend que reescriba una receta.
 
 Ubicación de pesos/binarios, definición de servidor y schema de parámetros no son

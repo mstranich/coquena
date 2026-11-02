@@ -3,6 +3,8 @@ using Coquena;
 
 // Match the product's output contract, including fixture and failure diagnostics.
 Console.OutputEncoding = new System.Text.UTF8Encoding(false);
+if (args.Length is >= 1 and <= 3 && args[0] == "--watch-tests")
+{ await Coquena.Tests.WatchTests.Run(args.Length >= 2 ? Path.GetFullPath(args[1]) : null, args.Length == 3 ? Path.GetFullPath(args[2]) : null); return; }
 if (args.Length is >= 1 and <= 3 && args[0] == "--observation-tests")
 { await Coquena.Tests.ObservationTests.Run(args.Length >= 2 ? Path.GetFullPath(args[1]) : null, args.Length == 3 ? Path.GetFullPath(args[2]) : null); return; }
 if (args.Length is 1 or 2 && args[0] == "--service-log-follow-tests")

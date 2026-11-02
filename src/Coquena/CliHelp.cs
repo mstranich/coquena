@@ -31,7 +31,8 @@ internal static class CliHelp
 
         Comandos:
           system probe                     Mostrar hardware y aceleradores disponibles
-          ps [--service <nombre|default|self>]  Consultar hardware y servicios; termina
+          ps [--service <nombre|default|self>] [-w|--watch]
+                                           Consultar o seguir hardware y servicios
           backend (runtime)                Consultar y preparar backends por ámbito
           model                            Descargar y administrar modelos
           model companion                  Administrar auxiliares mmproj y MTP
@@ -185,6 +186,9 @@ internal static class CliHelp
             Ctrl+C detiene el proceso en primer plano; otro Ctrl+C fuerza el cierre.
 
         Configuración:
+          config observer-retry show|unset  Consultar/restablecer reconexión (1..30 s)
+          config observer-retry set <inicial-s> <máximo-s>
+                                           Espera exponencial, máximo 3600 s
           config log-retention show        Consultar la retención global de logs
           config log-retention set <tamaño> Establecer el límite global de logs
             Entero en bytes o B; KiB/MiB/GiB/TiB/PiB/EiB y sus alias

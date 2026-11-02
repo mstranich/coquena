@@ -97,7 +97,19 @@ esperas crecientes hasta un máximo configurable; seguir mientras observador abi
 Preferencia GLOBAL del perfil/home del usuario, no YAML de cada servidor.
 No reiniciar/detener backend por reconexión. Si termina/cambia identidad, mostrarlo,
 sin conectar una observación anterior a otro proceso.
-Fórmula, valores y mecanismo de cancelación requieren diseño, sin impedir salir.
+La espera exponencial comienza en un segundo, se duplica tras fallos consecutivos
+y se limita a treinta segundos. Recibir un evento restablece la espera inicial;
+aceptar una conexión que se cierra inmediatamente no la restablece.
+`config observer-retry show|unset` consulta/restablece estos valores;
+`config observer-retry set <inicial-s> <máximo-s>` los configura en segundos enteros,
+con `1 <= inicial <= máximo <= 3600`. El observador toma las preferencias al abrirse.
+Ctrl+C cancela consultas, esperas y streams y cierra sólo el observador.
+
+El seguimiento conserva la identidad del servicio entre reinicios: cada instancia
+nueva inicia un tramo separado, sin arrastrar continuidad de eventos o contadores.
+Mientras está detenido sigue esperando. Eliminar y recrear un nombre no enlaza
+la observación anterior con la nueva identidad. La vista general descubre los
+servicios conocidos nuevos sin convertir un nombre en continuidad de identidad.
 
 ## Logs
 
@@ -145,8 +157,29 @@ fallo de notificación no acredita reparación ni éxito del servidor.
 
 ## Contratos técnicos
 
-Frecuencia de métricas, render de watch al redirigir salida, historial de gráficos,
-snapshot/reconexión de eventos y capacidades por fork requieren especificación.
+El refresco visual de watch es de un segundo. Las fuentes de hardware y métricas
+se consultan con una separación mínima de dos segundos entre capturas, sin
+solapar capturas de la misma fuente. Los plazos de las consultas y la capacidad
+disponible pueden reducir la frecuencia efectiva; cada muestra conserva su fecha.
+La vista general renueva el descubrimiento cada cinco segundos. Se limita a cuatro
+capturas de servicios concurrentes, con presupuesto HTTP por instancia.
+El catálogo se reconcilia cada cinco segundos al tomar una nueva captura, además
+de las invalidaciones por conexión y eventos. Entre reconciliaciones conserva la
+fecha del catálogo anterior y no confirma como actual esa composición conservada;
+un cambio de instancia o de composición registrada invalida su reutilización.
+
+Los eventos SSE de `/models/sse`, cuando el endpoint los soporta, invalidan la
+instantánea; no se interpretan sus payloads como un contrato universal de forks.
+Al conectar/reconectar se solicita otra instantánea, respetando el límite de
+frecuencia. Las consultas periódicas reconcilian también sin SSE, sin depender
+de replay ni de eventos reconocidos. Se agrupan señales pendientes y se limita
+cada frame de eventos a 1 MiB, incluido uno incompleto. La falta de SSE se muestra
+por separado del estado del proceso y de la API puntual.
+
+La terminal se redibuja en una pantalla alternativa, ajustando el texto al espacio
+disponible; al salir se restaura la pantalla y el cursor. Redirigido emite snapshots
+textuales separados por newline, sin controles de terminal. El histórico de gráficos
+y las capacidades particulares de cada fork conservan sus contratos propios.
 No convertir observabilidad en benchmark ni en supervisor implícito.
 
 ## Consumo de recursos y visión de conjunto

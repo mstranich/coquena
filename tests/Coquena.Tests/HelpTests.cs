@@ -36,7 +36,9 @@ internal static class HelpTests
                 ["config", "param-reset", "--dry"], ["param", "edit", "ctx-size", "--dry"],
                 ["param", "define", "x", "--type", "integer", "--scope", "model", "--target", "cli", "--dry-run"],
                 ["server", "stop", "-d"], ["server", "logs", "-d"],
-                ["server", "start", "-f"], ["-f", "recipe.yaml"], ["service", "list", "-d"], ["runtime", "list", "--force"]];
+                ["server", "start", "-f"], ["-f", "recipe.yaml"], ["service", "list", "-d"], ["runtime", "list", "--force"],
+                ["ps", "-w", "--watch"], ["ps", "--watch", "--unknown"], ["config", "observer-retry", "set", "0", "30"],
+                ["config", "observer-retry", "set", "4", "2"], ["config", "observer-retry", "set", "1", "3601"]];
             foreach (var arguments in invalid)
             {
                 var result = Invoke(arguments);

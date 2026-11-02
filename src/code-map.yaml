@@ -3,6 +3,23 @@
 # References describe intended behavior; verify actual behavior in code and tests.
 version: 1
 features:
+  - id: continuous-service-observation
+    intent: Seguir servicios por identidad con snapshots reconciliados y eventos acotados sin controlar el backend.
+    keywords: [ps, watch, SSE, reconnect, cancellation, observer-retry]
+    entrypoints:
+      - src/Coquena/ObservationCli.cs
+      - src/Coquena/ConfigurationCli.cs
+    implementation:
+      - src/Coquena/Observation/ServiceWatch.cs
+      - src/Coquena/Observation/ModelEvents.cs
+      - src/Coquena/Observation/ServiceObservation.cs
+      - src/Coquena/Configuration/ConfigurationManager.cs
+    tests:
+      - tests/Coquena.Tests/WatchTests.cs
+    references:
+      - docs/observabilidad.md
+      - docs/comandos.md
+
   - id: scoped-service-hardware-snapshots
     intent: Consultar hardware y servicios conocidos con identidad, fuente, alcance y disponibilidad explícitos.
     keywords: [ps, metrics, hardware, CPU, RAM, GPU, VRAM, Windows, Linux, WSL, snapshot]

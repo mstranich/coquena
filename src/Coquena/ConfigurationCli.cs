@@ -16,6 +16,21 @@ public static class ConfigurationCli
             // Check grammar before creating the home or modifying state.
             if (command == "config")
             {
+                if (args.Length >= 1 && args[0] == "observer-retry")
+                {
+                    if (!(args.Length == 2 && args[1] is "show" or "unset" || args.Length == 4 && args[1] == "set")) Invalid();
+                    ObserverPreferences? preferences = null;
+                    if (args[1] == "set")
+                    {
+                        if (!int.TryParse(args[2], out var initial) || !int.TryParse(args[3], out var maximum) || initial < 1 || maximum < initial || maximum > 3600) Invalid();
+                        preferences = new(int.Parse(args[2]), int.Parse(args[3]));
+                    }
+                    manager ??= new(Home.Resolve());
+                    if (args[1] != "show") manager.SetObserver(preferences);
+                    var retry = manager.Observer();
+                    output.WriteLine($"Reconexión: inicial {retry.RetryInitialSeconds} s; máximo {retry.RetryMaxSeconds} s; espera exponencial x2.");
+                    return 0;
+                }
                 if (args.Length >= 1 && args[0] == "param-reset")
                 {
                     if (!(args.Length == 1 || args.Length == 2 && args[1] == "--dry-run")) Invalid();

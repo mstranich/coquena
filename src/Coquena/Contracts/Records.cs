@@ -68,11 +68,13 @@ public sealed record BackendRetention(int MaxBuilds,
 public sealed record BackendRetentionJournal(int SchemaVersion, BackendRecord[] Pending);
 public sealed record LogRetention(long MaxBytes);
 public sealed record LastLogDocument(int SchemaVersion, Guid ServerId, Guid InstanceId, string LogPath);
+public sealed record ObserverPreferences(int RetryInitialSeconds = 1, int RetryMaxSeconds = 30);
 public sealed record ConfigDocument(int SchemaVersion, Guid? DefaultServerId,
     BackendSelection? DefaultBackend, BackendRetention BackendRetention,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] LogRetention? LogRetention = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? BackendsDirectory = null,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? ModelsDirectory = null);
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? ModelsDirectory = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] ObserverPreferences? Observer = null);
 public sealed record ModelsDocument(int SchemaVersion, ModelRecord[] Models);
 public sealed record BackendsDocument(int SchemaVersion, BackendRecord[] Backends);
 public sealed record BackendUpdateCandidate(string Build, RemoteFile[] Artifacts,
