@@ -161,6 +161,13 @@ internal static class CliHelp
             Cambiar el modelo del preset
           preset remove <nombre>           Eliminar un preset
 
+        Logs:
+          service [<nombre|default|self>] logs [list|follow|show <log-id>] [-f]
+          logs [list|follow|show <log-id>] [-f] [--service <servicio>]
+            Sin subcomando: salida reciente (hasta 64 KiB). List: IDs retenidos.
+            Show: histórico fijo. Follow/-f: continúa entre reinicios.
+            Ctrl+C cierra sólo el observador. Server es alias de service.
+
         Servidores:
           service list                     Listar servicios conocidos
           service default set <nombre>     Asignar el alias global predeterminado

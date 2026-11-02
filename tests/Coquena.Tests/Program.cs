@@ -3,6 +3,8 @@ using Coquena;
 
 // Match the product's output contract, including fixture and failure diagnostics.
 Console.OutputEncoding = new System.Text.UTF8Encoding(false);
+if (args.Length is 1 or 2 && args[0] == "--service-log-follow-tests")
+{ await Coquena.Tests.ServiceLogFollowTests.Run(args.Length == 2 ? Path.GetFullPath(args[1]) : null); return; }
 if (args.Length == 3 && args[0] == "--start-failure-hook")
 {
     var payload = await Console.In.ReadToEndAsync();
@@ -27,6 +29,8 @@ if (args.Length == 5 && args[0] == "--internal-scoped-signal")
 
 if (args.Contains("--scoped-health-child"))
 {
+    var logMarker = Array.IndexOf(args, "--log-marker");
+    if (logMarker >= 0) { Console.WriteLine(args[logMarker + 1]); Console.Out.Flush(); }
     var childMarker = Array.IndexOf(args, "--spawn-stubborn-child");
     if (childMarker >= 0)
     {

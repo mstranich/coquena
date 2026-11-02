@@ -3,6 +3,22 @@
 # References describe intended behavior; verify actual behavior in code and tests.
 version: 1
 features:
+  - id: scoped-service-log-observation
+    intent: Consultar históricos por instancia y seguir la identidad del servicio entre reinicios sin controlar su proceso.
+    keywords: [logs, follow, history, rotation, instance, observer]
+    entrypoints:
+      - src/Coquena/ScopedServiceCli.cs
+    implementation:
+      - src/Coquena/Servers/ServiceLogReader.cs
+      - src/Coquena/Servers/ScopedServiceLogs.cs
+      - src/Coquena/ServiceCommand.cs
+    tests:
+      - tests/Coquena.Tests/ServiceLogFollowTests.cs
+      - tests/Coquena.Tests/ServiceLogHookTests.cs
+    references:
+      - docs/observabilidad.md
+      - docs/comandos.md
+
   - id: scoped-service-logs-hooks
     intent: Conservar logs por instancia con retención protegida y notificar una vez los fallos de inicio después de recuperar.
     keywords: [logs, retention, start-failed, hook, stdin, recovery]

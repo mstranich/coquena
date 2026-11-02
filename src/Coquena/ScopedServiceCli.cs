@@ -15,10 +15,13 @@ public static class ScopedServiceCli
     {
         try
         {
+            var logIndex = LogsIndex(args);
+            if (logIndex >= 0)
+                return Logs(args, logIndex, output, error);
             var command = ServiceCommand.Parse(args);
             if (command.Action == "help")
             {
-                output.WriteLine("service: list, default set, start, stop, restart, remove.");
+                output.WriteLine("service: list, default set, start, stop, restart, remove, logs [list|follow|show <log-id>] [-f].");
                 return 0;
             }
             var home = Home.Resolve();
@@ -39,6 +42,71 @@ public static class ScopedServiceCli
         {
             return Failure(e, error);
         }
+    }
+
+    private static int LogsIndex(string[] args)
+    {
+        for (var i = 0; i < args.Length; i++)
+        {
+            if (args[i] is "--service" or "--file" or "-f" or "--env-file" or "--base" or "--project-directory") { i++; continue; }
+            if (args[i] == "logs") return i;
+            if (args[i] is "start" or "stop" or "restart" or "remove" or "list" or "default" &&
+                !(args[i] == "default" && i + 1 < args.Length && args[i + 1] == "logs")) break;
+        }
+        return -1;
+    }
+
+    private static int Logs(string[] args, int index, TextWriter output, TextWriter error)
+    {
+        var selection = args[..index].ToList();
+        var tail = args[(index + 1)..].ToList();
+        var follow = tail.Remove("-f");
+        for (var i = 0; i < tail.Count;)
+        {
+            if (tail[i] is "--global" or "-g") { selection.Add(tail[i]); tail.RemoveAt(i); }
+            else if (tail[i] is "--service" or "--file" or "--env-file" or "--base" or "--project-directory")
+            {
+                if (i + 1 == tail.Count) throw new ArgumentException("Opción de logs sin valor. Consulte coquena --help.");
+                selection.AddRange(tail.GetRange(i, 2)); tail.RemoveRange(i, 2);
+            }
+            else i++;
+        }
+        var action = tail.Count == 0 ? (follow ? "follow" : "recent") : tail[0];
+        var valid = tail.Count == 0 || tail[0] switch
+        {
+            "list" => tail.Count == 1 && !follow,
+            "follow" => tail.Count == 1,
+            "show" => tail.Count == 2 && !follow && Guid.TryParseExact(tail[1], "D", out _),
+            _ => false
+        };
+        if (!valid) throw new ArgumentException("Argumentos de logs inválidos. Consulte coquena --help.");
+        selection.Add("logs");
+        var command = ServiceCommand.Parse(selection.ToArray());
+        var target = Resolve(command, Home.Resolve());
+        var store = new ScopeStore(target.Context);
+        try { new ScopedServiceProcess(store, diagnostics: error).RetainLogs(target.Service.ServiceId); }
+        catch (StorageException e) when (e.Code == "service-busy")
+        { error.WriteLine("[Logs] Retención pospuesta: operación de ciclo en curso."); }
+        var logs = new ServiceLogReader(store, target.Service.ServiceId);
+        if (action == "list")
+        {
+            foreach (var log in logs.List())
+            {
+                string size;
+                try { size = ByteSize.Format(new FileInfo(log.Path).Length); }
+                catch (Exception e) when (e is IOException or UnauthorizedAccessException) { size = "no disponible"; }
+                output.WriteLine($"{log.Id} | {target.Service.Name} | servicio {log.ServiceId} | instancia {log.Id} | {log.StartedAt} | {size} | activo registrado: {log.Active} | {log.Path}");
+            }
+            return 0;
+        }
+        if (action != "follow") { logs.Recent(output, action == "show" ? tail[1] : null); return 0; }
+        using var cancellation = new CancellationTokenSource();
+        ConsoleCancelEventHandler handler = (_, e) => { e.Cancel = true; cancellation.Cancel(); };
+        Console.CancelKeyPress += handler;
+        try { logs.FollowAsync(output, cancellation.Token).GetAwaiter().GetResult(); }
+        catch (OperationCanceledException) when (cancellation.IsCancellationRequested) { return 0; }
+        finally { Console.CancelKeyPress -= handler; }
+        return 0;
     }
 
     private sealed record Target(ScopeContext Context, RecipeSelection Selection, ServiceIdentity Service);
@@ -185,7 +253,7 @@ public static class ScopedServiceCli
         };
         error.WriteLine($"Error: {code}. {e.Message}");
         if (e is OperationCanceledException) return 130;
-        if (e is RecipeException or ArgumentException || code is "unknown-service" or "self-requires-service" or "invalid-start-plan" or "invalid-endpoint" or "invalid-health-url" or "reserved-service-name") return 2;
+        if (e is RecipeException or ArgumentException || code is "unknown-service" or "unknown-log" or "self-requires-service" or "invalid-start-plan" or "invalid-endpoint" or "invalid-health-url" or "reserved-service-name") return 2;
         if (code is "scope-conflict" or "service-conflict" or "instance-conflict" or "service-in-use" or "service-busy" or "writer-busy" or "instance-already-registered" or "intention-conflict" or "service-name-conflict" or "publication-pending") return 3;
         if (code.Contains("integrity", StringComparison.Ordinal)) return 6;
         if (code is "backend-incompatible" or "unsupported-platform" or "health-required" or "publication-snapshot-required") return 5;

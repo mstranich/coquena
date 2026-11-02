@@ -56,7 +56,7 @@ internal sealed record ServiceCommand(
         else
         {
             action = positionals[^1];
-            if (action is not ("start" or "stop" or "restart" or "remove") || positionals.Count > 2 ||
+            if (action is not ("start" or "stop" or "restart" or "remove" or "logs") || positionals.Count > 2 ||
                 positionals.Count == 2 && (service is not null || positionals[0] is "start" or "stop" or "restart" or "remove" or "list" or "logs") ||
                 detached && action is not ("start" or "restart")) throw Invalid();
             selector = service ?? (positionals.Count == 2 ? positionals[0] : "default");

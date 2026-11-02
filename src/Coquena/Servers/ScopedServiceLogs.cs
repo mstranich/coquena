@@ -7,6 +7,12 @@ namespace Coquena.Servers;
 
 public sealed partial class ScopedServiceProcess
 {
+    public void RetainLogs(string serviceId)
+    {
+        using var lease = Lease(serviceId);
+        RetainLogsLocked(serviceId);
+    }
+
     // Caller holds the service lifecycle lease. Only successfully created files enter this ledger.
     private void RememberLog(string serviceId, Guid instanceId, string path, long? limit)
     {

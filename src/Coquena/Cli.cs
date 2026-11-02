@@ -12,6 +12,8 @@ public static class Cli
             { if (prefix + 1 >= args.Length) break; prefix += 2; continue; }
             break;
         }
+        if (prefix < args.Length && args[prefix] == "logs")
+            return ScopedServiceCli.Run(args, output, error);
         if (prefix < args.Length && args[prefix] == "import") return ImportCli.Run(args, output, error);
         if (prefix < args.Length && args[prefix] == "verify") return VerifyCli.Run(args, output, error);
         if (prefix < args.Length && args[prefix] is "clean" or "combination") return CleanupCli.Run(args, output, error);

@@ -113,7 +113,11 @@ Logs consulta salida reciente; seguimiento se cierra sin detener backend.
 Conservar como referencia el último log aunque servidor termine.
 Logs list enumera identificador, servicio, instancia, archivo, inicio, tamaño y
 condición de activo conocida. Logs show selecciona un histórico concreto y no
-cambia de archivo. Logs follow (o -f) sigue identidad del servicio entre reinicios
+cambia de archivo: transmite su contenido hasta el tamaño observado al seleccionarlo,
+con memoria acotada aunque el archivo sea grande. El ID de log corresponde a la
+instancia que lo creó y permite consultarlo mientras se conserve por retención.
+Cada ejecución crea un archivo nuevo; esa sucesión es la rotación registrada por
+Coquena. Logs follow (o -f) sigue identidad del servicio entre reinicios
 y rotación: drena lo legible del archivo anterior y continúa en el nuevo, separando
 visiblemente ejecuciones. Espera mientras el servicio está detenido; cancelar sólo
 cierra el observador. Si se elimina y recrea el nombre con otra identidad, no se
