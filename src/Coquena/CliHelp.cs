@@ -40,6 +40,8 @@ internal static class CliHelp
           import <receta.yaml>             Importar intención global sin iniciar
           update [--global]               Consultar novedades y guardar un plan
           upgrade [--global]              Aplicar propuestas válidas del plan vigente
+          clean [--dry-run|--yes]          Previsualizar y liberar recursos elegibles
+          combination list|forget <id>     Consultar u olvidar combinaciones del ámbito
             --select referencia           Filtrar recursos; opción repetible
           verify [--select referencia]     Comprobar receta y recursos del proyecto
           verify --global                   Auditar definiciones y recursos globales
@@ -181,10 +183,6 @@ internal static class CliHelp
             KB/MB/GB/TB/PB/EB usan base 1024; k/m/g/t/p/e usan base 1000.
             Sin distinguir mayúsculas; punto decimal. Salida siempre B/KiB/MiB/etc.
           config log-retention unset       Restablecer el límite inicial de 100 MiB
-          config backend-retention show    Consultar cuántos builds conservar
-          config backend-retention set <cantidad>
-            Conservar esa cantidad de builds tras actualizar (entero positivo)
-          config backend-retention unset   Restablecer la retención inicial de 5 builds
           config backends-dir show         Mostrar el directorio de backends
           config backends-dir set <ruta>    Cambiar el directorio de backends
           config backends-dir unset        Restablecer el directorio de backends

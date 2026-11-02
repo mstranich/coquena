@@ -158,7 +158,6 @@ internal static class ServerRuntimeTests
             var uncertainRemoval = Cli(["server", "default", "remove"]);
             Check(uncertainRemoval.Code == 1 && uncertainRemoval.Error.Contains("incierta") && File.ReadAllText(home.PathFor("catalogs/servers.json")) == removalBefore,
                 "server remove protects uncertain instance identity");
-            new Coquena.Backends.BackendBuildRetention(home).Apply("ggml-org/llama.cpp", "cpu", "win-x64");
             Check(Directory.Exists(backendDirectory) && new Coquena.Backends.BackendInstaller(home).List().Any(b => b.Id == backend.Id),
                 "uncertain process identity also protects old build");
             store.Update(DocumentKind.Instance, json.InstanceDocument, ContractValidation.Instance, _ => first, server: "default");

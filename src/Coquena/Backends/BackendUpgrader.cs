@@ -92,7 +92,6 @@ public sealed class BackendUpgrader(Home home, LocalStore? storage = null, Backe
                 if (operation is null)
                 {
                     report?.Invoke($"{label}: reutilizado {candidate.Build}; pin e instancias conservados.");
-                    new BackendBuildRetention(home, store).Apply(baseline.Repository, baseline.Family, baseline.Platform, report);
                     results.Add(new(label, "reused"));
                 }
                 else

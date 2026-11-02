@@ -16,22 +16,6 @@ public static class ConfigurationCli
             // Check grammar before creating the home or modifying state.
             if (command == "config")
             {
-                if (args.Length >= 1 && args[0] == "backend-retention")
-                {
-                    if (!(args.Length == 2 && args[1] is "show" or "unset" || args.Length == 3 && args[1] == "set")) Invalid();
-                    int? count = null;
-                    if (args[1] == "set")
-                    {
-                        if (!int.TryParse(args[2], System.Globalization.NumberStyles.None,
-                            System.Globalization.CultureInfo.InvariantCulture, out var parsed) || parsed <= 0) Invalid();
-                        count = parsed;
-                    }
-                    manager ??= new(Home.Resolve());
-                    if (args[1] != "show") manager.SetBackendRetention(count);
-                    var policy = manager.BackendRetention();
-                    output.WriteLine($"{policy.MaxBuilds} builds | {(policy.Own || policy.MaxBuilds != 5 ? "propio" : "inicial")}; limpieza tras upgrade exitoso.");
-                    return 0;
-                }
                 if (args.Length >= 1 && args[0] == "param-reset")
                 {
                     if (!(args.Length == 1 || args.Length == 2 && args[1] == "--dry-run")) Invalid();

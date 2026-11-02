@@ -3,6 +3,8 @@ using Coquena;
 
 // Match the product's output contract, including fixture and failure diagnostics.
 Console.OutputEncoding = new System.Text.UTF8Encoding(false);
+if (args.Length is 2 or 3 && args[0] == "--cleanup-tests")
+{ Coquena.Tests.CleanupTests.Run(Path.GetFullPath(args[1]), args.Length == 3 ? Path.GetFullPath(args[2]) : null); return; }
 
 if (args.Length == 2 && args[0] == "--internal-server-signal" && Guid.TryParse(args[1], out var signalId))
 { Environment.ExitCode = Coquena.Servers.ServerRuntime.SignalWorker(Coquena.Storage.Home.Resolve(), signalId); return; }

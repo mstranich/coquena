@@ -12,7 +12,7 @@ public sealed record ScopeSnapshot(long Revision, string? ScopeId, JsonObject? S
     public IEnumerable<JsonObject> ProtectedRuntimeDocuments() => ActiveDocuments().Concat(Documents.Values.Where(document =>
         document["kind"]?.GetValue<string>() == "last-good"));
 }
-public sealed record ScopeChange(ScopeStore Store, long ExpectedRevision, IReadOnlyDictionary<string, JsonObject> Documents, string? DefaultServiceId = null, Action? Validate = null, string? RemovedServiceId = null);
+public sealed record ScopeChange(ScopeStore Store, long ExpectedRevision, IReadOnlyDictionary<string, JsonObject> Documents, string? DefaultServiceId = null, Action? Validate = null, string? RemovedServiceId = null, IReadOnlySet<string>? RemovedDocuments = null);
 public enum ScopeWriteStage { Prepared, Decided, ParticipantPublished, ProjectionsPublished }
 
 // A generation is immutable; state.json is the only publication pointer. Cross-scope
@@ -23,6 +23,9 @@ public sealed class ScopeStore(ScopeContext context)
     internal string RuntimeDocumentPath(string serviceId, string kind) => Context.IsGlobal
         ? $"services/{serviceId}/local/{kind}.json" : $"local/runtime/services/{serviceId}/{kind}.json";
     internal T Locked<T>(Func<T> action) => WithLocks([this], action);
+    internal static T Coordinated<T>(IReadOnlyList<ScopeStore> stores, Func<ScopeSnapshot[], T> action) =>
+        WithLocks(stores, () => action(stores.Select(s => s.ReadLocked()).ToArray()));
+    internal ScopeSnapshot ReadVerified() => WithLocks([this], () => ReadLocked());
     private string StatePath => Context.PathFor("local/state.json");
     private string PendingPath => Context.PathFor("local/pending.json");
     private static StorageException Conflict() => new("scope-conflict", "Cambió el ámbito; releer antes de volver a preparar.");
@@ -89,7 +92,10 @@ public sealed class ScopeStore(ScopeContext context)
                 }
                 // The caller supplies a complete next generation, so omission cannot
                 // silently discard evidence or protections from a previous generation.
-                if (old.Documents.Keys.Any(path => !change.Documents.ContainsKey(path)))
+                if (change.RemovedDocuments?.Any(path => !old.Documents.ContainsKey(path) || change.Documents.ContainsKey(path) ||
+                    !(IsResolutionPath(path) || path == "local/last-good.json" || ServiceDocumentKind(path) == "last-good")) == true)
+                    throw new StorageException("invalid-document-removal", "Sólo se retiran resoluciones y últimas buenas identificadas.");
+                if (old.Documents.Keys.Any(path => !change.Documents.ContainsKey(path) && change.RemovedDocuments?.Contains(path) != true))
                     throw new StorageException("missing-generation-document", "La generación no conserva todos los documentos anteriores.");
                 var data = new JsonObject
                 {
@@ -331,6 +337,9 @@ public sealed class ScopeStore(ScopeContext context)
                     }
                     else Replace(item.Store.Context.PathFor(path), ProjectDocuments.Bytes(doc));
                 }
+                if (previous is not null)
+                    foreach (var path in previous.Keys.Except(LoadDocuments(item.Store.Context, item.Next).Keys))
+                        File.Delete(item.Store.Context.PathFor(path));
             }
             fault?.Invoke(ScopeWriteStage.ProjectionsPublished);
         }

@@ -3,6 +3,23 @@
 # References describe intended behavior; verify actual behavior in code and tests.
 version: 1
 features:
+  - id: scoped-resource-cleanup
+    intent: Previsualizar y liberar archivos propios sin referencias, y olvidar combinaciones conservando publicaciones e instancias.
+    keywords: [clean, dry-run, yes, combination, forget, protection, ownership]
+    entrypoints:
+      - src/Coquena/CleanupCli.cs
+    implementation:
+      - src/Coquena/Projects/ResourceCleanup.cs
+      - src/Coquena/Projects/CombinationCleanup.cs
+      - src/Coquena/Projects/ScopeStore.cs
+      - src/Coquena/Projects/PhysicalDirectory.cs
+    tests:
+      - tests/Coquena.Tests/CleanupTests.cs
+    references:
+      - docs/actualizacion-y-limpieza.md
+      - docs/persistencia-proyectos.md
+      - docs/comandos.md
+
   - id: recipe-upgrade
     intent: Preparar propuestas exactas válidas y publicar conjuntamente inventario y resoluciones sin modificar instancias activas.
     keywords: [upgrade, update, candidate, resume, pin, publication]
@@ -322,7 +339,7 @@ features:
 
   - id: backend-install-update
     intent: Descubrir e instalar backends oficiales, consultar novedades y aplicar actualizaciones.
-    keywords: [system probe, backend remote, backend install, backend update, backend upgrade, CPU, CUDA, Vulkan, retención]
+    keywords: [system probe, backend remote, backend install, backend update, backend upgrade, CPU, CUDA, Vulkan]
     entrypoints:
       - src/Coquena/BackendCli.cs
     implementation:
@@ -333,7 +350,6 @@ features:
       - src/Coquena/Backends/BackendInstaller.cs
       - src/Coquena/Backends/BackendUpdater.cs
       - src/Coquena/Backends/BackendUpgrader.cs
-      - src/Coquena/Backends/BackendBuildRetention.cs
     tests:
       - tests/Coquena.Tests/BackendTests.cs
       - tests/Coquena.Tests/InstallerTests.cs

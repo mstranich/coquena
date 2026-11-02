@@ -327,8 +327,7 @@ public sealed partial class BackendInstaller(Home home, LocalStore? storage = nu
         {
             var plan = operation.BackendInstall!;
             if (plan.Upgrade is not null)
-                new BackendBuildRetention(home, store).Apply("ggml-org/llama.cpp", operation.BackendSelection!.Family,
-                    operation.BackendSelection.Platform, retentionReport);
+                retentionReport?.Invoke("Builds anteriores conservados; la limpieza requiere una acción explícita.");
             store.Exclusive(() =>
             {
                 var installed = Catalog().Backends.SingleOrDefault(b => b.Id == plan.BackendId);

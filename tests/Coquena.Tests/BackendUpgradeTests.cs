@@ -74,15 +74,8 @@ internal static class BackendUpgradeTests
         {
             home.Ensure();
             using var output = new StringWriter(); using var error = new StringWriter();
-            Check(ConfigurationCli.Run("config", ["backend-retention", "show"], output, error, manager) == 0 && output.ToString().Contains("5 builds | inicial"), "initial policy");
-            Check(ConfigurationCli.Run("config", ["backend-retention", "set", "5"], output, error, manager) == 0 && manager.BackendRetention().Own, "explicit five has own origin");
-            foreach (var invalid in new[] { "0", "-1", "1.5", "2147483648", "abc", "+5", " 5" })
-            {
-                var prior = File.ReadAllText(home.PathFor("config.json"));
-                Check(ConfigurationCli.Run("config", ["backend-retention", "set", invalid], output, error, manager) == 2 &&
-                    File.ReadAllText(home.PathFor("config.json")) == prior, "invalid policy unchanged: " + invalid);
-            }
-            manager.SetBackendRetention(null); Check(!manager.BackendRetention().Own && manager.BackendRetention().MaxBuilds == 5, "unset policy");
+            Check(ConfigurationCli.Run("config", ["backend-retention", "show"], output, error, manager) == 2, "automatic retention policy retired");
+            manager.SetBackendRetention(null);
             var baseline = Record("b1", latest: true, pin: true); var target = Record("b2", pin: true);
             Save(baseline, target); Update(baseline, "b2");
             store.Update(DocumentKind.Config, json.ConfigDocument, ContractValidation.Config,
@@ -147,7 +140,7 @@ internal static class BackendUpgradeTests
             });
             Check(stale?.Diagnostic == "stale-upgrade-plan" && Read().Single(b => b.TracksLatest) == latest, "changed observation prevents obsolete publication");
             await installer.Downloads.ControlAsync(stale!.Id, true, beforeCancel: installer.CancelAsync);
-            // Interrupted publication resumes without transfer and runs retention afterward.
+            // Interrupted publication resumes without transfer and preserves previous builds.
             foreach (var stage in new[] { InstallStage.AfterMove, InstallStage.AfterIndex })
             {
                 latest = Read().Single(b => b.TracksLatest);
@@ -165,56 +158,12 @@ internal static class BackendUpgradeTests
                 Check(await installer.Downloads.RunAsync(interrupted!.Id, resumeTransport, finalize: installer.FinalizeAsync) is null &&
                     resumeTransport.Calls == 0 && Read().Single(b => b.TracksLatest).Build == nextBuild, "publication resume without network: " + stage);
             }
-            // Policy applies by distribution/family/platform, preserving all current variants.
-            var old = Record("b1", "cuda@12"); var sameBuild = Record("b1", "cuda@13");
-            var c12 = Record("b2", "cuda@12", latest: true); var c13 = Record("b3", "cuda@13", latest: true);
-            var other = Record("b1", "vulkan");
-            var externalPath = Path.Combine(root, "external.exe"); File.WriteAllText(externalPath, "external");
-            var external = other with { Id = Guid.NewGuid(), Name = "external", Ownership = "external", ServerPath = externalPath, TracksLatest = false, Pinned = false };
-            var otherPlatform = Record("b1", "cuda@12") with { Platform = "win-arm64" };
-            var otherRepository = Record("b1", "cuda@12") with { Repository = "lab/backend" };
-            var otherOriginBase = Record("b1", "cuda@12");
-            var otherOrigin = otherOriginBase with { Origin = "lab", ServerPath = new BackendPaths(home).Server(otherOriginBase) };
-            Save(old, sameBuild, c12, c13, other, external, otherPlatform, otherRepository, otherOrigin); manager.SetBackendRetention(1);
-            output.GetStringBuilder().Clear();
-            new BackendBuildRetention(home).Apply("ggml-org/llama.cpp", "cuda", "win-x64", output.WriteLine);
-            Check(Read().Length == 7 && !Directory.Exists(new BackendPaths(home).Slot(old)) && !Directory.Exists(new BackendPaths(home).Slot(sameBuild)), "all variants of oldest unprotected build removed");
-            Check(Read().Any(b => b.Id == c12.Id) && Read().Any(b => b.Id == c13.Id) && output.ToString().Contains("2 builds protegidos"), "current variants protected beyond limit");
-            Check(File.Exists(externalPath) && Read().Any(b => b.Id == other.Id), "external and other family untouched");
-            Check(Read().Any(b => b.Id == otherPlatform.Id) && Read().Any(b => b.Id == otherRepository.Id) && Read().Any(b => b.Id == otherOrigin.Id),
-                "platform, distribution and origin isolate retention");
-            old = Record("b1", "cuda@12"); Save(old, c12, c13, other, external);
-            var catalog = File.ReadAllText(home.PathFor("catalogs/backends.json")); manager.SetBackendRetention(10); manager.SetBackendRetention(null);
-            Check(File.ReadAllText(home.PathFor("catalogs/backends.json")) == catalog, "set/unset does not clean builds");
-            // Explicit fixed server protects a build even if its historical pin flag is absent.
-            manager.SetBackendRetention(1);
-            store.Update(DocumentKind.Servers, json.ServersDocument, ContractValidation.Servers,
-                _ => new(1, [new(Guid.NewGuid(), "fixture", new("fixed", old.Id), [],
-                    new() { ["port"] = System.Text.Json.JsonSerializer.SerializeToElement(9931, json.Int32) })]));
-            new BackendBuildRetention(home).Apply("ggml-org/llama.cpp", "cuda", "win-x64");
-            Check(Read().Any(b => b.Id == old.Id), "fixed server reference protected");
-            store.Update(DocumentKind.Servers, json.ServersDocument, ContractValidation.Servers, _ => new(1, []));
-            // Failure before catalog replacement retains both index and bytes; queue is recoverable.
-            var count = 0;
-            var faulty = new LocalStore(home, stage => { if (stage == WriteStage.BeforeReplace && ++count == 2) throw new IOException("fixture"); });
-            try { new BackendBuildRetention(home, faulty).Apply("ggml-org/llama.cpp", "cuda", "win-x64"); throw new Exception("Expected failure"); }
-            catch (IOException) { Check(Read().Any(b => b.Id == old.Id) && File.Exists(new BackendPaths(home).Server(old)), "failed index replacement preserves bytes"); }
-            new BackendBuildRetention(home).Apply("ggml-org/llama.cpp", "cuda", "win-x64");
-            Check(!Read().Any(b => b.Id == old.Id) && !Directory.Exists(new BackendPaths(home).Slot(old)), "queue retry coherent");
-            // A crash after index removal leaves a physical-only slot in the queue.
-            old = Record("b1", "cuda@12"); Save(old, c12, c13, other, external);
-            count = 0;
-            faulty = new LocalStore(home, stage => { if (stage == WriteStage.AfterReplace && ++count == 2) throw new IOException("fixture after index"); });
-            try { new BackendBuildRetention(home, faulty).Apply("ggml-org/llama.cpp", "cuda", "win-x64"); throw new Exception("Expected post-commit failure"); }
-            catch (StorageException e) { Check(e.Code == "published-incomplete-audit" && !Read().Any(b => b.Id == old.Id) && Directory.Exists(new BackendPaths(home).Slot(old)), "post-index crash retains durable physical cleanup"); }
-            new BackendBuildRetention(home).Apply("ggml-org/llama.cpp", "cuda", "win-x64");
-            Check(!Directory.Exists(new BackendPaths(home).Slot(old)) &&
-                store.Read(DocumentKind.BackendRetention, json.BackendRetentionJournal, j => ContractValidation.Backends(new(j.SchemaVersion, j.Pending)))!.Pending.Length == 0,
-                "physical-only queue recovery completes deletion");
-            // Same build in two CUDA variants consumes one build of the limit.
-            old = Record("b1", "cuda@12"); sameBuild = Record("b1", "cuda@13"); Save(old, sameBuild, c12, c13);
-            manager.SetBackendRetention(3); new BackendBuildRetention(home).Apply("ggml-org/llama.cpp", "cuda", "win-x64");
-            Check(Read().Length == 4, "retention counts distinct builds across variants");
+            // Old persisted retention preferences do not authorize deletion.
+            var history = Enumerable.Range(11, 7).Select(n => Record("b" + n, latest: n == 17)).ToArray();
+            var retainedTarget = Record("b18"); Save([.. history, retainedTarget]);
+            manager.SetBackendRetention(1); Update(history[^1], "b18");
+            Check((await Upgrade()).Single().State == "reused" && Read().Length == 8 &&
+                history.All(b => File.Exists(new BackendPaths(home).Server(b))), "upgrade preserves unprotected history beyond old retention preference");
             // Multiple units continue independently and only selected latest filters are eligible.
             baseline = Record("b9", latest: true); target = Record("b10", pin: true); var v = Record("b9", "vulkan", latest: true);
             Save(baseline, target, v); Update(baseline, "b10"); Update(v, "b10", state: "failed"); manager.SetBackendRetention(5);
@@ -249,8 +198,8 @@ internal static class BackendUpgradeTests
                 }
                 var nativeResult = await Native("backend", "upgrade", "cpu:latest");
                 Check(nativeResult.Code == 0 && nativeResult.Text.Contains("reused"), "native CLI reuses real validated executable: " + nativeResult.Text);
-                nativeResult = await Native("config", "backend-retention", "set", "5"); Check(nativeResult.Code == 0 && nativeResult.Text.Contains("propio"), "native explicit initial count own");
-                nativeResult = await Native("config", "backend-retention", "show"); Check(nativeResult.Code == 0 && nativeResult.Text.Contains("propio"), "native policy restart");
+                nativeResult = await Native("config", "backend-retention", "set", "5"); Check(nativeResult.Code == 2, "native retired retention set rejected");
+                nativeResult = await Native("config", "backend-retention", "show"); Check(nativeResult.Code == 2, "native retired retention show rejected");
                 Check((await Native("config", "backend-retention", "set", "0")).Code == 2, "native invalid policy");
                 Check((await Native("backend", "upgrade", "cpu:b2")).Code == 2, "native fixed selector rejected");
                 Check((await Native("--help")).Text.Contains("backend download"), "native M3 help");
