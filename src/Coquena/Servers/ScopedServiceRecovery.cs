@@ -19,7 +19,7 @@ public sealed partial class ScopedServiceProcess
         Func<CancellationToken, Task<ScopedStartPlan>> prepare,
         Func<JsonObject, CancellationToken, Task<ScopedStartPlan>> restore,
         Func<string, bool, ServiceRecoveryChoice>? decide = null,
-        CancellationToken cancellation = default, Func<bool>? forceRequested = null)
+        CancellationToken cancellation = default, Func<bool>? forceRequested = null, StartFailureHook? hook = null)
     {
         using var lease = Lease(serviceId);
         var running = ReconcileLocked(serviceId);
@@ -32,71 +32,97 @@ public sealed partial class ScopedServiceProcess
         var good = before.Documents.GetValueOrDefault(store.RuntimeDocumentPath(serviceId, "last-good"))?["data"]?.DeepClone().AsObject();
         if (good is not null && good["service-id"]?.GetValue<string>() != serviceId)
             throw new StorageException("instance-conflict", "La última buena no corresponde al servicio seleccionado.");
-        while (true)
+        string? failedCandidate = null, failedCode = null;
+        var recoveryResult = "not-attempted";
+        var available = running;
+        try
         {
-            var stoppedOriginal = false;
-            var candidateId = Guid.NewGuid().ToString("D");
-            try
+            while (true)
             {
-                cancellation.ThrowIfCancellationRequested();
-                var plan = await prepare(cancellation);
-                plan = plan with { InstanceId = Guid.ParseExact(candidateId, "D") };
-                ValidatePlan(plan);
-                ValidateBindings(plan);
-                ResourceVerification.CheckPublishedResources(store, serviceId);
-                plan.ValidateIntent?.Invoke();
-                cancellation.ThrowIfCancellationRequested();
-                if (running) { StopLocked(serviceId, forceRequested, originalInstance); stoppedOriginal = true; }
-                var result = await StartLockedAsync(serviceId, plan, cancellation, forceRequested);
-                RecordRecovery(serviceId, null, "candidate-succeeded", result);
-                ReportRecovery(serviceId, "Candidata funcional; diagnóstico de fallo eliminado.", warning: false);
-                return result;
-            }
-            catch (Exception failure) when (Recoverable(failure))
-            {
-                var code = FailureCode(failure);
-                RecordRecovery(serviceId, code, "candidate-failed", candidateId);
-                // Failed preparation must never interrupt the original service.
-                if (running && !stoppedOriginal)
-                {
-                    ReportRecovery(serviceId, $"Candidata fallida ({code}); se conserva la instancia activa {originalInstance}.");
-                    if (!detached && decide?.Invoke(code, false) == ServiceRecoveryChoice.Retry) continue;
-                    return originalInstance!;
-                }
-                if (ReconcileLocked(serviceId))
-                    StopLocked(serviceId, forceRequested, candidateId);
-                running = false;
-                ReportRecovery(serviceId, $"Candidata fallida ({code}).");
-                var choice = detached ? ServiceRecoveryChoice.LastGood : decide?.Invoke(code, good is not null) ?? ServiceRecoveryChoice.Cancel;
-                if (choice == ServiceRecoveryChoice.Retry) continue;
-                if (choice != ServiceRecoveryChoice.LastGood || good is null)
-                {
-                    ReportRecovery(serviceId, "Sin recuperación; no hay última buena disponible o se canceló la operación.");
-                    throw;
-                }
-                var recoveryId = Guid.NewGuid().ToString("D");
+                var stoppedOriginal = false;
+                var candidateId = Guid.NewGuid().ToString("D");
                 try
                 {
                     cancellation.ThrowIfCancellationRequested();
-                    var recovery = await restore(good.DeepClone().AsObject(), cancellation);
-                    recovery = recovery with { InstanceId = Guid.ParseExact(recoveryId, "D"), ValidateIntent = null };
-                    ValidatePlan(recovery);
-                    ValidateBindings(recovery);
+                    var plan = await prepare(cancellation);
+                    plan = plan with { InstanceId = Guid.ParseExact(candidateId, "D") };
+                    ValidatePlan(plan);
+                    ValidateBindings(plan);
                     ResourceVerification.CheckPublishedResources(store, serviceId);
-                    var result = await StartLockedAsync(serviceId, recovery, cancellation, forceRequested);
-                    RecordRecovery(serviceId, code, "last-good-succeeded", result);
-                    ReportRecovery(serviceId, $"Última buena recuperada; instancia {result}. La candidata conserva su diagnóstico de fallo.");
+                    plan.ValidateIntent?.Invoke();
+                    cancellation.ThrowIfCancellationRequested();
+                    if (running) { StopLocked(serviceId, forceRequested, originalInstance); stoppedOriginal = true; available = false; }
+                    var result = await StartLockedAsync(serviceId, plan, cancellation, forceRequested);
+                    available = true;
+                    RecordRecovery(serviceId, null, "candidate-succeeded", result);
+                    ReportRecovery(serviceId, "Candidata funcional; diagnóstico de fallo eliminado.", warning: false);
                     return result;
                 }
-                catch (Exception recoveryFailure) when (Recoverable(recoveryFailure) || FailureCode(recoveryFailure) is
-                    "invalid-start-plan" or "resource-content-conflict" or "resource-integrity-invalid" or "snapshot-resource-unavailable")
+                catch (Exception failure) when (Recoverable(failure))
                 {
-                    if (ReconcileLocked(serviceId)) StopLocked(serviceId, forceRequested, recoveryId);
-                    RecordRecovery(serviceId, code, "last-good-failed", recoveryId, FailureCode(recoveryFailure));
-                    ReportRecovery(serviceId, $"Última buena fallida ({FailureCode(recoveryFailure)}); recuperación terminada sin más intentos.");
-                    if (FailureCode(recoveryFailure).Contains("integrity", StringComparison.Ordinal)) throw;
-                    throw new StorageException("service-recovery-failed", $"Falló candidata ({code}) y última buena ({FailureCode(recoveryFailure)}).", inner: recoveryFailure);
+                    var code = FailureCode(failure);
+                    failedCandidate = candidateId; failedCode = code;
+                    RecordRecovery(serviceId, code, "candidate-failed", candidateId);
+                    // Failed preparation must never interrupt the original service.
+                    if (running && !stoppedOriginal)
+                    {
+                        ReportRecovery(serviceId, $"Candidata fallida ({code}); se conserva la instancia activa {originalInstance}.");
+                        if (!detached && decide?.Invoke(code, false) == ServiceRecoveryChoice.Retry) continue;
+                        return originalInstance!;
+                    }
+                    if (ReconcileLocked(serviceId))
+                        StopLocked(serviceId, forceRequested, candidateId);
+                    running = false; available = false;
+                    ReportRecovery(serviceId, $"Candidata fallida ({code}).");
+                    var choice = detached ? ServiceRecoveryChoice.LastGood : decide?.Invoke(code, good is not null) ?? ServiceRecoveryChoice.Cancel;
+                    if (choice == ServiceRecoveryChoice.Retry) continue;
+                    if (choice != ServiceRecoveryChoice.LastGood || good is null)
+                    {
+                        ReportRecovery(serviceId, "Sin recuperación; no hay última buena disponible o se canceló la operación.");
+                        throw;
+                    }
+                    recoveryResult = "failed";
+                    var recoveryId = Guid.NewGuid().ToString("D");
+                    try
+                    {
+                        cancellation.ThrowIfCancellationRequested();
+                        var recovery = await restore(good.DeepClone().AsObject(), cancellation);
+                        recovery = recovery with { InstanceId = Guid.ParseExact(recoveryId, "D"), ValidateIntent = null };
+                        ValidatePlan(recovery);
+                        ValidateBindings(recovery);
+                        ResourceVerification.CheckPublishedResources(store, serviceId);
+                        var result = await StartLockedAsync(serviceId, recovery, cancellation, forceRequested);
+                        recoveryResult = "succeeded"; available = true;
+                        RecordRecovery(serviceId, code, "last-good-succeeded", result);
+                        ReportRecovery(serviceId, $"Última buena recuperada; instancia {result}. La candidata conserva su diagnóstico de fallo.");
+                        return result;
+                    }
+                    catch (Exception recoveryFailure) when (Recoverable(recoveryFailure) || FailureCode(recoveryFailure) is
+                        "invalid-start-plan" or "resource-content-conflict" or "resource-integrity-invalid" or "snapshot-resource-unavailable")
+                    {
+                        if (ReconcileLocked(serviceId)) StopLocked(serviceId, forceRequested, recoveryId);
+                        RecordRecovery(serviceId, code, "last-good-failed", recoveryId, FailureCode(recoveryFailure));
+                        ReportRecovery(serviceId, $"Última buena fallida ({FailureCode(recoveryFailure)}); recuperación terminada sin más intentos.");
+                        if (FailureCode(recoveryFailure).Contains("integrity", StringComparison.Ordinal)) throw;
+                        throw new StorageException("service-recovery-failed", $"Falló candidata ({code}) y última buena ({FailureCode(recoveryFailure)}).", inner: recoveryFailure);
+                    }
                 }
+                catch (Exception fatal) when (FailureCode(fatal).Contains("integrity", StringComparison.Ordinal) || FailureCode(fatal) is
+                    "invalid-start-plan" or "invalid-endpoint" or "invalid-health-url" or "health-required" or "resource-content-conflict")
+                {
+                    failedCandidate = candidateId; failedCode = FailureCode(fatal);
+                    RecordRecovery(serviceId, failedCode, "candidate-fatal", candidateId);
+                    throw;
+                }
+            }
+        }
+        finally
+        {
+            if (failedCandidate is not null && hook is not null)
+            {
+                using var hookDiagnostic = new StringWriter();
+                await hook.NotifyAsync(serviceId, failedCandidate, recoveryResult, available, failedCode!, hookDiagnostic);
+                if (hookDiagnostic.ToString().Trim() is { Length: > 0 } message) ReportRecovery(serviceId, message);
             }
         }
     }

@@ -356,7 +356,7 @@ public sealed class RecipeRegistry(ScopeStore store)
             ["health"] = new JsonObject { ["url"] = healthUrl.ToString(), ["status"] = statusCode,
                 ["timeout-ms"] = (timeout ?? TimeSpan.FromSeconds(120)).TotalMilliseconds,
                 ["interval-ms"] = (interval ?? TimeSpan.FromMilliseconds(500)).TotalMilliseconds } };
-        foreach (var key in new[] { "combination", "endpoint", "execution" })
+        foreach (var key in new[] { "combination", "endpoint", "execution", "log-directory", "log-retention-bytes" })
             if (active[key] is { } value) data[key] = value.DeepClone();
         docs[path] = ProjectDocuments.Create("last-good", docs.GetValueOrDefault(path)?["revision"]?.GetValue<long>() ?? 1, data);
         store.Commit(snapshot.Revision, docs);

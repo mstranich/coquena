@@ -121,6 +121,9 @@ enlaza automáticamente. El acceso por service/server y el atajo raíz son equiv
 Retención: límite global de usuario y override de proyecto, independiente de args
 del backend. Se conserva default de 100 MiB, configurable en bytes/unidades claras.
 No truncar activo/último para cumplir límite; informar exceso de protegidos.
+El límite efectivo se aplica a los logs de cada servicio. En directorios externos
+o compartidos sólo se retiran archivos registrados por ese servicio cuya identidad
+física coincide con la registrada al crearlos; un nombre UUID no acredita propiedad.
 Cambiar límite no borra inmediatamente; limpieza en acciones de ciclo/consulta,
 sin recolector residente. No prometer cuota estricta si protegido supera el límite.
 

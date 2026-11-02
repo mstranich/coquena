@@ -79,7 +79,9 @@ public static class ScopedServiceSnapshot
             good["endpoint"]!.DeepClone().AsObject(), new Uri(health["url"]!.GetValue<string>()),
             TimeSpan.FromMilliseconds(health["timeout-ms"]?.GetValue<double>() ?? 120000),
             TimeSpan.FromMilliseconds(health["interval-ms"]?.GetValue<double>() ?? 500),
-            IsDraft: good["draft"]?.GetValue<bool>() == true);
+            IsDraft: good["draft"]?.GetValue<bool>() == true,
+            LogDirectory: good["log-directory"]?.GetValue<string>() ?? Path.GetDirectoryName(logPath),
+            LogRetentionBytes: good["log-retention-bytes"]?.GetValue<long>());
     }
 
     private static JsonNode? FindInstallation(ScopeSnapshot state, JsonNode binding) =>

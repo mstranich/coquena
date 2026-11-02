@@ -285,6 +285,15 @@ secretos en argumentos o logs compartidos. El contexto se envía como un único 
 `diagnostic-code`. Sin argumentos expandidos secretos. Plazo del hook: 10 s;
 agotarlo no revierte el resultado del servicio.
 
+Los reintentos interactivos forman una sola operación: se notifica una vez al
+terminarla si alguna candidata falló, incluso si un reintento posterior tuvo éxito.
+El contexto identifica la última candidata fallida y la disponibilidad final;
+los fallos intermedios permanecen en el diagnóstico local. Sin una receta válida
+no se obtiene una configuración confiable del hook desde esa intención.
+Command y args no admiten valores marcados como sensibles por interpolación.
+La salida del hook no se reproduce en los diagnósticos; se informa su fallo sin
+incorporar su contenido potencialmente secreto.
+
 No detecta inmediatamente caídas posteriores sin observador activo: no hay
 supervisor residente. Este hook amplía el aviso de fallo fatal a candidata fallida
 con recuperación exitosa; no supone vigilancia permanente.

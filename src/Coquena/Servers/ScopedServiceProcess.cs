@@ -9,7 +9,7 @@ namespace Coquena.Servers;
 public sealed record ScopedStartPlan(string Executable, string[] Arguments, string LogPath,
     string Combination, JsonObject Snapshot, JsonArray Resources, JsonObject Endpoint,
     Uri HealthUrl, TimeSpan Timeout, TimeSpan Interval, Guid? InstanceId = null, Action? ValidateIntent = null,
-    bool IsDraft = false, bool PresetIni = false);
+    bool IsDraft = false, bool PresetIni = false, string? LogDirectory = null, long? LogRetentionBytes = null);
 
 // Lifecycle leases are per service and separate from the short catalog writer lease.
 public sealed partial class ScopedServiceProcess(ScopeStore store, TextWriter? output = null, TextWriter? diagnostics = null)
@@ -27,7 +27,9 @@ public sealed partial class ScopedServiceProcess(ScopeStore store, TextWriter? o
     public bool Reconcile(string serviceId)
     {
         using var lease = Lease(serviceId);
-        return ReconcileLocked(serviceId);
+        var running = ReconcileLocked(serviceId);
+        RetainLogsLocked(serviceId);
+        return running;
     }
 
     private bool ReconcileLocked(string serviceId)
@@ -66,7 +68,9 @@ public sealed partial class ScopedServiceProcess(ScopeStore store, TextWriter? o
     public bool Stop(string serviceId, Func<bool>? forceRequested = null, string? expectedInstanceId = null)
     {
         using var lease = Lease(serviceId);
-        return StopLocked(serviceId, forceRequested, expectedInstanceId);
+        var stopped = StopLocked(serviceId, forceRequested, expectedInstanceId);
+        RetainLogsLocked(serviceId);
+        return stopped;
     }
 
     private bool StopLocked(string serviceId, Func<bool>? forceRequested, string? expectedInstanceId = null)
@@ -157,7 +161,8 @@ public sealed partial class ScopedServiceProcess(ScopeStore store, TextWriter? o
         if (!Path.IsPathFullyQualified(plan.Executable) || !Path.IsPathFullyQualified(plan.LogPath) ||
             !plan.HealthUrl.IsAbsoluteUri || plan.HealthUrl.Scheme is not ("http" or "https") ||
             !string.IsNullOrEmpty(plan.HealthUrl.UserInfo) || plan.Timeout <= TimeSpan.Zero ||
-            plan.Interval < TimeSpan.FromMilliseconds(100) || plan.Interval > TimeSpan.FromSeconds(10))
+            plan.Interval < TimeSpan.FromMilliseconds(100) || plan.Interval > TimeSpan.FromSeconds(10) ||
+            plan.LogDirectory is not null && !Path.IsPathFullyQualified(plan.LogDirectory) || plan.LogRetentionBytes is <= 0)
             throw new StorageException("invalid-start-plan", "El plan de inicio o salud es inválido.");
         if (!File.Exists(plan.Executable)) throw new StorageException("backend-missing", "El ejecutable del backend no existe.");
         var host = plan.Endpoint["host"]?.GetValue<string>();
@@ -178,9 +183,10 @@ public sealed partial class ScopedServiceProcess(ScopeStore store, TextWriter? o
         try { ServerRuntime.ProbePort(host!, port!.Value); }
         catch (ConfigurationException error)
         { throw new StorageException("endpoint-unavailable", error.Message, inner: error); }
-        Directory.CreateDirectory(Path.GetDirectoryName(plan.LogPath)!);
         var id = plan.InstanceId ?? Guid.NewGuid();
         if (id == Guid.Empty) throw new StorageException("invalid-instance-id", "Identidad de instancia inválida.");
+        if (plan.LogDirectory is not null) plan = plan with { LogPath = Path.Combine(plan.LogDirectory, $"{id:D}.log") };
+        Directory.CreateDirectory(Path.GetDirectoryName(plan.LogPath)!);
         if (plan.PresetIni || plan.Arguments.Contains("--models-preset", StringComparer.Ordinal) || plan.Snapshot["service"]?["backend"]?["version"] is not null)
         {
             var ini = new PresetPublication(store, store, serviceId).IniPath;
@@ -189,16 +195,19 @@ public sealed partial class ScopedServiceProcess(ScopeStore store, TextWriter? o
                 plan = plan with { Arguments = [.. plan.Arguments, "--models-preset", ini] };
         }
         using var child = WindowsServerProcess.Create(plan.Executable, plan.Arguments, plan.LogPath, id, newLog: true);
+        RememberLog(serviceId, id, plan.LogPath, plan.LogRetentionBytes);
         var active = new JsonObject { ["service-id"] = serviceId, ["instance-id"] = id.ToString("D"),
             ["process"] = new JsonObject { ["pid"] = child.Pid, ["creation-time"] = child.Created, ["executable"] = child.Executable },
             ["combination"] = plan.Combination, ["snapshot"] = plan.Snapshot.DeepClone(), ["resources"] = plan.Resources.DeepClone(),
             ["endpoint"] = plan.Endpoint.DeepClone(), ["log"] = plan.LogPath, ["draft"] = plan.IsDraft,
+            ["log-directory"] = plan.LogDirectory, ["log-retention-bytes"] = plan.LogRetentionBytes,
             ["preset-composition"] = PresetPublication.Service(store.Read(), serviceId)["consumers"]?.DeepClone() ?? new JsonArray(),
             ["execution"] = new JsonObject { ["executable"] = plan.Executable,
                 ["arguments"] = new JsonArray(plan.Arguments.Select(value => (JsonNode?)JsonValue.Create(value)).ToArray()),
                 ["working-directory"] = Path.GetDirectoryName(plan.Executable) } };
         var registry = new RecipeRegistry(store);
         registry.PublishActive(serviceId, active, plan.ValidateIntent);
+        RetainLogsLocked(serviceId, plan.LogRetentionBytes);
         child.Activate();
         var instance = Identity(serviceId, active);
         using var process = WindowsServerProcess.Verified(instance, out var ended);

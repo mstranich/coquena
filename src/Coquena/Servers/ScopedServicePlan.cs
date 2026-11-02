@@ -68,7 +68,13 @@ public static class ScopedServicePlan
         var bindings = new JsonArray(prepared.Resources.Select(r => (JsonNode?)new JsonObject
         { ["key"] = r.Key, ["kind"] = r.Kind, ["resource-id"] = r.ResourceId, ["installation-id"] = r.InstallationId,
             ["entry-path"] = r.EntryPath, ["resolution"] = r.Resolution.DeepClone() }).ToArray());
+        var logs = recipe.Root.Get("service")?.Get("server")?.Get("logs");
+        var directory = logs?.Get("directory") is { } configured ? recipe.Selection.ResolvePath(configured.Text!) : Path.GetDirectoryName(logPath)!;
+        var retention = logs?.Get("retention")?.Get("max-bytes");
+        if (retention is not null && !long.TryParse(retention.Text, NumberStyles.None, CultureInfo.InvariantCulture, out _))
+            throw retention.Error("invalid-log-retention", "validation", "La retención excede el rango de bytes admitido.");
         return new(backend.EntryPath, args.ToArray(), logPath, prepared.Id, snapshot.DeepClone().AsObject(), bindings,
-            new JsonObject { ["host"] = host, ["port"] = port }, healthUrl, TimeSpan.FromSeconds(timeout), TimeSpan.FromMilliseconds(interval), ValidateIntent: ValidateIntent);
+            new JsonObject { ["host"] = host, ["port"] = port }, healthUrl, TimeSpan.FromSeconds(timeout), TimeSpan.FromMilliseconds(interval), ValidateIntent: ValidateIntent,
+            LogDirectory: directory, LogRetentionBytes: retention is null ? null : long.Parse(retention.Text!, CultureInfo.InvariantCulture));
     }
 }

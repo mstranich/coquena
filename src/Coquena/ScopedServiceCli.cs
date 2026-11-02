@@ -120,6 +120,9 @@ public static class ScopedServiceCli
                 return 0;
             }
             Task<ScopedStartPlan> Prepare(CancellationToken token) => PrepareAsync(command, target, error, token);
+            StartFailureHook? hook = null;
+            try { hook = StartFailureHook.FromRecipe(RecipeReader.Read(target.Selection)); }
+            catch (RecipeException e) when (e.Code != "sensitive-hook-argument") { /* Invalid intention has no trusted hook. Preparation retains its diagnostic. */ }
             ServiceRecoveryChoice Decide(string code, bool available)
             {
                 if (Console.IsInputRedirected) return ServiceRecoveryChoice.Cancel;
@@ -130,7 +133,7 @@ public static class ScopedServiceCli
             }
             var instance = lifecycle.RunAsync(service.ServiceId, command.Action == "restart", command.Detached,
                 Prepare, (snapshot, token) => RestoreAsync(target, snapshot, error, token), Decide,
-                cancellation.Token, ForceRequested).GetAwaiter().GetResult();
+                cancellation.Token, ForceRequested, hook).GetAwaiter().GetResult();
             output.WriteLine($"Servicio {service.Name}; instancia {instance}.");
             return command.Detached ? 0 : lifecycle.Foreground(service.ServiceId, instance, output, interrupt);
         }

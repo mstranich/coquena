@@ -113,6 +113,19 @@ public static class ProjectDocuments
                     if (entity?["kind"]?.GetValue<string>() is not ("service" or "preset") || string.IsNullOrWhiteSpace(entity["name"]?.GetValue<string>())) Invalid();
                     if (entity!["publication-operation"] is JsonNode pending) PublicationOperation(pending);
                     if (entity["consumers"] is JsonNode contributions) Contributions(contributions);
+                    if (entity["log-retention-bytes"] is JsonNode retention && retention.GetValue<long>() <= 0) Invalid();
+                    if (entity["log-history"] is JsonNode logs)
+                    {
+                        if (logs is not JsonArray) Invalid();
+                        var instances = new HashSet<string>(StringComparer.Ordinal);
+                        foreach (var log in logs.AsArray())
+                        {
+                            if (!instances.Add(Uuid(log?["instance-id"])) ||
+                                log?["path"]?.GetValue<string>() is not string path || !Path.IsPathFullyQualified(path) ||
+                                string.IsNullOrEmpty(log["volume"]?.GetValue<string>()) || string.IsNullOrEmpty(log["file-id"]?.GetValue<string>()) ||
+                                !DateTimeOffset.TryParse(log["started-at"]?.GetValue<string>(), out _)) Invalid();
+                        }
+                    }
                 }
             }
         }

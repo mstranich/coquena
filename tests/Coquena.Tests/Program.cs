@@ -3,6 +3,17 @@ using Coquena;
 
 // Match the product's output contract, including fixture and failure diagnostics.
 Console.OutputEncoding = new System.Text.UTF8Encoding(false);
+if (args.Length == 3 && args[0] == "--start-failure-hook")
+{
+    var payload = await Console.In.ReadToEndAsync();
+    File.AppendAllText(args[1], payload.Trim() + Environment.NewLine);
+    Console.WriteLine("HOOK_PRIVATE_OUTPUT"); Console.Error.WriteLine("HOOK_PRIVATE_OUTPUT");
+    if (args[2] == "hang") await Task.Delay(TimeSpan.FromSeconds(60));
+    Environment.ExitCode = args[2] == "fail" ? 1 : 0;
+    return;
+}
+if (args.Length is 1 or 2 && args[0] == "--service-log-hook-tests")
+{ await Coquena.Tests.ServiceLogHookTests.Run(args.Length == 2 ? Path.GetFullPath(args[1]) : null); return; }
 if (args.Length is 2 or 3 && args[0] == "--cleanup-tests")
 { Coquena.Tests.CleanupTests.Run(Path.GetFullPath(args[1]), args.Length == 3 ? Path.GetFullPath(args[2]) : null); return; }
 
