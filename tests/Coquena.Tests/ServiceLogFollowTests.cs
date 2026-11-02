@@ -27,7 +27,7 @@ internal static class ServiceLogFollowTests
             var entity = docs["local/recipes.json"]["data"]!["recipes"]!.AsArray().SelectMany(r => r!["entities"]!.AsArray()).Single(e => e!["id"]!.GetValue<string>() == service.ServiceId)!;
             var history = entity["log-history"] as JsonArray;
             if (history is null) entity["log-history"] = history = new JsonArray();
-            history.Add(new JsonObject { ["instance-id"] = id, ["path"] = path, ["volume"] = "fixture", ["file-id"] = id, ["started-at"] = DateTimeOffset.UtcNow.ToString("O") });
+            history.Add((JsonNode)new JsonObject { ["instance-id"] = id, ["path"] = path, ["volume"] = "fixture", ["file-id"] = id, ["started-at"] = DateTimeOffset.UtcNow.ToString("O") });
             store.Commit(state.Revision, docs);
             return path;
         }

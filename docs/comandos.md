@@ -295,7 +295,7 @@ service list
 service [<nombre|default|self>] logs [list|follow|show <log-id>] [-f]
 preset apply|withdraw <clave>
 apply|withdraw <clave>
-ps [-w|--watch]
+ps [--service <nombre|default|self>] [-w|--watch]
 logs [list|follow|show <log-id>] [-f]
 update [--select <recurso>]...
 upgrade [--select <recurso>]...
@@ -384,6 +384,11 @@ Logs sin subcomando lee salida reciente; -f equivale a follow y no es --file en
 esa familia. `logs show <id>` selecciona un histórico y no se combina con follow.
 IDs de log son locales al servicio, nunca rutas arbitrarias inferidas.
 Ps sin servicio muestra los servicios conocidos; con selección limita la consulta.
+`--service self` selecciona el servicio propio usando las opciones de receta;
+`--service <nombre|default>` selecciona un global. `--global` limita la consulta
+general a servicios globales. Una selección explícita de archivos o base sin
+`--service` consulta el servicio propio de esa selección. El bloque de hardware
+conserva su alcance de máquina aunque se seleccione un servicio.
 `ps -w` y `ps --watch` activan la observación continua; watch es una opción, no
 un subcomando. Sin esa opción ps muestra una instantánea y termina.
 Con salida redirigida, ps --watch emite snapshots separados por newline, sin

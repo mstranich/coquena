@@ -3,6 +3,25 @@
 # References describe intended behavior; verify actual behavior in code and tests.
 version: 1
 features:
+  - id: scoped-service-hardware-snapshots
+    intent: Consultar hardware y servicios conocidos con identidad, fuente, alcance y disponibilidad explícitos.
+    keywords: [ps, metrics, hardware, CPU, RAM, GPU, VRAM, Windows, Linux, WSL, snapshot]
+    entrypoints:
+      - src/Coquena/ObservationCli.cs
+    implementation:
+      - src/Coquena/Observation/SystemMetrics.cs
+      - src/Coquena/Observation/WindowsSystemMetrics.cs
+      - src/Coquena/Observation/WindowsGpuInventory.cs
+      - src/Coquena/Observation/LinuxSystemMetrics.cs
+      - src/Coquena/Observation/InstanceProbe.cs
+      - src/Coquena/Observation/ServiceObservation.cs
+      - src/Coquena/Servers/WindowsInstanceMetrics.cs
+    tests:
+      - tests/Coquena.Tests/ObservationTests.cs
+    references:
+      - docs/observabilidad.md
+      - docs/comandos.md
+
   - id: scoped-service-log-observation
     intent: Consultar históricos por instancia y seguir la identidad del servicio entre reinicios sin controlar su proceso.
     keywords: [logs, follow, history, rotation, instance, observer]

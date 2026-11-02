@@ -31,6 +31,7 @@ internal static class CliHelp
 
         Comandos:
           system probe                     Mostrar hardware y aceleradores disponibles
+          ps [--service <nombre|default|self>]  Consultar hardware y servicios; termina
           backend (runtime)                Consultar y preparar backends por ámbito
           model                            Descargar y administrar modelos
           model companion                  Administrar auxiliares mmproj y MTP

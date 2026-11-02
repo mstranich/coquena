@@ -151,6 +151,31 @@ No convertir observabilidad en benchmark ni en supervisor implícito.
 
 ## Consumo de recursos y visión de conjunto
 
+### Fuentes de hardware y portabilidad
+
+La consulta de hardware usa API del sistema operativo o bibliotecas e interfaces
+del driver, sin ejecutar utilidades externas del fabricante. Las fuentes de
+Windows y Linux producen el mismo contrato de muestras; la disponibilidad de un
+contador no se supone por conocer el fabricante o la capacidad del dispositivo.
+En entornos virtualizados se identifica el entorno medido. CPU y RAM de WSL
+corresponden a la máquina Linux virtualizada; la GPU expuesta por el host puede
+ofrecer telemetría parcial. Esas muestras no representan todos los recursos del
+host ni acreditan el mismo comportamiento en Linux nativo.
+
+La memoria privada comprometida de un grupo de procesos no equivale a su conjunto
+residente en RAM y se etiqueta como tal. El conjunto residente puede mostrarse por
+proceso verificado; no se suman sus páginas compartidas como memoria exclusiva
+del servicio. La capacidad dedicada de una GPU,
+su uso de memoria dedicada y su uso de memoria compartida son cifras distintas.
+La actividad de GPU calculada por motores identifica la agregación utilizada;
+no suma porcentajes de motores distintos como si fueran una única capacidad.
+Cada muestra conserva fecha y, cuando se conoce, ventana. Su vigencia se evalúa
+respecto de esa fecha: una captura completada no convierte todas sus lecturas
+en simultáneas. Un cambio de instancia o composición durante la consulta impide
+presentarla como confirmación de la composición actual.
+
+### Atribución y agregación
+
 El observador combina telemetría del backend con mediciones del sistema operativo
 cuando están disponibles. CPU y RAM se atribuyen a procesos verificados de la
 instancia, incluidos procesos de modelos identificables. GPU y VRAM distinguen

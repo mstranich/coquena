@@ -176,7 +176,7 @@ internal static class RecipeUpgradeTests
             var worker = new System.Diagnostics.ProcessStartInfo(Environment.ProcessPath!) { UseShellExecute = false, CreateNoWindow = true,
                 RedirectStandardOutput = true, RedirectStandardError = true };
             if (Path.GetFileNameWithoutExtension(Environment.ProcessPath!).Equals("dotnet", StringComparison.OrdinalIgnoreCase))
-                worker.ArgumentList.Add(typeof(RecipeUpgradeTests).Assembly.Location);
+                worker.ArgumentList.Add(Path.Combine(AppContext.BaseDirectory, "Coquena.Tests.dll"));
             foreach (var argument in new[] { "--upgrade-crash-worker", crash.Selection.Base, stage.ToString() }) worker.ArgumentList.Add(argument);
             using (var child = System.Diagnostics.Process.Start(worker)!)
             {

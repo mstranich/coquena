@@ -109,7 +109,7 @@ public static class ScopedServiceCli
         return 0;
     }
 
-    private sealed record Target(ScopeContext Context, RecipeSelection Selection, ServiceIdentity Service);
+    internal sealed record Target(ScopeContext Context, RecipeSelection Selection, ServiceIdentity Service);
 
     private static RecipeSelection Selection(ServiceCommand command) => new(Environment.CurrentDirectory,
         command.Files, command.BasePath, command.EnvFiles);
@@ -127,7 +127,7 @@ public static class ScopedServiceCli
         return 0;
     }
 
-    private static Target Resolve(ServiceCommand command, Home home)
+    internal static Target Resolve(ServiceCommand command, Home home)
     {
         if (command.Selector == "self")
         {
