@@ -39,6 +39,7 @@ internal static class CliHelp
           service (server)                 Administrar servicios y su ejecución
           import <receta.yaml>             Importar intención global sin iniciar
           update [--global]               Consultar novedades y guardar un plan
+          upgrade [--global]              Aplicar propuestas válidas del plan vigente
             --select referencia           Filtrar recursos; opción repetible
           verify [--select referencia]     Comprobar receta y recursos del proyecto
           verify --global                   Auditar definiciones y recursos globales

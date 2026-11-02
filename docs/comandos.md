@@ -347,6 +347,15 @@ registradas del catálogo global. Un selector desconocido no amplía al conjunto
 Un plan parcial nuevo no autoriza aplicar propuestas excluidas. `combination forget`
 requiere ID completo del ámbito y no olvida una instancia activa ni retira presets.
 
+Upgrade aplica conjuntamente las propuestas válidas del plan seleccionadas. Informa
+los recursos bloqueados sin modificarlos y omite externos o recursos sin cambios.
+Si falla una preparación aplicable, conserva todo el conjunto anterior. Reintentar
+upgrade conserva operaciones y candidatas exactas; `download resume` puede completar
+una candidata, pero no publica por sí solo las resoluciones del conjunto. El resultado
+informa disponibilidad para próxima ejecución o aplicación, sin reiniciar servicios.
+La presencia de recursos bloqueados se informa con código de salida 6, aunque las
+propuestas válidas hayan quedado preparadas y publicadas localmente.
+
 En proyecto, verify comprueba la receta completa de la combinación elegida y los
 recursos que utiliza; `--select` permite limitar esos recursos. No admite
 `--include-unused`. No audita el

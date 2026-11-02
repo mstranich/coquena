@@ -4,6 +4,8 @@ using Coquena.Projects;
 using Coquena.Recipes;
 using Coquena.Storage;
 using System.Text.Json.Nodes;
+using Coquena.Downloads;
+using Coquena.Contracts;
 
 namespace Coquena;
 
@@ -15,10 +17,10 @@ public static class UpdateCli
         ConsoleCancelEventHandler handler = (_, e) => { e.Cancel = true; cancellation.Cancel(); };
         Console.CancelKeyPress += handler;
         try { return RunAsync(args, output, cancellation.Token).GetAwaiter().GetResult(); }
-        catch (Exception e) when (e is ArgumentException or RecipeException or StorageException or ModelSourceException or BackendException or IOException or UnauthorizedAccessException or OperationCanceledException)
+        catch (Exception e) when (e is ArgumentException or RecipeException or StorageException or ModelSourceException or BackendException or DownloadException or ContractException or IOException or UnauthorizedAccessException or OperationCanceledException)
         {
             error.WriteLine("Error: " + (e switch { RecipeException r => r.Code, StorageException s => s.Code,
-                ModelSourceException m => m.Code, BackendException b => b.Code, OperationCanceledException => "cancelled", ArgumentException => "invalid-selection", _ => "update-failed" }));
+                ModelSourceException m => m.Code, BackendException b => b.Code, DownloadException d => d.Code, ContractException c => c.Code, OperationCanceledException => "cancelled", ArgumentException => "invalid-selection", _ => "update-failed" }));
             return e is OperationCanceledException ? 130 : 2;
         }
         finally { Console.CancelKeyPress -= handler; }
@@ -26,14 +28,20 @@ public static class UpdateCli
 
     private static async Task<int> RunAsync(string[] args, TextWriter output, CancellationToken cancellation)
     {
+        var upgrade = false;
+        for (var index = 0; index < args.Length; index++)
+        {
+            if (args[index] is "--file" or "-f" or "--env-file" or "--project-directory" or "--base" or "--select") { index++; continue; }
+            if (args[index] == "upgrade") upgrade = true;
+        }
         var files = new List<string>(); var env = new List<string>(); var selectors = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         string? directory = null; var seen = new HashSet<string>(); var global = false;
         if (args.Any(a => a is "--help" or "-h"))
-        { output.WriteLine("update [-f archivo]... [--env-file archivo]... [--project-directory ruta] [--select referencia]...\nupdate --global [--select referencia]...\nReferencias: backend://variante, backend://alias, backend://proyecto/alias, model://clave, companion://clave"); return 0; }
+        { output.WriteLine($"{(upgrade ? "upgrade" : "update")} [-f archivo]... [--env-file archivo]... [--project-directory ruta] [--select referencia]...\n{(upgrade ? "upgrade" : "update")} --global [--select referencia]...\nReferencias: backend://variante, backend://alias, backend://proyecto/alias, model://clave, companion://clave"); return 0; }
         for (var i = 0; i < args.Length; i++)
         {
             var arg = args[i] switch { "-f" => "--file", "--base" => "--project-directory", "-g" => "--global", _ => args[i] };
-            if (arg is "update" or "--private" or "--global") { if (!seen.Add(arg)) throw new ArgumentException(); global |= arg == "--global"; continue; }
+            if (arg is "update" or "upgrade" or "--private" or "--global") { if (!seen.Add(arg)) throw new ArgumentException(); global |= arg == "--global"; continue; }
             if (arg is not ("--file" or "--env-file" or "--project-directory" or "--select") || ++i == args.Length) throw new ArgumentException();
             switch (arg)
             {
@@ -48,6 +56,16 @@ public static class UpdateCli
         var selection = global ? null : new RecipeSelection(Environment.CurrentDirectory, files, directory, env);
         var context = global ? ScopeContext.Global(Home.Resolve()) : ScopeContext.Project(selection!.Files[0], selection.Base);
         var selections = global ? GlobalSelections(context) : [selection!];
+        if (upgrade)
+        {
+            using var modelTransport = new HuggingFaceTransport();
+            using var backendTransport = new OfficialArtifactTransport();
+            var upgraded = await new RecipeUpgrade(context).ApplyAsync(selections, selectors, HardwareProbe.Inspect(),
+                modelTransport, backendTransport, new ScopedBackends(context).ValidateOfficial,
+                message => output.WriteLine(message), cancellation: cancellation);
+            output.WriteLine(upgraded.ToJsonString());
+            return upgraded["resources"]!.AsArray().Any(r => r!["upgrade-status"]!.GetValue<string>() == "blocked") ? 6 : 0;
+        }
         using var client = HuggingFaceStore.CreateClient();
         using var github = new HttpClient(new HttpClientHandler { AllowAutoRedirect = false, UseCookies = false }) { Timeout = TimeSpan.FromSeconds(60) };
         var source = new OfficialBackendSource(github);

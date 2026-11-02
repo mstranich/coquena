@@ -35,7 +35,7 @@ public sealed class ScopeTransfers
     }
 
     public OperationDocument Create(OperationDocument selection, string origin = "explicit", string[]? requiredFiles = null,
-        JsonObject? externalPrevious = null)
+        JsonObject? externalPrevious = null, Action<OperationDocument>? beforeCreate = null)
     {
         if (selection.BackendInstall is not null || selection.ModelInstall is not null || selection.ScopePublication is not null ||
             origin is not ("explicit" or "automatic")) Fail("invalid-scoped-selection");
@@ -72,8 +72,10 @@ public sealed class ScopeTransfers
                 if (selection.Files.Any(f => string.Equals(Path.GetFullPath(file!["path"]!.GetValue<string>(), Context.Base),
                     Context.PathFor(prefix + "/" + f.SourcePath), StringComparison.OrdinalIgnoreCase))) Fail("external-destination-conflict");
         }
-        return Downloads.Create(selection with { ScopePublication = new(resourceId, installationId, origin, requiredFiles ?? [], externalPrevious),
-            Files = selection.Files.Select(f => f with { DestinationPath = prefix + "/" + f.SourcePath }).ToArray() });
+        var operation = selection with { ScopePublication = new(resourceId, installationId, origin, requiredFiles ?? [], externalPrevious),
+            Files = selection.Files.Select(f => f with { DestinationPath = prefix + "/" + f.SourcePath }).ToArray() };
+        beforeCreate?.Invoke(operation);
+        return Downloads.Create(operation);
     }
 
     public Task<OperationDocument?> RunAsync(Guid id, IDownloadTransport transport,
@@ -209,6 +211,15 @@ public sealed class ScopeTransfers
     {
         var snapshot = inventory.Read();
         var docs = snapshot.Documents.ToDictionary(p => p.Key, p => (JsonObject)p.Value.DeepClone());
+        if (RecipeUpgrade.Pending(docs, operation.Id) is JsonObject pending)
+        {
+            pending["candidate"] = new JsonObject { ["installation-id"] = operation.ScopePublication!.InstallationId.ToString("D"),
+                ["operation-id"] = operation.Id.ToString("D"), ["location"] = Destination(operation),
+                ["origin"] = "automatic", ["availability"] = "available", ["selection"] = Selection(operation), ["files"] = files.DeepClone() };
+            foreach (var doc in docs.Values) doc["revision"] = checked(doc["revision"]!.GetValue<long>() + 1);
+            inventory.Commit(snapshot.Revision, docs);
+            return;
+        }
         var document = docs["local/inventory.json"];
         var resources = document["data"]!["resources"]!.AsArray();
         var plan = operation.ScopePublication!;
@@ -282,7 +293,9 @@ public sealed class ScopeTransfers
 
     private JsonNode? PublishedInstallation(OperationDocument operation)
     {
-        foreach (var resource in inventory.Read().Documents["local/inventory.json"]["data"]!["resources"]!.AsArray())
+        var snapshot = inventory.Read();
+        if (RecipeUpgrade.Pending(snapshot.Documents, operation.Id)?["candidate"] is JsonObject candidate) return candidate;
+        foreach (var resource in snapshot.Documents["local/inventory.json"]["data"]!["resources"]!.AsArray())
             foreach (var installation in resource!["installations"]!.AsArray())
                 if (installation!["operation-id"]?.GetValue<string>() == operation.Id.ToString("D"))
                 {

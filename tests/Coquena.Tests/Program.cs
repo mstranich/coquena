@@ -41,6 +41,10 @@ if (args.Length == 1 && args[0] == "--combination-tests")
 { await Coquena.Tests.CombinationTests.Run(); return; }
 if (args.Length is 2 or 3 && args[0] == "--recipe-update-tests")
 { await Coquena.Tests.RecipeUpdateTests.Run(Path.GetFullPath(args[1]), args.Length == 3 ? Path.GetFullPath(args[2]) : null); return; }
+if (args.Length is 2 or 3 && args[0] == "--recipe-upgrade-tests")
+{ await Coquena.Tests.RecipeUpgradeTests.Run(Path.GetFullPath(args[1]), args.Length == 3 ? Path.GetFullPath(args[2]) : null); return; }
+if (args.Length == 3 && args[0] == "--upgrade-crash-worker")
+{ await Coquena.Tests.RecipeUpgradeTests.CrashWorker(args[1], Enum.Parse<Coquena.Projects.ScopeWriteStage>(args[2])); return; }
 if (args.Length is 1 or 2 && args[0] == "--verification-tests")
 { await Coquena.Tests.ResourceVerificationTests.Run(args.Length == 2 ? Path.GetFullPath(args[1]) : null); return; }
 if (args.Length == 1 && args[0] == "--publication-tests")

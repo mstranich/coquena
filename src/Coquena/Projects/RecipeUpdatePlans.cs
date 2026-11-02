@@ -130,7 +130,7 @@ public sealed class RecipeUpdatePlans(ScopeContext context)
             throw new StorageException("update-preparation-required", "Prepare la combinación antes de consultar un plan; falta la identidad local de intención.");
         return key;
     }
-    private IReadOnlyList<PreparationRequest> Requests(EffectiveRecipe recipe)
+    internal IReadOnlyList<PreparationRequest> Requests(EffectiveRecipe recipe)
     {
         var requests = CombinationPreparation.Requests(recipe, ArgumentValidation.Validate(recipe));
         if (context.IsGlobal)
@@ -167,5 +167,19 @@ public sealed class RecipeUpdatePlans(ScopeContext context)
         if (state.Documents.GetValueOrDefault("local/recipes.json")?["data"]?["import-resolutions"] is JsonNode imports)
             sources["import-resolutions"] = imports.DeepClone();
         return Convert.ToHexStringLower(HMACSHA256.HashData(key, Encoding.UTF8.GetBytes(sources.ToJsonString())));
+    }
+
+    internal Action IntentGuard(IReadOnlyList<RecipeSelection> selections)
+    {
+        var key = ReadKey();
+        var recipes = selections.Select(s => RecipeReader.Read(s)).ToArray();
+        var inputs = Inputs(recipes);
+        var fingerprint = Fingerprint(key, recipes, inputs);
+        return () =>
+        {
+            if (!ReadKey().SequenceEqual(key) || inputs.Any(p => !File.ReadAllBytes(p.Key).SequenceEqual(p.Value)) ||
+                Fingerprint(key, selections.Select(s => RecipeReader.Read(s)).ToArray(), inputs) != fingerprint)
+                throw new StorageException("stale-update-plan", "Cambió la intención; ejecute update nuevamente.");
+        };
     }
 }

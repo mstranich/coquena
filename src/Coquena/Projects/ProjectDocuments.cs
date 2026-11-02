@@ -2,6 +2,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Coquena.Storage;
+using Coquena.Contracts;
 
 namespace Coquena.Projects;
 
@@ -31,7 +32,7 @@ public static class ProjectDocuments
             ValidateData(kind, root!["data"]!.AsObject());
             return root;
         }
-        catch (Exception e) when (e is JsonException or InvalidOperationException or FormatException or DecoderFallbackException)
+        catch (Exception e) when (e is JsonException or InvalidOperationException or FormatException or DecoderFallbackException or ContractException)
         { throw new StorageException("invalid-project-document", "Documento de proyecto inválido; se conserva sin sobrescribir.", inner: e); }
     }
 
@@ -171,6 +172,34 @@ public static class ProjectDocuments
         }
         else if (kind == "update-plan")
         {
+            if (data["upgrades"] is JsonNode upgrades)
+            {
+                if (upgrades is not JsonObject) Invalid();
+                foreach (var pair in upgrades.AsObject())
+                {
+                    if (!ScopeStore.IsCombinationId(pair.Key) || pair.Value?["plan"] is not JsonObject || pair.Value["units"] is not JsonArray) Invalid();
+                    foreach (var unit in pair.Value!["units"]!.AsArray())
+                    {
+                        Uuid(unit?["operation-id"]); Uuid(unit?["resource-id"]);
+                        if (unit?["observation"] is not JsonObject || string.IsNullOrWhiteSpace(unit["logical-key"]?.GetValue<string>())) Invalid();
+                        if (unit!["transfer"] is not JsonObject transfer) { Invalid(); return; }
+                        var operation = ContractJson.Read(transfer.ToJsonString(), ContractJsonContext.Default.OperationDocument, ContractValidation.Operation);
+                        if (operation.Id.ToString("D") != unit["operation-id"]!.GetValue<string>() || operation.ScopePublication is null ||
+                            operation.ScopePublication.ResourceId.ToString("D") != unit["resource-id"]!.GetValue<string>() || operation.Name != unit["logical-key"]!.GetValue<string>()) Invalid();
+                        if (unit!["candidate"] is JsonNode candidate)
+                        {
+                            var installation = Uuid(candidate["installation-id"]);
+                            if (candidate["operation-id"]?.GetValue<string>() != unit["operation-id"]!.GetValue<string>() ||
+                                candidate["selection"] is not JsonObject || candidate["files"] is not JsonArray { Count: > 0 } ||
+                                candidate["location"]?.GetValue<string>() != (unit["observation"]!["kind"]!.GetValue<string>() == "backend" ? "backends" : "models") + "/installations/" + installation) Invalid();
+                            foreach (var file in candidate["files"]!.AsArray())
+                                if (file?["path"]?.GetValue<string>() is not string || file["size"]?.GetValue<long>() is not >= 0 ||
+                                    file["integrity"]?["algorithm"]?.GetValue<string>() != "sha256" || file["integrity"]?["domain"]?.GetValue<string>() != "file-bytes" ||
+                                    file["integrity"]?["value"]?.GetValue<string>() is not string hash || !ScopeStore.IsCombinationId(hash)) Invalid();
+                        }
+                    }
+                }
+            }
             if (data["plans"] is not JsonObject plans) { Invalid(); return; }
             foreach (var pair in plans)
             {

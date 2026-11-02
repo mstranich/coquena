@@ -89,8 +89,9 @@ public static class ScopeDownloadCli
                 else
                 {
                     var published = transfers.Published(selected);
-                    if (json) output.WriteLine(new JsonObject { ["operation-id"] = id.ToString("D"), ["state"] = published ? "completed" : "cancelled" }.ToJsonString());
-                    else output.WriteLine($"{id:D}: {(published ? "instalación publicada y limpieza completada" : "cancelación y limpieza completadas")}.");
+                    var candidate = RecipeUpgrade.Pending(new ScopeStore(context).Read().Documents, id)?["candidate"] is not null;
+                    if (json) output.WriteLine(new JsonObject { ["operation-id"] = id.ToString("D"), ["state"] = candidate ? "prepared-for-upgrade" : published ? "completed" : "cancelled" }.ToJsonString());
+                    else output.WriteLine($"{id:D}: {(candidate ? "candidata preparada; ejecute upgrade para publicar el conjunto" : published ? "instalación publicada y limpieza completada" : "cancelación y limpieza completadas")}.");
                 }
                 return result?.State == "failed" ? 1 : 0;
             }

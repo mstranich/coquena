@@ -15,9 +15,19 @@ YAML desconocidos por adivinación.
 ## Upgrade y publicación conjunta
 
 Aplicar el plan persistido sin editar YAML. Sin filtros, conjunto previsto; con
-selector, tipo/recurso elegido. Preparar y verificar TODOS los recursos seleccionados
-antes de publicar resoluciones. Un fallo conserva la resolución anterior completa,
+selector, tipo/recurso elegido dentro del plan. Las propuestas válidas forman el
+conjunto aplicable. Los recursos bloqueados por consulta fallida, ambigüedad,
+preparación ausente o pin fijo se informan y conservan su resolución, sin impedir
+aplicar las propuestas válidas. Los recursos sin cambios y los externos se omiten.
+Preparar y verificar TODOS los recursos del conjunto aplicable antes de publicar
+conjuntamente inventario y resoluciones. Un fallo en ese conjunto conserva la resolución anterior completa,
 sin mezcla de shards/versiones ni éxito parcial del conjunto.
+
+Reintentar upgrade conserva las candidatas y operaciones de la misma selección
+exacta. Reanudar una descarga de ese conjunto sólo prepara su candidata; upgrade
+comprueba el conjunto completo y publica sus resoluciones. Un plan que cambia de
+intención o resolución de partida exige update nuevo. No vence por el mero paso
+del tiempo ni se sustituye su destino consultando latest durante upgrade.
 
 Se permite preparar con instancia activa, en ubicaciones separadas sin sobrescribir
 sus archivos. Instancia conserva snapshot; lock puede representar siguiente ejecución.
