@@ -192,10 +192,11 @@ features:
 
   - id: scoped-service-lifecycle
     intent: Seleccionar servicios por ámbito y operar su proceso con identidad verificada, salud y preparación separada de presets.
-    keywords: [service, server, self, default, lifecycle, health, instance, restart]
+    keywords: [service, server, create, show, self, default, lifecycle, health, instance, restart]
     entrypoints:
       - src/Coquena/ScopedServiceCli.cs
     implementation:
+      - src/Coquena/PublicationCli.cs
       - src/Coquena/ServiceCommand.cs
       - src/Coquena/Servers/ScopedServicePlan.cs
       - src/Coquena/Servers/ScopedServiceProcess.cs

@@ -237,6 +237,27 @@ internal static class ArgumentTests
         }
         Check(ArgumentEmission.Ini(list, Preset(list), "p", adapter) == "[p]\nx=a\nx=b\n", "fixture codec repeat support");
         var official = new LlamaB11482ArgumentAdapter();
+        var extended = Read("""
+            arg-defs:
+              definitions:
+                custom-batch:
+                  type: integer
+                  scope: preset
+                  emit: {ini: {name: batch-size, mode: value}}
+            presets:
+              p:
+                args: {custom-batch: 512, ubatch-size: 128, parallel: 2, n-cpu-moe: 1}
+              q:
+                args: {custom-batch: 1024, ubatch-size: 256, parallel: 4, n-cpu-moe: 0}
+            """);
+        var extendedPlan = ArgumentEmission.Compose(extended, ArgumentValidation.Validate(extended), official);
+        Check(extendedPlan.Cli.Count == 0 && extendedPlan.Ini.Contains("[p]\nbatch-size=512\nn-cpu-moe=1\nparallel=2\nubatch-size=128\n")
+            && extendedPlan.Ini.Contains("[q]\nbatch-size=1024\nn-cpu-moe=0\nparallel=4\nubatch-size=256\n"),
+            "partial official catalog does not block custom INI rules or independent preset values");
+        var plainBatch = Read("presets: {p: {args: {batch-size: 512}}}");
+        Check(ArgumentEmission.Ini(plainBatch, Preset(plainBatch), "p", official) == "[p]\nbatch-size=512\n", "unknown permissive scalar emits to INI");
+        var serverOnly = Read("presets: {p: {args: {port: 9931}}}");
+        Bad(() => ArgumentEmission.Ini(serverOnly, Preset(serverOnly), "p", official), "unsupported-argument-destination");
         var officialRecipe = Read("presets: {p: {args: {load-on-startup: false, temperature: 0.7}}}");
         Check(ArgumentEmission.Ini(officialRecipe, Preset(officialRecipe), "p", official) == "[p]\nload-on-startup=false\ntemperature=0.7\n", "bounded official codec and mapping");
         var incompatible = Read("presets: {p: {args: {cli-only: a}}, q: {args: {cli-only: b}}}");

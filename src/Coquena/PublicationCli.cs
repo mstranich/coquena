@@ -292,26 +292,40 @@ public static class PublicationCli
     private static PublishedPreset FromNode(JsonNode p) => new(p["name"]!.GetValue<string>(), p["ini"]!.GetValue<string>(),
         p["expected-arguments"]!.AsArray().Select(a => a!.GetValue<string>()).ToArray(), p["resources"]!.DeepClone().AsArray(), p["warmup"]!.GetValue<bool>());
 
-    public static async Task EnsureGlobalAsync(ScopeContext context, TextWriter output, Func<Task<BackendCandidate?>>? select = null)
+    public static async Task EnsureGlobalAsync(ScopeContext context, TextWriter output, Func<Task<BackendCandidate?>>? select = null,
+        string? serviceName = null)
     {
         if (!context.IsGlobal) throw new ArgumentException("La provisión requiere ámbito global.");
         var store = new ScopeStore(context); var snapshot = store.Read();
-        if (snapshot.State?["data"]?["aliases"]?["default"] is not null) return;
-        if (new RecipeRegistry(store).Services().Length != 0) throw new StorageException("default-required", "Hay servicios globales: elija uno con service default set.");
+        var services = new RecipeRegistry(store).Services();
+        var hasDefault = snapshot.State?["data"]?["aliases"]?["default"] is not null;
+        if (serviceName is null)
+        {
+            if (hasDefault) return;
+            if (services.Length != 0) throw new StorageException("default-required", "Hay servicios globales: elija uno con service default set.");
+        }
+        else
+        {
+            if (serviceName is "global" or "default" or "self") throw new StorageException("reserved-service-name", "Nombre de servicio reservado.");
+            if (string.IsNullOrWhiteSpace(serviceName) || serviceName.IndexOfAny(['\0', '\r', '\n', ':', '/', '\\']) >= 0)
+                throw new ArgumentException("Nombre de servicio inválido.");
+            if (services.Any(s => s.Name == serviceName)) throw new StorageException("service-name-conflict", "Ya existe un servicio con ese nombre.");
+        }
+        var name = serviceName ?? "coquena";
         using var http = new HttpClient();
         var selected = (select is null ? (await new OfficialBackendSource(http).ResolveAsync(HardwareProbe.Inspect(), null, "latest")).Selected : await select())
             ?? throw new BackendException("publication-unsupported", "No se encontró una variante compatible.");
         var serviceId = ProjectDocuments.Id(); var recipeId = ProjectDocuments.Id();
         var path = $"services/{serviceId}/recipe.yaml";
-        PresetPublication.WriteIni(context.PathFor(path), $"name: coquena\nservice:\n  backend:\n    version: latest\n    variant: {selected.Variant}\n");
+        PresetPublication.WriteIni(context.PathFor(path), $"name: '{name.Replace("'", "''")}'\nservice:\n  backend:\n    version: latest\n    variant: {selected.Variant}\n");
         var docs = RecipeRegistry.Next(snapshot);
         var recipes = docs.GetValueOrDefault("local/recipes.json")?["data"]?["recipes"]?.DeepClone().AsArray() ?? new JsonArray();
         recipes.Add((JsonNode)new JsonObject { ["recipe-id"] = recipeId, ["consumer-id"] = ProjectDocuments.Id(),
-                ["name"] = "coquena", ["files"] = new JsonArray(path), ["revision"] = 1, ["pending-withdrawals"] = new JsonArray(),
-                ["entities"] = new JsonArray(new JsonObject { ["kind"] = "service", ["id"] = serviceId, ["owner"] = recipeId, ["name"] = "coquena" }) });
+                ["name"] = name, ["files"] = new JsonArray(path), ["revision"] = 1, ["pending-withdrawals"] = new JsonArray(),
+                ["entities"] = new JsonArray(new JsonObject { ["kind"] = "service", ["id"] = serviceId, ["owner"] = recipeId, ["name"] = name }) });
         docs["local/recipes.json"] = ProjectDocuments.Create("recipe-registry", docs.GetValueOrDefault("local/recipes.json")?["revision"]?.GetValue<long>() ?? 1,
             new JsonObject { ["recipes"] = recipes });
-        ScopeStore.CommitTogether([new(store, snapshot.Revision, docs, DefaultServiceId: serviceId)]);
-        output.WriteLine($"Servidor global inicial: llama.cpp {selected.Release}, {selected.Variant}; {selected.Diagnostic}");
+        ScopeStore.CommitTogether([new(store, snapshot.Revision, docs, DefaultServiceId: services.Length == 0 ? serviceId : null)]);
+        output.WriteLine($"Servicio global {name}: llama.cpp {selected.Release}, {selected.Variant}; {selected.Diagnostic}");
     }
 }

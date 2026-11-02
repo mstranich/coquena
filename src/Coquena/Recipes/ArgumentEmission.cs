@@ -28,7 +28,10 @@ public sealed class LlamaB11482ArgumentAdapter : IArgumentAdapter, IArgumentIniC
 {
     public IArgumentIniCodec IniCodec => this;
     public bool Supports(string name, string scope, string destination) => destination == "cli"
-        ? name is not ("load-on-startup" or "stop-timeout") : ParameterCatalog.Find(name)?.Destination == "INI";
+        ? name is not ("load-on-startup" or "stop-timeout")
+        // The catalog is partial. The preset parser maps argument names generically;
+        // absence from our catalog is not evidence of incompatibility.
+        : ParameterCatalog.Find(name)?.Destination != "CLI";
     public bool Accumulates(string name, string destination) => false;
     public bool SupportsLineBreaks(string name, string destination) => false;
     public ArgumentEmitRule? Rule(string name, string scope, string destination)

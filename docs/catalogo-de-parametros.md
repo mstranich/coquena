@@ -343,6 +343,13 @@ emisión son comprobaciones distintas.
 
 ## Emisión determinista
 
+El catálogo parcial del adaptador no es una lista cerrada de argumentos INI.
+Un argumento desconocido representable en modo permisivo y una regla explícita
+`emit.ini` pueden emitirse sin incorporarlos al catálogo integrado. Se conservan
+las restricciones conocidas de destino y el codec del build; emitir una clave
+no acredita que el backend instalado la reconozca. Los argumentos de cada preset
+se publican en su sección INI y no se elevan a CLI para eludir un rechazo.
+
 `emit.cli` admite `name` (nombre sin --), `mode` (value, flag, repeat o join),
 `separator` (texto para join), `true-value`, `false-value` y `negative-name`.
 `emit.ini` admite las mismas claves salvo negative-name; name es clave INI exacta.

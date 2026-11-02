@@ -52,12 +52,19 @@ internal sealed record ServiceCommand(
             selector = positionals[2];
             if (selector is "default" or "self") throw Invalid();
         }
+        else if (positionals.Count == 2 && positionals[0] == "create" && service is null && global && !detached)
+        {
+            action = "create";
+            selector = positionals[1];
+            if (selector is "default" or "self" or "global" || string.IsNullOrWhiteSpace(selector) ||
+                selector.IndexOfAny(['\0', '\r', '\n', ':', '/', '\\']) >= 0) throw Invalid();
+        }
         else if (positionals.Count == 1 && positionals[0] == "list" && service is null && !detached) action = "list";
         else
         {
             action = positionals[^1];
-            if (action is not ("start" or "stop" or "restart" or "remove" or "logs") || positionals.Count > 2 ||
-                positionals.Count == 2 && (service is not null || positionals[0] is "start" or "stop" or "restart" or "remove" or "list" or "logs") ||
+            if (action is not ("start" or "stop" or "restart" or "remove" or "logs" or "show") || positionals.Count > 2 ||
+                positionals.Count == 2 && (service is not null || positionals[0] is "start" or "stop" or "restart" or "remove" or "list" or "logs" or "show") ||
                 detached && action is not ("start" or "restart")) throw Invalid();
             selector = service ?? (positionals.Count == 2 ? positionals[0] : "default");
             if (global && selector == "self") throw Invalid();

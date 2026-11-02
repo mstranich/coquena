@@ -24,6 +24,8 @@ internal static class HelpTests
                 foreach (var syntax in new[] { "backend download --version <versión>", "model companion protect|unprotect <installation-id>",
                     "download list [--model|--companion|--backend]", "download status [<id-descarga>]",
                     "service [<nombre|default|self>] start|restart [-d]", "service default set <nombre>",
+                    "service create <nombre> --global",
+                    "service [<nombre|default|self>] show",
                     "--alias y --values pueden repetirse", "--dry-run muestra los cambios sin aplicarlos" })
                     Check(result.Output.Contains(syntax), "syntax: " + syntax);
                 Check(!result.Output.Contains('\u001b'), "redirected help has no ANSI escapes");
@@ -36,6 +38,9 @@ internal static class HelpTests
                 ["config", "param-reset", "--dry"], ["param", "edit", "ctx-size", "--dry"],
                 ["param", "define", "x", "--type", "integer", "--scope", "model", "--target", "cli", "--dry-run"],
                 ["server", "stop", "-d"], ["server", "logs", "-d"],
+                ["service", "default", "show", "-d"], ["service", "show", "extra"],
+                ["service", "create", "default", "--global"], ["service", "create", "named"],
+                ["service", "create", "named", "--global", "-d"], ["service", "create", "bad/name", "--global"],
                 ["server", "start", "-f"], ["-f", "recipe.yaml"], ["service", "list", "-d"], ["runtime", "list", "--force"],
                 ["ps", "-w", "--watch"], ["ps", "--watch", "--unknown"], ["config", "observer-retry", "set", "0", "30"],
                 ["config", "observer-retry", "set", "4", "2"], ["config", "observer-retry", "set", "1", "3601"]];

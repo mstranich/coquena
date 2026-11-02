@@ -70,7 +70,35 @@ internal static class PresetPublicationTests
                 using (var writer = new BinaryWriter(File.Create(weights)))
                 { writer.Write("GGUF"u8); writer.Write(3u); writer.Write(0ul); writer.Write(0ul); }
                 var yaml = Path.Combine(cliFolder, "coquena.yaml");
-                const string definition = "name: cli\nservice:\n  backend:\n    executable: ./unused-missing.exe\nmodels:\n  tiny:\n    files: [./fixture.gguf]\npresets:\n  first:\n    args:\n      model: model://tiny\n      ctx-size: 1024\n  second:\n    enable: false\n    args:\n      model: model://tiny\n";
+                const string definition = """
+                    name: cli
+                    service:
+                      backend:
+                        executable: ./unused-missing.exe
+                    arg-defs:
+                      definitions:
+                        custom-batch:
+                          type: integer
+                          scope: preset
+                          emit: {ini: {name: batch-size, mode: value}}
+                    models:
+                      tiny:
+                        files: [./fixture.gguf]
+                    presets:
+                      first:
+                        args:
+                          model: model://tiny
+                          ctx-size: 1024
+                          custom-batch: 512
+                          ubatch-size: 128
+                          parallel: 2
+                          n-cpu-moe: 1
+                      second:
+                        enable: false
+                        args:
+                          model: model://tiny
+                          batch-size: 256
+                    """;
                 File.WriteAllText(yaml, definition);
                 var decision = new Decisions();
                 void Cli(int expected, params string[] arguments)
@@ -81,6 +109,17 @@ internal static class PresetPublicationTests
                 }
                 Cli(0, "up");
                 if (!(await router.ObserveAsync(default)).Any(p => p!["id"]!.GetValue<string>() == "cli/first")) throw new Exception("CLI no publicó.");
+                async Task CheckBatch(string name, string expected)
+                {
+                    var args = (await router.ObserveAsync(default)).Single(p => p!["id"]!.GetValue<string>() == name)!["status"]!["args"]!.AsArray()
+                        .Select(a => a!.GetValue<string>()).ToArray();
+                    var index = Array.IndexOf(args, "--batch-size");
+                    if (index < 0 || args[index + 1] != expected) throw new Exception("El router no conservó batch-size independiente: " + name);
+                }
+                await CheckBatch("cli/first", "512");
+                File.WriteAllText(yaml, definition.Replace("custom-batch: 512", "custom-batch: 768"));
+                Cli(0, "up");
+                await CheckBatch("cli/first", "768");
                 if (new RecipeRegistry(new ScopeStore(ScopeContext.Project(yaml))).Resources().Any(r => r.Kind == "backend")) throw new Exception("Publicar preparó backend propio no seleccionado.");
                 var overlay = Path.Combine(cliFolder, "coquena.local.yaml");
                 File.WriteAllText(overlay, "presets:\n  first:\n    enable: false\n  second:\n    enable: true\n");
@@ -92,6 +131,8 @@ internal static class PresetPublicationTests
                 catalog = await router.ObserveAsync(default);
                 if (catalog.Any(p => p!["id"]!.GetValue<string>() == "cli/first") || !catalog.Any(p => p!["id"]!.GetValue<string>() == "cli/second")) throw new Exception("CLI no reconcilió combinación.");
                 Cli(0, "apply", "first");
+                await CheckBatch("cli/first", "768");
+                await CheckBatch("cli/second", "256");
                 if ((await router.ObserveAsync(default)).Count(p => p!["id"]!.GetValue<string>().StartsWith("cli/")) != 2) throw new Exception("Apply individual reemplazó el conjunto.");
                 Cli(0, "preset", "withdraw", "first");
                 var alternate = registry.Register(["alternate.yaml"], "alternate"); var alternateService = registry.RegisterService(alternate.RecipeId);
@@ -333,11 +374,20 @@ internal static class PresetPublicationTests
         Check(initialRegistry.Services().Length == 1 && File.ReadAllText(initialContext.PathFor($"services/{selectedId}/recipe.yaml")).Contains("variant: cpu"), "first global provisioning persists selected variant and default");
         await PublicationCli.EnsureGlobalAsync(initialContext, TextWriter.Null, Select);
         Check(resolutions == 1 && initialRegistry.ResolveGlobalService("default") == selectedId, "existing default is reused without rediscovery or replacement");
+        const string imperativeName = "another 'service' ${UNDEFINED_SERVICE_NAME}";
+        await PublicationCli.EnsureGlobalAsync(initialContext, TextWriter.Null, Select, imperativeName);
+        Check(initialRegistry.Services().Length == 2 && initialRegistry.ResolveGlobalService("default") == selectedId,
+            "imperative creation preserves existing default");
+        var namedId = initialRegistry.ResolveGlobalService(imperativeName);
+        Check(Coquena.Recipes.RecipeReader.Read(new RecipeImporter(initialContext).ServiceSelection(namedId)).Root.Get("name")!.Text == imperativeName,
+            "imperative service persists a readable recipe without user YAML");
+        try { await PublicationCli.EnsureGlobalAsync(initialContext, TextWriter.Null, Select, imperativeName); throw new Exception("expected duplicate"); }
+        catch (StorageException e) when (e.Code == "service-name-conflict") { Check(resolutions == 2, "duplicate creation fails before backend discovery"); }
         var unselectedContext = ScopeContext.Global(new Home(Path.Combine(root, "unselected-global")));
         var unselected = new RecipeRegistry(new ScopeStore(unselectedContext));
         var unselectedRecipe = unselected.Register(["recipe.yaml"], "existing"); unselected.RegisterService(unselectedRecipe.RecipeId);
         try { await PublicationCli.EnsureGlobalAsync(unselectedContext, TextWriter.Null, Select); throw new Exception("expected missing default"); }
-        catch (StorageException e) when (e.Code == "default-required") { Check(resolutions == 1 && unselected.Services().Length == 1, "existing globals without default require explicit designation instead of creating another"); }
+        catch (StorageException e) when (e.Code == "default-required") { Check(resolutions == 2 && unselected.Services().Length == 1, "existing globals without default require explicit designation instead of creating another"); }
         using var cliOutput = new StringWriter(); using var cliError = new StringWriter();
         Check(Cli.Run(["up", "-d"], cliOutput, cliError) == 2 && Cli.Run(["preset", "apply"], cliOutput, cliError) == 2, "publication syntax rejects detached and missing selector");
         if (Console.IsInputRedirected)

@@ -281,10 +281,18 @@ sin editar YAML. Down sin selección retira la publicación registrada del consu
 incluido su destino original; una selección distinta no retira otro destino por nombre.
 En service, omitir nombre y opción selecciona default; `self` exige proyecto.
 El selector posicional y --service juntos son error.
-Los verbos reservados start, stop, restart, remove, list, logs y default
+Los verbos reservados create, show, start, stop, restart, remove, list, logs y default
 se interpretan como gramática antes que como nombre. Para un servicio cuyo nombre
 coincida con un verbo se usa --service. `service default set` es asignación de alias;
 `service default logs` selecciona el alias y consulta sus logs.
+
+`service list` marca con `default` la fila del servicio global designado como
+predeterminado. Sin alias asignado, ninguna fila lleva esa marca.
+
+`service show` consulta la definición efectiva del servicio seleccionado, su
+identidad, ámbito y condición de default. Acepta nombre, default o self y el alias
+server. No prepara recursos ni cambia ejecución; las expansiones sensibles se
+ocultan. La definición consultada no acredita la configuración de una instancia activa.
 
 ```text
 init [<directorio>]
@@ -293,6 +301,8 @@ import <receta.yaml> [--select <categorías>] [--as-default]
 up [--start-service]
 down
 service [<nombre|default|self>] start|stop|restart [-d]
+service [<nombre|default|self>] show
+service create <nombre> --global
 service [<nombre|default|self>] remove
 service default set <nombre>
 service list

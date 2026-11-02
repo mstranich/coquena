@@ -21,11 +21,16 @@ public static class ScopedServiceCli
             var command = ServiceCommand.Parse(args);
             if (command.Action == "help")
             {
-                output.WriteLine("service: list, default set, start, stop, restart, remove, logs [list|follow|show <log-id>] [-f].");
+                output.WriteLine("service: create <nombre> --global, list, show, default set, start, stop, restart, remove, logs [list|follow|show <log-id>] [-f].");
                 return 0;
             }
             var home = Home.Resolve();
             if (command.Action == "list") return List(command, home, output);
+            if (command.Action == "create")
+            {
+                PublicationCli.EnsureGlobalAsync(ScopeContext.Global(home), output, serviceName: command.Selector).GetAwaiter().GetResult();
+                return 0;
+            }
             if (command.Action == "default-set")
             {
                 var registry = new RecipeRegistry(new ScopeStore(ScopeContext.Global(home)));
@@ -33,7 +38,10 @@ public static class ScopedServiceCli
                 output.WriteLine($"Servicio predeterminado: {command.Selector}.");
                 return 0;
             }
+            if (command.Action == "start" && command.Selector == "default")
+                PublicationCli.EnsureGlobalAsync(ScopeContext.Global(home), output).GetAwaiter().GetResult();
             var target = Resolve(command, home);
+            if (command.Action == "show") return Show(target, output);
             if (!target.Context.IsGlobal) new ProjectIndex(home).Refresh(new ScopeStore(target.Context));
             return Operate(command, target, output, error);
         }
@@ -50,7 +58,7 @@ public static class ScopedServiceCli
         {
             if (args[i] is "--service" or "--file" or "-f" or "--env-file" or "--base" or "--project-directory") { i++; continue; }
             if (args[i] == "logs") return i;
-            if (args[i] is "start" or "stop" or "restart" or "remove" or "list" or "default" &&
+            if (args[i] is "create" or "show" or "start" or "stop" or "restart" or "remove" or "list" or "default" &&
                 !(args[i] == "default" && i + 1 < args.Length && args[i + 1] == "logs")) break;
         }
         return -1;
@@ -116,14 +124,33 @@ public static class ScopedServiceCli
 
     private static int List(ServiceCommand command, Home home, TextWriter output)
     {
-        var registry = new RecipeRegistry(new ScopeStore(ScopeContext.Global(home)));
-        foreach (var service in registry.Services()) output.WriteLine($"global | {service.Name} | {service.ServiceId}");
+        var store = new ScopeStore(ScopeContext.Global(home));
+        var registry = new RecipeRegistry(store);
+        var defaultId = store.Read().State?["data"]?["aliases"]?["default"]?.GetValue<string>();
+        foreach (var service in registry.Services())
+            output.WriteLine($"global | {service.Name} | {service.ServiceId}" + (service.ServiceId == defaultId ? " | default" : ""));
         if (!command.Global)
         {
             var selection = Selection(command);
             var local = new RecipeRegistry(new ScopeStore(ScopeContext.Project(selection.Files[0], selection.Base)));
             foreach (var service in local.Services()) output.WriteLine($"proyecto | {service.Name} | {service.ServiceId}");
         }
+        return 0;
+    }
+
+    private static int Show(Target target, TextWriter output)
+    {
+        var recipe = RecipeReader.Read(target.Selection);
+        var state = new ScopeStore(target.Context).Read();
+        var result = new System.Text.Json.Nodes.JsonObject
+        {
+            ["name"] = target.Service.Name,
+            ["service-id"] = target.Service.ServiceId,
+            ["scope"] = target.Context.IsGlobal ? "global" : "project",
+            ["default"] = target.Context.IsGlobal && state.State?["data"]?["aliases"]?["default"]?.GetValue<string>() == target.Service.ServiceId,
+            ["definition"] = recipe.Root.Get("service")?.Redacted()
+        };
+        output.WriteLine(result.ToJsonString(new System.Text.Json.JsonSerializerOptions { WriteIndented = true }));
         return 0;
     }
 

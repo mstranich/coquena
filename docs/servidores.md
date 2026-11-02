@@ -3,8 +3,8 @@
 ## Definición persistida
 
 Un servicio nombrado define backend efectivo y parámetros de proceso/router.
-Puede ser global importado o propio de un proyecto. Los consumidores publican
-presets en ese servicio sin crear otra instancia. Se admite un proceso activo
+Puede ser global, creado por CLI o importado, o propio de un proyecto.
+Los consumidores publican presets en ese servicio sin crear otra instancia. Se admite un proceso activo
 por servicio, con composición de sus entradas base y de los consumidores.
 
 Crear/editar no inicia ni cambia ejecución. Service start sobre activo informa
@@ -14,6 +14,15 @@ consumidores. Router compatible puede iniciarse sin modelos cargados e incorpora
 presets después; no se exige un preset como condición universal de creación.
 
 ## Servidor global predeterminado
+
+`service create <nombre> --global` registra un servicio oficial sin exigir YAML
+ni iniciarlo. El primero se designa default; crear otro conserva la selección
+existente. Su backend se prepara al iniciar.
+
+`service default start --global` permite iniciar desde una home vacía, sin
+proyecto ni receta previa: prepara el servicio predeterminado con la misma
+selección oficial descrita a continuación e inicia el router sin modelos.
+`-d` devuelve el control después de comprobar su salud.
 
 Al omitir target o declarar `target: global`, un proyecto utiliza el servicio
 global predeterminado, infraestructura compartida reutilizable entre proyectos:

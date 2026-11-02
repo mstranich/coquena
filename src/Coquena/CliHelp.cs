@@ -171,10 +171,14 @@ internal static class CliHelp
             Ctrl+C cierra sólo el observador. Server es alias de service.
 
         Servidores:
+          service create <nombre> --global Crear servicio oficial sin iniciarlo
           service list                     Listar servicios conocidos
+          service [<nombre|default|self>] show
+            Consultar definición efectiva, identidad, ámbito y alias default
           service default set <nombre>     Asignar el alias global predeterminado
           service [<nombre|default|self>] start|restart [-d]
             Preparar e iniciar; -d devuelve el control sin detener el backend
+            Default ausente en una home vacía se prepara sin receta previa.
           service [<nombre|default|self>] stop
             Detener la instancia verificada
           service [<nombre|default|self>] remove

@@ -23,6 +23,20 @@ internal static class ScopedServiceTests
         var store = new ScopeStore(context);
         var registry = new RecipeRegistry(store);
         var service = registry.EnsureProjectService(["coquena.yaml"], "fixture");
+        File.WriteAllText(Path.Combine(root, "coquena.yaml"), "name: fixture\nservice:\n  backend:\n    executable: ./missing.exe\n  server:\n    args:\n      api-key: ${COQUENA_SHOW_SECRET}\n");
+        var previousSecret = Environment.GetEnvironmentVariable("COQUENA_SHOW_SECRET");
+        Environment.SetEnvironmentVariable("COQUENA_SHOW_SECRET", "private-show-fixture");
+        try
+        {
+            var beforeShow = store.Read().Revision;
+            using var shown = new StringWriter(); using var showError = new StringWriter();
+            Check(Cli.Run(["server", "self", "show", "--project-directory", root], shown, showError) == 0, "show resolves project service without preparing missing backend");
+            var detail = JsonNode.Parse(shown.ToString())!;
+            Check(detail["service-id"]!.GetValue<string>() == service.ServiceId && detail["scope"]!.GetValue<string>() == "project" && !detail["default"]!.GetValue<bool>(), "show reports registered identity and scope");
+            Check(detail["definition"]!["server"]!["args"]!["api-key"]!.GetValue<string>() == "<redacted>" && !shown.ToString().Contains("private-show-fixture"), "show redacts sensitive expansions");
+            Check(store.Read().Revision == beforeShow && registry.Resources().Length == 0, "show does not publish state or acquire resources");
+        }
+        finally { Environment.SetEnvironmentVariable("COQUENA_SHOW_SECRET", previousSecret); }
         var lifecycle = new ScopedServiceProcess(store, Console.Out);
         var apphost = Path.Combine(AppContext.BaseDirectory, "Coquena.Tests.exe");
         using var listener = new TcpListener(IPAddress.Loopback, 0);
