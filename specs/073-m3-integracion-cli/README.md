@@ -13,7 +13,6 @@ depends_on:
 - 064-m3-observacion-continua
 - 071-m3-edicion-cli
 - 072-m3-init
-- 070-m3-dashboard-integrado
 created_at: 2026-10-21T23:26:07.360340300Z
 updated_at: 2026-10-21T23:26:07.360340300Z
 ---
@@ -42,7 +41,7 @@ Las reglas funcionales de los documentos enlazados prevalecen. Esta tarjeta defi
 - [ ] Cubrir import selectivo y reemplazo, ciclo de presets frente a proceso, pin/latest, confirmación de clean y tamaños humanos de escala 1024.
 - [ ] Verificar cuantización inequívoca de 043, init opcional y edición puntual sin convertirlos en requisitos del YAML manual.
 - [ ] Asignar faltantes de dominio a su tarjeta y comprobar sus pruebas antes de acreditar cobertura; mantener docs funcionales como fuente de verdad.
-- [ ] Acreditar entrada tui, navegación general/detalle y disponibilidad real del dashboard integrado; la CLI no presenta la observación visual como una función futura.
+- [ ] Verificar las regresiones reproducibles de la preview en los comandos afectados.
 
 ## Dependencias
 
@@ -54,11 +53,10 @@ Las reglas funcionales de los documentos enlazados prevalecen. Esta tarjeta defi
 - [064: Observar con ps -w o --watch y reconciliar eventos](../064-m3-observacion-continua/README.md)
 - [071: Persistir cambios puntuales de entidades en el YAML seleccionado](../071-m3-edicion-cli/README.md)
 - [072: Inicializar una receta mínima sin fabricar estado de ejecución](../072-m3-init/README.md)
-- [070: Integrar y acreditar el dashboard Servicios completo](../070-m3-dashboard-integrado/README.md)
 
 ## Validación prevista
 
-Ejecutar pruebas pertinentes de los escenarios anteriores y registrar resultados reproducibles. Las entregas de runtime requieren publicar Native AOT win-x64 y ejecutar el binario publicado, con estado y recursos de prueba en D:. Evaluar dependencias en ese camino antes de adoptarlas. Las tarjetas visuales requieren uso en terminal real; mocks y snapshots aislados no acreditan integración. Utilizar recursos locales o fixtures, sin descargas costosas implícitas.
+Ejecutar pruebas pertinentes de los escenarios anteriores y registrar resultados reproducibles. Las entregas de runtime requieren publicar Native AOT win-x64 y ejecutar el binario publicado, con estado y recursos de prueba en D:. Evaluar dependencias en ese camino antes de adoptarlas. Utilizar recursos locales o fixtures, sin descargas costosas implícitas.
 
 ## Límites
 

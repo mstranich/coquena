@@ -13,7 +13,7 @@ posponer partes de ese ciclo necesarias para que el proyecto funcione mediante C
 
 ## Experiencia a completar
 
-- Ampliar los dashboards TUI entregados en M3 con acciones de control; Web UI con estado, logs, métricas, gráficos y notificaciones accionables.
+- Entregar el dashboard Servicios en Terminal UI y ampliar la experiencia con acciones de control; Web UI con estado, logs, métricas, gráficos y notificaciones accionables.
 - Experiencia avanzada de edición en TUI/Web UI: editores/formularios de proyecto, presets y argumentos, aprovechando schemas
   cuando existan y conservando edición libre donde corresponda.
 - Borradores recuperables por sesión, conflictos con cambios externos, guardado
@@ -27,6 +27,19 @@ posponer partes de ese ciclo necesarias para que el proyecto funcione mediante C
   no difiere a esta entrega la capacidad del núcleo para reutilizarlos.
 - Paridad de acciones de instancia y recuperación, observación por eventos y
   reconexión; cerrar interfaces no detiene servidores desacoplados.
+
+## Dashboard Servicios
+
+| Tarea | Entrega | Depende de |
+| --- | --- | --- |
+| [065](../../specs/065-m3-actividad-tareas/README.md) | Correlacionar actividad de prompts y generación por entrada, slot y tarea | 052, 064 |
+| [066](../../specs/066-m3-tui-base/README.md) | Abrir la interfaz de terminal y navegar entre servicios conocidos | 044, 052 |
+| [067](../../specs/067-m3-tui-hardware-graficos/README.md) | Mostrar hardware y gráficas temporales legibles en la terminal | 042, 063, 066 |
+| [068](../../specs/068-m3-tui-prompts-tokens/README.md) | Visualizar prompts, generación de tokens y tareas de cada preset | 065, 066 |
+| [069](../../specs/069-m3-tui-logs/README.md) | Integrar logs continuos con selección de servicio y navegación | 062, 066 |
+| [070](../../specs/070-m3-dashboard-integrado/README.md) | Integrar y acreditar el dashboard Servicios completo | 055, 067, 068, 069 |
+
+La 070 acredita la [pantalla Servicios](../ui-servicio.md) desde el paquete Native AOT extraído en una terminal real, con una receta manual, varios presets y peticiones reales. Se contrastan fases de prompt y generación, cifras, recursos y logs con sus fuentes y se registra evidencia visual.
 
 ## Cobertura restante y entregas
 

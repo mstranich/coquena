@@ -3,16 +3,15 @@ status: planned
 created: 2026-10-21
 priority: high
 tags:
-- m3
 - tui
 - dashboard
+- m4
 depends_on:
 - 065-m3-actividad-tareas
 - 066-m3-tui-base
 created_at: 2026-10-21T23:26:06.862426300Z
-updated_at: 2026-10-21T23:26:06.862426300Z
+updated_at: 2026-11-03T20:18:55.153264700Z
 ---
-
 # Visualizar prompts, generación de tokens y tareas de cada preset
 
 ## Objetivo
@@ -21,7 +20,7 @@ Entregar el panel central donde se vea la actividad de llama-server por servicio
 
 ## Fuente de verdad
 
-- [Milestone M3](../../docs/milestones/M3-definiciones-declarativas.md)
+- [Milestone M4](../../docs/milestones/M4-experiencia-completa.md)
 - [ui-servicio.md](../../docs/ui-servicio.md)
 - [interfaces-visuales.md](../../docs/interfaces-visuales.md)
 - [observabilidad.md](../../docs/observabilidad.md)

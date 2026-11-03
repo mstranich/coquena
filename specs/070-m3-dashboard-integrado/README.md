@@ -3,18 +3,17 @@ status: planned
 created: 2026-10-21
 priority: high
 tags:
-- m3
 - tui
 - dashboard
+- m4
 depends_on:
 - 055-m3-publicacion-presets
 - 067-m3-tui-hardware-graficos
 - 068-m3-tui-prompts-tokens
 - 069-m3-tui-logs
 created_at: 2026-10-21T23:26:07.035047300Z
-updated_at: 2026-10-21T23:26:07.035047300Z
+updated_at: 2026-11-03T20:18:55.158104100Z
 ---
-
 # Integrar y acreditar el dashboard Servicios completo
 
 ## Objetivo
@@ -23,7 +22,7 @@ Entregar una pantalla semigráfica de terminal utilizable para vigilar el servid
 
 ## Fuente de verdad
 
-- [Milestone M3](../../docs/milestones/M3-definiciones-declarativas.md)
+- [Milestone M4](../../docs/milestones/M4-experiencia-completa.md)
 - [ui-servicio.md](../../docs/ui-servicio.md)
 - [interfaces-visuales.md](../../docs/interfaces-visuales.md)
 - [observabilidad.md](../../docs/observabilidad.md)
@@ -39,7 +38,7 @@ Las reglas funcionales de los documentos enlazados prevalecen. Esta tarjeta defi
 - [ ] Probar cambio de preset/entrada observado, recarga de publicación, reinicio del servidor, reconexión y telemetría parcial; mantener información vigente y distinguir incertidumbre.
 - [ ] Comprobar resize, teclado, foco, scroll, falta de color, terminal pequeña, buffers acotados y aislamiento de errores; mostrar identidad, fase/progreso y cifras aun al simplificar gráficos.
 - [ ] Registrar evidencia visual de la aplicación Native AOT en terminal real, pasos reproducibles y comparación con fuentes. Capturas estáticas o dashboard sin actividad no acreditan el recorrido.
-- [ ] Comprobar que cerrar la TUI deja el servicio atendiendo y no modifica intención ni publicación. La aceptación final de M3 depende de esta tarjeta sin excepción.
+- [ ] Comprobar que cerrar la TUI deja el servicio atendiendo y no modifica intención ni publicación.
 
 ## Dependencias
 

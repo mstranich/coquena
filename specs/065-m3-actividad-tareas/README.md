@@ -3,16 +3,15 @@ status: planned
 created: 2026-10-21
 priority: high
 tags:
-- m3
 - tui
 - dashboard
+- m4
 depends_on:
 - 052-m3-evidencia-router
 - 064-m3-observacion-continua
 created_at: 2026-10-21T23:26:06.451582300Z
-updated_at: 2026-10-21T23:26:06.451582300Z
+updated_at: 2026-11-03T20:18:55.143585400Z
 ---
-
 # Correlacionar actividad de prompts y generación por entrada, slot y tarea
 
 ## Objetivo
@@ -21,7 +20,7 @@ Reconstruir actividad observable del servidor para que la TUI muestre qué traba
 
 ## Fuente de verdad
 
-- [Milestone M3](../../docs/milestones/M3-definiciones-declarativas.md)
+- [Milestone M4](../../docs/milestones/M4-experiencia-completa.md)
 - [observabilidad.md](../../docs/observabilidad.md)
 - [ui-servicio.md](../../docs/ui-servicio.md)
 - [interfaces-visuales.md](../../docs/interfaces-visuales.md)

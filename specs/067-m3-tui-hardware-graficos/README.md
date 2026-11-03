@@ -3,17 +3,16 @@ status: planned
 created: 2026-10-21
 priority: high
 tags:
-- m3
 - tui
 - dashboard
+- m4
 depends_on:
 - 042-unidades-legibles
 - 063-m3-estado-metricas
 - 066-m3-tui-base
 created_at: 2026-10-21T23:26:06.764688800Z
-updated_at: 2026-10-21T23:26:06.764688800Z
+updated_at: 2026-11-03T20:18:55.151265900Z
 ---
-
 # Mostrar hardware y gráficas temporales legibles en la terminal
 
 ## Objetivo
@@ -22,7 +21,7 @@ Hacer visible consumo de CPU, RAM y cada GPU/VRAM con cifras y gráficas que man
 
 ## Fuente de verdad
 
-- [Milestone M3](../../docs/milestones/M3-definiciones-declarativas.md)
+- [Milestone M4](../../docs/milestones/M4-experiencia-completa.md)
 - [ui-servicio.md](../../docs/ui-servicio.md)
 - [interfaces-visuales.md](../../docs/interfaces-visuales.md)
 - [observabilidad.md](../../docs/observabilidad.md)

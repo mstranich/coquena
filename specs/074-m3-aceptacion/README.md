@@ -5,7 +5,6 @@ priority: high
 tags:
 - m3
 depends_on:
-- 070-m3-dashboard-integrado
 - 073-m3-integracion-cli
 created_at: 2026-10-21T23:26:07.450587100Z
 updated_at: 2026-10-21T23:26:07.450587100Z
@@ -15,7 +14,7 @@ updated_at: 2026-10-21T23:26:07.450587100Z
 
 ## Objetivo
 
-Aceptar M3 como recorrido completo: levantar proyecto y vigilar en terminal prompts, tokens, presets, modelos, recursos y logs, además de completar sus operaciones CLI.
+Acreditar que una persona puede usar el paquete CLI de M3 desde una carpeta limpia para operar Coquena con recetas escritas o recibidas.
 
 ## Fuente de verdad
 
@@ -34,19 +33,18 @@ Las reglas funcionales de los documentos enlazados prevalecen. Esta tarjeta defi
 - [ ] Acreditar name raíz único, entidades independientes, rename de carpeta con estado local, down bajo nombres previos y nuevo up sin afectar consumidores ajenos.
 - [ ] Probar preparación, inicio/recuperación, INI y refresh en up/down, import idempotente/selectivo/reemplazo, update/upgrade, verify y limpieza con propiedad/pins/referencias.
 - [ ] Ejecutar los correctivos 041/042/043 y las conveniencias 071/072; comprobar formatos legibles y sintaxis de ayuda sin capacidades planificadas presentadas como implementadas.
-- [ ] Acreditar dashboard 070, ps finito/continuo y logs entre reinicios con falta de telemetría, recursos compartidos y cierre sin efectos.
+- [ ] Acreditar ps finito/continuo y logs entre reinicios con falta de telemetría, recursos compartidos y cierre sin efectos.
 - [ ] Probar concurrencia, fallos de red/integridad/candidata, incertidumbre remota, copia/traslado, pérdida de home y recursos locales existentes sin redescarga injustificada.
 - [ ] Ejecutar regresión M1/M2 que siga vigente, publicar Native AOT win-x64 y probar el paquete extraído con recursos acordados; preparar notas y evidencia para revisión explícita.
-- [ ] Repetir el escenario visual completo de 070 desde paquete extraído: proyecto manual, varios presets/entradas, peticiones reales, fases de prompt/generación, recursos y logs en una pantalla. Entregar evidencia visual y limitaciones comprobadas; no aceptar sólo CLI o capturas de fixtures.
+- [ ] Ejecutar inferencia real con recursos acordados desde el paquete extraído y verificar las regresiones reproducibles de la preview que afecten el uso de recetas.
 
 ## Dependencias
 
-- [070: Integrar y acreditar el dashboard Servicios completo](../070-m3-dashboard-integrado/README.md)
 - [073: Completar cobertura y ayuda de la CLI del milestone](../073-m3-integracion-cli/README.md)
 
 ## Validación prevista
 
-Ejecutar pruebas pertinentes de los escenarios anteriores y registrar resultados reproducibles. Las entregas de runtime requieren publicar Native AOT win-x64 y ejecutar el binario publicado, con estado y recursos de prueba en D:. Evaluar dependencias en ese camino antes de adoptarlas. Las tarjetas visuales requieren uso en terminal real; mocks y snapshots aislados no acreditan integración. Utilizar recursos locales o fixtures, sin descargas costosas implícitas.
+Ejecutar pruebas pertinentes de los escenarios anteriores y registrar resultados reproducibles. Las entregas de runtime requieren publicar Native AOT win-x64 y ejecutar el binario publicado, con estado y recursos de prueba en D:. Evaluar dependencias en ese camino antes de adoptarlas. Utilizar recursos locales o fixtures, sin descargas costosas implícitas.
 
 ## Hallazgos relacionados
 

@@ -3,16 +3,15 @@ status: planned
 created: 2026-10-21
 priority: high
 tags:
-- m3
 - tui
 - dashboard
+- m4
 depends_on:
 - 062-m3-seguimiento-logs
 - 066-m3-tui-base
 created_at: 2026-10-21T23:26:06.949521100Z
-updated_at: 2026-10-21T23:26:06.949521100Z
+updated_at: 2026-11-03T20:18:55.155643Z
 ---
-
 # Integrar logs continuos con selección de servicio y navegación
 
 ## Objetivo
@@ -21,7 +20,7 @@ Centralizar logs debajo de hardware y actividad con continuidad por identidad de
 
 ## Fuente de verdad
 
-- [Milestone M3](../../docs/milestones/M3-definiciones-declarativas.md)
+- [Milestone M4](../../docs/milestones/M4-experiencia-completa.md)
 - [ui-servicio.md](../../docs/ui-servicio.md)
 - [interfaces-visuales.md](../../docs/interfaces-visuales.md)
 - [observabilidad.md](../../docs/observabilidad.md)

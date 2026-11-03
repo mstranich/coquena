@@ -3,16 +3,15 @@ status: planned
 created: 2026-10-21
 priority: high
 tags:
-- m3
 - tui
 - dashboard
+- m4
 depends_on:
 - 044-m3-contextos-persistencia
 - 052-m3-evidencia-router
 created_at: 2026-10-21T23:26:06.576440300Z
-updated_at: 2026-10-21T23:26:06.576440300Z
+updated_at: 2026-11-03T20:18:55.148763400Z
 ---
-
 # Abrir la interfaz de terminal y navegar entre servicios conocidos
 
 ## Objetivo
@@ -21,7 +20,7 @@ Entregar la base ejecutable de la TUI, su navegación y ciclo de vida para integ
 
 ## Fuente de verdad
 
-- [Milestone M3](../../docs/milestones/M3-definiciones-declarativas.md)
+- [Milestone M4](../../docs/milestones/M4-experiencia-completa.md)
 - [comandos.md](../../docs/comandos.md)
 - [interfaces-visuales.md](../../docs/interfaces-visuales.md)
 - [ui-servicio.md](../../docs/ui-servicio.md)
