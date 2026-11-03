@@ -28,7 +28,30 @@ posponer partes de ese ciclo necesarias para que el proyecto funcione mediante C
 - Paridad de acciones de instancia y recuperación, observación por eventos y
   reconexión; cerrar interfaces no detiene servidores desacoplados.
 
+## Navegación entre catálogos
+
+Acreditar el recorrido desde un proyecto recién reconocido a otro proyecto
+conocido y al catálogo global. Iniciar una transferencia en el primero,
+cambiar de espacio y comprobar que se conserva. Probar entradas de ambos
+proyectos en el mismo servidor global y luego operar explícitamente un
+servidor propio con otro backend. Verificar que cambiar de catálogo conserva
+el ámbito de recursos y que el monitor identifica qué servidor se observa.
+Comprobar que la barra de hardware sigue visible al alternar entre catálogos,
+monitor, logs y herramientas, y que se compacta con el ancho de la terminal.
+
 ## Dashboard Servicios
+
+El recorrido empieza en las pestañas por servidor, con los globales antes que
+los del proyecto. En cada servidor se sigue el avance de varias entradas con
+gráficos arriba y logs abajo, o desde Logs dentro del servidor si falta altura.
+La 066 evalúa Terminal.Gui v2 en Native AOT antes de fijar la dependencia.
+
+Los [wireframes de Presets, Buscar modelos y Configuración](../interfaces-visuales.md#dashboards-de-observación)
+orientan las herramientas al final de la navegación. Sus recorridos se
+descomponen al acordar las entregas de edición, exploración y preferencias.
+La aceptación de experimentación conecta preparación del preset, publicación
+en caliente, inferencia de prueba, observación de la entrada y decisión de
+ajustar, guardar YAML o retirar la prueba.
 
 | Tarea | Entrega | Depende de |
 | --- | --- | --- |
@@ -58,6 +81,33 @@ La calculadora estimativa de recursos permanece como posibilidad futura, no como
 requisito automático de M4. Navegación entre proyectos tipo IDE no debe convertirse
 en un IDE completo. «Completar las features» significa el alcance acordado y
 descompuesto, no incorporar indefinidamente cualquier idea futura.
+
+## Acciones de terminal a partir de la CLI
+
+El mapa usa la [superficie canónica de comandos](../comandos.md). Ubica las
+acciones por contexto para refinar pantallas y tarjetas de M4.
+
+| Pantalla o menú | Controles visuales | Operaciones CLI |
+| --- | --- | --- |
+| Servidor · Monitor | Estado en vivo, definición, iniciar/detener/reiniciar según estado | `ps --watch`, `service show/start/stop/restart` |
+| Servidor · Acciones | Crear global, designar default, dar de baja servicio detenido | `service create`, `service default set`, `service remove` |
+| Servidor · Logs | Seguir, elegir histórico, abrir registro; pausa y scroll locales | `logs follow/list/show` |
+| Presets · Editor | Seleccionar, inspeccionar, asignar literal o vínculo, quitar override, clonar y eliminar definición | `preset list/show/set/bind/unset/clone/remove` |
+| Presets · Prueba | Publicar/retirar preset seleccionado; publicar/retirar contribución de receta desde acciones de proyecto | `preset apply/withdraw`, `up/down` |
+| Buscar modelos · Inventario | Ver, agregar archivo local, asignar referencia, descargar, refrescar y proteger o retirar instalación, con selector modelo/companion | `model [companion] list/show/add/set/download/refresh/protect/unprotect/remove` |
+| Buscar modelos · Transferencias | Ver progreso, pausar, reanudar y cancelar operación seleccionada | `download list/show/pause/resume/cancel` |
+| Proyecto · Definición | Seleccionar backend y editar schema; reset con impacto y confirmación | `backend show/set`, `param list/show/define/set/unset/remove/reset` |
+| Proyecto · Acciones | Inicializar, importar al global con selección explícita, listar u olvidar combinación | `init`, `import`, `combination list/forget` |
+| Proyecto o global · Mantenimiento | Inventario/preparación/protección de backends; consultar novedades, preparar actualización, verificar y previsualizar limpieza | `backend list/download/protect/unprotect/remove`, `update`, `upgrade`, `verify`, `clean` |
+| Configuración | Recargar valores efectivos, guardar y restablecer cada grupo | `config observer-retry show/set/unset`, `config log-retention show/set/unset` |
+
+El monitor y los logs conservan la aceptación de consulta de las tarjetas
+066–070. Los controles de ejecución, edición y mantenimiento del mapa se
+descomponen con sus respectivos recorridos. Los alias de CLI comparten control.
+Para validar preferencias, comprobar lectura cruzada CLI/TUI, asignación y
+restablecimiento repetidos, valores inválidos y override de retención por
+servicio. El tamaño del histórico visual queda como preferencia del observador
+por concretar; el mapa no le atribuye un comando existente.
 
 ## Preparación y aceptación
 

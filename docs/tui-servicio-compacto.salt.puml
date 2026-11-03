@@ -1,0 +1,15 @@
+@startsalt
+{
+  { CPU 42% | GPU0 91% | RAM 18/32 GiB | VRAM0 20/24 GiB }
+  { Espacio: proyecto código | [Cambiar espacio] }
+  {/ Global: principal | Global: laboratorio | Proyecto: código | Presets | Buscar modelos | Configuración }
+  { <b>Global: principal | En línea }
+  {/ <b>Monitor | Logs }
+  {#
+    Entrada | Fase | Avance | Serie
+    asistente | GENERANDO | 128 tk | ▂▅▆ 20 tk/s G
+    resumen | PROMPT | 2048 tk · 68% | ▂▃▅ 55 tk/s P
+  }
+  { Cola: 2 | Hardware compartido: CPU 42% · RAM 18 / 32 GiB }
+}
+@endsalt

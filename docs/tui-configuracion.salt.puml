@@ -1,0 +1,18 @@
+@startsalt
+{
+  { CPU 42% | GPU0 91% | RAM 18/32 GiB | VRAM0 20/24 GiB }
+  { Espacio: proyecto código | [Cambiar espacio] }
+  {/ Global: principal | Global: laboratorio | Proyecto: código | Presets | Buscar modelos | Configuración }
+  { <b>Configuración | Preferencias globales de Coquena }
+  {#
+    Preferencia | Valor | Unidad
+    Reconexión inicial | "1    " | segundos
+    Reconexión máxima | "30   " | segundos
+  }
+  { Reconexión efectiva: 1 a 30 s | [Guardar reconexión] | [Restablecer reconexión] }
+  { Retención global de logs | "100 MiB      " | Efectiva: 100 MiB }
+  { [Guardar retención] | [Restablecer retención] }
+  { [Recargar valores] | [Cancelar edición] }
+  { Tab: foco | Enter: ejecutar control enfocado }
+}
+@endsalt

@@ -1,0 +1,15 @@
+@startsalt
+{
+  { CPU 42% | GPU0 91% | RAM 18/32 GiB | VRAM0 20/24 GiB }
+  { <b>Espacio: proyecto código | [Cambiar espacio] }
+  {#
+    Espacio conocido | Catálogo | Destino de receta | Servicio propio
+    Global | Global | — | —
+    código | Local | global | —
+    laboratorio | Local | self | laboratorio · backend alternativo
+    archivo | Local · inaccesible | n/d | n/d
+  }
+  { [Abrir espacio enfocado] | [Volver] }
+  { El cambio conserva servicios y transferencias en curso }
+}
+@endsalt

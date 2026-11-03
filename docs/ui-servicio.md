@@ -1,24 +1,25 @@
 # Pantalla Servicios de la TUI
 
-La pestaña Servicios muestra el consumo de hardware de la máquina, la actividad
-de los servicios globales y de proyecto, y los logs del servicio seleccionado.
+La TUI muestra una pestaña por servidor conocido, con los globales primero y
+los del proyecto después. Cada pestaña identifica ámbito, servicio y estado.
+Las herramientas del proyecto y las preferencias se ubican al final.
 
 ## Distribución vertical
 
-1. Hardware de la máquina: CPU, RAM y cada dispositivo GPU con su VRAM.
-2. Actividad: resumen por entrada/modelo y detalle de slots/tareas, distinguidos por servicio.
-3. Logs: selector de servicio y salida que ocupa el resto del espacio disponible.
+1. Actividad y rendimiento del servidor seleccionado: entradas activas, fases,
+   avance disponible y series de prompt y generación con alcance y unidad.
+2. Series de hardware compartido por dispositivo, como detalle de la barra de estado común.
+3. Logs del servidor seleccionado, en el espacio restante.
 
-El hardware aparece primero y conserva su alcance global al cambiar el servicio
-cuyo log se consulta. No se repiten ni suman totales de GPU como si cada servicio
-fuese propietario de ellos. Cada serie muestra valor, unidad y dispositivo/fuente;
-una medición ausente se indica como no disponible.
+Las entradas activas tienen prioridad visual. La fase, la cola y la vigencia de
+las muestras permiten distinguir avance, espera y falta de observación. Al
+reducir el ancho se simplifican gráficos y columnas secundarias antes de perder
+entrada, fase y progreso disponible. Si falta altura para consultar el log
+junto al monitor, se accede desde la subpestaña Logs del mismo servidor.
 
-La tabla de actividad muestra fase y cifras con suficiente presencia para consultar
-el estado de un vistazo. Al reducir la terminal se simplifican gráficos y columnas
-secundarias antes de perder servicio, entrada, actividad y progreso disponible.
-Los logs aprovechan el espacio restante. La fase y el progreso de las tareas
-permanecen visibles al ajustar el tamaño del panel.
+El hardware conserva su alcance global al cambiar de pestaña. Cada serie
+identifica dispositivo o fuente, valor y unidad. Las mediciones ausentes se
+indican como no disponibles.
 
 ## Slots, tareas y entradas
 
@@ -66,15 +67,16 @@ instancias aunque sus tareas tengan el mismo número.
 
 ## Disposición
 
-[Pantalla Servicios](tui-servicio.salt.puml).
+[Monitor con log](tui-servicio.salt.puml) ·
+[Monitor compacto](tui-servicio-compacto.salt.puml) ·
+[Logs en terminal baja](tui-logs.salt.puml).
 
 ## Logs y navegación
 
-La selección de servicio cambia únicamente el panel de logs; la vista de hardware
-y la tabla general mantienen su alcance. El selector identifica el servicio y el
-alias default cuando corresponde. El panel sigue al servicio entre reinicios y
-cambios de archivo, señalando la transición sin exigir reconexión manual.
+La pestaña de servidor determina el alcance de actividad y logs. El encabezado
+identifica el servicio y su alias default cuando corresponde. El log sigue al
+servicio entre reinicios y cambios de archivo, con una indicación de transición.
 
-Scroll y pausa son de visualización: no detienen inferencia ni alteran el servicio.
-El acceso al historial de archivos es independiente del seguimiento del servicio.
-Abrir, cerrar o navegar la pantalla no inicia, detiene ni reconfigura servicios.
+El scroll y la pausa afectan la visualización. Se puede volver al seguimiento
+y consultar el historial de archivos. Abrir, cerrar o navegar la pantalla
+conserva el ciclo de vida del servidor y su configuración.

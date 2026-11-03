@@ -29,10 +29,10 @@ Las reglas funcionales de los documentos enlazados prevalecen. Esta tarjeta defi
 
 ## Trabajo y aceptación
 
-- [ ] Usar seguimiento de 062: selector de servicio y alias default, cambio de log entre reinicios/rotación y señal visible de transición; esperar cuando el servicio esté detenido.
-- [ ] Cambiar selección afecta sólo el panel de logs, no filtra implícitamente hardware global ni actividad general.
+- [ ] Usar seguimiento de 062: pestaña de servidor y alias default, cambio de log entre reinicios/rotación y señal visible de transición; esperar cuando el servicio esté detenido.
+- [ ] Cambiar de pestaña cambia actividad y logs al mismo servicio; el hardware conserva alcance global.
 - [ ] Permitir scroll, pausa visual, regreso al seguimiento y acceso a históricos; continuar captura en buffers acotados sin congelar tablas ni peticiones.
-- [ ] Destinar al log el espacio restante y permitir ajustar paneles conservando fase y progreso; soportar líneas largas, Unicode, ausencia de archivo y pérdida de acceso.
+- [ ] Destinar al log el espacio restante y moverlo a una subpestaña del mismo servidor cuando falte altura, conservando fase y progreso en Monitor; soportar líneas largas, Unicode, ausencia de archivo y pérdida de acceso.
 - [ ] Probar dos servicios, ráfagas de logs, resize, retención, reinicio y eliminación/recreación del mismo nombre con otra identidad; no enlazar silenciosamente servicios distintos.
 - [ ] Ejecutar la TUI publicada con logs reales y comprobar que salida/pausa no detienen el backend ni provocan crecimiento ilimitado.
 

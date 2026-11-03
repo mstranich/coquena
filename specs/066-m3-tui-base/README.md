@@ -16,7 +16,7 @@ updated_at: 2026-11-03T20:18:55.148763400Z
 
 ## Objetivo
 
-Entregar la base ejecutable de la TUI, su navegación y ciclo de vida para integrar el dashboard como producto de M3.
+Entregar la base ejecutable de la TUI, su navegación y ciclo de vida para integrar el dashboard como producto de M4.
 
 ## Fuente de verdad
 
@@ -30,9 +30,9 @@ Las reglas funcionales de los documentos enlazados prevalecen. Esta tarjeta defi
 
 ## Trabajo y aceptación
 
-- [ ] Seleccionar una biblioteca de terminal tras comprobar publicación y ejecución Native AOT win-x64 con teclado, Unicode, resize y restauración de terminal; registrar versión y limitaciones antes de adoptarla.
-- [ ] Exponer la entrada tui definida por comandos; abrir desde un proyecto y navegar entre resumen general y servicio seleccionado, global o propio, usando registro local sin recorrer discos.
-- [ ] Preparar regiones de hardware, actividad y logs conforme al wireframe Servicios; los paneles de datos se completan en 067–069. Mostrar identidad y estado de selección aun sin servidor.
+- [ ] Evaluar Terminal.Gui v2 como candidata tras comprobar publicación y ejecución Native AOT win-x64 con teclado, Unicode, resize y restauración de terminal; registrar versión y limitaciones antes de adoptarla.
+- [ ] Exponer la entrada tui definida por comandos; abrir desde un proyecto y navegar por pestañas de servidor, primero globales y después del proyecto, usando registro local sin recorrer discos.
+- [ ] Preparar regiones de actividad, hardware compartido y logs conforme al wireframe Servicios; los paneles de datos se completan en 067–069. Mostrar identidad y estado de selección aun sin servidor.
 - [ ] Resolver foco, navegación por teclado, salida, redimensionado y terminal pequeña conservando información prioritaria; mantener alternativa comprensible sin color.
 - [ ] Abrir/cerrar no inicia, detiene, publica ni reconfigura servicios. Cancelar observadores restaura la terminal y libera suscripciones sin afectar backend.
 - [ ] Validar la aplicación publicada en una terminal real, incluida salida tras excepción; las pruebas de layout aislado no acreditan esta entrega por sí solas.

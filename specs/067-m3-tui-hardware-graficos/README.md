@@ -31,10 +31,12 @@ Las reglas funcionales de los documentos enlazados prevalecen. Esta tarjeta defi
 
 ## Trabajo y aceptación
 
-- [ ] Mostrar hardware de máquina arriba, por dispositivo, con fuente, unidad, cifra y serie temporal; distinguir consumo por proceso de totales globales sin duplicar GPU compartida.
+- [ ] Alimentar la barra de estado común con las mismas muestras de hardware que el monitor. Verificar continuidad al cambiar de espacio y pestaña, identificación de GPU y degradación por ancho o fuente ausente según [interfaces visuales](../../docs/interfaces-visuales.md#barra-de-estado-de-la-máquina).
+
+- [ ] Mostrar hardware compartido en la región superior del monitor, por dispositivo, con fuente, unidad, cifra y serie temporal; distinguir consumo por proceso de totales globales sin duplicar GPU compartida.
 - [ ] Representar historial acotado de sesión con caracteres de terminal Unicode/braille/ASCII, ejes o etiquetas legibles y formato humano de 042. Dato ausente no es cero.
 - [ ] Separar refresco visual de referencia de un segundo del ritmo real de muestreo; marcar muestras desactualizadas y huecos en lugar de interpolar actividad inexistente.
-- [ ] Mantener hardware global al cambiar servicio o log; resumen general aísla fallos por instancia y no bloquea toda la pantalla por una fuente lenta.
+- [ ] Mantener hardware global al cambiar de pestaña; la vista aísla fallos por instancia y no bloquea toda la pantalla por una fuente lenta.
 - [ ] Probar CPU/GPU sin permisos, múltiples GPU, falta de proveedor, terminal pequeña, resize y uso sin color. Medir límites de buffers y comprobar que el observador no consume recursos crecientes.
 - [ ] Publicar Native AOT y observar cifras reales del equipo; contrastar alcance con la fuente y documentar qué mediciones están disponibles.
 

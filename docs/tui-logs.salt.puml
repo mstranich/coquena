@@ -1,0 +1,17 @@
+@startsalt
+{
+  { CPU 42% | GPU0 91% | RAM 18/32 GiB | VRAM0 20/24 GiB }
+  { Espacio: proyecto código | [Cambiar espacio] }
+  {/ Global: principal | Global: laboratorio | Proyecto: código | Presets | Buscar modelos | Configuración }
+  { <b>Global: principal | En línea }
+  {/ Monitor | <b>Logs }
+  { Siguiendo instancia i2 | [Pausar] | [Volver al final] | [Histórico] }
+  {S
+    Cambio de instancia / nuevo archivo
+    server: listening
+    slot 0: generación en curso
+    .
+    .
+  }
+}
+@endsalt

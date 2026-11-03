@@ -25,58 +25,88 @@ según [servidores](servidores.md#plazos-y-control). Que el servicio esté desac
 no acepta automáticamente ese riesgo.
 Observación en [observabilidad](observabilidad.md).
 
+## Espacios de trabajo
+
+Al abrir la TUI desde una receta local reconocida, el proyecto queda
+disponible para navegación mediante el índice de proyectos de Coquena.
+El selector ofrece el catálogo global y los proyectos conocidos. El índice
+global localiza los catálogos de proyecto; cada catálogo conserva su
+inventario, definiciones e identidad. Una ruta que ya no se puede resolver
+se muestra como inaccesible.
+
+Cambiar de espacio cambia el catálogo editable, sus transferencias y las
+pestañas de servicios propios que se ofrecen. Los servidores globales siguen
+disponibles. La cabecera distingue espacio activo, servidor enfocado y
+destino de publicación de la receta. Cambiar de espacio conserva las
+transferencias y pruebas en curso, respeta el borrador de cada receta y
+mantiene los servidores en su estado actual. Iniciar o detener un servidor
+y publicar o retirar una prueba requieren acciones explícitas.
+
+El [selector de espacios](tui-espacios.salt.puml) es accesible desde cualquier
+pestaña. Permite volver a un proyecto y operar sobre sus modelos y presets,
+publicar en el global compartido o usar el servidor propio con su backend.
+
+## Barra de estado de la máquina
+
+La TUI mantiene una línea visible en el borde superior en todos los espacios y
+pestañas, incluido el selector de espacios. Resume CPU, GPU, RAM y VRAM de la
+máquina. Cambiar de catálogo o servidor conserva la misma serie de muestras.
+Con varias GPU, identifica el dispositivo resumido y señala si hay otros;
+el monitor muestra el detalle por dispositivo. Los datos ausentes o vencidos
+se identifican como tales.
+
+Con espacio y una fuente disponible, puede incluir actividad de una unidad de
+almacenamiento identificada y un resumen del servidor observado. El resumen
+identifica el servidor y muestra su actividad agregada, por ejemplo cuántas
+entradas están activas y cuántas peticiones esperan. Si falta ancho se retiran
+primero esos campos opcionales y se compactan las etiquetas de hardware.
+La barra indica el consumo de la máquina; el monitor conserva las series y
+las fases por entrada o tarea.
+
 ## Dashboards de observación
 
-La TUI ofrece dos vistas navegables, sin requerir un editor:
+La TUI ordena sus pestañas por servidores globales, servidores del proyecto y
+herramientas. La [vista por servidor](ui-servicio.md) muestra inferencia en
+curso, rendimiento, recursos compartidos y logs. El log queda accesible dentro
+del servidor aunque el espacio vertical obligue a separarlo del monitor.
 
-- General: resumen compacto de todos los servidores locales registrados por Coquena
-  cuya identidad se pueda comprobar. Muestra proyecto, salud, entradas cargadas,
-  tasas y recursos disponibles, sin panel de logs por servidor.
-- Servicio seleccionado: pantalla completa con gráficos temporales y cifras arriba y
-  seguimiento de logs abajo. Permite identificar la instancia y el modelo/entrada
-  observado; si hay varios cargados, no presupone un único modelo actual.
+Las pestañas descubren servicios mediante el registro local. Los fallos de
+una instancia se aíslan de las demás. Los gráficos conservan unidades,
+distinguen muestras ausentes o desactualizadas y se adaptan a la terminal.
+El historial visual es de sesión. Las frecuencias de captura y de refresco
+siguen [observabilidad](observabilidad.md).
 
-El detalle permite seleccionar servicios globales o propios de proyectos. La cabecera
-mantiene visibles identidad, salud, entradas activas, fase de actividad y progreso
-disponible aun en disposición compacta. Al reducir espacio se simplifican gráficos
-y columnas secundarias antes de ocultar esas cifras. El log ocupa la zona inferior;
-ampliarlo o pausarlo visualmente no detiene la captura ni las peticiones.
+Las herramientas aparecen al final:
 
-La pantalla Servicios muestra consumo de la máquina por dispositivo arriba,
-actividad por entrada/slot/tarea en
-el centro y logs con selección de servicio abajo. El centro separa resumen de
-acumulados/tasas por entrada y detalle de cifras atribuibles a cada tarea, según
-[observabilidad](observabilidad.md#cifras-por-tarea-entrada-y-servicio). La tabla permite distinguir
-actividad en cola, procesamiento de prompt, generación y resultados recientes,
-cuando las fuentes permitan identificar esos estados y conservar su historial.
-La selección del log no filtra implícitamente el consumo global de hardware.
-La [semántica de la pantalla Servicios](ui-servicio.md) define distribución vertical,
-identificación por servicio/slot/tarea, histórico visual configurable y espacio de logs.
-Los wireframes de Modelos muestran [listado](tui-modelos.listado.salt.puml) y
-[descarga](tui-modelos.descarga.salt.puml).
-Slots/tareas se muestran por instancia y entrada, con fase, tokens de
-prompt procesados/cacheados, tokens generados y tiempos según evidencia disponible.
-Una estimación de tiempo restante se identifica como tal; no equivale al tiempo
-medido hasta el primer token. Datos ausentes o desactualizados se indican sin
-inventar cero ni deducir inactividad de un log silencioso. El refresco visual de
-referencia es de un segundo, independiente de la frecuencia real de cada fuente.
+- [Presets](tui-presets.salt.puml) lista la contribución del proyecto y abre el
+  editor con comparación entre guardado, activo y borrador.
+- Buscar modelos reúne [inventario local](tui-modelos.listado.salt.puml) y
+  [búsqueda y descarga](tui-modelos.descarga.salt.puml). Permite consultar el
+  README, elegir variante y preparar un modelo para un preset.
+- [Configuración](tui-configuracion.salt.puml) agrupa preferencias de Coquena.
+  Los argumentos del backend se editan como parte de la definición del proyecto.
 
-Las gráficas usan caracteres de terminal (Unicode, braille o ASCII), se adaptan al
-espacio disponible y conservan etiquetas/unidades y alternativa legible sin color.
-Se observan CPU, RAM, GPU, VRAM, procesamiento de prompt y generación según las
-fuentes y disponibilidad descritas en observabilidad. El historial es acotado a la
-sesión, no una plataforma de monitoreo persistente. Los logs tienen seguimiento y
-scroll/pausa de visualización sin pausar ni detener el servidor.
+La navegación de terminal distingue pestaña activa y foco de teclado. Usa la
+[paleta de Coquena](../docs-site/assets/coquena.css), con terracota para selección,
+turquesa como acento y etiquetas legibles aun sin color. Los wireframes muestran
+la jerarquía y los recorridos con datos ilustrativos.
 
-La vista general descubre instancias mediante el registro local de proyectos y servicios;
-no recorre discos ni mezcla inventarios de recursos en un catálogo global. Puede
-abrirse desde un proyecto y cambiar de vista sin cambiar intención ni combinación.
-Los fallos de una instancia no bloquean la actualización de las demás. No incluye
-procesos ajenos sin registro ni gestión multi-host.
+## Acciones compartidas con la CLI
 
-Buscar modelos, combinar modelo/preset y editar recetas son capacidades separadas
-de observar. La experiencia de edición final corresponde a TUI/Web UI; prioriza
-selección de modelos y presets antes que formularios avanzados de argumentos.
+Los controles visuales invocan las mismas operaciones de aplicación que la
+CLI, con el ámbito y el recurso enfocado explícitos. Cada acción disponible
+por clic tiene una forma de enfocarla e invocarla por teclado. Antes de
+confirmar una operación se muestra el destino y, cuando corresponda, el plan
+y los riesgos. Las restricciones y confirmaciones son las del comando.
+
+Configuración lee el valor efectivo al abrir y después de guardar o
+restablecer. Guardar asigna el valor elegido y restablecer elimina el override
+de esa preferencia. Repetir cualquiera deja el mismo valor efectivo y no
+relanza observadores ni fuerza limpieza. La edición conserva las unidades,
+validaciones y valores predeterminados de CLI. La reconexión se guarda como
+un par de valores. La retención global se distingue del override YAML de
+cada servicio. Si el valor cambió externamente durante la edición, se muestra
+el valor vigente antes de sobrescribir.
 
 ## Selección, activo y comparación
 
@@ -120,6 +150,21 @@ automática ni bloquearla por adelantado.
 
 ## Experimentación en vivo
 
+El recorrido visual empieza con un modelo y un uso a probar. El usuario prepara
+un preset con parámetros y, si corresponde, un companion compatible. Publica la
+prueba explícitamente en el router en ejecución y sigue esa entrada en la pestaña
+del servidor. Allí puede comprobar carga, fases, avance, tasas y logs durante
+una petición de prueba. La publicación y el retiro en caliente siguen las reglas
+de [servidores](servidores.md#plazos-y-control). Cargar o descargar de memoria
+es una operación distinta de publicar o retirar una entrada.
+
+La calidad de la salida se evalúa en el cliente que hizo la prueba. El monitor
+aporta evidencia de rendimiento y diagnóstico para decidir si ajustar el preset,
+probar otro companion, guardar la receta YAML o retirar la prueba. Para comparar
+variantes, se identifica la configuración activa y se contrasta el mismo caso
+de uso con cifras de alcance y ventana comparables.
+
+
 Buscar/explorar modelos, leer README, seleccionar/descargar y crear preset de prueba.
 Aplicar explícitamente antes de guardar YAML cuando backend lo soporte, observar
 carga/resultado, y persistir receta si convence. Una representación operativa local
@@ -149,7 +194,7 @@ No aplicar cambios ocultos por cerrar una notificación.
 
 ## Contratos por concretar
 
-Distribución visual, paleta/atajos, selección de varios borradores, conflicto entre
+Atajos definitivos, selección de varios borradores, conflicto entre
 sesiones y ciclo de restauración experimental requieren diseño. La Web UI debe
 concretar acceso, autenticación y despliegue; que observe un servidor no autoriza
 exponer controles de escritura indiscriminadamente en red.

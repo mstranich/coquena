@@ -32,7 +32,7 @@ Las reglas funcionales de los documentos enlazados prevalecen. Esta tarjeta defi
 
 ## Trabajo y aceptación
 
-- [ ] Integrar hardware arriba, tareas/prompts/tokens al centro y logs abajo; ofrecer resumen general y detalle navegable sin abrir varias herramientas.
+- [ ] Integrar actividad y series temporales arriba, hardware compartido y logs abajo. Verificar orden de pestañas y acceso a Logs dentro del servidor al reducir la altura.
 - [ ] Partir de un proyecto con target self y varios presets; iniciar/publicar mediante CLI y abrir tui. Enviar peticiones desde un cliente de prueba y observar las fases y cifras disponibles mientras ocurre inferencia.
 - [ ] Repetir con servicio compartido por consumidores, dos entradas de modelos distintos usando recursos acordados y actividad simultánea cuando el backend lo soporte; verificar correlación y ausencia de métricas mezcladas.
 - [ ] Probar cambio de preset/entrada observado, recarga de publicación, reinicio del servidor, reconexión y telemetría parcial; mantener información vigente y distinguir incertidumbre.
@@ -53,7 +53,7 @@ Ejecutar pruebas pertinentes de los escenarios anteriores y registrar resultados
 
 ## Límites
 
-Dashboard de observación obligatorio en M3. Editores, experimentación asistida y Web UI pertenecen al horizonte M4; no sustituyen ni postergan esta entrega.
+Dashboard de observación de M4. Los editores, la experimentación asistida y la Web UI tienen recorridos propios dentro del milestone.
 
 ## Estado y evidencia
 

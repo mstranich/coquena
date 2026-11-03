@@ -1,46 +1,34 @@
 @startsalt
 {
-  {/ <b>Servicios | Presets | Modelos | Configuración }
-  {
-    {#
-      CPU    | ▂▃▅▆▇██▇▆ 42%    | CPU de ejemplo
-      RAM    | ▂▃▅▆▇██▇▆ 18 GiB | 32 GiB total
-      GPU 0  | ▂▃▅▆▇██▇▆ 91%    | GPU de prueba
-      VRAM 0 | ▂▃▅▆▇██▇▆ 20 GiB | 24 GiB total
-      GPU 1  | ▂▃▅▆▇██▇▆ 91%    | GPU de prueba
-      VRAM 1 | ▂▃▅▆▇██▇▆ 4 GiB | 12 GiB total
-    }
-    ...
-    { Resumen por entrada - datos ilustrativos; n/d = no disponible }
-    {#
-      Servicio | Entrada    | Periodo / fuente | Prompt proc/cache (tk) | Salida acum (tk) | Media backend P/G (t/s) | Activas / cola
-      codigo   | asistente  | hijo h2 / metrics | 30000 / 18000        | 5000            | ▂▃▅▆ 80 / 20           | 1 / 2
-      codigo   | editor     | hijo h1 / metrics | 10000 / 2000         | 1000            | ▂▃▅▆ 60 / 15           | 0 / 0
-      codigo   | TOTAL      | periodos distintos | n/d                | n/d             | n/d: sin ventana comun | 1 / 2
-      noticias | resumen    | hijo h1 / metrics | 12000 / 4000         | 2000            | ▂▃▅▆ 55 / 12           | 1 / 0
-    }
-    { Detalle por tarea - cifras atribuibles; no copiar medias del resumen }
-    {#
-      Servicio / entrada | Router/hijo | Slot | Tarea | Actividad  | Cache (tk) | Prompt proc / progreso | Tiempo de fase | Salida (tk) / media tarea
-      codigo/asistente   | i1/h2       | 0    | 1     | GENERANDO  | 438        | 5 / completado        | Gen: n/d       | 16 / n/d
-      noticias/resumen   | i2/h1       | 0    | 1     | PROMPT     | 1000       | 2048 / 68% (log)      | Prompt: 12.4 s | pendiente
-      codigo/asistente   | i1/h1       | 0    | 1     | Finalizada | 438        | 5 / completado        | Gen: 1.7 s     | 16 / 8.9 t/s (final)
-      codigo/editor      | i1/h1       | 0    | 3     | Finalizada | n/d        | n/d                   | n/d            | n/d
-    }
-    ...
-    {Logs: {/ <b> codigo (default) | noticias | laboratorio }}
-    {S
-      Logs del servicio estable - seguimiento continuo
-      slot 0 task 135: prompt processing ... progress 0.68
-      slot 1 task 136: generation ...
-      Cambio de instancia / nuevo archivo
-      server: listening ...
-      .
-      .
-      .
-      .
-      .
-    }
+  { CPU 42% | GPU0 91% | RAM 18/32 GiB | VRAM0 20/24 GiB }
+  { Espacio: proyecto código | [Cambiar espacio] }
+  {/ Global: principal | Global: laboratorio | Proyecto: código | Presets | Buscar modelos | Configuración }
+  { <b>Global: principal | En línea | 2 entradas activas | Cola: 2 }
+  { Servidor enfocado: global principal | Destino de receta: global }
+  { [Ver definición] | [Detener] | [Reiniciar] | [Acciones del servicio] }
+  {#
+    Entrada / modelo | Activas / cola | Prompt (tk/s) | Generación (tk/s)
+    asistente / modelo A | 1 / 2 | ▂▃▅▆ 80 | ▂▅▆▆ 20
+    resumen / modelo B | 1 / 0 | ▂▃▅▅ 55 | ▂▂▃▃ 12
   }
+  {#
+    Tareas activas | Fase | Último avance
+    asistente / slot 0 | GENERANDO | 128 tk de salida
+    resumen / slot 0 | PROMPT | 2048 tk · 68% (log)
+    <b>Recientes | Fase | Última cifra observada
+    asistente / slot 1 | Finalizada | 438 tk de salida
+  }
+  { Entrada enfocada: asistente | Prueba activa | [Ver preset] }
+  { Tasas medias del backend por entrada | Enter: fuente y período }
+  { Hardware compartido | CPU ▂▅▆ 42% | RAM ▃▅▅ 18 / 32 GiB }
+  { GPU 0 ▂▆▆ 91% | VRAM ▃▅▆ 20 / 24 GiB }
+  { Logs de principal | Siguiendo | [Pausar] | [Histórico] }
+  {S
+    slot 0: generación en curso
+    slot 0: procesamiento de prompt 68%
+    .
+    .
+  }
+  { Tab: foco | Enter: detalle | Esc: volver }
 }
 @endsalt
