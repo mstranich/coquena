@@ -25,7 +25,7 @@ public static class PublicationCli
         public bool Available => !Console.IsInputRedirected;
         public bool Confirm(string diagnostic)
         {
-            output.WriteLine(diagnostic); output.WriteLine("[a] Aplicar ahora aceptando el riesgo, [c] Cancelar:");
+            output.WriteLine(diagnostic); output.WriteLine("¿Querés aplicar los cambios ahora? [a] Aplicar / [c] Cancelar");
             return Console.ReadLine()?.Trim().Equals("a", StringComparison.OrdinalIgnoreCase) == true;
         }
         public bool StartService()
@@ -60,7 +60,7 @@ public static class PublicationCli
         }
     }
 
-    private static async Task<int> RunAsync(string[] args, TextWriter output, TextWriter error, IPublicationInteraction interaction, JsonObject? recordedTarget = null)
+    private static async Task<int> RunAsync(string[] args, TextWriter output, TextWriter error, IPublicationInteraction interaction, JsonObject? recordedTarget = null, bool continueAfterRecovery = true)
     {
         var files = new List<string>(); var env = new List<string>(); var positional = new List<string>();
         var seen = new HashSet<string>(); string? basePath = null, selector = null; bool start = false, isPrivate = false, end = false;
@@ -218,6 +218,11 @@ public static class PublicationCli
                 error.WriteLine("Error: preset-load-failed. Entradas: " + string.Join(", ", reconciled.FailedEntries ?? []));
                 output.WriteLine(restored?.Confirmed == true ? "Entradas afectadas restauradas sin reiniciar." : "Carga fallida; consultar estado de la composición.");
                 return restored?.Confirmed == false ? 9 : 8;
+            }
+            if (reconciled.Confirmed && action == "up" && continueAfterRecovery)
+            {
+                output.WriteLine("Se recuperó la publicación anterior. Continuando con up.");
+                return await RunAsync(args, output, error, interaction, continueAfterRecovery: false);
             }
             output.WriteLine(reconciled.Confirmed ? "Operación anterior reconciliada; repetir el comando para una nueva publicación." : "Resultado anterior incierto; recursos protegidos.");
             return reconciled.Confirmed ? 0 : 9;

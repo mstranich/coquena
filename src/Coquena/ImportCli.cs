@@ -85,7 +85,7 @@ public static class ImportCli
         }
         bool Confirm(string message)
         {
-            output.WriteLine(message); output.WriteLine("[a] Aplicar ahora aceptando el riesgo, [c] Cancelar:");
+            output.WriteLine(message); output.WriteLine("¿Querés aplicar los cambios ahora? [a] Aplicar / [c] Cancelar");
             return Console.ReadLine()?.Trim().Equals("a", StringComparison.OrdinalIgnoreCase) == true;
         }
         var result = await new RecipeImporter(context).ImportAsync(source, resources, select, replace, force, asDefault,

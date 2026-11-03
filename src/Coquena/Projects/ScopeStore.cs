@@ -157,7 +157,8 @@ public sealed class ScopeStore(ScopeContext context)
             }
             catch (Exception error)
             {
-                throw new StorageException("scope-commit-pending", "Commit decidido; reconciliar antes de reintentar. No se revierte la selección.", true, error);
+                throw new StorageException("scope-commit-pending",
+                    $"La publicación quedó registrada, pero faltó completar su aplicación ({error.GetType().Name}, 0x{error.HResult:X8}). Coquena intentará completarla al volver a abrir el proyecto.", true, error);
             }
             return true;
         });
@@ -419,7 +420,30 @@ public sealed class ScopeStore(ScopeContext context)
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         var temp = path + "." + ProjectDocuments.Id() + ".tmp";
         WriteNew(temp, bytes);
-        try { if (File.Exists(path)) File.Replace(temp, path, null); else File.Move(temp, path); }
+        try
+        {
+            if (!File.Exists(path))
+            {
+                File.Move(temp, path);
+                return;
+            }
+
+            var original = File.ReadAllBytes(path);
+            for (var attempt = 0; ; attempt++)
+            {
+                try { File.Replace(temp, path, null); return; }
+                catch (IOException error) when (OperatingSystem.IsWindows() &&
+                    (error.HResult & 0xffff) is 32 or 33 or 1175 && attempt < 4)
+                {
+                    Thread.Sleep(25 << attempt);
+                    if (!File.Exists(path)) throw;
+                    var current = File.ReadAllBytes(path);
+                    if (current.AsSpan().SequenceEqual(bytes)) return;
+                    if (!current.AsSpan().SequenceEqual(original) || !File.Exists(temp) ||
+                        !File.ReadAllBytes(temp).AsSpan().SequenceEqual(bytes)) throw;
+                }
+            }
+        }
         finally { if (File.Exists(temp)) File.Delete(temp); }
     }
 }

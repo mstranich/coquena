@@ -30,6 +30,8 @@ public sealed class LlamaPresetRouter(HttpClient client, Uri endpoint) : IPreset
     }
     public async Task<string> ActivityAsync(string[] names, CancellationToken cancellation)
     {
+        var affected = "\nPresets afectados: " + string.Join(", ", names);
+        var unknown = "No pudimos comprobar si el servidor está atendiendo peticiones. Aplicar los cambios ahora puede interrumpirlas." + affected;
         try
         {
             var entries = await ObserveAsync(cancellation);
@@ -37,15 +39,16 @@ public sealed class LlamaPresetRouter(HttpClient client, Uri endpoint) : IPreset
             foreach (var name in loaded)
             {
                 using var response = await client.GetAsync(Url("/slots?autoload=false&model=" + Uri.EscapeDataString(name)), cancellation);
-                if (!response.IsSuccessStatusCode) return "Actividad desconocida; no se pudo comprobar ocupación. Entradas: " + string.Join(", ", names);
+                if (!response.IsSuccessStatusCode) return unknown;
                 var slots = JsonNode.Parse(await response.Content.ReadAsStringAsync(cancellation)) as JsonArray;
-                if (slots is null || slots.Any(s => s?["is_processing"]?.GetValue<bool>() == true))
-                    return "Peticiones activas o actividad desconocida; publicar puede interrumpirlas. Entradas: " + string.Join(", ", names);
+                if (slots is null) return unknown;
+                if (slots.Any(s => s?["is_processing"]?.GetValue<bool>() == true))
+                    return "El servidor está atendiendo peticiones. Aplicar los cambios ahora puede interrumpirlas." + affected;
             }
-            return "No se observaron slots activos; la cola y peticiones posteriores no están descartadas. Entradas: " + string.Join(", ", names);
+            return "El servidor no mostraba peticiones en curso al comprobarlo. Si hay peticiones en espera o llega alguna mientras se aplican los cambios, podría interrumpirse." + affected;
         }
         catch (Exception e) when (e is HttpRequestException or OperationCanceledException or System.Text.Json.JsonException or InvalidOperationException)
-        { return "Actividad desconocida; publicar puede interrumpir peticiones. Entradas: " + string.Join(", ", names); }
+        { return unknown; }
     }
     public async Task<bool> ReloadAsync(CancellationToken cancellation)
     {

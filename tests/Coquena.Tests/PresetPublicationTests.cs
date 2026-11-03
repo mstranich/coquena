@@ -405,10 +405,10 @@ internal static class PresetPublicationTests
         using var activityHandler = new ActivityHandler(); using var activityHttp = new HttpClient(activityHandler);
         var activityRouter = new LlamaPresetRouter(activityHttp, new Uri("http://fixture.invalid"));
         var activity = await activityRouter.ActivityAsync(["coding/chat"], default);
-        Check(activity.Contains("activas") && activity.Contains("coding/chat") && activityHandler.Requests.Any(p => p.Contains("autoload=false")) &&
+        Check(activity.Contains("está atendiendo peticiones") && activity.Contains("coding/chat") && activityHandler.Requests.Any(p => p.Contains("autoload=false")) &&
             activityHandler.Requests.All(p => !p.Contains("reload") && !p.Contains("/load")), "busy activity attribution uses only observational endpoints with autoload disabled");
         activityHandler.MissingSlots = true;
-        Check((await activityRouter.ActivityAsync(["coding/chat"], default)).Contains("desconocida"), "missing activity evidence stays unknown instead of inventing idle state");
+        Check((await activityRouter.ActivityAsync(["coding/chat"], default)).Contains("No pudimos comprobar"), "missing activity evidence stays unknown instead of inventing idle state");
         Console.WriteLine($"OK: {checks} verificaciones de publicación 055. Fixtures: {root}");
     }
 
