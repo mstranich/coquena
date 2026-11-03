@@ -345,11 +345,10 @@ internal static class PresetPublicationTests
             !File.ReadAllText(manager.IniPath).Contains("immediate-failure.gguf"), "failure observed during reload is restored per entry while preserving successful changes");
         router.Unavailable = true;
         reloads = router.Reloads;
-        var inaccessible = await Publish(manager, a.Recipe, []);
-        Check(!inaccessible.Confirmed && router.Reloads == reloads + 1, "unreachable live target keeps an uncertain withdrawal after explicit decision");
+        try { await Publish(manager, a.Recipe, []); throw new Exception("Expected unavailable router to block withdrawal"); }
+        catch (StorageException e) when (e.Code == "router-unreachable")
+        { Check(router.Reloads == reloads, "unreachable live target blocks withdrawal before reload"); }
         router.Unavailable = false;
-        Check((await manager.ReconcileAsync(a.Recipe.RecipeId, null, true)).Confirmed && router.Reloads == reloads + 1,
-            "confirmed termination permits local withdrawal reconciliation without HTTP retry");
         Check(!PresetPublication.Matches(new JsonArray(new JsonObject { ["presets"] = new JsonArray(new JsonObject
             { ["name"] = "test", ["expected-arguments"] = new JsonArray("--model", "new") }) }),
             new JsonArray(new JsonObject { ["id"] = "test", ["status"] = new JsonObject { ["args"] = new JsonArray("--model", "old") } })),
@@ -405,10 +404,11 @@ internal static class PresetPublicationTests
         using var activityHandler = new ActivityHandler(); using var activityHttp = new HttpClient(activityHandler);
         var activityRouter = new LlamaPresetRouter(activityHttp, new Uri("http://fixture.invalid"));
         var activity = await activityRouter.ActivityAsync(["coding/chat"], default);
-        Check(activity.Contains("está atendiendo peticiones") && activity.Contains("coding/chat") && activityHandler.Requests.Any(p => p.Contains("autoload=false")) &&
+        Check(activity is not null && activity.Contains("está atendiendo peticiones") && activity.Contains("coding/chat") && activityHandler.Requests.Any(p => p.Contains("autoload=false")) &&
             activityHandler.Requests.All(p => !p.Contains("reload") && !p.Contains("/load")), "busy activity attribution uses only observational endpoints with autoload disabled");
         activityHandler.MissingSlots = true;
-        Check((await activityRouter.ActivityAsync(["coding/chat"], default)).Contains("No pudimos comprobar"), "missing activity evidence stays unknown instead of inventing idle state");
+        try { await activityRouter.ActivityAsync(["coding/chat"], default); throw new Exception("Expected missing activity evidence to block publication"); }
+        catch (StorageException e) when (e.Code == "router-activity-unavailable") { Check(true, "missing activity evidence blocks publication"); }
         Console.WriteLine($"OK: {checks} verificaciones de publicación 055. Fixtures: {root}");
     }
 
@@ -434,7 +434,7 @@ internal static class PresetPublicationTests
         public bool LoseResponse, Reject, FailWarmup, Unavailable;
         public string? FailAfterReload;
         public Task<JsonArray> ObserveAsync(CancellationToken cancellation) => Unavailable ? throw new HttpRequestException("offline") : Task.FromResult(Catalog.DeepClone().AsArray());
-        public Task<string> ActivityAsync(string[] names, CancellationToken cancellation) => Task.FromResult("Actividad desconocida.");
+        public Task<string?> ActivityAsync(string[] names, CancellationToken cancellation) => Task.FromResult<string?>("Actividad de prueba.");
         public Task<bool> ReloadAsync(CancellationToken cancellation)
         {
             Reloads++;

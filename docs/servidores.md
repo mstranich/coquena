@@ -258,8 +258,7 @@ El backend decide el tratamiento de peticiones durante recarga/retirada. Antes
 de cambiar o retirar entradas, la publicación consulta su actividad mediante
 fuentes disponibles que no provoquen cargas. Si hay peticiones activas o en cola,
 advierte qué entradas pueden verse afectadas y permite aplicar inmediatamente
-aceptando el riesgo o cancelar. Si no puede comprobar ocupación, informa que es
-desconocida y ofrece la misma decisión. La aceptación se solicita antes de publicar
+aceptando el riesgo o cancelar. Si el router está ocioso, aplica directamente. Si no puede consultar el router o comprobar su actividad, informa el fallo y detiene la publicación. La aceptación se solicita antes de publicar
 el INI y pedir recarga; cancelar conserva la composición publicada.
 
 Up/down y apply/withdraw requieren interacción, mediante CLI o una decisión

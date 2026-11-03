@@ -395,7 +395,7 @@ internal static class RecipeImportIntegrationTests
     {
         public JsonArray Catalog = []; public int Reloads, Warmups; public bool LoseResponse, FailWarmup, LoseRestorationResponse;
         public Task<JsonArray> ObserveAsync(CancellationToken cancellation) => Task.FromResult(Catalog.DeepClone().AsArray());
-        public Task<string> ActivityAsync(string[] names, CancellationToken cancellation) => Task.FromResult("Actividad desconocida.");
+        public Task<string?> ActivityAsync(string[] names, CancellationToken cancellation) => Task.FromResult<string?>("Actividad de prueba.");
         public Task<bool> ReloadAsync(CancellationToken cancellation)
         {
             Reloads++; Catalog = []; JsonObject? current = null;

@@ -6,14 +6,14 @@ using Coquena.Storage;
 namespace Coquena.Servers;
 
 public sealed record PublishedPreset(string Name, string Ini, string[] ExpectedArguments, JsonArray Resources, bool Warmup);
-public sealed record PublicationResult(bool Confirmed, bool WarmupFailed = false, string[]? FailedEntries = null, bool Restored = false);
+public sealed record PublicationResult(bool Confirmed, bool WarmupFailed = false, string[]? FailedEntries = null, bool Restored = false, string[]? ChangedEntries = null);
 public enum PublicationStage { Reserved, IniPublished, Sent, Observed }
 
 // Network operations are deliberately separate from short generation commits.
 public interface IPresetRouter
 {
     Task<JsonArray> ObserveAsync(CancellationToken cancellation);
-    Task<string> ActivityAsync(string[] names, CancellationToken cancellation);
+    Task<string?> ActivityAsync(string[] names, CancellationToken cancellation);
     Task<bool> ReloadAsync(CancellationToken cancellation);
     Task<bool> WarmupAsync(string name, CancellationToken cancellation);
 }
@@ -94,7 +94,7 @@ public sealed class PresetPublication(ScopeStore consumer, ScopeStore target, st
                     var pendingWarmup = presets.Where(p => p.Warmup && observed.SingleOrDefault(o => o!["id"]!.GetValue<string>() == p.Name)?["status"]?["value"]?.GetValue<string>() != "loaded").ToArray();
                     if (pendingWarmup.Length != 0)
                     {
-                        if (!confirm(await router.ActivityAsync(pendingWarmup.Select(p => p.Name).ToArray(), cancellation))) throw new OperationCanceledException();
+                        if (await router.ActivityAsync(pendingWarmup.Select(p => p.Name).ToArray(), cancellation) is string activity && !confirm(activity)) throw new OperationCanceledException();
                         var failed = new List<string>();
                         foreach (var preset in pendingWarmup)
                             if (!await router.WarmupAsync(preset.Name, cancellation)) failed.Add(preset.Name);
@@ -116,9 +116,9 @@ public sealed class PresetPublication(ScopeStore consumer, ScopeStore target, st
                 if (!Matches(before, observed))
                     throw new StorageException("remote-composition-conflict", "Cambió una definición remota; no se sobrescriben publicaciones discrepantes.");
             }
-            catch (HttpRequestException) { /* The following activity decision explicitly reports uncertainty. */ }
+            catch (Exception error) when (error is HttpRequestException || error is OperationCanceledException && !cancellation.IsCancellationRequested) { throw new StorageException("router-unreachable", "No se pudo consultar el catálogo del servidor."); }
             var activity = await router.ActivityAsync(affected, cancellation);
-            if (!confirm(activity)) throw new OperationCanceledException("Publicación cancelada.");
+            if (activity is not null && !confirm(activity)) throw new OperationCanceledException("Publicación cancelada.");
         }
         else if (!confirm("Servicio detenido; se modifica la composición para su próximo inicio.")) throw new OperationCanceledException();
         cancellation.ThrowIfCancellationRequested();
@@ -137,7 +137,7 @@ public sealed class PresetPublication(ScopeStore consumer, ScopeStore target, st
         // interval is reconciled by observation, never an automatic second reload.
         WriteIni(IniPath, Render(after));
         fault?.Invoke(PublicationStage.IniPublished);
-        if (stopped) { Finish(recipeId, operation, after, "withdrawn"); return new(true); }
+        if (stopped) { Finish(recipeId, operation, after, "withdrawn"); return new(true, ChangedEntries: affected); }
         SetPhase(recipeId, operation, "sent");
         bool accepted;
         try { accepted = await router!.ReloadAsync(cancellation); }
@@ -182,7 +182,7 @@ public sealed class PresetPublication(ScopeStore consumer, ScopeStore target, st
             var restored = await ReconcileCoreAsync(recipeId, router, false, cancellation);
             return new(restored.Confirmed, true, failedEntries.ToArray(), restored.Confirmed);
         }
-        return new(true);
+        return new(true, ChangedEntries: affected);
     }
 
     // A later operation/observer may discover load failure after publication.

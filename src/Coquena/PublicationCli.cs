@@ -201,6 +201,7 @@ public static class PublicationCli
             running = lifecycle.Reconcile(service.ServiceId);
             if (!running) throw new StorageException("service-stopped", "El destino terminó después del inicio; no se acredita publicación.");
         }
+        if (!running && action == "down") throw new StorageException("service-stopped", "El servidor está detenido. Inicialo antes de ejecutar down.");
         var active = targetStore.Read().Documents.GetValueOrDefault(targetStore.RuntimeDocumentPath(service.ServiceId, "active"))?["data"];
         if (running && active?["execution"]?["arguments"]?.AsArray().Any(a => a?.GetValue<string>() == "--models-preset") != true)
             throw new StorageException("publication-unsupported", "La instancia no ofrece INI operativo recargable; requiere un inicio explícito compatible.");
@@ -299,6 +300,22 @@ public static class PublicationCli
         }
         var result = await manager.PublishAsync(identity.RecipeId, presets.ToArray(), combination, name, !running, true, interaction.Confirm, router, validate);
         if (result.WarmupFailed) error.WriteLine("Error: preset-load-failed. Entradas: " + string.Join(", ", result.FailedEntries ?? []));
+        if (result.Confirmed && !result.WarmupFailed)
+        {
+            var previous = (publication?["presets"] as JsonArray ?? []).Select(p => FromNode(p!)).ToArray();
+            foreach (var changed in result.ChangedEntries ?? [])
+            {
+                var current = presets.SingleOrDefault(p => p.Name == changed);
+                var definition = current ?? previous.SingleOrDefault(p => p.Name == changed);
+                var argsForPreset = definition?.ExpectedArguments ?? [];
+                var modelIndex = Array.IndexOf(argsForPreset, "--model");
+                var model = modelIndex >= 0 && modelIndex + 1 < argsForPreset.Length
+                    ? $" | modelo {Path.GetFileName(argsForPreset[modelIndex + 1])}" : "";
+                output.WriteLine($"{(current is null ? "Retirado" : "Publicado")}: {changed}{model}");
+            }
+            if (result.ChangedEntries is null) output.WriteLine("Sin cambios en los presets.");
+            return 0;
+        }
         output.WriteLine(result.Confirmed ? (result.WarmupFailed ? (result.Restored ? "Carga fallida; entradas afectadas restauradas sin reiniciar." : "Carga fallida; no se dispone de un snapshot distinto para restaurar.") : "Composición confirmada; carga no comprobada salvo warmup explícito.") : "Resultado no confirmado; operación y recursos conservados.");
         return !result.Confirmed ? 9 : result.WarmupFailed ? 8 : 0;
     }

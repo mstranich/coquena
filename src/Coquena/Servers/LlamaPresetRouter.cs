@@ -28,27 +28,27 @@ public sealed class LlamaPresetRouter(HttpClient client, Uri endpoint) : IPreset
         catch (Exception e) when (e is System.Text.Json.JsonException or InvalidOperationException)
         { throw new HttpRequestException("El catálogo recibido no es válido.", e); }
     }
-    public async Task<string> ActivityAsync(string[] names, CancellationToken cancellation)
+    public async Task<string?> ActivityAsync(string[] names, CancellationToken cancellation)
     {
         var affected = "\nPresets afectados: " + string.Join(", ", names);
-        var unknown = "No pudimos comprobar si el servidor está atendiendo peticiones. Aplicar los cambios ahora puede interrumpirlas." + affected;
+        var unknown = "No se pudo comprobar la actividad del servidor." + affected;
         try
         {
             var entries = await ObserveAsync(cancellation);
-            var loaded = names.Where(name => entries.SingleOrDefault(e => e?["id"]?.GetValue<string>() == name)?["status"]?["value"]?.GetValue<string>() == "loaded").ToArray();
+            var loaded = entries.Where(e => e?["status"]?["value"]?.GetValue<string>() == "loaded").Select(e => e!["id"]!.GetValue<string>());
             foreach (var name in loaded)
             {
                 using var response = await client.GetAsync(Url("/slots?autoload=false&model=" + Uri.EscapeDataString(name)), cancellation);
-                if (!response.IsSuccessStatusCode) return unknown;
+                if (!response.IsSuccessStatusCode) throw new Storage.StorageException("router-activity-unavailable", unknown);
                 var slots = JsonNode.Parse(await response.Content.ReadAsStringAsync(cancellation)) as JsonArray;
-                if (slots is null) return unknown;
+                if (slots is null || slots.Any(s => s?["is_processing"]?.GetValue<bool>() is null)) throw new Storage.StorageException("router-activity-unavailable", unknown);
                 if (slots.Any(s => s?["is_processing"]?.GetValue<bool>() == true))
                     return "El servidor está atendiendo peticiones. Aplicar los cambios ahora puede interrumpirlas." + affected;
             }
-            return "El servidor no mostraba peticiones en curso al comprobarlo. Si hay peticiones en espera o llega alguna mientras se aplican los cambios, podría interrumpirse." + affected;
+            return null;
         }
-        catch (Exception e) when (e is HttpRequestException or OperationCanceledException or System.Text.Json.JsonException or InvalidOperationException)
-        { return unknown; }
+        catch (Exception e) when (e is HttpRequestException or System.Text.Json.JsonException || e is OperationCanceledException && !cancellation.IsCancellationRequested || e is InvalidOperationException)
+        { throw new Storage.StorageException("router-activity-unavailable", unknown); }
     }
     public async Task<bool> ReloadAsync(CancellationToken cancellation)
     {

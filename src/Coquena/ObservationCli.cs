@@ -36,7 +36,7 @@ public static class ObservationCli
                     if (!watch)
                     {
                         var hardware = SystemMetrics.Create().CaptureAsync(cancellation.Token).GetAwaiter().GetResult();
-                        WriteHardware(hardware, output);
+                        WriteCompactHardware(hardware, output);
                     }
                 }
                 catch (OperationCanceledException) when (cancellation.IsCancellationRequested) { throw; }
@@ -59,12 +59,20 @@ public static class ObservationCli
                 {
                     RefreshTargets(); return targets.ToArray();
                 }).GetAwaiter().GetResult();
+                var shown = false;
                 foreach (var target in targets)
                 {
                     var snapshot = new ServiceObservation(target.Store).CaptureAsync(target.Service, target.Selection, cancellation.Token).GetAwaiter().GetResult();
-                    WriteService(snapshot, output);
+                    if (!selected && snapshot.ProcessState == "stopped") continue;
+                    shown = true;
+                    output.WriteLine($"Servicio {snapshot.Name}{(snapshot.IsDefault ? " (default)" : "")} | {snapshot.ProcessState} | {snapshot.Health}");
+                    var metrics = snapshot.Metrics.Where(m => m.Value is not null && m.Name is "cpu.utilization" or "ram.private-commit").Select(CompactSample).ToArray();
+                    if (metrics.Length != 0) output.WriteLine("  " + string.Join(" | ", metrics));
+                    foreach (var entry in snapshot.Entries)
+                        output.WriteLine($"  {entry.Name} | {entry.State switch { "loaded" => "cargado", "unloaded" => "publicado, sin cargar", _ => entry.State }}");
+                    if (snapshot.Entries.Count == 0 && snapshot.ApiState == "available") output.WriteLine("  Sin presets publicados.");
                 }
-                if (targets.Count == 0) output.WriteLine("Sin servicios conocidos en la selección.");
+                if (!shown) output.WriteLine("Sin servicios activos.");
                 void RefreshTargets()
                 {
                     targets.Clear(); discovered.Clear();
@@ -230,9 +238,9 @@ public static class ObservationCli
     private static void WriteCompactHardware(HardwareSnapshot hardware, TextWriter output)
     {
         output.WriteLine($"Hardware {hardware.Environment} | {hardware.CompletedAt:HH:mm:ss} | alcance máquina");
-        output.WriteLine("  " + string.Join("; ", hardware.Samples.Select(CompactSample)));
-        foreach (var device in hardware.Devices)
-            output.WriteLine($"  GPU {device.Name}: " + string.Join("; ", device.Samples.Select(CompactSample)));
+        output.WriteLine("  " + string.Join("; ", hardware.Samples.Where(m => m.Value is not null).Select(CompactSample)));
+        foreach (var device in hardware.Devices.Where(d => d.Samples.Any(m => m.Value > 0)))
+            output.WriteLine($"  GPU {device.Name}: " + string.Join("; ", device.Samples.Where(m => m.Value is not null).Select(CompactSample)));
     }
 
     public static void WriteHardware(HardwareSnapshot snapshot, TextWriter output)
