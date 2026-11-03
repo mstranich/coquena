@@ -300,7 +300,7 @@ features:
 
   - id: scoped-resource-transfers
     intent: Aislar GUID y checkpoints por ámbito y publicar instalaciones físicas verificadas sin modificar resoluciones de combinaciones.
-    keywords: [download, scope, checkpoint, publication, integrity, cancellation, recovery]
+    keywords: [download, scope, checkpoint, publication, integrity, cancellation, recovery, retry, diagnostics]
     entrypoints:
       - src/Coquena/ScopeDownloadCli.cs
       - src/Coquena/Downloads/ScopeTransfers.cs

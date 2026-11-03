@@ -113,6 +113,17 @@ public static class DownloadCli
         }
         output.WriteLine($"  Total: {ByteSize.Format(bytes)}/{(known ? ByteSize.Format(total) : "desconocido")}");
         if (value.Diagnostic is not null) output.WriteLine($"  Diagnóstico: {value.Diagnostic}");
+        if (value.Diagnostic?.StartsWith("checkpoint-write-failed-", StringComparison.Ordinal) == true)
+        {
+            output.WriteLine("  Falló la escritura del checkpoint local; no es un rechazo HTTP ni un diagnóstico de red.");
+            if (value.Diagnostic.EndsWith("0x80070497", StringComparison.Ordinal))
+                output.WriteLine("  Windows no pudo retirar el archivo de estado al reemplazarlo (ERROR_UNABLE_TO_REMOVE_REPLACED, 1175).");
+        }
+        if (value.LastIncident is { } incident)
+        {
+            output.WriteLine($"  Último incidente ({incident.At:O}): {incident.Reason} | archivo {incident.FileIndex + 1} | offset {incident.Offset} bytes");
+            output.WriteLine($"  Fallos consecutivos: {incident.ConsecutiveFailures} | límite de reintentos: {incident.RetryLimit} | espera prevista: {incident.WaitMilliseconds} ms");
+        }
         if (value.Phase == "resource-validation") output.WriteLine("  Bytes transferidos; pendiente validación y publicación del recurso. No instalado.");
     }
 }

@@ -81,6 +81,20 @@ descargador Coquena residente implícito.
 
 ### Reanudar
 
+Durante una descarga, los cortes de conexión, timeouts y respuestas HTTP transitorias
+se reintentan automáticamente desde el último checkpoint. Cada avance confirmado
+renueva el presupuesto: se permiten seis reintentos consecutivos sin avance, con
+espera exponencial de 250 ms a 8 s y respetando un Retry-After admitido más largo.
+La espera permite pausar o cancelar. Los errores de disco, integridad o continuidad
+no se reintentan como fallos de red. Agotado el presupuesto se conserva el parcial.
+El último incidente conserva causa clasificada (HTTP, timeout, conexión o respuesta
+truncada), fecha, archivo, offset, fallos consecutivos y espera prevista. Se muestra
+en progreso y consultas, también en JSON; no conserva mensajes crudos de excepciones
+ni URLs firmadas. Las operaciones anteriores pueden carecer de ese detalle.
+Si falla la escritura del checkpoint, el diagnóstico `checkpoint-write-failed`
+incluye el HRESULT del sistema operativo y lo identifica como persistencia local,
+sin atribuirlo a la red o al proveedor remoto.
+
 Continuar el mismo contenido y GUID. Comprobar tamaño real del parcial y checkpoint:
 un parcial menor no puede declararse completo; bytes adicionales sólo se aceptan
 tras reconciliación verificable.

@@ -63,9 +63,20 @@ public sealed class DownloadManager(Home home, LocalStore? storage = null)
     private string Control(Guid id, string action) => home.PathFor($"downloads/{id:D}/{action}.request");
     private OperationDocument Read(Guid id) => store.Read(DocumentKind.Operation, Json.OperationDocument,
         ContractValidation.Operation, operation: id) ?? throw new DownloadException("not-found", "Operación inexistente.");
-    private OperationDocument Save(OperationDocument value) => store.Update(DocumentKind.Operation,
-        Json.OperationDocument, ContractValidation.Operation, old => old is null
-            ? throw new DownloadException("not-found", "Operación inexistente.") : value, operation: value.Id);
+    private OperationDocument Save(OperationDocument value)
+    {
+        try
+        {
+            return store.Update(DocumentKind.Operation,
+                Json.OperationDocument, ContractValidation.Operation, old => old is null
+                    ? throw new DownloadException("not-found", "Operación inexistente.") : value, operation: value.Id);
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+        {
+            throw new DownloadException($"checkpoint-write-failed-0x{error.HResult:X8}",
+                "Falló la escritura del estado local de descarga; no es una respuesta HTTP.");
+        }
+    }
 
     private void Paths(OperationDocument value)
     {
@@ -288,16 +299,29 @@ public sealed class DownloadManager(Home home, LocalStore? storage = null)
                     }
                     continue;
                 }
-                for (var attempt = 0; ; attempt++)
+                var failures = 0;
+                while (true)
                 {
+                    var before = value.Files[i].ConfirmedBytes;
                     try
                     {
                         await Transfer(i);
                         break;
                     }
-                    catch (TransientException e) when (attempt < 2)
+                    catch (TransientException e)
                     {
-                        await Task.Delay(e.Delay, stopped.Token);
+                        // Count consecutive failures without progress, not cuts across
+                        // the lifetime of a multi-gigabyte file. Transfer's finally
+                        // durably checkpoints the prefix before another Range request.
+                        if (value.Files[i].ConfirmedBytes > before) failures = 0;
+                        failures++;
+                        var backoff = TimeSpan.FromMilliseconds(250 * Math.Pow(2, failures - 1));
+                        var wait = e.Delay > backoff ? e.Delay : backoff;
+                        value = Save(value with { LastIncident = new(e.Reason, i, value.Files[i].ConfirmedBytes,
+                            failures, 6, failures > 6 ? 0 : (long)wait.TotalMilliseconds, DateTimeOffset.UtcNow) });
+                        if (failures > 6) throw;
+                        progress?.Invoke(value with { Diagnostic = "network-retrying" });
+                        await Task.Delay(wait, stopped.Token);
                     }
                 }
             }
@@ -341,7 +365,7 @@ public sealed class DownloadManager(Home home, LocalStore? storage = null)
                 var retry = response.Headers.RetryAfter;
                 var wait = retry?.Delta ?? (retry?.Date is { } date ? date - DateTimeOffset.UtcNow : TimeSpan.FromMilliseconds(250));
                 if (wait > TimeSpan.FromSeconds(30)) throw new DownloadException("retry-after-exceeds-limit", "Espera del servidor excede límite; reanudar explícitamente.");
-                throw new TransientException(wait < TimeSpan.Zero ? TimeSpan.Zero : wait);
+                throw new TransientException(wait < TimeSpan.Zero ? TimeSpan.Zero : wait, "http-" + (int)response.StatusCode);
             }
             var tag = response.Headers.ETag?.ToString();
             var modified = response.Content.Headers.LastModified?.ToString("O");
@@ -394,10 +418,15 @@ public sealed class DownloadManager(Home home, LocalStore? storage = null)
                     throw new DownloadException("checkpoint-integrity-failed", "El prefijo cambió o carece de evidencia; no se añaden bytes.");
             }
             target.Position = file.ConfirmedBytes;
+            var savedFile = file;
             var nextCheckpoint = DateTimeOffset.UtcNow.AddSeconds(1);
             try
             {
-                await using var source = await response.Content.ReadAsStreamAsync(stopped.Token);
+                Stream opened;
+                try { opened = await response.Content.ReadAsStreamAsync(stopped.Token); }
+                catch (Exception e) when (e is IOException or HttpRequestException)
+                { throw new TransientException(TimeSpan.FromMilliseconds(250), "response-stream-failed"); }
+                await using var source = opened;
                 var buffer = new byte[65536];
                 while (true)
                 {
@@ -405,8 +434,8 @@ public sealed class DownloadManager(Home home, LocalStore? storage = null)
                     idle.CancelAfter(TimeSpan.FromSeconds(30));
                     int read;
                     try { read = await source.ReadAsync(buffer, idle.Token); }
-                    catch (OperationCanceledException) when (!stopped.IsCancellationRequested) { throw new TransientException(TimeSpan.FromMilliseconds(250)); }
-                    catch (Exception e) when (e is IOException or HttpRequestException) { throw new TransientException(TimeSpan.FromMilliseconds(250)); }
+                    catch (OperationCanceledException) when (!stopped.IsCancellationRequested) { throw new TransientException(TimeSpan.FromMilliseconds(250), "read-timeout"); }
+                    catch (Exception e) when (e is IOException or HttpRequestException) { throw new TransientException(TimeSpan.FromMilliseconds(250), "connection-interrupted"); }
                     if (read == 0) break;
                     if ((end is { } limit && target.Position + read > limit) || (file.ExpectedSize is { } total && target.Position + read > total))
                         throw new DownloadException("size-mismatch", "Respuesta excede los límites esperados.");
@@ -418,7 +447,7 @@ public sealed class DownloadManager(Home home, LocalStore? storage = null)
                     }
                 }
                 if ((end is not null && target.Position != end) || (file.ExpectedSize is not null && target.Position != file.ExpectedSize))
-                    throw new TransientException(TimeSpan.FromMilliseconds(250));
+                    throw new TransientException(TimeSpan.FromMilliseconds(250), "response-truncated");
                 if (hash is not null)
                 {
                     var digest = hash.Snapshot();
@@ -432,6 +461,7 @@ public sealed class DownloadManager(Home home, LocalStore? storage = null)
             finally { await Checkpoint(); }
             async Task Checkpoint()
             {
+                if (file == savedFile && target.Position == savedFile.ConfirmedBytes) return;
                 target.Flush(true);
                 file = file with { ConfirmedBytes = target.Length };
                 if (store.IsScoped && hash is not null) file = file with { CheckpointIntegrity = hash.Snapshot() };
@@ -442,7 +472,12 @@ public sealed class DownloadManager(Home home, LocalStore? storage = null)
                 // retried; corruption, disk failures and published audit errors escape.
                 while (true)
                 {
-                    try { value = Save(value with { UpdatedAt = DateTimeOffset.UtcNow }); break; }
+                    try
+                    {
+                        value = Save(value with { UpdatedAt = DateTimeOffset.UtcNow });
+                        savedFile = file;
+                        break;
+                    }
                     catch (StorageException e) when (e.Code == "writer-busy" && !e.Published)
                     {
                         // A scoped read also checks the inventory identity and may need
@@ -459,12 +494,13 @@ public sealed class DownloadManager(Home home, LocalStore? storage = null)
             using var headers = CancellationTokenSource.CreateLinkedTokenSource(stopped.Token);
             headers.CancelAfter(TimeSpan.FromSeconds(30));
             try { return await transport.OpenAsync(value, index, offset, headers.Token); }
-            catch (OperationCanceledException) when (!stopped.IsCancellationRequested) { throw new TransientException(TimeSpan.FromMilliseconds(250)); }
-            catch (HttpRequestException) { throw new TransientException(TimeSpan.FromMilliseconds(250)); }
+            catch (OperationCanceledException) when (!stopped.IsCancellationRequested) { throw new TransientException(TimeSpan.FromMilliseconds(250), "headers-timeout"); }
+            catch (HttpRequestException e) { throw new TransientException(TimeSpan.FromMilliseconds(250), "request-" + e.HttpRequestError.ToString()); }
         }
     }
-    private sealed class TransientException(TimeSpan delay) : DownloadException("retries-exhausted", "Reintentos agotados.")
+    private sealed class TransientException(TimeSpan delay, string reason) : DownloadException("retries-exhausted", "Reintentos agotados.")
     {
         public TimeSpan Delay { get; } = delay;
+        public string Reason { get; } = reason;
     }
 }

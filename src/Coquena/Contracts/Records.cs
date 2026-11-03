@@ -101,7 +101,11 @@ public sealed record OperationDocument(int SchemaVersion, Guid Id, string Resour
     TransferRecord[] Files, string State, string Phase, DateTimeOffset UpdatedAt,
     string? Diagnostic, BackendInstallPlan? BackendInstall = null, ModelInstallPlan? ModelInstall = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] ScopePublicationPlan? ScopePublication = null,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] TransferExecutor? Executor = null);
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] TransferExecutor? Executor = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] TransferIncident? LastIncident = null);
+
+public sealed record TransferIncident(string Reason, int FileIndex, long Offset, int ConsecutiveFailures,
+    int RetryLimit, long WaitMilliseconds, DateTimeOffset At);
 
 public sealed record TransferExecutor(int Pid, long StartedAtUtcTicks, string Executable);
 

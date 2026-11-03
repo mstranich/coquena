@@ -159,7 +159,25 @@ internal static class DownloadTests
             var ahead = Partial(); File.WriteAllText(home.PathFor(ahead.Files[0].PartialPath), "abcd");
             Check((await manager.RunAsync(ahead.Id, unused))!.Diagnostic == "checkpoint-inconsistent" && unused.Calls == 0);
             var transient = New(2); var unavailable = new Fixture((_, _, _, _) => Task.FromResult(new HttpResponseMessage(HttpStatusCode.ServiceUnavailable)));
-            Check((await manager.RunAsync(transient.Id, unavailable))!.Diagnostic == "retries-exhausted" && unavailable.Calls == 3);
+            var checkpointFailure = New(); var checkpointWrites = 0;
+            var failingStore = new LocalStore(home, stage =>
+            {
+                if (stage == WriteStage.BeforeReplace && ++checkpointWrites == 3)
+                    throw new IOException("fixture private path must not escape", unchecked((int)0x80070497));
+            });
+            var checkpointResult = await new DownloadManager(home, failingStore).RunAsync(checkpointFailure.Id, Bytes());
+            Check(checkpointResult!.Diagnostic == "checkpoint-write-failed-0x80070497");
+            using (var shown = new StringWriter())
+            {
+                Check(DownloadCli.Run(["status", checkpointFailure.Id.ToString()], shown, TextWriter.Null, manager) == 0);
+                Check(shown.ToString().Contains("ERROR_UNABLE_TO_REMOVE_REPLACED") && !shown.ToString().Contains("fixture private path"));
+            }
+            Check((await manager.RunAsync(transient.Id, unavailable))!.Diagnostic == "retries-exhausted" && unavailable.Calls == 7);
+            var incident = new DownloadManager(home).Status(transient.Id).LastIncident!;
+            Check(incident.Reason == "http-503" && incident.ConsecutiveFailures == 7 && incident.RetryLimit == 6 &&
+                incident.Offset == 0 && incident.WaitMilliseconds == 0);
+            var incidentJson = ContractJson.Write(manager.Status(transient.Id), ContractJsonContext.Default.OperationDocument);
+            Check(incidentJson.Contains("http-503") && !incidentJson.Contains("fixture connection failure"));
             Check(manager.Status(transient.Id).Files[1].ConfirmedBytes == 0);
             var cut = New(); var calls = 0;
             var disconnected = new Fixture((_, _, offset, _) =>
@@ -171,6 +189,21 @@ internal static class DownloadTests
             });
             Check((await manager.RunAsync(cut.Id, disconnected))!.Files[0].State == "transferred" && calls == 2);
             Check(File.ReadAllText(home.PathFor(cut.Files[0].PartialPath)) == "abcdef");
+            Check(manager.Status(cut.Id).LastIncident is { Reason: "connection-interrupted", Offset: 3 });
+            // Repeated cuts that each advance must not exhaust a per-file budget.
+            var manyCuts = New(); var offsets = new List<long>();
+            var advancing = new Fixture((_, _, offset, _) =>
+            {
+                offsets.Add(offset);
+                if (offsets.Count % 2 == 1) throw new HttpRequestException("fixture connection failure");
+                var response = Response("abcdef"u8.ToArray()[(int)offset..((int)offset + 1)], offset);
+                response.Content.Headers.ContentLength = 6 - offset;
+                if (offset > 0) response.Content.Headers.ContentRange = new ContentRangeHeaderValue(offset, 5, 6);
+                return Task.FromResult(response);
+            });
+            Check((await manager.RunAsync(manyCuts.Id, advancing))!.Files[0].State == "transferred");
+            Check(offsets.SequenceEqual(new long[] { 0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5 }));
+            Check(File.ReadAllText(home.PathFor(manyCuts.Files[0].PartialPath)) == "abcdef");
             var retryLong = New(); var longWait = new Fixture((_, _, _, _) =>
             {
                 var response = new HttpResponseMessage(HttpStatusCode.TooManyRequests);
@@ -199,7 +232,8 @@ internal static class DownloadTests
             var persistence = New();
             var faulty = new DownloadManager(home, new LocalStore(home, _ => throw new IOException("fixture")));
             try { await faulty.RunAsync(persistence.Id, Bytes()); throw new Exception("failure ignored"); }
-            catch (IOException) { Check(manager.Status(persistence.Id).State == "pending"); }
+            catch (DownloadException e) when (e.Code.StartsWith("checkpoint-write-failed-", StringComparison.Ordinal))
+            { Check(manager.Status(persistence.Id).State == "pending"); }
 
             // Live independent process: foreground ownership, list doesn't pause it, cross-process controls wait.
             var active = New();

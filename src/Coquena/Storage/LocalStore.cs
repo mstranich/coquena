@@ -110,7 +110,25 @@ public sealed partial class LocalStore
             if (!(original is null ? observed is null : observed is not null && original.AsSpan().SequenceEqual(observed)))
                 throw new StorageException("stale-document", "Documento modificado fuera de la exclusión de Coquena; no se reemplazó.");
             if (original is null) File.Move(temporary, path);
-            else File.Replace(temporary, path, null);
+            else
+            {
+                for (var attempt = 0; ; attempt++)
+                {
+                    try { File.Replace(temporary, path, null); break; }
+                    catch (IOException error) when (OperatingSystem.IsWindows() &&
+                        (error.HResult & 0xffff) is 32 or 33 or 1175 && attempt < 4)
+                    {
+                        if (cancellation.WaitHandle.WaitOne(25 << attempt)) cancellation.ThrowIfCancellationRequested();
+                        home.CheckPath(path);
+                        home.CheckPath(temporary);
+                        var destination = ReadBytes(path);
+                        if (destination is not null && destination.AsSpan().SequenceEqual(bytes)) break;
+                        var staged = ReadBytes(temporary);
+                        if (destination is null || !destination.AsSpan().SequenceEqual(original) ||
+                            staged is null || !staged.AsSpan().SequenceEqual(bytes)) throw;
+                    }
+                }
+            }
             published = true;
             fault?.Invoke(WriteStage.AfterReplace);
             AppendJournal(new(DateTimeOffset.UtcNow, Guid.NewGuid(), kind, operation), DefaultJournalBytes);

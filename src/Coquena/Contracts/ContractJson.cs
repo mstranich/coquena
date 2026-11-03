@@ -354,6 +354,13 @@ public static class ContractValidation
     public static void Operation(OperationDocument value)
     {
         Version(value.SchemaVersion); Id(value.Id); Text(value.Name); Text(value.Phase);
+        if (value.LastIncident is { } incident)
+        {
+            Text(incident.Reason);
+            Require(incident.FileIndex >= 0 && incident.FileIndex < value.Files.Length && incident.Offset >= 0 &&
+                incident.ConsecutiveFailures > 0 && incident.RetryLimit > 0 && incident.WaitMilliseconds >= 0 && incident.At != default,
+                "Incidente de transferencia inválido.");
+        }
         if (value.ScopePublication is { } scoped)
         {
             Id(scoped.ResourceId); Id(scoped.InstallationId);

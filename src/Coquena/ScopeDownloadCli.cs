@@ -104,6 +104,8 @@ public static class ScopeDownloadCli
         {
             var code = e switch { BackendException b => b.Code, DownloadException d => d.Code, StorageException s => s.Code, ContractException c => c.Code, _ => "local-io-failed" };
             error.WriteLine($"Error: {code}. Estado conservado en el ámbito seleccionado.");
+            if (code.StartsWith("checkpoint-write-failed-", StringComparison.Ordinal))
+                error.WriteLine("Falló la escritura del checkpoint local; no es una respuesta HTTP. Conserve el parcial.");
             return e is BackendException ? code == "invalid-selection" ? 2 : 5 : 1;
         }
     }

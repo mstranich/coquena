@@ -12,7 +12,8 @@ namespace Coquena.Projects;
 public sealed class ScopedCombinationResources(ScopeContext context, HardwareContext hardware,
     HuggingFaceStore source, IDownloadTransport transport, IModelSelectionInteraction interaction,
     IRemoteGgufInspector? inspector = null, bool force = false, Action<string>? warning = null,
-    ScopedBackends? backends = null, bool allowNewLocalRevision = true, string? serviceName = null) : ICombinationResources
+    ScopedBackends? backends = null, bool allowNewLocalRevision = true, string? serviceName = null,
+    Action<OperationDocument>? downloadProgress = null) : ICombinationResources
 {
     private readonly ScopedModels models = new(context);
     private readonly ScopedBackends backends = backends ?? new(context);
@@ -75,7 +76,8 @@ public sealed class ScopedCombinationResources(ScopeContext context, HardwareCon
             }
             selected ??= await models.SelectAsync(modelIntent, source, interaction, inspector, cancellation)
                 ?? throw new OperationCanceledException(cancellation);
-            model = await models.AcquireAsync(selected, transport, false, cancellation: cancellation, restoreMissing: true);
+            model = await models.AcquireAsync(selected, transport, false, progress: downloadProgress,
+                cancellation: cancellation, restoreMissing: true);
             if (request.Reference?.Canonical != true) models.Bind(request.Key, request.Kind, selected, model);
         }
         var installation = Installation(models.List(request.Kind == "companion"), model.ResourceId, model.InstallationId);

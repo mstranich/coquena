@@ -261,11 +261,20 @@ public static class PublicationCli
                 foreach (var diagnostic in block.Diagnostics) error.WriteLine($"Aviso: {diagnostic.Code}. {diagnostic.Detail}");
                 _ = ArgumentEmission.Ini(recipe, block, name + "/" + block.Key, adapter, _ => "prepared-resource");
             }
-            using var transport = new OfficialArtifactTransport();
+            using var transport = new HuggingFaceTransport();
+            using var stopped = new CancellationTokenSource();
             var resources = new ScopedCombinationResources(context, HardwareProbe.Inspect(), new HuggingFaceStore(http), transport,
-                new ConsoleModelSelectionInteraction(), warning: message => error.WriteLine(message));
-            var prepared = await new CombinationPreparation(context).PrepareAsync(selection, resources, isPrivate,
-                presetsOnly: true, presetKey: key);
+                new ConsoleModelSelectionInteraction(), warning: message => error.WriteLine(message),
+                downloadProgress: operation => DownloadCli.Show(operation, output));
+            PreparedCombination prepared;
+            ConsoleCancelEventHandler cancel = (_, e) => { e.Cancel = true; stopped.Cancel(); };
+            Console.CancelKeyPress += cancel;
+            try
+            {
+                prepared = await new CombinationPreparation(context).PrepareAsync(selection, resources, isPrivate,
+                    presetsOnly: true, presetKey: key, cancellation: stopped.Token);
+            }
+            finally { Console.CancelKeyPress -= cancel; }
             combination = prepared.Id;
             validate = () =>
             {
