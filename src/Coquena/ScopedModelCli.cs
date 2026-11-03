@@ -20,15 +20,15 @@ public static class ScopedModelCli
         {
             var action = args[0];
             if (action is not ("list" or "show" or "add" or "download" or "remove" or "protect" or "unprotect" or "verify" or "baseline")) return Invalid(error);
-            var global = false; var json = false; var tryMatch = false; string? basePath = null, value = null, name = null, type = null;
+            var global = false; var json = false; var tryMatch = false; var checksum = false; string? basePath = null, value = null, name = null, type = null;
             var files = new List<string>(); var env = new List<string>(); var seen = new HashSet<string>();
             for (var i = 1; i < args.Length; i++)
             {
                 var option = args[i] switch { "-g" => "--global", "-f" => "--file", _ => args[i] };
-                if (option is "--global" or "--json" or "--try-match")
+                if (option is "--global" or "--json" or "--try-match" or "--checksum")
                 {
-                    if (!seen.Add(option)) return Invalid(error);
-                    if (option == "--global") global = true; else if (option == "--json") json = true; else tryMatch = true;
+                    if (!seen.Add(option) || option == "--checksum" && action != "verify") return Invalid(error);
+                    if (option == "--global") global = true; else if (option == "--json") json = true; else if (option == "--try-match") tryMatch = true; else checksum = true;
                 }
                 else if (option is "--base" or "--file" or "--env-file" or "--name" or "--type")
                 {
@@ -61,7 +61,7 @@ public static class ScopedModelCli
                     output.WriteLine(verifier.SetBaselineAsync(resourceId, installationId).GetAwaiter().GetResult().ToJsonString());
                     return 0;
                 }
-                var report = verifier.VerifyAsync([new(value!, companion ? "companion" : "model", resourceId, installationId)]).GetAwaiter().GetResult();
+                var report = verifier.VerifyAsync([new(value!, companion ? "companion" : "model", resourceId, installationId)], checksum: checksum).GetAwaiter().GetResult();
                 output.WriteLine(report.Resources.ToJsonString()); return report.Verified ? 0 : 6;
             }
             if (action == "add")

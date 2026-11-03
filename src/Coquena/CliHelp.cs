@@ -45,10 +45,11 @@ internal static class CliHelp
           clean [--dry-run|--yes]          Previsualizar y liberar recursos elegibles
           combination list|forget <id>     Consultar u olvidar combinaciones del ámbito
             --select referencia           Filtrar recursos; opción repetible
-          verify [--select referencia]     Comprobar receta y recursos del proyecto
-          verify --global                   Auditar definiciones y recursos globales
-            --select recurso                Elegir recurso global; opción repetible
-            --include-unused                Incluir instalaciones globales no usadas
+          verify [--checksum] [--json]              Comprobar receta y recursos del proyecto
+          verify --global [--checksum] [--json]     Auditar definiciones y recursos globales
+            --checksum                     Comprobar hash SHA-256 completo de cada archivo
+            --select referencia            Elegir recurso a auditar; opción repetible
+            --include-unused               Incluir instalaciones globales no usadas
             Referencias: backend://cuda@12, model://clave, companion://clave.
             Backend por alias: backend://alias o backend://proyecto/alias.
             También model://autor/repositorio:cuantización.

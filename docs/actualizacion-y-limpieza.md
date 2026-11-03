@@ -57,9 +57,13 @@ de ese ámbito y `--include-unused` para incluir instalaciones no utilizadas del
 inventario global. Sólo `--include-unused` requiere el ámbito global.
 Los alias de backend y su calificación se resuelven según
 [servicios y recetas](servicios-recetas.md#nombres-y-destino).
-SHA-256 completo por archivo
-contra referencia, incluyendo binarios/dependencias gestionados, modelos/shards y
-companions. No equivale a autenticidad del publicador.
+Primero comprueba la definición y la emisión de argumentos del servicio y los
+presets habilitados. Luego audita existencia, tamaño registrado, estructura y
+legibilidad de los archivos. Si esa auditoría pasa y se solicitó `--checksum`,
+ejecuta la comprobación completa de SHA-256 por archivo
+contra la referencia registrada, incluyendo binarios/dependencias gestionados, modelos/shards
+y companions. Un fallo de checksum previo permite repetir esta última etapa para
+confirmar la recuperación. No equivale a autenticidad del publicador.
 
 No descargar, reparar, rebasar hash, modificar YAML ni resoluciones por verify.
 Guardar observaciones locales separadas de referencia. Externo sin baseline no

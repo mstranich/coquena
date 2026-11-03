@@ -420,12 +420,13 @@ haya un plan update previo; esto no autoriza renovar latest en cada arranque.
 ## Integridad local
 
 El algoritmo local acordado es **SHA-256 completo por archivo**.
-`model verify <nombre>` y `model companion verify <nombre>` verifican la unidad
-seleccionada, sin red. Informan por archivo y por conjunto, distinguiendo discrepancia,
+`model verify <nombre>` y `model companion verify <nombre>` auditan la unidad seleccionada, sin red.
+Para comparar el SHA-256 de los archivos con sus referencias, agregar `--checksum`.
+Informan por archivo y por conjunto, distinguiendo discrepancia,
 error de lectura y ausencia de referencia. No reparan ni crean una referencia implícita.
 
 Al descargar se calcula y registra evidencia de integridad y se contrasta con la
-identidad de contenido remoto cuando sea comparable. La comprobación posterior lee los
+identidad de contenido remoto cuando sea comparable. La comprobación posterior con `--checksum` lee los
 archivos completos y compara contra esa referencia. Registra el resultado y su fecha:
 no certifica indefinidamente que el disco sigue intacto.
 

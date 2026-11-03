@@ -381,6 +381,13 @@ Con `--global`, comprueba las definiciones y recursos usados del catálogo globa
 `--select` limita la comprobación a recursos de ese catálogo y permite elegir uno
 instalado sin uso. `--include-unused` agrega las instalaciones del inventario global
 que no estén utilizadas. Sólo `--include-unused` es exclusivo del ámbito global.
+`--checksum` activa la comprobación exhaustiva del hash SHA-256 de los bytes de cada
+archivo frente a la referencia registrada; sin esta opción, la auditoría comprueba
+la definición de la receta, la existencia y legibilidad de los archivos y la
+estructura interna GGUF sin recorrer el contenido completo de los pesos.
+La salida predeterminada resume el resultado y los pasos ante fallos. Con
+`--json` se obtiene el informe estructurado, donde `quick-ok` identifica una
+auditoría rápida satisfactoria y `verified` una comparación SHA-256 satisfactoria.
 
 Set recibe entidad, argumento y valor YAML escalar/lista como un argumento de CLI:
 `preset set charla ctx-size 8192`, `preset set charla texto '"8192"'`.

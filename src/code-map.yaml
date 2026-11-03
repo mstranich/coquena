@@ -127,7 +127,7 @@ features:
 
   - id: recipe-resource-verification
     intent: Auditar recetas y recursos sin reparar, conservar observaciones locales y bloquear nuevos inicios por fallos conocidos.
-    keywords: [verify, integrity, sha256, baseline, include-unused, select]
+    keywords: [verify, integrity, sha256, checksum, baseline, include-unused, select]
     entrypoints:
       - src/Coquena/VerifyCli.cs
       - src/Coquena/ScopedModelCli.cs

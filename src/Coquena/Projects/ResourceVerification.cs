@@ -87,9 +87,21 @@ public sealed class ResourceVerification(ScopeContext context, Action<int>? afte
         return evidence;
     }
     public async Task<VerificationReport> VerifyAsync(IReadOnlyList<VerificationSelection> selection,
-        bool includeUnused = false, CancellationToken cancellation = default)
+        bool includeUnused = false, bool checksum = false, CancellationToken cancellation = default)
     {
         var snapshot = store.Read();
+        var result = await VerifyCoreAsync(snapshot, selection, includeUnused, false, !checksum, cancellation);
+        if (checksum && result.Report.Resources.All(resource => resource!["status"]!.GetValue<string>() is
+            "quick-ok" or "no-reference" or "known-integrity-failure"))
+            result = await VerifyCoreAsync(snapshot, selection, includeUnused, true, true, cancellation);
+        result.Commit();
+        return result.Report;
+    }
+
+    private async Task<(VerificationReport Report, Action Commit)> VerifyCoreAsync(ScopeSnapshot snapshot,
+        IReadOnlyList<VerificationSelection> selection, bool includeUnused, bool checksum, bool notifyReads,
+        CancellationToken cancellation)
+    {
         var inventory = snapshot.Documents.GetValueOrDefault("local/inventory.json")?["data"]?["resources"] as JsonArray ?? [];
         var requested = selection.ToList();
         if (includeUnused)
@@ -112,7 +124,7 @@ public sealed class ResourceVerification(ScopeContext context, Action<int>? afte
             var installation = resource?["installations"]?.AsArray().SingleOrDefault(i => i!["installation-id"]!.GetValue<string>() == item.InstallationId);
             var result = new JsonObject { ["key"] = item.Key, ["kind"] = item.Kind,
                 ["resource-id"] = item.ResourceId, ["installation-id"] = item.InstallationId,
-                ["checked-at"] = DateTimeOffset.UtcNow.ToString("O"), ["files"] = new JsonArray() };
+                ["checked-at"] = DateTimeOffset.UtcNow.ToString("O"), ["mode"] = checksum ? "checksum" : "quick", ["files"] = new JsonArray() };
             results.Add((JsonNode)result);
             var unregistered = installation is null;
             if (unregistered && item.Paths is not { Length: > 0 }) { result["status"] = "unavailable"; continue; }
@@ -133,16 +145,27 @@ public sealed class ResourceVerification(ScopeContext context, Action<int>? afte
                 {
                     _ = File.GetAttributes(path);
                     var info = new FileInfo(path); stamps.Add((path, info.Length, info.LastWriteTimeUtc.Ticks));
+                    using (var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, 1, FileOptions.None)) { }
                     var reference = Identity(file["integrity"]);
-                    var read = await FileIntegrity.VerifyAsync(path, reference, cancellation);
-                    check["status"] = read.Status;
-                    if (read.Observed is { } observed) check["observed"] = Identity(observed);
+                    if (checksum)
+                    {
+                        var read = await FileIntegrity.VerifyAsync(path, reference, cancellation);
+                        check["status"] = read.Status;
+                        if (read.Observed is { } observed) check["observed"] = Identity(observed);
+                    }
+                    else
+                    {
+                        if (file["size"] is JsonNode sizeNode && sizeNode.GetValue<long>() != info.Length)
+                            check["status"] = "mismatch";
+                        else
+                            check["status"] = reference is null ? "no-reference" : "quick-ok";
+                    }
                 }
                 catch (Exception e) when (e is FileNotFoundException or DirectoryNotFoundException)
                 { stamps.Add((path, -1, 0)); check["status"] = "missing-file"; }
                 catch (Exception e) when (e is IOException or UnauthorizedAccessException)
                 { stamps.Add((path, -1, 0)); check["status"] = "read-error"; }
-                afterRead?.Invoke(checks.Count - 1);
+                if (notifyReads) afterRead?.Invoke(checks.Count - 1);
             }
             for (var i = 0; i < stamps.Count; i++)
             {
@@ -156,9 +179,9 @@ public sealed class ResourceVerification(ScopeContext context, Action<int>? afte
                 catch (Exception e) when (e is IOException or UnauthorizedAccessException) { checks[i]!["status"] = "read-error"; }
             }
             var status = new[] { "mismatch", "missing-file", "read-error", "changed-during-read", "no-reference" }
-                .FirstOrDefault(s => checks.Any(c => c!["status"]!.GetValue<string>() == s)) ?? (checks.Count == 0 ? "no-reference" : "verified");
+                .FirstOrDefault(s => checks.Any(c => c!["status"]!.GetValue<string>() == s)) ?? (checks.Count == 0 ? "no-reference" : checksum ? "verified" : "quick-ok");
             var structure = item.Kind == "backend" ? "complete" : GgufInspection.InspectPaths(stamps.Select(s => s.Path).ToArray()).Status;
-            if (structure != "complete" && status is "verified" or "no-reference") status = "invalid-structure";
+            if (structure != "complete" && status is "verified" or "quick-ok" or "no-reference") status = "invalid-structure";
             if (resource?["removal-pending"]?.GetValue<bool>() == true) status = "unavailable";
             result["status"] = status;
             if (unregistered) continue;
@@ -167,6 +190,10 @@ public sealed class ResourceVerification(ScopeContext context, Action<int>? afte
                 .Single(i => i!["installation-id"]!.GetValue<string>() == item.InstallationId)!;
             // Keep each known failure until that same file is successfully compared.
             var failures = current["verification-failures"]?.DeepClone().AsObject() ?? new JsonObject();
+            var priorUnattributedFailure = failures.ContainsKey("$integrity") ||
+                (failures.Count == 0 && current["integrity-status"]?.GetValue<string>() is "invalid" or "mismatch");
+            if (status == "verified") failures.Remove("$integrity");
+            else if (priorUnattributedFailure) failures["$integrity"] = new JsonObject { ["status"] = "known-integrity-failure" };
             if (structure == "complete") failures.Remove("$unit");
             else failures["$unit"] = new JsonObject { ["status"] = structure };
             foreach (var check in checks)
@@ -174,7 +201,7 @@ public sealed class ResourceVerification(ScopeContext context, Action<int>? afte
                 var path = check!["path"]!.GetValue<string>(); var state = check["status"]!.GetValue<string>();
                 var original = Identity(failures[path]?["reference"]);
                 var observed = Identity(check["observed"]);
-                if ((state == "verified" || state == "no-reference" && original is null) &&
+                if ((state == "verified" || (state is "quick-ok" or "no-reference") && original is null) &&
                     (original is null || observed is not null && FileIntegrity.Compare(observed, original).Status == "verified")) failures.Remove(path);
                 else if (state is "mismatch" or "missing-file" or "read-error" or "changed-during-read")
                 {
@@ -184,15 +211,21 @@ public sealed class ResourceVerification(ScopeContext context, Action<int>? afte
                 }
             }
             current["verification-failures"] = failures;
-            current["verification"] = result.DeepClone();
-            var unresolvedPrevious = current["integrity-status"]?.GetValue<string>() is "invalid" or "mismatch" && failures.Count == 0 && status != "verified";
-            current["integrity-status"] = failures.Count > 0 || unresolvedPrevious ? "invalid" : status;
+
+            var unresolvedPrevious = priorUnattributedFailure && status != "verified";
+            if (failures.Count > 0 || unresolvedPrevious) current["integrity-status"] = "invalid";
+            else if (status != "quick-ok") current["integrity-status"] = status;
+            else if (current["integrity-status"]?.GetValue<string>() == "invalid") current["integrity-status"] = "unknown";
+            if (unresolvedPrevious && status == "quick-ok") result["status"] = "known-integrity-failure";
             if (failures.Count > 0) result["known-failures"] = failures.DeepClone();
+            current["verification"] = result.DeepClone();
             completed[(item.ResourceId!, item.InstallationId!)] = result;
         }
         cancellation.ThrowIfCancellationRequested();
-        if (requested.Count > 0)
+        void Commit()
         {
+            cancellation.ThrowIfCancellationRequested();
+            if (requested.Count == 0) return;
             if (!docs.ContainsKey("local/inventory.json")) docs["local/inventory.json"] = ProjectDocuments.Create("inventory", 1, new JsonObject { ["resources"] = new JsonArray() });
             var data = docs["local/inventory.json"]["data"]!;
             var unresolved = data["unresolved-verifications"]?.DeepClone().AsObject() ?? new JsonObject();
@@ -202,7 +235,7 @@ public sealed class ResourceVerification(ScopeContext context, Action<int>? afte
             EnsureLocalIgnore();
             store.Commit(snapshot.Revision, docs);
         }
-        return new(results, results.All(r => r!["status"]!.GetValue<string>() == "verified" && r["known-failures"] is null));
+        return (new(results, results.All(r => r!["status"]!.GetValue<string>() is "verified" or "quick-ok" && r["known-failures"] is null)), Commit);
     }
 
     private void EnsureLocalIgnore() => store.Locked(() =>

@@ -34,28 +34,51 @@ internal static class ResourceVerificationTests
         await verifier.SetBaselineAsync(resource.ResourceId, resource.InstallationId);
         var reference = Installation()["files"]![0]!["integrity"]!.ToJsonString();
         Check((await verifier.VerifyAsync([selected])).Verified, "explicit baseline enables a later successful comparison");
+        var snapshot = store.Read();
+        var documents = snapshot.Documents.ToDictionary(pair => pair.Key, pair => ProjectDocuments.Create(
+            pair.Value["kind"]!.GetValue<string>(), pair.Value["revision"]!.GetValue<long>() + 1, pair.Value["data"]!.AsObject()));
+        var legacy = documents["local/inventory.json"]["data"]!["resources"]![0]!["installations"]![0]!;
+        legacy["integrity-status"] = "invalid";
+        legacy.AsObject().Remove("verification-failures");
+        store.Commit(snapshot.Revision, documents);
+        var quick = await verifier.VerifyAsync([selected]);
+        Check(!quick.Verified && quick.Resources[0]!["status"]!.GetValue<string>() == "known-integrity-failure" &&
+            Installation()["integrity-status"]!.GetValue<string>() == "invalid", "quick audit preserves an unattributed integrity failure");
+        Check((await verifier.VerifyAsync([selected], checksum: true)).Verified, "checksum clears an unattributed integrity failure");
         File.AppendAllText(file, "corruption");
         Check(!(await verifier.VerifyAsync([selected])).Verified && Installation()["integrity-status"]!.GetValue<string>() == "invalid", "mismatch persists known failure");
+        Check(!(await verifier.VerifyAsync([selected], checksum: true)).Verified && Installation()["integrity-status"]!.GetValue<string>() == "invalid", "mismatch persists known failure");
         Check(Installation()["files"]![0]!["integrity"]!.ToJsonString() == reference, "mismatch preserves expected digest");
         Check(store.Read().Documents[resolutionPath]["data"]!.ToJsonString() == expectedResolution, "verification observations never rewrite combination resolutions");
         try { models.PrepareLocal(ModelIntent.FromRecipe(RecipeReader.Read(new(root))).Single()); throw new Exception("bad local accepted"); }
         catch (ModelSourceException e) { Check(e.Code == "model-integrity-invalid", "local preparation consults known failure"); }
         Check((await verifier.VerifyAsync([])).Verified && Installation()["integrity-status"]!.GetValue<string>() == "invalid", "excluding resource never repairs it");
+        Check(!(await verifier.VerifyAsync([selected])).Verified, "fast verification preserves previously known failure");
         await verifier.SetBaselineAsync(resource.ResourceId, resource.InstallationId);
-        Check(!(await verifier.VerifyAsync([selected])).Verified, "rebasing cannot erase original mismatch");
+        Check(!(await verifier.VerifyAsync([selected], checksum: true)).Verified, "rebasing cannot erase original mismatch");
         File.WriteAllBytes(file, bytes);
         await verifier.SetBaselineAsync(resource.ResourceId, resource.InstallationId);
-        Check((await verifier.VerifyAsync([selected])).Verified, "successful comparison against original bytes clears concrete failure");
+        Check((await verifier.VerifyAsync([selected], checksum: true)).Verified, "successful comparison against original bytes clears concrete failure");
         File.Delete(file);
         report = await verifier.VerifyAsync([selected]);
         Check(report.Resources[0]!["status"]!.GetValue<string>() == "missing-file", "missing is distinct from mismatch and no-reference");
         File.WriteAllBytes(file, bytes);
-        Check((await verifier.VerifyAsync([selected])).Verified, "restored bytes require successful verification");
+        Check((await verifier.VerifyAsync([selected], checksum: true)).Verified, "restored bytes require successful verification");
         using var output = new StringWriter(); using var error = new StringWriter();
         Check(Cli.Run(["verify", "--base", root, "--select", "model://unknown"], output, error) == 2, "unknown selector fails without auditing all resources");
         Check(Cli.Run(["verify", "--base", root, "--select", "model://local"], output, error) == 0, "valid resource URI filters the project scope");
         Check(Cli.Run(["verify", "--base", root], output, error) == 0, "CLI audits selected local resource without preparing");
+        Check(output.ToString().Contains("All OK") && output.ToString().Contains("Auditoría rápida OK"), "verify shows a human-readable summary by default");
+        output.GetStringBuilder().Clear();
+        Check(Cli.Run(["verify", "--base", root, "--json"], output, error) == 0 &&
+            JsonNode.Parse(output.ToString())![0]!["status"]!.GetValue<string>() == "quick-ok", "JSON distinguishes quick audit from checksum");
+        Check(Cli.Run(["model", "list", "--base", root, "--checksum"], output, error) == 2, "checksum is rejected outside model verify");
         var revisionBeforeInvalid = store.Read().Revision;
+        error.GetStringBuilder().Clear();
+        File.WriteAllText(yaml, original + "      flash-attn: true\n");
+        Check(Cli.Run(["verify", "--base", root], output, error) == 2 &&
+            error.ToString().Contains("flash-attn recibió el booleano true") && error.ToString().Contains("on, off o auto") && error.ToString().Contains("emit.ini") &&
+            store.Read().Revision == revisionBeforeInvalid, "verify rejects non-emittable preset arguments before recording observations");
         File.WriteAllText(yaml, "presets: [");
         Check(Cli.Run(["verify", "--base", root], output, error) == 2 && store.Read().Revision == revisionBeforeInvalid, "invalid YAML is revalidated before observations and has no persistent resource effect");
         File.WriteAllText(yaml, original);
@@ -63,8 +86,8 @@ internal static class ResourceVerificationTests
         File.AppendAllText(file, "corruption");
         Check(Cli.Run(["verify", "--base", root], output, error) == 0, "unused inventory is excluded by default");
         Check(Cli.Run(["verify", "--base", root, "--include-unused"], output, error) == 2, "include-unused is exclusive to global verification");
-        Check(!(await verifier.VerifyAsync([], includeUnused: true)).Verified, "inventory audit explicitly includes unused installation");
-        File.WriteAllBytes(file, bytes); await verifier.VerifyAsync([selected]);
+        Check(!(await verifier.VerifyAsync([], includeUnused: true, checksum: true)).Verified, "inventory audit explicitly includes unused installation");
+        File.WriteAllBytes(file, bytes); await verifier.VerifyAsync([selected], checksum: true);
         await ManagedModels(root, Check);
         await CrossScope(context, selected, file, bytes, Check);
         var previousHome = Environment.GetEnvironmentVariable("COQUENA_HOME");
@@ -80,12 +103,12 @@ internal static class ResourceVerificationTests
             output.GetStringBuilder().Clear();
             Check(Cli.Run(["verify", "--global"], output, error) == 0 && !output.ToString().Contains("global-model"), "global default excludes unreferenced catalog installation");
             output.GetStringBuilder().Clear();
-            Check(Cli.Run(["verify", "--global", "--select", "model://global-model"], output, error) == 0 && output.ToString().Contains("verified"), "global selector can explicitly audit an unused resource");
+            Check(Cli.Run(["verify", "--global", "--select", "model://global-model"], output, error) == 0 && output.ToString().Contains("All OK"), "global selector can explicitly audit an unused resource");
             var canonicalFile = Path.Combine(root, "canonical-weights.gguf"); File.WriteAllBytes(canonicalFile, bytes);
             var canonical = new ScopedModels(globalContext).AddExternal(canonicalFile, "fixture/repository:Q4_0");
             await globalVerifier.SetBaselineAsync(canonical.ResourceId, canonical.InstallationId);
             output.GetStringBuilder().Clear();
-            Check(Cli.Run(["verify", "--global", "--select", "model://fixture/repository:Q4_0"], output, error) == 0 &&
+            Check(Cli.Run(["verify", "--global", "--select", "model://fixture/repository:Q4_0", "--json"], output, error) == 0 &&
                 output.ToString().Contains(canonical.ResourceId) && !output.ToString().Contains(globalModel.ResourceId), "canonical URI audits exactly its registered model");
             var globalStore = new ScopeStore(globalContext); var globalState = globalStore.Read();
             var aliasDocs = globalState.Documents.ToDictionary(p => p.Key, p => ProjectDocuments.Create(p.Value["kind"]!.GetValue<string>(), p.Value["revision"]!.GetValue<long>() + 1, p.Value["data"]!.AsObject()));
@@ -105,7 +128,7 @@ internal static class ResourceVerificationTests
         var unprepared = Path.Combine(root, "unprepared"); Directory.CreateDirectory(unprepared);
         File.Copy(file, Path.Combine(unprepared, "weights.gguf")); File.WriteAllText(Path.Combine(unprepared, "coquena.yaml"), original);
         output.GetStringBuilder().Clear();
-        Check(Cli.Run(["verify", "--base", unprepared], output, error) == 6 && output.ToString().Contains("no-reference"), "unregistered local bytes are read without implicit certification");
+        Check(Cli.Run(["verify", "--base", unprepared], output, error) == 6 && output.ToString().Contains("Sin referencia SHA-256"), "unregistered local bytes are read without implicit certification");
         Check(!new ScopedModels(ScopeContext.Project(Path.Combine(unprepared, "coquena.yaml"))).List().Any(), "audit does not register ownership or resources");
         Check(File.ReadAllText(Path.Combine(unprepared, ".coquena", ".gitignore")).Contains("/local/"), "unprepared recipe verification excludes local observations from Git");
         using (var locked = new FileStream(file, FileMode.Open, FileAccess.ReadWrite, FileShare.None))
@@ -113,7 +136,7 @@ internal static class ResourceVerificationTests
             report = await verifier.VerifyAsync([selected]);
             Check(report.Resources[0]!["status"]!.GetValue<string>() == "read-error", "read error is persisted independently of absence");
         }
-        Check((await verifier.VerifyAsync([selected])).Verified, "successful check clears read failure");
+        Check((await verifier.VerifyAsync([selected], checksum: true)).Verified, "successful check clears read failure");
         var beforeCancel = store.Read().Revision;
         using (var cancelled = new CancellationTokenSource())
         {
@@ -121,9 +144,9 @@ internal static class ResourceVerificationTests
             try { await verifier.VerifyAsync([selected], cancellation: cancelled.Token); throw new Exception("cancel ignored"); }
             catch (OperationCanceledException) { Check(store.Read().Revision == beforeCancel, "cancel preserves preceding observations"); }
         }
-        await new ResourceVerification(context, _ => File.AppendAllText(file, "change")).VerifyAsync([selected]);
+        await new ResourceVerification(context, _ => File.AppendAllText(file, "change")).VerifyAsync([selected], checksum: true);
         Check(Installation()["verification"]!["status"]!.GetValue<string>() == "changed-during-read", "whole unit rechecks earlier observations before publication");
-        File.WriteAllBytes(file, bytes); await verifier.VerifyAsync([selected]);
+        File.WriteAllBytes(file, bytes); await verifier.VerifyAsync([selected], checksum: true);
         var managedId = Guid.NewGuid().ToString("D"); var managedInstall = Guid.NewGuid().ToString("D");
         var location = "backends/installations/" + managedInstall; Directory.CreateDirectory(context.PathFor(location));
         File.WriteAllText(context.PathFor(location + "/server.exe"), "fixture executable");
@@ -138,9 +161,9 @@ internal static class ResourceVerificationTests
             ["installations"] = new JsonArray(new JsonObject { ["installation-id"] = managedInstall, ["location"] = location, ["files"] = managedFiles }) });
         store.Commit(state.Revision, docs);
         var backend = new VerificationSelection("backend", "backend", managedId, managedInstall);
-        Check((await verifier.VerifyAsync([backend])).Verified, "managed backend verifies executable and dependency against full digest");
+        Check((await verifier.VerifyAsync([backend], checksum: true)).Verified, "managed backend verifies executable and dependency against full digest");
         File.WriteAllText(context.PathFor(location + "/dependency.dll"), "damaged dependency");
-        report = await verifier.VerifyAsync([backend]);
+        report = await verifier.VerifyAsync([backend], checksum: true);
         Check(!report.Verified && report.Resources[0]!["files"]![1]!["status"]!.GetValue<string>() == "mismatch", "dependency corruption fails complete backend unit");
         // Keep the native scenario scoped to the selected healthy model.
         if (product is not null)
@@ -151,11 +174,16 @@ internal static class ResourceVerificationTests
             start.Environment["COQUENA_HOME"] = Path.Combine(root, "home");
             using var process = System.Diagnostics.Process.Start(start)!;
             var stdout = await process.StandardOutput.ReadToEndAsync(); var stderr = await process.StandardError.ReadToEndAsync(); await process.WaitForExitAsync();
-            Check(process.ExitCode == 0 && stdout.Contains("verified") && stderr.Length == 0, "published Native AOT executes full verification");
+            Check(process.ExitCode == 0 && stdout.Contains("All OK") && stderr.Length == 0, "published Native AOT executes full verification");
+            start.ArgumentList.Add("--checksum");
+            using var healthyChecksum = System.Diagnostics.Process.Start(start)!;
+            var healthyChecksumOut = await healthyChecksum.StandardOutput.ReadToEndAsync(); var healthyChecksumErr = await healthyChecksum.StandardError.ReadToEndAsync(); await healthyChecksum.WaitForExitAsync();
+            Check(healthyChecksum.ExitCode == 0 && healthyChecksumOut.Contains("All OK") && healthyChecksumErr.Length == 0, "published Native AOT with --checksum succeeds on valid files");
             File.AppendAllText(file, "native corruption");
             using var corrupt = System.Diagnostics.Process.Start(start)!;
             var corruptOut = await corrupt.StandardOutput.ReadToEndAsync(); var corruptError = await corrupt.StandardError.ReadToEndAsync(); await corrupt.WaitForExitAsync();
-            Check(corrupt.ExitCode == 6 && corruptOut.Contains("mismatch") && corruptError.Length == 0, "published Native AOT detects corruption without repair");
+            Check(corrupt.ExitCode == 6 && corruptOut.Contains("SHA-256 omitido") && corruptError.Length == 0, "published Native AOT with --checksum detects corruption without repair");
+            start.ArgumentList.Remove("--checksum");
             File.WriteAllBytes(file, bytes);
             start.ArgumentList.Add("--include-unused");
             using var invalid = System.Diagnostics.Process.Start(start)!;
@@ -166,7 +194,7 @@ internal static class ResourceVerificationTests
             foreach (var arg in new[] { "verify", "--global", "--select", "model://fixture/repository:Q4_0" }) globalStart.ArgumentList.Add(arg);
             using var globalProcess = System.Diagnostics.Process.Start(globalStart)!;
             var globalOut = await globalProcess.StandardOutput.ReadToEndAsync(); var globalError = await globalProcess.StandardError.ReadToEndAsync(); await globalProcess.WaitForExitAsync();
-            Check(globalProcess.ExitCode == 0 && globalOut.Contains("verified") && globalOut.Contains("fixture/repository:Q4_0") && !globalOut.Contains("global-model") && globalError.Length == 0,
+            Check(globalProcess.ExitCode == 0 && globalOut.Contains("All OK") && globalOut.Contains("fixture/repository:Q4_0") && !globalOut.Contains("global-model") && globalError.Length == 0,
                 "published Native AOT verifies exactly the model chosen by canonical URI");
         }
         Console.WriteLine($"Resource verification: {checks} checks passed.");
@@ -187,17 +215,17 @@ internal static class ResourceVerificationTests
         var selection = new VerificationSelection("main", "model", first.ResourceId, first.InstallationId);
         check((await verifier.VerifyAsync([selection])).Verified, "download provides comparable reference without remote request at verify");
         var reads = 0;
-        await new ResourceVerification(context, _ => reads++).VerifyAsync([selection, selection with { Key = "alias" }]);
+        await new ResourceVerification(context, _ => reads++).VerifyAsync([selection, selection with { Key = "alias" }], checksum: true);
         check(reads == 1, "aliases sharing an installation do not read weights twice");
         File.AppendAllText(first.EntryPath, "corruption");
-        check(!(await verifier.VerifyAsync([selection])).Verified, "managed corruption detected against download digest");
+        check(!(await verifier.VerifyAsync([selection], checksum: true)).Verified, "managed corruption detected against download digest");
         models.Protect(first.InstallationId, true);
-        check(!(await verifier.VerifyAsync([selection])).Verified && transport.Calls == 1, "promoting explicit protection cannot repair corruption");
+        check(!(await verifier.VerifyAsync([selection], checksum: true)).Verified && transport.Calls == 1, "promoting explicit protection cannot repair corruption");
         try { await models.AcquireAsync(selected, transport, explicitlyRequested: false); throw new Exception("automatic repair"); }
         catch (ModelSourceException e) { check(e.Code == "model-integrity-invalid", "automatic preparation never repairs known corruption"); }
         var replacement = await models.AcquireAsync(selected, transport);
         check(replacement.InstallationId != first.InstallationId && transport.Calls == 2 &&
-            (await verifier.VerifyAsync([new("main", "model", replacement.ResourceId, replacement.InstallationId)])).Verified,
+            (await verifier.VerifyAsync([new("main", "model", replacement.ResourceId, replacement.InstallationId)], checksum: true)).Verified,
             "explicit complete verified download publishes healthy revision without overwriting corrupt revision");
         check(File.ReadAllBytes(first.EntryPath).Length > bytes.Length, "redownload preserves prior physical revision");
         var parts = new[] { ExternalModelTests.Fixture(0, 2), ExternalModelTests.Fixture(1, 2) };
@@ -208,9 +236,10 @@ internal static class ResourceVerificationTests
         var shardSelection = new VerificationSelection("shards", "model", shard.ResourceId, shard.InstallationId);
         check((await verifier.VerifyAsync([shardSelection])).Resources[0]!["files"]!.AsArray().Count == 2, "all shards audited as a complete unit");
         File.AppendAllText(Path.Combine(folder, paths[1]), "corruption");
-        var report = await verifier.VerifyAsync([shardSelection]);
-        check(!report.Verified && report.Resources[0]!["files"]![0]!["status"]!.GetValue<string>() == "verified" &&
-            report.Resources[0]!["files"]![1]!["status"]!.GetValue<string>() == "mismatch", "per-shard mismatch fails whole unit without tainting healthy file");
+        var report = await verifier.VerifyAsync([shardSelection], checksum: true);
+        check(!report.Verified && report.Resources[0]!["files"]![0]!["status"]!.GetValue<string>() == "quick-ok" &&
+            report.Resources[0]!["files"]![0]!["observed"] is null &&
+            report.Resources[0]!["files"]![1]!["status"]!.GetValue<string>() == "mismatch", "catalog size mismatch skips checksums even for healthy shards");
         var companionFile = Path.Combine(folder, "vision.gguf"); File.WriteAllBytes(companionFile, bytes);
         var companion = models.AddExternal(companionFile, "vision", companion: true, type: "mmproj");
         await verifier.SetBaselineAsync(companion.ResourceId, companion.InstallationId);
@@ -241,7 +270,7 @@ internal static class ResourceVerificationTests
         try
         {
             var active = target.Read().ActiveDocuments().Single().DeepClone();
-            File.AppendAllText(file, "cross-scope corruption"); await new ResourceVerification(owner).VerifyAsync([model]);
+            File.AppendAllText(file, "cross-scope corruption"); await new ResourceVerification(owner).VerifyAsync([model], checksum: true);
             check(lifecycle.Reconcile(service.ServiceId), "verify leaves active process running");
             foreach (var detached in new[] { false, true })
             {
@@ -254,11 +283,12 @@ internal static class ResourceVerificationTests
                 catch (StorageException e)
                 { check(e.Code == "resource-integrity-invalid" && restores == 0 && lifecycle.Reconcile(service.ServiceId), "cross-scope known failure blocks both modes without fallback or stop"); }
             }
-            check(JsonNode.DeepEquals(active, target.Read().ActiveDocuments().Single()), "failed restart preserves exact active snapshot");
+            var currentActive = target.Read().ActiveDocuments().Single();
+            check(JsonNode.DeepEquals(active["data"], currentActive["data"]), "failed restart preserves exact active snapshot");
         }
         finally
         {
-            lifecycle.Stop(service.ServiceId); File.WriteAllBytes(file, bytes); await new ResourceVerification(owner).VerifyAsync([model]);
+            lifecycle.Stop(service.ServiceId); File.WriteAllBytes(file, bytes); await new ResourceVerification(owner).VerifyAsync([model], checksum: true);
         }
     }
 

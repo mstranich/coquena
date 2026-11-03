@@ -193,6 +193,19 @@ public static class ArgumentEmission
         IArgumentAdapter? adapter, Func<ArgumentReference, string>? resolve, bool canonical)
     {
         var value = argument.Value;
+        RecipeException MissingBooleanRepresentation(RecipeValue item)
+        {
+            var mapping = item.Text == "true" ? "true-value" : "false-value";
+            var expected = argument.Definition?.Get("enum") is { } choices
+                ? $"Valores declarados en el schema: {string.Join(", ", choices.Items.Select(choice => choice.Text))}."
+                : adapter is LlamaB11482ArgumentAdapter && ParameterCatalog.Find(argument.Name) is { } definition
+                    ? definition.Description + "."
+                    : "Consultá los valores admitidos por el backend.";
+            return item.Error("boolean-representation-required", "emission",
+                $"El argumento {argument.Name} recibió el booleano {item.Text}, pero aquí requiere un valor explícito. " +
+                $"{expected} Para escribir un valor de texto, usá comillas. Para conservar el booleano, definí {mapping} en emit.{destination} del schema.");
+        }
+
         string Scalar(RecipeValue item)
         {
             var reference = ArgumentValidation.Reference(recipe, item, argument.Literal, canonical);
@@ -203,8 +216,8 @@ public static class ArgumentEmission
                     RecipeKind.String => item.Text!,
                     RecipeKind.Integer => BigInteger.Parse(item.Text!, CultureInfo.InvariantCulture).ToString(CultureInfo.InvariantCulture),
                     RecipeKind.Number => Normalize(item.Text!),
-                    RecipeKind.Boolean when rule.Mode == "value" => item.Text == "true" ? rule.TrueValue ?? throw item.Error("boolean-representation-required", "emission", "Boolean con valor requiere representación explícita.")
-                        : rule.FalseValue ?? throw item.Error("boolean-representation-required", "emission", "Boolean con valor requiere representación explícita."),
+                    RecipeKind.Boolean when rule.Mode == "value" => (item.Text == "true" ? rule.TrueValue : rule.FalseValue)
+                        ?? throw MissingBooleanRepresentation(item),
                     _ => throw item.Error("unrepresentable-value", "emission", "El valor no tiene emisión escalar declarada.")
                 };
             CheckText(text, item, argument.Name, destination, adapter);
