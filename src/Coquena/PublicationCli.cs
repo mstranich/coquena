@@ -179,6 +179,7 @@ public static class PublicationCli
         if (publication?["target-scope-id"]?.GetValue<string>() is string savedScope && targetStore.Read().ScopeId != savedScope)
             throw new StorageException("publication-conflict", "La identidad física del destino registrado cambió.");
         var lifecycle = new ScopedServiceProcess(targetStore, output, error);
+        var manager = new PresetPublication(store, targetStore, service.ServiceId);
         var running = lifecycle.Reconcile(service.ServiceId);
         if (!running && !withdrawing)
         {
@@ -189,6 +190,14 @@ public static class PublicationCli
                     throw new StorageException("service-stopped", "No se autorizó iniciar el destino.");
             }
             var startArgs = new List<string> { "--service", targetContext.IsGlobal ? service.Name : "self", "start", "-d" };
+            if (PresetPublication.Service(targetStore.Read(), service.ServiceId)["publication-operation"] is not null)
+            {
+                var recovered = await manager.ReconcileAsync(identity.RecipeId, null, stopped: true);
+                if (!recovered.Confirmed)
+                    throw new StorageException("publication-pending", "No se pudo recuperar la publicación anterior; el servicio sigue detenido.");
+                output.WriteLine("Se recuperó la publicación anterior. Iniciando el servicio.");
+            }
+            if (targetContext.IsGlobal) startArgs.Add("--global");
             if (!targetContext.IsGlobal)
             {
                 startArgs.AddRange(["--project-directory", selection.Base]);
@@ -209,7 +218,6 @@ public static class PublicationCli
         var host = active?["endpoint"]?["host"]?.GetValue<string>();
         host = host switch { "0.0.0.0" => "127.0.0.1", "::" => "::1", _ => host };
         IPresetRouter? router = running ? new LlamaPresetRouter(http, new UriBuilder("http", host!, active!["endpoint"]!["port"]!.GetValue<int>()).Uri) : null;
-        var manager = new PresetPublication(store, targetStore, service.ServiceId);
         if (PresetPublication.Service(targetStore.Read(), service.ServiceId)["publication-operation"] is not null)
         {
             var reconciled = await manager.ReconcileAsync(identity.RecipeId, router, !running);

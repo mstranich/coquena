@@ -280,6 +280,9 @@ sobrescribe target sólo para esa operación y se registra como destino publicad
 sin editar YAML. Down sin selección retira la publicación registrada del consumidor,
 incluido su destino original; una selección distinta no retira otro destino por nombre.
 En service, omitir nombre y opción selecciona default; `self` exige proyecto.
+Un nombre explícito selecciona el servicio propio si coincide con el de la
+receta del proyecto. Si no coincide, se busca en el registro global.
+Con `--global`, un nombre explícito se busca directamente en el registro global.
 El selector posicional y --service juntos son error.
 Los verbos reservados create, show, start, stop, restart, remove, list, logs y default
 se interpretan como gramática antes que como nombre. Para un servicio cuyo nombre

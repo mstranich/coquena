@@ -172,6 +172,21 @@ public static class ScopedServiceCli
             if (recipe.Root.Get("service") is null) throw new StorageException("self-requires-service", "La receta no define service.");
             return new(context, selection, registry.EnsureProjectService(selection.Files, recipe.Root.Get("name")?.Text));
         }
+        if (!command.Global && command.Selector != "default")
+        {
+            var selection = Selection(command);
+            if (File.Exists(selection.Files[0]))
+            {
+                var context = ScopeContext.Project(selection.Files[0], selection.Base);
+                var registry = new RecipeRegistry(new ScopeStore(context));
+                try
+                {
+                    var local = registry.FindProjectService(selection.Files);
+                    if (local.Name == command.Selector) return new(context, selection, local);
+                }
+                catch (StorageException e) when (e.Code == "unknown-service") { }
+            }
+        }
         var global = ScopeContext.Global(home);
         var globalRegistry = new RecipeRegistry(new ScopeStore(global));
         var id = globalRegistry.ResolveGlobalService(command.Selector!);
@@ -214,7 +229,7 @@ public static class ScopedServiceCli
                 output.WriteLine("Servicio ya ejecutándose.");
                 return 0;
             }
-            Task<ScopedStartPlan> Prepare(CancellationToken token) => PrepareAsync(command, target, error, token);
+            Task<ScopedStartPlan> Prepare(CancellationToken token) => PrepareAsync(command, target, output, error, token);
             StartFailureHook? hook = null;
             try { hook = StartFailureHook.FromRecipe(RecipeReader.Read(target.Selection)); }
             catch (RecipeException e) when (e.Code != "sensitive-hook-argument") { /* Invalid intention has no trusted hook. Preparation retains its diagnostic. */ }
@@ -235,12 +250,13 @@ public static class ScopedServiceCli
         finally { Console.CancelKeyPress -= handler; }
     }
 
-    private static async Task<ScopedStartPlan> PrepareAsync(ServiceCommand command, Target target, TextWriter error, CancellationToken cancellation)
+    private static async Task<ScopedStartPlan> PrepareAsync(ServiceCommand command, Target target, TextWriter output, TextWriter error, CancellationToken cancellation)
     {
         using var http = new HttpClient();
         using var transport = new OfficialArtifactTransport();
         var resources = new ScopedCombinationResources(target.Context, HardwareProbe.Inspect(), new HuggingFaceStore(http), transport,
-            new ConsoleModelSelectionInteraction(), warning: message => error.WriteLine(message), serviceName: target.Service.Name);
+            new ConsoleModelSelectionInteraction(), warning: message => error.WriteLine(message), serviceName: target.Service.Name,
+            downloadProgress: operation => DownloadCli.Show(operation, output));
         var prepared = await new CombinationPreparation(target.Context).PrepareServiceAsync(target.Selection, resources,
             command.Private || target.Context.IsGlobal, cancellation: cancellation);
         var recipe = RecipeReader.Read(target.Selection);

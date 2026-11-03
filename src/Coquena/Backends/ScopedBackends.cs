@@ -152,7 +152,8 @@ public sealed class ScopedBackends(ScopeContext context,
 
     public async Task<PreparedBackend> DownloadAsync(BackendIntent intent, HardwareContext hardware,
         IDownloadTransport transport, bool explicitlyRequested = true, bool force = false,
-        Action<string>? warning = null, CancellationToken cancellation = default, BackendDownloadSelection? expectedSelection = null)
+        Action<string>? warning = null, CancellationToken cancellation = default, BackendDownloadSelection? expectedSelection = null,
+        Action<OperationDocument>? progress = null)
     {
         intent.Validate();
         if (intent.Executable is not null) throw new BackendException("external-not-downloadable", "Un externo se usa en su ubicación.");
@@ -190,14 +191,16 @@ public sealed class ScopedBackends(ScopeContext context,
         var transfers = new ScopeTransfers(context, validateBackend: ValidateOfficial);
         operation = transfers.Create(operation, explicitlyRequested ? "explicit" : "automatic", ["llama-server.exe"]);
         warning?.Invoke($"Operación de backend: {operation.Id:D}");
-        var pending = await transfers.RunAsync(operation.Id, transport, cancellation: cancellation);
+        progress?.Invoke(operation);
+        var pending = await transfers.RunAsync(operation.Id, transport, progress: progress, cancellation: cancellation);
         if (pending is not null) throw new DownloadException(pending.Diagnostic ?? "backend-preparation-incomplete", "Preparación no completada; conserve el GUID para reanudar.");
         var found = FindInstallation(operation.ScopePublication!.InstallationId.ToString("D"));
         return await ReadPrepared(found.Resource, found.Installation, hardware, force, null, cancellation);
     }
 
     internal async Task<PreparedBackend> PrepareCombinationAsync(BackendIntent intent, HardwareContext hardware,
-        IDownloadTransport transport, BackendDownloadSelection? exact, bool force, Action<string>? warning, CancellationToken cancellation)
+        IDownloadTransport transport, BackendDownloadSelection? exact, bool force, Action<string>? warning, CancellationToken cancellation,
+        Action<OperationDocument>? progress = null)
     {
         intent.Validate();
         var pinnedByIntent = intent.Executable is null && intent.Version != "latest";
@@ -218,7 +221,7 @@ public sealed class ScopedBackends(ScopeContext context,
                             e.Code == "backend-installation-incomplete" && MissingManagedFiles(installation!)) { }
             intent = new(exact.Release, exact.Variant);
         }
-        var prepared = await DownloadAsync(intent, hardware, transport, false, force, warning, cancellation, exact);
+        var prepared = await DownloadAsync(intent, hardware, transport, false, force, warning, cancellation, exact, progress);
         if (pinnedByIntent) Protect(prepared.InstallationId, true);
         return prepared;
     }

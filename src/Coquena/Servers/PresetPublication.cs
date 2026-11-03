@@ -294,9 +294,11 @@ public sealed class PresetPublication(ScopeStore consumer, ScopeStore target, st
             {
                 var actual = IniValues(actualIni);
                 var wanted = IniValues(expectedIni);
-                if (wanted.Any(pair => !actual.TryGetValue(pair.Key, out var value) || value != pair.Value)) return false;
+                if (wanted.Any(pair => !actual.Any(value => RouterIniKey(value.Key) == RouterIniKey(pair.Key)) ||
+                    actual.Any(value => RouterIniKey(value.Key) == RouterIniKey(pair.Key) && value.Value != pair.Value))) return false;
                 var prior = previous?.SelectMany(c => c!["presets"]!.AsArray()).SingleOrDefault(p => p!["name"]!.GetValue<string>() == entry["name"]!.GetValue<string>());
-                if (prior?["ini"]?.GetValue<string>() is string priorIni && IniValues(priorIni).Keys.Any(k => !wanted.ContainsKey(k) && actual.ContainsKey(k))) return false;
+                if (prior?["ini"]?.GetValue<string>() is string priorIni && IniValues(priorIni).Keys.Select(RouterIniKey)
+                    .Any(k => !wanted.Keys.Select(RouterIniKey).Contains(k) && actual.Keys.Select(RouterIniKey).Contains(k))) return false;
                 continue;
             }
             var args = found["status"]?["args"] as JsonArray;
@@ -308,6 +310,12 @@ public sealed class PresetPublication(ScopeStore consumer, ScopeStore target, st
     }
     private static Dictionary<string, string> IniValues(string ini) => ini.Split('\n').Where(l => l.Contains('=') && !l.StartsWith('['))
         .Select(l => l.Split('=', 2)).ToDictionary(p => p[0].Trim(), p => p[1].Trim(), StringComparer.Ordinal);
+    private static string RouterIniKey(string key) => key switch
+    {
+        "spec-draft-model" => "model-draft",
+        "spec-draft-ngl" => "n-gpu-layers-draft",
+        _ => key
+    };
     private static bool Subsequence(string[] wanted, string[] actual)
     {
         var position = 0;

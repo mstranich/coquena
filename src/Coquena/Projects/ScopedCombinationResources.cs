@@ -28,7 +28,7 @@ public sealed class ScopedCombinationResources(ScopeContext context, HardwareCon
             var pinned = exact?["selection"] is JsonObject backendSelection
                 ? ContractJson.Read(backendSelection.ToJsonString(), ContractJsonContext.Default.BackendDownloadSelection,
                     s => ScopedBackends.CheckSelection(s, hardware, force, warning)) : null;
-            var prepared = await backends.PrepareCombinationAsync(intent, hardware, transport, pinned, force, warning, cancellation);
+            var prepared = await backends.PrepareCombinationAsync(intent, hardware, transport, pinned, force, warning, cancellation, downloadProgress);
             var installed = Installation(backends.List(), prepared.ResourceId, prepared.InstallationId);
             var resolution = new JsonObject { ["origin"] = prepared.Ownership == "managed" ? "official" : "external" };
             if (installed["selection"]?["backendSelection"] is { } selected) resolution["selection"] = selected.DeepClone();
