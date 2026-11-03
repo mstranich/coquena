@@ -81,7 +81,31 @@ public sealed class ScopeTransfers
     public Task<OperationDocument?> RunAsync(Guid id, IDownloadTransport transport,
         Action<OperationDocument>? progress = null, CancellationToken cancellation = default,
         Func<OperationDocument, int, CancellationToken, Task<bool>>? restart = null)
-        => Downloads.RunAsync(id, transport, restart, progress, cancellation, PublishAsync, BeforeCancel);
+        => Downloads.RunAsync(id, transport, restart, progress ?? ReportDownload, cancellation, PublishAsync, BeforeCancel);
+
+    private static void ReportDownload(OperationDocument operation)
+    {
+        if (operation.Phase == "resource-validation" && operation.State == "verifying")
+            Report(operation, "Descarga completa. Falta verificar e instalar el recurso.");
+        if (operation.State != "downloading") return;
+
+        var file = operation.Files.FirstOrDefault(file => file.State == "downloading");
+        if (file is null) return;
+        var transferred = ByteSize.Format(file.ConfirmedBytes);
+        var amount = file.ExpectedSize is long size ? $"{transferred} de {ByteSize.Format(size)}" : transferred;
+        Report(operation, $"Descargando {file.SourcePath} · {amount}");
+    }
+
+    private static void Report(OperationDocument operation, string message)
+    {
+        var resource = operation.ResourceKind switch
+        {
+            "backend" => "Backend",
+            "companion" => "Companion",
+            _ => "Modelo"
+        };
+        Console.Error.WriteLine($"{resource} {operation.Name} · {message}");
+    }
 
     public Task ControlAsync(Guid id, bool cancel, CancellationToken cancellation = default)
         => Downloads.ControlAsync(id, cancel, cancellation, BeforeCancel);
@@ -129,24 +153,32 @@ public sealed class ScopeTransfers
             {
                 var partial = Context.PathFor(file.PartialPath);
                 using var sourceGuard = new FileStream(partial, FileMode.Open, FileAccess.Read, FileShare.Read);
+                Report(operation, $"Verificando la descarga de {file.SourcePath} · {ByteSize.Format(sourceGuard.Length)}");
                 var check = await FileIntegrity.VerifyAsync(partial, file.LocalIntegrity, cancellation);
                 if (file.State != "transferred" || check.Status != "verified" ||
                     FileIntegrity.Compare(check.Observed!, file.Identity).Status == "mismatch") Fail("partial-integrity-failed");
-                if (operation.ResourceKind == "backend") await Extract(partial, prepared, extraction, cancellation);
+                if (operation.ResourceKind == "backend")
+                {
+                    Report(operation, $"Extrayendo {file.SourcePath}.");
+                    await Extract(partial, prepared, extraction, cancellation);
+                }
                 else
                 {
                     var target = Child(prepared, file.SourcePath);
                     Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+                    Report(operation, $"Copiando {file.SourcePath} al área de preparación · {ByteSize.Format(sourceGuard.Length)}");
                     await Copy(partial, target, cancellation);
                 }
             }
             if (operation.ResourceKind is "model" or "companion")
             {
+                Report(operation, "Comprobando la estructura GGUF.");
                 var unit = GgufInspection.InspectPaths(operation.Files.Select(f => Child(prepared, f.SourcePath)).ToArray(), cancellation);
                 if (unit.Status != "complete") Fail("invalid-gguf-unit");
             }
             foreach (var required in operation.ScopePublication!.RequiredFiles)
                 if (!File.Exists(Child(prepared, required))) Fail("backend-required-file-missing");
+            Report(operation, "Calculando la suma de verificación de los archivos preparados.");
             var files = new JsonArray();
             foreach (var path in Directory.GetFiles(prepared, "*", SearchOption.AllDirectories).Order(StringComparer.Ordinal))
             {
@@ -179,7 +211,9 @@ public sealed class ScopeTransfers
             data["file-id"]?.GetValue<string>() != actualDirectory.FileId) Fail("publication-directory-conflict");
         if (!Directory.Exists(destination))
         {
+            Report(operation, "Verificando los archivos preparados antes de instalarlos.");
             await VerifyTree(prepared, data["files"]!.AsArray(), cancellation);
+            Report(operation, "Moviendo los archivos a su ubicación definitiva.");
             Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
             // A slot is unique and never replaces an earlier revision or an external destination.
             for (var attempt = 0; ; attempt++)
@@ -193,12 +227,15 @@ public sealed class ScopeTransfers
         var guards = new List<FileStream>();
         try
         {
+            Report(operation, "Verificando los archivos en su ubicación definitiva.");
             await VerifyTree(destination, data["files"]!.AsArray(), cancellation, guards);
             if (operation.BackendSelection is { } backend && validateBackend is not null)
                 await validateBackend(destination, backend, cancellation);
+            Report(operation, "Registrando la instalación en el inventario.");
             PublishInventory(operation, data["files"]!.AsArray());
         }
         finally { foreach (var guard in guards) guard.Dispose(); }
+        Report(operation, "Instalación registrada. Limpiando archivos temporales.");
         fault?.Invoke(ScopeTransferStage.InventoryPublished);
         operation = Save(operation with { State = "completed", Phase = "cleanup" });
         // Reuse the transfer engine's owned cleanup while its executor lease is still held.
