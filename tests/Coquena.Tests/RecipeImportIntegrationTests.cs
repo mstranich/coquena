@@ -22,7 +22,6 @@ internal static class RecipeImportIntegrationTests
         var weight = Path.Combine(sourceDir, "model.gguf");
         using (var writer = new BinaryWriter(File.Create(weight))) { writer.Write("GGUF"u8); writer.Write(3u); writer.Write(0ul); writer.Write(0ul); }
         File.WriteAllText(Path.Combine(sourceDir, "backend.exe"), "fixture, never executed by import");
-        File.WriteAllText(Path.Combine(sourceDir, "schema.json"), """{"definitions":{"ctx-size":{"type":"integer"}}}""");
         var content = """
             name: laboratorio
             target: self
@@ -41,7 +40,8 @@ internal static class RecipeImportIntegrationTests
                   model: model://principal
                   ctx-size: 1024
             arg-defs:
-              imports: [./schema.json]
+              definitions:
+                ctx-size: {type: integer}
             """;
         File.WriteAllText(sourcePath, content);
         var environment = new Dictionary<string, string?> { ["MODEL_FILE"] = "./model.gguf" };
@@ -57,7 +57,7 @@ internal static class RecipeImportIntegrationTests
         Check(!store.Read().Documents.Keys.Any(p => p.EndsWith("active.json", StringComparison.Ordinal)), "import never starts service");
         Check(File.ReadAllText(sourcePath) == content && !Directory.Exists(Path.Combine(sourceDir, ".coquena")), "source and local project untouched");
         var common = File.ReadAllText(context.PathFor("recipe.yaml"));
-        Check(common.Contains("${MODEL_FILE}") && !common.Contains(weight) && !common.Contains("schema.json"), "raw expression and materialized schema");
+        Check(common.Contains("${MODEL_FILE}") && !common.Contains(weight), "raw expression and materialized schema");
         var iniPath = new PresetPublication(store, store, service.ServiceId).IniPath;
         Check(File.ReadAllText(iniPath).Contains("[resumen]") && !File.ReadAllText(iniPath).Contains("[laboratorio/"), "preset promoted without prefix");
         var resource = new ScopedModels(context).List().Single()!;
@@ -79,7 +79,7 @@ internal static class RecipeImportIntegrationTests
 
         // A selective preset import must resolve its model in destination, ignoring
         // the excluded model declaration in the incoming source.
-        File.WriteAllText(sourcePath, content.Replace("target: self", "target: global").Replace("1024", "4096").Replace("./schema.json", "./absent-schema.json"));
+        File.WriteAllText(sourcePath, content.Replace("target: self", "target: global").Replace("1024", "4096").Replace("{type: integer}", "{type: boolean}"));
         var selectedResult = await importer.ImportAsync(new(sourceDir), provider, select: "presets", replace: ["preset:resumen"], environment: environment);
         Check(selectedResult.Confirmed && File.ReadAllText(iniPath).Contains("4096"), "selective preset uses destination model and params without loading excluded schema");
         var receipt = store.Read().Documents["local/recipes.json"]["data"]!["recipes"]!.AsArray().Single(r => r!["global-preset"]?.GetValue<string>() == "resumen")!;
@@ -229,7 +229,7 @@ internal static class RecipeImportIntegrationTests
         Check((await importer.ImportAsync(new(sourceDir, [policyPath]), provider, select: "params", environment: environment)).Confirmed,
             "normalized numeric schema values remain idempotent");
         var filteredPath = Path.Combine(sourceDir, "filtered.yaml");
-        File.WriteAllText(filteredPath, "name: filtered\nservice:\n  backend:\n    executable: ${EXCLUDED_BACKEND}\nmodels:\n  excluded:\n    files: ['${EXCLUDED_LITERAL}', \"${EXCLUDED_MODEL}\"]\narg-defs:\n  imports: [\"${EXCLUDED_SCHEMA}\"]\npresets:\n  filtered:\n    args:\n      model: model://principal\n");
+        File.WriteAllText(filteredPath, "name: filtered\nservice:\n  backend:\n    executable: ${EXCLUDED_BACKEND}\nmodels:\n  excluded:\n    files: ['${EXCLUDED_LITERAL}', \"${EXCLUDED_MODEL}\"]\narg-defs:\n  definitions: {ignored: {type: \"${EXCLUDED_SCHEMA}\"}}\npresets:\n  filtered:\n    args:\n      model: model://principal\n");
         var modelCount = new ScopedModels(context).List().Count; var serviceCount = registry.Services().Length;
         Check((await importer.ImportAsync(new(sourceDir, [filteredPath]), provider, select: "presets", environment: environment)).Confirmed &&
             new ScopedModels(context).List().Count == modelCount && registry.Services().Length == serviceCount,
@@ -267,7 +267,7 @@ internal static class RecipeImportIntegrationTests
         Check((await importer.ImportAsync(new(sourceDir, [multiPath]), provider, select: "presets", environment: environment,
             interactive: true, confirm: _ => true, running: _ => true, router: _ => fakeRouter)).Confirmed, "explicit retry completes remaining multi-preset import");
         await SchemaMaterialization(sourceDir, context, importer, provider, environment, Check);
-        File.Delete(Path.Combine(sourceDir, "schema.json")); File.Delete(sourcePath);
+        File.Delete(sourcePath);
         var saved = RecipeReader.Read(importer.ServiceSelection(service.ServiceId), environment);
         Check(ArgumentValidation.Validate(saved).Count > 0 && BackendIntent.FromRecipe(saved).Executable == Path.Combine(sourceDir, "backend.exe"), "imported service is independent of source YAML/schema and preserves origin base");
         await OfficialBackend(root, Check);
@@ -277,46 +277,48 @@ internal static class RecipeImportIntegrationTests
         ICombinationResources provider, Dictionary<string, string?> environment, Action<bool, string> check)
     {
         var first = Path.Combine(folder, "schema-layered.yaml"); var overlay = Path.Combine(folder, "schema-overlay.yaml");
-        var schema = Path.Combine(folder, "later.json");
         File.WriteAllText(first, "name: layered\narg-defs:\n  definitions:\n    layer-arg:\n      type: integer\n      description: ${DESCRIPTION}\n", new System.Text.UnicodeEncoding(false, true));
         var original = File.ReadAllBytes(first);
-        File.WriteAllText(overlay, "arg-defs:\n  imports: [./later.json]\n");
-        File.WriteAllText(schema, """{"definitions":{"layer-arg":{"type":"string","pattern":"^x$","default":"x","description":"literal ${UNSET} $$\nsecond"},"literal-flag":{"type":"string","default":"false","enum":["false","null","1"]}}}""");
+        File.WriteAllText(overlay, """
+            arg-defs:
+              definitions:
+                layer-arg:
+                  type: string
+                  pattern: '^x$'
+                  default: x
+                  description: |-
+                    literal ${UNSET} $$
+                    second
+                literal-flag:
+                  type: string
+                  default: 'false'
+                  enum: ['false', 'null', '1']
+                kept-param: {type: integer}
+            """);
         environment["DESCRIPTION"] = "expanded-private-value";
         check((await importer.ImportAsync(new(folder, [first, overlay]), provider, select: "params", environment: environment)).Confirmed,
-            "later JSON schema overrides earlier inline definition during materialization");
+            "later YAML layer overrides earlier definition during materialization");
         var commonPath = context.PathFor("recipe.yaml");
         var read = RecipeReader.Read(new(context.Base, [commonPath], context.Base), environment);
         var importedDefinitions = ArgumentSchema.Load(read).Definitions; var definition = importedDefinitions["layer-arg"];
         check(definition.Get("type")!.Text == "string" && definition.Get("pattern")!.Text == "^x$" && definition.Get("description")!.Text == "literal ${UNSET} $$\nsecond" &&
             importedDefinitions["literal-flag"].Get("default")!.Kind == RecipeKind.String && importedDefinitions["literal-flag"].Get("default")!.Text == "false",
-            "JSON strings remain literal with dollar signs and embedded newline");
-        check(!File.ReadAllText(commonPath).Contains("expanded-private-value") && !File.ReadAllText(commonPath).Contains("later.json") && File.ReadAllBytes(first).AsSpan().SequenceEqual(original),
+            "YAML strings remain literal with dollar signs and embedded newline");
+        check(!File.ReadAllText(commonPath).Contains("expanded-private-value") && !File.ReadAllText(commonPath).Contains("schema-overlay.yaml") && File.ReadAllBytes(first).AsSpan().SequenceEqual(original),
             "materialization neither freezes shadowed expansions nor edits UTF-16 source");
-        File.Delete(schema);
+        File.Delete(overlay);
         check(ArgumentSchema.Load(RecipeReader.Read(new(context.Base, [commonPath], context.Base), environment)).Definitions.ContainsKey("layer-arg"),
-            "materialized schema survives removal of original JSON");
+            "materialized schema survives removal of original YAML layer");
 
-        // Preserve a schema dependency explicitly authored in destination while
-        // checking collisions against its effective definitions.
-        File.WriteAllText(Path.Combine(context.Base, "destination-schema.json"), """{"definitions":{"kept-param":{"type":"integer"},"gate":{"type":"string","scope":"server","rules":[{"when":{"equals":"model://principal"},"requires":{"ctx-size":{"present":true}}}]}}}""");
-        var globalText = File.ReadAllText(commonPath);
-        if (!globalText.Contains("\"arg-defs\":")) throw new Exception("Expected materialized catalog key");
-        File.WriteAllText(commonPath, globalText.Replace("\"arg-defs\":", "\"arg-defs\":\n  \"imports\": ['./destination-schema.json']"));
         var extra = Path.Combine(folder, "merge-policy.yaml");
         File.WriteAllText(extra, "name: merge-policy\narg-defs:\n  definitions:\n    kept-param:\n      type: boolean\n");
         try { await importer.ImportAsync(new(folder, [extra]), provider, select: "params", environment: environment); throw new Exception("Expected effective schema conflict"); }
-        catch (StorageException e) { check(e.Code == "import-entity-conflict", "replacement authorization includes destination JSON definitions"); }
+        catch (StorageException e) { check(e.Code == "import-entity-conflict", "replacement authorization includes destination YAML definitions"); }
         File.WriteAllText(extra, "name: merge-policy\narg-defs:\n  definitions:\n    new-param:\n      type: string\n");
         await importer.ImportAsync(new(folder, [extra]), provider, select: "params", environment: environment);
         var merged = ArgumentSchema.Load(RecipeReader.Read(new(context.Base, [commonPath], context.Base), environment));
         check(merged.Definitions.ContainsKey("kept-param") && merged.Definitions.ContainsKey("new-param") && merged.Definitions.ContainsKey("layer-arg"),
-            "unselected destination schema definitions and import references remain intact");
-        var sensitive = Path.Combine(folder, "sensitive.yaml");
-        File.WriteAllText(sensitive, "name: sensitive\narg-defs:\n  imports: [\"${SCHEMA_FILE}\"]\n");
-        environment["SCHEMA_FILE"] = Path.Combine(folder, "sensitive-route.json");
-        try { await importer.ImportAsync(new(folder, [sensitive]), provider, select: "params", environment: environment); throw new Exception("Expected unreadable sensitive schema"); }
-        catch (RecipeException e) { check(e.Code == "file-unreadable" && !e.Message.Contains("sensitive-route"), "schema read diagnostic does not disclose expanded variable path"); }
+            "unselected destination schema definitions remain intact");
     }
     private static async Task OfficialBackend(string root, Action<bool, string> check)
     {

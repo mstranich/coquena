@@ -256,10 +256,7 @@ Los comandos posteriores reciben sus variables por los mecanismos que admiten;
 no reutilizan valores ni siguen el archivo env de la importación anterior.
 Una última ubicación conocida sirve para diagnóstico; no sustituye automáticamente
 una variable ausente ni una ruta actual inexistente y no inicia búsquedas por el disco.
-Los imports JSON locales de parámetros se materializan en la copia de intención;
-no quedan dependiendo de que el autor conserve esos archivos de schema.
-La materialización conserva la precedencia por capa. Las cadenas JSON no pasan
-a ser expresiones de interpolación por convertirse a YAML.
+La importación copia las definiciones efectivas de `arg-defs` de las capas YAML seleccionadas y conserva sus expresiones de intención.
 No se guarda un `.env` ni se congelan secretos expandidos como literales de receta.
 
 Importar no inicia un servicio. Si está activo, publica los presets seleccionados

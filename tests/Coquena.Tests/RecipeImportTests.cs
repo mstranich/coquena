@@ -27,13 +27,12 @@ internal static class RecipeImportTests
                 args:
                   model: model://propio
             arg-defs:
-              imports: [./schema.json]
               definitions:
+                ctx-size: {type: integer}
                 temperatura:
                   type: number
             """;
         File.WriteAllText(file, yaml);
-        File.WriteAllText(Path.Combine(root, "schema.json"), """{"definitions":{"ctx-size":{"type":"integer"}}}""");
         var env = new Dictionary<string, string?> { ["BACKEND"] = "./bin", ["WEIGHTS"] = "./weights" };
         var recipe = RecipeReader.Read(new(root), env);
         var count = 0;
@@ -52,7 +51,7 @@ internal static class RecipeImportTests
         Check(all.Categories.SequenceEqual(new[] { "service", "presets", "model", "params" }), "all declared categories");
         Check(all.Entities.Select(e => e.Selector).ToHashSet().SetEquals(new[]
         { "service:proyecto", "preset:resumen", "model:propio", "model:remoto", "companion:proyector", "param:ctx-size", "param:temperatura" }),
-            "promoted selectors and imported schema keys");
+            "promoted selectors and effective definition keys");
         Check(!all.AllowsReplacement("model:propio"), "default replacement rejection");
         var selected = RecipeImportSelection.Create(recipe, "model", ["model:propio"]);
         Check(selected.Entities.Count == 3 && selected.Entities.All(e => e.Selector.StartsWith("model:") || e.Selector.StartsWith("companion:")), "model includes companions only");
@@ -77,9 +76,7 @@ internal static class RecipeImportTests
         var minimal = RecipeReader.Read(new(root), env);
         Bad(() => RecipeImportSelection.Create(minimal, "model"), "absent-import-category");
         Check(RecipeImportSelection.Create(minimal).Categories.SequenceEqual(new[] { "presets" }), "no hidden categories");
-        // An excluded schema is not opened just to enumerate other categories.
-        File.Delete(Path.Combine(root, "schema.json"));
-        Check(RecipeImportSelection.Create(recipe, "presets").Entities.Single().Selector == "preset:resumen", "excluded schema is not loaded");
+        Check(RecipeImportSelection.Create(recipe, "presets").Entities.Single().Selector == "preset:resumen", "preset selection excludes parameter definitions");
         Check(recipe.SourceRoot.Get("models")!.Get("propio")!.Get("files")!.Items[0].Text == "${WEIGHTS}/modelo.gguf", "source expression is intact");
         Check(!Directory.Exists(Path.Combine(root, ".coquena")), "selection creates no project state or resources");
         Check(File.ReadAllText(file) == "presets: {p: {}}\n", "selection does not edit source");

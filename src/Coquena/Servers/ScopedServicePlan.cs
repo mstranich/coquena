@@ -24,8 +24,7 @@ public static class ScopedServicePlan
             throw new StorageException("stale-preparation", "La combinación preparada cambió antes de componer el inicio.");
         if (!JsonNode.DeepEquals(snapshot, CombinationPreparation.Expanded(recipe.Root)))
             throw new StorageException("intention-conflict", "La receta efectiva cambió después de la preparación.");
-        var paths = recipe.Selection.Files.Concat(recipe.Selection.EnvFiles).Concat(recipe.Layers.SelectMany(layer =>
-            (layer.Get("arg-defs")?.Get("imports")?.Items ?? []).Select(import => recipe.Selection.ResolvePath(import.Text!))));
+        var paths = recipe.Selection.Files.Concat(recipe.Selection.EnvFiles);
         var inputs = paths.Distinct(StringComparer.OrdinalIgnoreCase).ToDictionary(path => path, File.ReadAllBytes, StringComparer.OrdinalIgnoreCase);
         void ValidateIntent()
         {

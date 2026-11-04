@@ -145,7 +145,7 @@ public sealed class RecipeUpdatePlans(ScopeContext context)
     {
         var files = new Dictionary<string, byte[]>(StringComparer.OrdinalIgnoreCase);
         foreach (var recipe in recipes)
-            foreach (var path in recipe.Selection.Files.Concat(recipe.Selection.EnvFiles).Concat(recipe.Layers.SelectMany(l => l.Get("arg-defs")?.Get("imports")?.Items ?? []).Select(i => recipe.Selection.ResolvePath(i.Text!))))
+            foreach (var path in recipe.Selection.Files.Concat(recipe.Selection.EnvFiles))
                 files[path] = File.ReadAllBytes(path);
         return files;
     }

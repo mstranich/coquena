@@ -181,7 +181,29 @@ public sealed class ParameterManager(Home home, LocalStore? storage = null)
     public bool Reset(bool dryRun, TextWriter output, Func<bool>? confirm = null)
         => Apply(AnalyzeReset, "catálogo de fábrica", dryRun, output, confirm);
 
-    private bool Apply(Func<Change> analyze, string name, bool dryRun, TextWriter output, Func<bool>? confirm)
+    internal bool ResetCatalog(TextWriter output, Func<bool> confirm)
+    {
+        var factory = Factory();
+        Validate(factory);
+        return Apply(() =>
+        {
+            var current = Read();
+            var before = current.Definitions.ToDictionary(d => d.Name, StringComparer.Ordinal);
+            var after = factory.Definitions.ToDictionary(d => d.Name, StringComparer.Ordinal);
+            var differences = before.Keys.Union(after.Keys).Order(StringComparer.Ordinal).Select(name =>
+            {
+                if (!before.TryGetValue(name, out var old)) return $"Recuperar: {Describe(after[name])}";
+                if (!after.TryGetValue(name, out var next)) return $"Retirar: {Describe(old)}";
+                return ContractJson.Write(new(1, [old]), Json.ParametersDocument) ==
+                    ContractJson.Write(new(1, [next]), Json.ParametersDocument) ? null : $"Restablecer: {Describe(next)}";
+            }).OfType<string>().ToArray();
+            return new(factory, null, null, [], ContractJson.Write(current, Json.ParametersDocument), true,
+                "restablecer únicamente las definiciones del catálogo global", differences);
+        }, "catálogo global", false, output, confirm, "Catálogo global restablecido.");
+    }
+
+    private bool Apply(Func<Change> analyze, string name, bool dryRun, TextWriter output, Func<bool>? confirm,
+        string success = "Catálogo y asignaciones actualizados.")
     {
         for (var attempt = 0; attempt < 3; attempt++)
         {
@@ -199,7 +221,7 @@ public sealed class ParameterManager(Home home, LocalStore? storage = null)
                 else store.CommitParametersLocked(current.Parameters, current.Presets, current.Servers);
                 return true;
             });
-            if (applied) { output.WriteLine("Catálogo y asignaciones actualizados."); return true; }
+            if (applied) { output.WriteLine(success); return true; }
             output.WriteLine("El estado cambió durante la revisión; se recalcula el impacto.");
         }
         throw new ConfigurationException("El estado sigue cambiando; vuelva a revisar la operación.");

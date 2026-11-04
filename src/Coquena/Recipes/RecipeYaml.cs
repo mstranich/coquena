@@ -7,6 +7,8 @@ namespace Coquena.Recipes;
 internal sealed class RecipeYaml(string file, byte[]? captured = null)
 {
     internal const int MaxBytes = 16 * 1024 * 1024;
+    internal Dictionary<string, (ParsingEvent Start, ParsingEvent End)>? Spans { get; init; }
+    internal Dictionary<string, Scalar>? FirstKeys { get; init; }
     private int nodes;
     private IParser parser = null!;
 
@@ -30,7 +32,7 @@ internal sealed class RecipeYaml(string file, byte[]? captured = null)
         catch (YamlException e) { throw new RecipeException("yaml-syntax", "yaml", new(file, checked((int)e.Start.Line), checked((int)e.Start.Column), "$"), "YAML mal formado."); }
     }
 
-    private RecipeValue Node(string path, int depth)
+    private RecipeValue Node(string path, int depth, bool track = true)
     {
         var current = parser.Current!;
         if (depth > 64 || ++nodes > 100_000) throw Fail("yaml-limit", current, path, "Se excede profundidad o cantidad de nodos.");
@@ -39,6 +41,7 @@ internal sealed class RecipeYaml(string file, byte[]? captured = null)
         if (current is NodeEvent node && !node.Anchor.IsEmpty) throw Fail("yaml-anchor", current, path, "Anchors no admitidos.");
         if (current is Scalar scalar)
         {
+            if (track) Spans?.Add(path, (scalar, scalar));
             parser.MoveNext();
             var style = scalar.Style switch
             {
@@ -83,12 +86,14 @@ internal sealed class RecipeYaml(string file, byte[]? captured = null)
             while (!parser.Accept<MappingEnd>(out _))
             {
                 if (parser.Current is not Scalar key) throw Fail("yaml-complex-key", parser.Current!, path, "Las claves deben ser strings simples.");
-                var keyNode = Node(path, depth + 1);
+                if (fields.Count == 0) FirstKeys?.Add(path, key);
+                var keyNode = Node(path, depth + 1, false);
                 if (keyNode.Kind != RecipeKind.String) throw keyNode.Error("yaml-key-type", "yaml", "La clave debe ser string.");
                 if (key.Value == "<<") throw Fail("yaml-merge-key", key, path, "Merge keys no admitidas.");
                 if (fields.ContainsKey(key.Value)) throw Fail("duplicate-key", key, path, "Clave duplicada.");
                 fields.Add(key.Value, Node(path + "[" + System.Text.Json.Nodes.JsonValue.Create(key.Value)!.ToJsonString() + "]", depth + 1));
             }
+            Spans?.Add(path, (mapping, parser.Current!));
             parser.MoveNext();
             return RecipeValue.Map(origin, fields);
         }
@@ -98,6 +103,7 @@ internal sealed class RecipeYaml(string file, byte[]? captured = null)
             parser.MoveNext();
             var items = new List<RecipeValue>();
             while (!parser.Accept<SequenceEnd>(out _)) items.Add(Node(path + "[" + items.Count + "]", depth + 1));
+            Spans?.Add(path, (sequence, parser.Current!));
             parser.MoveNext();
             return new(RecipeKind.Sequence, origin, items: items);
         }
@@ -139,26 +145,31 @@ internal sealed class RecipeYaml(string file, byte[]? captured = null)
         {
             var data = captured ?? ReadBytes(path);
             if (data.Length > MaxBytes) throw new RecipeException("file-limit", "read", origin, "El archivo supera 16 MiB.");
-            var offset = data.AsSpan().StartsWith(new byte[] { 0xef, 0xbb, 0xbf }) ? 3 : 0;
-            Encoding encoding = new UTF8Encoding(false, true);
-            if (!utf8Only && offset == 0)
-            {
-                if (data.AsSpan().StartsWith(new byte[] { 0, 0, 0xfe, 0xff })) { encoding = new UTF32Encoding(true, false, true); offset = 4; }
-                else if (data.AsSpan().StartsWith(new byte[] { 0xff, 0xfe, 0, 0 })) { encoding = new UTF32Encoding(false, false, true); offset = 4; }
-                else if (data.AsSpan().StartsWith(new byte[] { 0xfe, 0xff })) { encoding = new UnicodeEncoding(true, false, true); offset = 2; }
-                else if (data.AsSpan().StartsWith(new byte[] { 0xff, 0xfe })) { encoding = new UnicodeEncoding(false, false, true); offset = 2; }
-                else if (data.Length >= 4)
-                {
-                    if (data[0] == 0 && data[1] == 0 && data[2] == 0) encoding = new UTF32Encoding(true, false, true);
-                    else if (data[1] == 0 && data[2] == 0 && data[3] == 0) encoding = new UTF32Encoding(false, false, true);
-                    else if (data[0] == 0 && data[2] == 0) encoding = new UnicodeEncoding(true, false, true);
-                    else if (data[1] == 0 && data[3] == 0) encoding = new UnicodeEncoding(false, false, true);
-                }
-            }
+            var (encoding, offset) = TextEncoding(data, utf8Only);
             return encoding.GetString(data, offset, data.Length - offset);
         }
         catch (DecoderFallbackException) { throw new RecipeException(utf8Only ? "invalid-utf8" : "invalid-encoding", "read", origin, "Codificación de texto inválida."); }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)
         { throw new RecipeException("file-unreadable", "read", origin, "No se pudo leer el archivo seleccionado."); }
+    }
+    internal static (Encoding Encoding, int Offset) TextEncoding(byte[] data, bool utf8Only)
+    {
+        var offset = data.AsSpan().StartsWith(new byte[] { 0xef, 0xbb, 0xbf }) ? 3 : 0;
+        Encoding encoding = new UTF8Encoding(false, true);
+        if (!utf8Only && offset == 0)
+        {
+            if (data.AsSpan().StartsWith(new byte[] { 0, 0, 0xfe, 0xff })) { encoding = new UTF32Encoding(true, false, true); offset = 4; }
+            else if (data.AsSpan().StartsWith(new byte[] { 0xff, 0xfe, 0, 0 })) { encoding = new UTF32Encoding(false, false, true); offset = 4; }
+            else if (data.AsSpan().StartsWith(new byte[] { 0xfe, 0xff })) { encoding = new UnicodeEncoding(true, false, true); offset = 2; }
+            else if (data.AsSpan().StartsWith(new byte[] { 0xff, 0xfe })) { encoding = new UnicodeEncoding(false, false, true); offset = 2; }
+            else if (data.Length >= 4)
+            {
+                if (data[0] == 0 && data[1] == 0 && data[2] == 0) encoding = new UTF32Encoding(true, false, true);
+                else if (data[1] == 0 && data[2] == 0 && data[3] == 0) encoding = new UTF32Encoding(false, false, true);
+                else if (data[0] == 0 && data[2] == 0) encoding = new UnicodeEncoding(true, false, true);
+                else if (data[1] == 0 && data[3] == 0) encoding = new UnicodeEncoding(false, false, true);
+            }
+        }
+        return (encoding, offset);
     }
 }

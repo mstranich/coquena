@@ -75,7 +75,6 @@ public sealed class RecipeImporter(ScopeContext context)
         association["source-entrypoint-volume"] = entrypoint.Volume; association["source-entrypoint-file-id"] = entrypoint.FileId;
         var registeredName = association["name"]!.GetValue<string>();
         source = RecipeReader.Read(selection, environment, new(association["recipe-id"]!.GetValue<string>(), association["consumer-id"]!.GetValue<string>(), registeredName, selection.Files.ToArray()));
-        RecipeReader.CaptureSchemas(source, inputs);
         var chosen = RecipeImportSelection.Create(source, select, replacements, force, asDefault);
         var sourceSchema = chosen.Categories.Contains("params") ? ArgumentSchema.Load(source) : null;
         var sourceInputs = inputs.ToDictionary(StringComparer.OrdinalIgnoreCase);
@@ -106,7 +105,7 @@ public sealed class RecipeImporter(ScopeContext context)
         {
             var globalSelection = new RecipeSelection(context.Base, [context.PathFor("recipe.yaml")], context.Base, selection.EnvFiles)
             { CapturedFiles = inputs, ImportedPathBases = bases["recipe.yaml"], FilterUnusedModels = true };
-            destinationRecipe = RecipeReader.Read(globalSelection, environment); RecipeReader.CaptureSchemas(destinationRecipe, inputs);
+            destinationRecipe = RecipeReader.Read(globalSelection, environment);
             destinationSchema = ArgumentSchema.Load(destinationRecipe);
         }
         var pending = new List<(string Key, JsonObject Owner, string Path)>();
@@ -261,7 +260,6 @@ public sealed class RecipeImporter(ScopeContext context)
         PresetPublication.WriteIni(candidatePath, RecipeIntention.Yaml(Map(candidate)));
         var candidateSelection = new RecipeSelection(context.Base, [candidatePath], context.Base, selection.EnvFiles) { ImportedPathBases = candidateBases, CapturedFiles = inputs, FilterUnusedModels = true };
         var effective = RecipeReader.Read(candidateSelection, environment);
-        RecipeReader.CaptureSchemas(effective, inputs);
         _ = ArgumentValidation.Validate(effective); _ = Coquena.Models.ModelIntent.FromRecipe(effective);
         if (chosen.Categories.Contains("params"))
         {

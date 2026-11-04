@@ -62,7 +62,7 @@ Companion requiere type según los roles del [catálogo de recursos](modelos-y-c
 | service.server.hooks | start-failed con command (ruta string) y args (lista de strings, default vacía). |
 | service.server.health | url (string), timeout-seconds (entero positivo) e interval-ms (entero); defaults/plazos en servidores. |
 | service.recovery | allow-draft-last-good (booleano, default false): permite promover borrador aplicado y sano, sin convertir guardado en evidencia. |
-| arg-defs | imports (lista de rutas JSON) y definitions (mapa); defaults vacíos. |
+| arg-defs | definitions (mapa de definiciones de argumentos). |
 
 Los mapas estructurales no admiten claves fuera de su vocabulario. Ningún campo
 con default se materializa en YAML sólo por leerlo; la validación efectiva usa
@@ -84,7 +84,10 @@ Un límite de lectura produce diagnóstico, nunca un documento truncado aceptado
 16 MiB por archivo, profundidad máxima 64, 100 000 nodos y 64 capas YAML o env.
 La edición puntual preserva comentarios y texto ajenos a la asignación; si el
 parser no puede localizar una edición inequívoca, no reserializa todo el archivo:
-informa la ubicación para edición manual. Se releen bytes antes de reemplazar.
+informa la ubicación para edición manual. Se releen los bytes de las capas antes
+de reemplazar. Los comandos editan la última capa seleccionada. Para definiciones
+de argumentos, eligen la última capa que declara `arg-defs`. Si ninguna la
+declara, crean la sección en la última capa.
 
 Ejemplo estructural: repositorios y archivos ilustrativos, no receta descargable.
 
@@ -113,8 +116,6 @@ service:
         args: ["fallo-de-inicio"]
 
 arg-defs:
-  imports:
-    - ./schemas/llama-server.json
   definitions:
     ctx-size:
       type: integer

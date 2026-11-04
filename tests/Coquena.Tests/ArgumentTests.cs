@@ -25,6 +25,8 @@ internal static class ArgumentTests
         EffectiveRecipe With(string definition, string args, string mode = "permissive") => Read("args-mode: " + mode + "\narg-defs:\n  definitions:\n    x: " + definition + "\npresets:\n  p:\n    args: " + args + "\n");
         string[] Cli(EffectiveRecipe r, IArgumentAdapter? adapter = null) => ArgumentEmission.Cli(r, Preset(r), adapter).ToArray();
 
+        Editing(root);
+
         var typed = Read("""
             presets:
               p:
@@ -55,36 +57,29 @@ internal static class ArgumentTests
         Bad(() => Read("presets:\n  p:\n    enable: ${BOOL}\n"), "invalid-type");
         Check(!Read("presets:\n  p:\n    enable: ${BOOL|boolean}\n").PresetEnabled("p"), "structural boolean requires explicit type");
 
-        Write("one.json", """{"reference-build":"b11482","definitions":{"x":{"type":"integer","minimum":5},"old":{"type":"string"}}}""");
-        Write("two.json", """{"definitions":{"x":{"type":"string","aliases":["short"]}}}""");
         Write("override.yaml", """
             arg-defs:
-              imports: [two.json]
               definitions:
+                x: {type: string, aliases: [short]}
                 old: null
                 local: {type: boolean}
             """);
-        var imported = Read("""
+        var layered = Read("""
             arg-defs:
-              imports: [one.json]
               definitions:
+                x: {type: integer, minimum: 5}
+                old: {type: string}
                 inline: {type: string}
             presets:
               p:
                 args: {short: hello}
             """, "override.yaml");
-        var schema = ArgumentSchema.Load(imported);
-        Check(schema.Definitions.Count == 3 && !schema.Definitions.ContainsKey("old"), "per-layer imports, inline and null removal");
-        Check(schema.Definitions["x"].Get("minimum") is null && Preset(imported).Arguments.ContainsKey("x"), "whole replacement and alias canonicalization");
-        Write("inline.yaml", "arg-defs:\n  definitions:\n    x: {type: boolean}\n");
-        Check(ArgumentSchema.Load(Read("arg-defs: {imports: [one.json, two.json]}", "inline.yaml")).Definitions["x"].Get("type")!.Text == "boolean", "ordered imports then inline across layers");
+        var schema = ArgumentSchema.Load(layered);
+        Check(schema.Definitions.Count == 3 && !schema.Definitions.ContainsKey("old"), "layered definitions and null removal");
+        Check(schema.Definitions["x"].Get("minimum") is null && Preset(layered).Arguments.ContainsKey("x"), "whole replacement and alias canonicalization");
         Write("remove.yaml", "arg-defs: null\n");
-        Check(ArgumentSchema.Load(Read("arg-defs: {imports: [one.json]}", "remove.yaml")).Definitions.Count == 0, "whole schema removal");
-        foreach (var json in new[] { "{", "{\"definitions\":{},\"$ref\":\"https://invalid/\"}", "{\"definitions\":{\"x\":{\"type\":\"string\",\"type\":\"integer\"}}}", "{\"reference-build\":3}", "{\"definitions\":{\"x\":{\"type\":\"number\",\"default\":1e999}}}" })
-        {
-            Write("bad.json", json);
-            BadAny(() => ArgumentSchema.Load(Read("arg-defs: {imports: [bad.json]}")), "invalid imported schema");
-        }
+        Check(ArgumentSchema.Load(Read("arg-defs: {definitions: {x: {type: string}}}", "remove.yaml")).Definitions.Count == 0, "whole schema removal");
+        Bad(() => Read("arg-defs: {imports: [old.json]}"), "unknown-key");
         var invalid = new (string Definition, string Code)[]
         {
             ("{}", "type-required"), ("{type: wat}", "invalid-schema-type"), ("{type: string, hidden: null}", "unknown-key"),
@@ -313,6 +308,91 @@ internal static class ArgumentTests
         try { Preset(secretRecipe); throw new Exception("Expected secret validation failure"); }
         catch (RecipeException e) { Check(!e.Message.Contains(env["SECRET"]!), "validation diagnostics do not expose secret value"); }
         Console.WriteLine($"Argument tests: {assertions} checks OK. Fixtures: {root}");
+    }
+
+    private static void Editing(string root)
+    {
+        var folder = Path.Combine(root, "edit");
+        Directory.CreateDirectory(folder);
+        var file = Path.Combine(folder, "coquena.yaml");
+        var definitions = Path.Combine(folder, "defs.yaml");
+        var overlay = Path.Combine(folder, "override.yaml");
+        var field = Path.Combine(folder, "field.yaml");
+        var home = Path.Combine(folder, "home");
+        var previousHome = Environment.GetEnvironmentVariable("COQUENA_HOME");
+        Environment.SetEnvironmentVariable("COQUENA_HOME", home);
+        try
+        {
+            const string source = """
+                # recipe
+                name: test
+                models: {main: {files: [./main.gguf]}, remote: "author/weights:Q4_0"}
+                presets:
+                  p:
+                    args: {model: 'model://main', n: 2, description: old}
+                """;
+            File.WriteAllText(file, source);
+            File.WriteAllText(overlay, "# override\r\n");
+            File.WriteAllText(field, "type: string");
+            var files = new[] { "-f", file, "-f", overlay };
+            int Run(string[] selection, params string[] command)
+            {
+                using var error = new StringWriter();
+                var status = Coquena.Cli.Run([.. selection, .. command], TextWriter.Null, error);
+                if (status != 0 && error.ToString().Length == 0) throw new Exception("Expected edit diagnostic.");
+                return status;
+            }
+            Check(Run(files, "param", "define", "description", "--file", field) == 0 &&
+                File.ReadAllText(overlay).Contains("arg-defs"), "arg-defs falls back to last layer");
+            File.WriteAllText(overlay, "# override\r\n");
+            File.WriteAllText(definitions, "arg-defs:\r\n  definitions:\r\n    n:\r\n      type: integer # type\r\n      aliases: [count]\r\n",
+                new System.Text.UnicodeEncoding(false, true));
+            files = ["-f", file, "-f", definitions, "-f", overlay];
+
+            Check(Run(files, "param", "set", "n", "minimum", "1") == 0 &&
+                File.ReadAllText(definitions).Contains("# type") && File.ReadAllBytes(definitions)[0] == 0xff &&
+                File.ReadAllText(overlay) == "# override\r\n", "parameter edits target last declaration and preserve encoding");
+            Check(Run(files, "preset", "set", "p", "count", "3") == 0 &&
+                Run(files, "preset", "set", "p", "description", "\"model://main\"") == 0 &&
+                Run(files, "preset", "clone", "p", "q") == 0 &&
+                Run(files, "preset", "unset", "p", "description") == 0, "preset override and clone commands");
+            var recipe = RecipeReader.Read(new(folder, [file, definitions, overlay]));
+            var blocks = ArgumentValidation.Validate(recipe);
+            var sourceArgs = blocks.Single(b => b.Key == "p").Arguments;
+            var cloneArgs = blocks.Single(b => b.Key == "q").Arguments;
+            Check(sourceArgs["n"].Value.Text == "3" && !sourceArgs.ContainsKey("description") &&
+                cloneArgs["description"].Literal && cloneArgs["description"].Value.Text == "model://main" &&
+                cloneArgs["model"].Reference?.Name == "main", "clone preserves values and bindings independently");
+            var schemaBytes = File.ReadAllBytes(definitions);
+            Check(Run(files, "param", "set", "n", "type", "boolean") == 2 &&
+                File.ReadAllBytes(definitions).AsSpan().SequenceEqual(schemaBytes), "incompatible edits leave source intact");
+
+            var originalOverlay = File.ReadAllText(overlay);
+            var id = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
+                System.Text.Encoding.UTF8.GetBytes(overlay.ToUpperInvariant())));
+            using var gate = new Mutex(false, "CoquenaRecipeEdit-" + id);
+            gate.WaitOne();
+            var pending = Task.Run(() => Run(files, "preset", "set", "p", "n", "4"));
+            try
+            {
+                Check(SpinWait.SpinUntil(() => pending.IsCompleted || Directory.EnumerateFiles(folder, "*.tmp").Any(),
+                    TimeSpan.FromSeconds(10)) && !pending.IsCompleted, "candidate staged before save");
+                File.AppendAllText(file, "\r\n# external edit\r\n");
+            }
+            finally { gate.ReleaseMutex(); }
+            Check(pending.GetAwaiter().GetResult() == 3 && File.ReadAllText(overlay) == originalOverlay &&
+                File.ReadAllText(file).EndsWith("# external edit\r\n", StringComparison.Ordinal),
+                "external layer change rejects staged edit and preserves both files");
+            Check(Run(files, "backend", "set", "--executable", "./server.exe") == 0 &&
+                Run(files, "model", "add", "--name", "local", "--file", "./local.gguf") == 0 &&
+                Run(files, "model", "add", "--name", "local", "--file", "./local.gguf") == 0 &&
+                Run(files, "model", "set", "remote", "--revision", "stable") == 0 &&
+                Run(files, "model", "companion", "set", "aux", "--type", "mmproj", "--weight", "./aux.gguf") == 0,
+                "backend and resource definition commands save declaratively");
+            Check(!Directory.Exists(home) && !Directory.Exists(Path.Combine(folder, ".coquena")) &&
+                !Directory.EnumerateFiles(folder, "*.tmp").Any(), "save performs no preparation or registration");
+        }
+        finally { Environment.SetEnvironmentVariable("COQUENA_HOME", previousHome); }
     }
 
     private sealed class FixtureAdapter : IArgumentAdapter, IArgumentIniCodec

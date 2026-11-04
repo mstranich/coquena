@@ -94,11 +94,6 @@ public sealed class CombinationPreparation(ScopeContext context)
         var inputs = new Dictionary<string, byte[]>(StringComparer.OrdinalIgnoreCase);
         foreach (var path in selection.Files.Concat(selection.EnvFiles)) inputs[path] = File.ReadAllBytes(path);
         var recipe = RecipeReader.Read(selection, environment);
-        foreach (var import in recipe.Layers.SelectMany(l => l.Get("arg-defs")?.Get("imports")?.Items ?? []))
-        {
-            var path = selection.ResolvePath(import.Text!);
-            inputs[path] = File.ReadAllBytes(path);
-        }
         var blocks = ArgumentValidation.Validate(recipe);
         _ = ModelIntent.FromRecipe(recipe);
         CheckInputs(inputs);
@@ -224,8 +219,6 @@ public sealed class CombinationPreparation(ScopeContext context)
         var inputs = new Dictionary<string, byte[]>(StringComparer.OrdinalIgnoreCase);
         foreach (var path in selection.Files.Concat(selection.EnvFiles)) inputs[path] = File.ReadAllBytes(path);
         var recipe = RecipeReader.Read(selection, environment);
-        foreach (var import in recipe.Layers.SelectMany(l => l.Get("arg-defs")?.Get("imports")?.Items ?? []))
-        { var path = selection.ResolvePath(import.Text!); inputs[path] = File.ReadAllBytes(path); }
         var blocks = ArgumentValidation.Validate(recipe);
         _ = ModelIntent.FromRecipe(recipe);
         var requests = Requests(recipe, blocks.Where(block => block.Scope == "server").ToArray());

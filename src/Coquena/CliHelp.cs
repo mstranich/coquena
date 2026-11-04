@@ -45,9 +45,9 @@ internal static class CliHelp
           clean [--dry-run|--yes]          Previsualizar y liberar recursos elegibles
           combination list|forget <id>     Consultar u olvidar combinaciones del ámbito
             --select referencia           Filtrar recursos; opción repetible
-          verify [--checksum] [--json]              Comprobar receta y recursos del proyecto
-          verify --global [--checksum] [--json]     Auditar definiciones y recursos globales
-            --checksum                     Comprobar hash SHA-256 completo de cada archivo
+          verify [--checksum] [--json]              Comprobar receta y recursos
+          verify --global [--checksum] [--json]     Auditar recursos globales
+            --checksum                     Comprobar SHA-256 de cada archivo
             --select referencia            Elegir recurso a auditar; opción repetible
             --include-unused               Incluir instalaciones globales no usadas
             Referencias: backend://cuda@12, model://clave, companion://clave.
@@ -85,6 +85,8 @@ internal static class CliHelp
             Otra combinación reconcilia los propios y conserva los de otros proyectos.
 
         Backends:
+          backend set --version <versión> --variant <variante>
+          backend set --executable <ruta>
           backend show                     Consultar el backend de la receta
           backend list                     Listar revisiones del ámbito
           backend download --version <versión> --variant <variante> [--force]
@@ -133,6 +135,12 @@ internal static class CliHelp
           model companion protect|unprotect <installation-id>
             Cambiar protección explícita con los mismos selectores de ámbito
 
+          model [companion] add --name <clave> --file <peso>
+                [--file <shard>] [--type <rol>]
+          model [companion] set <clave> [--repository <repo>] [--revision <rev>]
+                [--quantization <tipo> | --weight <archivo>] [--type <rol>]
+            Guardar las definiciones en el YAML seleccionado.
+
         Descargas:
           download list [--model|--companion|--backend]
             Listar descargas; filtrar por tipo de recurso
@@ -150,19 +158,12 @@ internal static class CliHelp
             Usar el ID mostrado al iniciar la descarga. Ctrl+C pausa sin cancelarla.
 
         Presets:
-          preset create <modelo> <nombre>   Crear un preset para un modelo
-          preset list [--model <modelo>]    Listar presets; filtrar por modelo
-          preset show <nombre>             Mostrar la configuración del preset
-          preset set <preset> <param> <valor>
-            Asignar un valor a un parámetro
-          preset bind <preset> <param> <recurso>
-            Asociar un modelo o auxiliar al parámetro
-          preset unset <preset> <param>     Quitar el valor propio del parámetro
-          preset clone <preset> <nombre> [--model <modelo>]
-            Copiar un preset; opcionalmente cambiar el modelo
-          preset model set <preset> <modelo>
-            Cambiar el modelo del preset
-          preset remove <nombre>           Eliminar un preset
+          preset list | show <nombre>
+          preset set <preset> <argumento> <valor-yaml>
+          preset bind <preset> <argumento> <model://clave|companion://clave>
+          preset unset <preset> <argumento>
+          preset clone <origen> <nombre>
+          preset remove <nombre>
 
         Logs:
           service [<nombre|default|self>] logs [list|follow|show <log-id>] [-f]
@@ -209,33 +210,12 @@ internal static class CliHelp
           config param-reset [--dry-run]    Restablecer definiciones de parámetros
 
         Parámetros:
-          param list [<filtro>]             Listar definiciones de parámetros
-          param show <param> [<filtro>]     Mostrar una definición y su compatibilidad
-          param define <param> --type <tipo> --scope <model|server> --target <cli|ini>
-                       [<metadatos>]
-            Crear una definición de parámetro
-          param edit <param> [<metadatos>] [--type <tipo>] [--scope <model|server>]
-                     [--target <cli|ini>] [--clear-default] [--clear-description]
-                     [--clear-aliases] [--dry-run]
-            Editar una definición; --clear-* quita el dato correspondiente
-          param remove <param> [--dry-run]  Eliminar una definición
-          param support set <param> [<soporte>] [--from <bNNNN>] [--until <bNNNN>]
-                            [--dry-run]
-            Indicar familias o builds compatibles con un parámetro
-          param support remove <param> [<soporte>] [--dry-run]
-            Quitar una declaración de compatibilidad
-
-            filtro: --backend <id-backend> o --version <bNNNN> [--distribution
-            <ggml|oficial>].
-            soporte: ggml/<familia>, oficial/<familia> o --backend <id-backend>;
-                     omitido, se aplica a todos los backends oficiales.
-            tipo: integer, decimal, string, boolean, flag o enum.
-            metadatos: [--description <texto>] [--default <valor>]
-                       [--alias=<alias>]... [--values <valor>]...
-            --alias y --values pueden repetirse. Para alias con guion: --alias=-x.
-            --clear-default, --clear-description y --clear-aliases excluyen asignar
-            el dato correspondiente en la misma operación.
-            --dry-run muestra los cambios sin aplicarlos en las operaciones indicadas.
+          param list | show <nombre> [--global]
+          param define <nombre> --file <definición.yaml>
+          param set <nombre> <campo> <valor-yaml>
+          param unset <nombre> <campo>
+          param remove <nombre>
+          param reset [--yes]              Restablecer el catálogo global
 
         Entorno:
           COQUENA_HOME                     Directorio de datos y configuración (ruta

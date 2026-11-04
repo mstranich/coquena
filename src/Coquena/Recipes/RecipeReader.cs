@@ -141,7 +141,6 @@ public static class RecipeReader
             foreach (var preset in lightRoot.Get("presets")?.Fields.Values ?? [])
                 if (preset.Get("args") is { } args) CollectReferences(args, needed);
             var lightRecipe = new EffectiveRecipe(selection, lightRoot, lightLayers, registeredIdentity, lightRoot);
-            if (selection.CapturedFiles is Dictionary<string, byte[]> captured) CaptureSchemas(lightRecipe, captured);
             var scopes = new HashSet<string>(StringComparer.Ordinal);
             if (lightRoot.Get("service")?.Get("server") is not null) scopes.Add("server");
             if ((lightRoot.Get("presets")?.Fields.Count ?? 0) != 0) scopes.Add("preset");
@@ -193,17 +192,6 @@ public static class RecipeReader
             foreach (var kind in new[] { "model", "companion" })
                 if (value.Text!.StartsWith(kind + "://", StringComparison.Ordinal)) names.Add(kind + ":" + value.Text[(kind.Length + 3)..]);
         foreach (var child in value.Fields.Values.Concat(value.Items)) CollectReferences(child, names);
-    }
-    internal static void CaptureSchemas(EffectiveRecipe recipe, Dictionary<string, byte[]> inputs)
-    {
-        foreach (var import in recipe.Layers.SelectMany(l => l.Get("arg-defs")?.Get("imports")?.Items ?? []))
-        {
-            var path = recipe.Selection.ResolvePath(import.Text!);
-            if (inputs.ContainsKey(path)) continue;
-            try { inputs[path] = RecipeYaml.ReadBytes(path); }
-            catch (RecipeException e) when (import.Sensitive)
-            { throw new RecipeException(e.Code, "schema", import.Origin, "No se pudo leer el schema seleccionado mediante una variable."); }
-        }
     }
     internal static RecipeValue FilterModels(RecipeValue root, HashSet<string> needed)
     {

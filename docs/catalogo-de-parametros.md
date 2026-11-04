@@ -1,7 +1,7 @@
 # Definiciones de parámetros por proyecto
 
 El catálogo describe argumentos del backend para validación y formularios. Pertenece
-al ámbito de intención seleccionado, es reutilizable y se declara en `arg-defs.definitions` o se importa desde JSON mediante `arg-defs.imports`; no requiere
+al ámbito de intención seleccionado, es reutilizable y se declara en `arg-defs.definitions`; no requiere
 catálogo centralizado en home ni asociación a una máquina. No imponer flags oficiales
 a forks con otra interfaz.
 
@@ -11,7 +11,7 @@ CLI permite editar y mantener coherentes nombre, descripción, aliases, tipo,
 opciones/default, ámbito, destino y aplicabilidad. No alterar por editar la instancia
 activa ni borrar recursos asociados.
 
-Un metaschema valida el JSON que define argumentos. Persona o IA puede redactarlo
+Coquena valida el YAML que define argumentos. Persona o IA puede redactarlo
 desde documentación o --help del build objetivo. No hay garantía de extracción
 automática exhaustiva; --version no certifica procedencia ni soporte de flags.
 
@@ -150,8 +150,7 @@ sin cascadas implícitas de archivos o ejecución.
 ## Restablecimiento de fábrica
 
 No se restaura un catálogo global como condición para usar proyectos.
-Restablecer definiciones de referencia es una edición explícita del schema del
-proyecto, con impacto visible; no sustituir silenciosamente el schema de un fork.
+El restablecimiento de fábrica actúa sobre el catálogo global y requiere revisar su impacto y confirmar.
 
 ## Comparación de versiones
 
@@ -182,10 +181,9 @@ Libertad de argumentos no exime de validar rutas y propiedad antes de escribir.
 
 ## Composición y vocabulario declarativo
 
-Imports son JSON locales explícitos relativos a la base, cargados en orden; después
-se aplican definiciones inline. Las capas YAML posteriores prevalecen. Listas
-reemplazan listas. No se ejecutan scripts ni se descargan catálogos implícitos.
-El catálogo puede registrar su build de referencia, sin certificar soporte real.
+Las definiciones se declaran en `arg-defs.definitions` de las capas YAML
+seleccionadas. Se pueden agrupar en una capa dedicada. Las capas posteriores
+prevalecen y las listas se reemplazan completas.
 
 Tipos: string, integer, number, boolean y array; restricciones enum, minimum,
 maximum, pattern, items y alternativas any-of. Flag describe emisión de booleanos.
@@ -217,15 +215,13 @@ cuando falta el argumento propietario. Así, `when: {present: false}` permite
 exigir una alternativa ante su ausencia. When omitido sólo activa la regla si
 el argumento está presente; no se materializan defaults para satisfacerla.
 La gramática de condiciones y emisión conserva este vocabulario sin
-convertirse en código ejecutable. JSON Schema valida documentos; referencias y
+convertirse en código ejecutable. Referencias y
 emisión son contratos adicionales de Coquena. Nuevos parámetros con reglas existentes
 no requieren cambiar el binario; nuevas clases de regla sí requieren soporte.
 
 ## Metaschema de definiciones
 
-El documento JSON importado admite sólo `definitions` (mapa requerido) y
-`reference-build` (texto informativo opcional). Inline usa el mismo mapa de
-definiciones. No se descarga un `$ref` ni se ejecuta un validador aportado.
+`arg-defs` admite el mapa `definitions` en cada capa YAML.
 El vocabulario es cerrado: clave desconocida es error, también en modo permisivo.
 Claves de argumento siguen `[A-Za-z0-9][A-Za-z0-9-]*`, sin `--`.
 
@@ -247,8 +243,8 @@ Claves de argumento siguen `[A-Za-z0-9][A-Za-z0-9-]*`, sin `--`.
 
 Una definición de valor admite type, enum, minimum, maximum, pattern, items y
 any-of con las mismas restricciones. Array vacío es válido; su emisión es vacía.
-Los imports se cargan por capa, luego inline; la última definición del mismo nombre
-reemplaza completa la anterior. Null retira una definición heredada. Se validan
+La última definición del mismo nombre reemplaza completa la anterior.
+Null retira una definición heredada. Se validan
 aliases, tipos y relaciones después de componer, sin heredar media definición de
 emisión de otro build. Un alias se canonicaliza antes de detectar duplicados.
 

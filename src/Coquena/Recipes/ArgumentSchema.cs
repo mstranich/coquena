@@ -1,7 +1,6 @@
 using System.Collections.ObjectModel;
 using System.Globalization;
 using System.Numerics;
-using System.Text.Json;
 using System.Text.RegularExpressions;
 
 namespace Coquena.Recipes;
@@ -48,51 +47,9 @@ public sealed class ArgumentSchema
 
     public static ArgumentSchema Load(EffectiveRecipe recipe)
     {
-        var definitions = new Dictionary<string, RecipeValue>(StringComparer.Ordinal);
-        foreach (var layer in recipe.Layers)
-        {
-            // A null arg-defs/definitions removes the inherited catalog as well.
-            if (layer.Get("arg-defs") is not { } catalog) continue;
-            if (catalog.Kind == RecipeKind.Null) { definitions.Clear(); continue; }
-            foreach (var import in catalog.Get("imports")?.Items ?? [])
-            {
-                string path;
-                try { path = recipe.Selection.ResolvePath(import.Text!); }
-                catch (Exception e) when (e is ArgumentException or NotSupportedException)
-                { throw import.Error("invalid-schema-path", "schema", "Ruta de catálogo local inválida."); }
-                RecipeValue document;
-                try
-                {
-                    using var json = JsonDocument.Parse(RecipeYaml.ReadText(path, captured: recipe.Selection.CapturedFiles?.GetValueOrDefault(path)), new JsonDocumentOptions { MaxDepth = 64 });
-                    var count = 0;
-                    document = Json(json.RootElement, import.Sensitive ? import.Origin with { Path = import.Origin.Path + ".schema" } : new(path, 1, 1, "$"), ref count);
-                }
-                catch (RecipeException e) when (import.Sensitive)
-                { throw new RecipeException(e.Code, "schema", import.Origin, "No se pudo leer el schema seleccionado mediante una variable."); }
-                catch (JsonException) { throw import.Error("invalid-schema-json", "schema", "El catálogo importado no es JSON válido."); }
-                Object(document, "definitions reference-build");
-                if (document.Get("reference-build") is { } build) Text(build);
-                var entries = document.Get("definitions") ?? throw document.Error("definitions-required", "schema", "El catálogo requiere definitions.");
-                Apply(entries);
-            }
-            if (catalog.Get("definitions") is { } inline)
-            {
-                if (inline.Kind == RecipeKind.Null) definitions.Clear();
-                else Apply(inline);
-            }
-        }
-        return new(definitions);
-
-        void Apply(RecipeValue entries)
-        {
-            Object(entries);
-            foreach (var entry in entries.Fields)
-            {
-                Name(entry.Key, entry.Value);
-                if (entry.Value.Kind == RecipeKind.Null) definitions.Remove(entry.Key);
-                else definitions[entry.Key] = entry.Value;
-            }
-        }
+        var entries = recipe.Root.Get("arg-defs")?.Get("definitions");
+        return new(entries?.Fields.ToDictionary(StringComparer.Ordinal)
+            ?? new Dictionary<string, RecipeValue>(StringComparer.Ordinal));
     }
 
     // Changes are immutable candidates. Callers inspect impact before publishing.
@@ -342,34 +299,4 @@ public sealed class ArgumentSchema
     { if (value.Kind != RecipeKind.String) Fail(value, "invalid-schema-text"); }
     internal static void Fail(RecipeValue at, string code) => throw at.Error(code, "schema", "Definición de argumentos inválida.");
 
-    private static RecipeValue Json(JsonElement element, RecipeOrigin origin, ref int count)
-    {
-        if (++count > 100_000) throw new RecipeException("schema-limit", "schema", origin, "Catálogo demasiado grande.");
-        if (element.ValueKind == JsonValueKind.Object)
-        {
-            var map = new Dictionary<string, RecipeValue>(StringComparer.Ordinal);
-            foreach (var property in element.EnumerateObject())
-            {
-                var child = Json(property.Value, origin with { Path = origin.Path + "[" + System.Text.Json.Nodes.JsonValue.Create(property.Name)!.ToJsonString() + "]" }, ref count);
-                if (!map.TryAdd(property.Name, child)) Fail(child, "duplicate-key");
-            }
-            return RecipeValue.Map(origin, map);
-        }
-        if (element.ValueKind == JsonValueKind.Array)
-        {
-            var items = new List<RecipeValue>();
-            foreach (var item in element.EnumerateArray()) items.Add(Json(item, origin with { Path = origin.Path + "[" + items.Count + "]" }, ref count));
-            return new(RecipeKind.Sequence, origin, items: items);
-        }
-        var raw = element.GetRawText();
-        var kind = element.ValueKind switch
-        {
-            JsonValueKind.String => RecipeKind.String, JsonValueKind.Null => RecipeKind.Null,
-            JsonValueKind.True or JsonValueKind.False => RecipeKind.Boolean,
-            _ => RecipeValue.IsInteger(raw) ? RecipeKind.Integer : RecipeKind.Number
-        };
-        if (kind == RecipeKind.Number && !RecipeValue.IsNumber(raw)) throw new RecipeException("non-finite-number", "schema", origin, "Número no finito.");
-        return new(kind, origin, kind == RecipeKind.String ? element.GetString() : raw,
-            kind == RecipeKind.String ? RecipeStyle.SingleQuoted : RecipeStyle.Plain);
-    }
 }

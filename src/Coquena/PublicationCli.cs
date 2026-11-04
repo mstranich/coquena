@@ -260,14 +260,14 @@ public static class PublicationCli
         if (!withdrawing)
         {
             if (key is not null && recipe!.Root.Get("presets")?.Get(key) is null) throw new StorageException("unknown-preset", "El preset seleccionado no existe.");
-            var inputPaths = selection.Files.Concat(selection.EnvFiles).Concat(recipe!.Layers.SelectMany(l => l.Get("arg-defs")?.Get("imports")?.Items ?? []).Select(i => selection.ResolvePath(i.Text!)));
+            var inputPaths = selection.Files.Concat(selection.EnvFiles);
             var inputs = inputPaths.Distinct(StringComparer.OrdinalIgnoreCase).ToDictionary(p => p, File.ReadAllBytes);
             var adapter = new LlamaB11482ArgumentAdapter();
             var backendResource = active?["resources"]?.AsArray().SingleOrDefault(r => r!["kind"]?.GetValue<string>() == "backend");
             var backend = new ArgumentBackend(backendResource?["resolution"]?["origin"]?.GetValue<string>() == "official" ? "official" : null,
                 backendResource?["resolution"]?["selection"]?["release"]?.GetValue<string>());
-            var schema = ArgumentSchema.Load(recipe);
-            var blocks = (recipe.Root.Get("presets")?.Fields ?? new Dictionary<string, RecipeValue>())
+            var schema = ArgumentSchema.Load(recipe!);
+            var blocks = (recipe!.Root.Get("presets")?.Fields ?? new Dictionary<string, RecipeValue>())
                 .Where(p => (key is null || p.Key == key) && recipe.PresetEnabled(p.Key))
                 .Select(p => ArgumentValidation.Block(recipe, schema, p.Value, "preset", p.Key, recipe.PresetArgsMode(p.Key), backend)).ToArray();
             foreach (var block in blocks)

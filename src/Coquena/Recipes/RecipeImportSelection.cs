@@ -58,7 +58,7 @@ public sealed class RecipeImportSelection
         if (seen.Contains("service")) Add("service:" + recipe.Name);
         if (seen.Contains("presets")) Group("presets", "preset");
         if (seen.Contains("model")) { Group("models", "model"); Group("companions", "companion"); }
-        // Enumerate schema keys, including JSON imports, without placing expanded
+        // Enumerate effective schema keys without placing expanded
         // values in the selection. Materialization must preserve source expressions.
         if (seen.Contains("params"))
         {

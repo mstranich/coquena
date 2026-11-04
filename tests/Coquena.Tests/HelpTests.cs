@@ -26,7 +26,8 @@ internal static class HelpTests
                     "service [<nombre|default|self>] start|restart [-d]", "service default set <nombre>",
                     "service create <nombre> --global",
                     "service [<nombre|default|self>] show",
-                    "--alias y --values pueden repetirse", "--dry-run muestra los cambios sin aplicarlos" })
+                    "param define <nombre> --file <definición.yaml>", "param reset [--yes]",
+                    "preset bind <preset> <argumento>", "backend set --executable <ruta>" })
                     Check(result.Output.Contains(syntax), "syntax: " + syntax);
                 Check(!result.Output.Contains('\u001b'), "redirected help has no ANSI escapes");
                 Check(result.Output.Split('\n').All(line => line.TrimEnd('\r').Length <= 80), "help fits 80 columns");

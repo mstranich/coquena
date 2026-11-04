@@ -340,6 +340,8 @@ features:
       - src/Coquena/Recipes/RecipeReader.cs
     implementation:
       - src/Coquena/Recipes/RecipeYaml.cs
+      - src/Coquena/Recipes/RecipeEdit.cs
+      - src/Coquena/RecipeEditCli.cs
       - src/Coquena/Recipes/RecipeVariables.cs
       - src/Coquena/Recipes/RecipeStructure.cs
       - src/Coquena/Recipes/RecipeValue.cs

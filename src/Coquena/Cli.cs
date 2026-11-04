@@ -23,11 +23,21 @@ public static class Cli
         if (prefix < args.Length && (args[prefix] is "up" or "down" or "apply" or "withdraw" ||
             args[prefix] == "preset" && prefix + 1 < args.Length && args[prefix + 1] is "apply" or "withdraw"))
             return PublicationCli.Run(args, output, error);
+        if (prefix < args.Length && args[prefix] is "backend" or "runtime" or "model")
+        {
+            var verb = prefix + (args[prefix] == "model" && args.ElementAtOrDefault(prefix + 1) == "companion" ? 2 : 1);
+            if (args.ElementAtOrDefault(verb) == "set" ||
+                args[prefix] == "model" && args.ElementAtOrDefault(verb) == "add" &&
+                args.ElementAtOrDefault(verb + 1) is "--file" or "--name" or "--type")
+                return RecipeEditCli.Run(args, prefix, output, error);
+        }
+        if (prefix < args.Length && args[prefix] is "preset" or "param")
+            return RecipeEditCli.Run(args, prefix, output, error);
         if (prefix > 0 && prefix < args.Length && args[prefix] is "service" or "server")
             return ScopedServiceCli.Run(args[..prefix].Concat(args[(prefix + 1)..]).ToArray(), output, error);
         if (args.Length > 0 && args[0] is "server" or "service")
             return ScopedServiceCli.Run(args[1..], output, error);
-        if (args.Length > 0 && args[0] is "config" or "preset" or "param")
+        if (args.Length > 0 && args[0] == "config")
             return ConfigurationCli.Run(args[0], args[1..], output, error);
         if (args.Length > 0 && args[0] is "backend" or "runtime")
             return ScopedBackendCli.Run(args[1..], output, error);

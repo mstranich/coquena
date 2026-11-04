@@ -175,7 +175,9 @@ tipos, valores, ámbito, aplicabilidad y dependencias.
 Args omite el prefijo -- en las claves. true emite flag; false lo omite.
 Los strings "true"/"false" son valores literales. Véase
 [parámetros](catalogo-de-parametros.md).
-El schema puede alimentar formularios; un texto --help no es un schema verificado.
+El schema puede alimentar formularios. Un texto de `--help` requiere validación
+antes de usarlo como schema. `param list --global` y `param show <nombre> --global`
+consultan el catálogo global.
 
 ### config
 
@@ -190,8 +192,7 @@ espera exponencial y cancelación.
 No hay selección global implícita de modelo/backend que reescriba una receta.
 
 Ubicación de pesos/binarios, definición de servidor y schema de parámetros no son
-preferencias globales de config. Restablecer definiciones de parámetros es una
-edición del schema del proyecto, bajo la responsabilidad de param.
+preferencias globales de config. `param reset` restablece el catálogo global.
 La consulta de configuración efectiva combina YAML; no consulta preferencias de
 Coquena como si formaran otra capa de intención del servidor.
 
@@ -394,11 +395,18 @@ Set recibe entidad, argumento y valor YAML escalar/lista como un argumento de CL
 Bind recibe entidad, argumento y referencia tipada; unset escribe null en la capa
 editable para retirar herencia. Clone recibe origen y nombre nuevo.
 Backend set acepta `--version <latest|bNNNN> --variant <variante>` o
-`--executable <ruta>`, excluyentes. Model/companion add recibe `--name <clave>` y
-`--file <ruta>` repetible; `--try-match` es optativo. Download recibe selector remoto
+`--executable <ruta>`, excluyentes. `model [companion] set <clave>` permite declarar
+`--repository`, `--revision`, `--quantization`, `--weight <ruta>` repetible y
+`--type` según la entidad. El alta declarativa
+`model [companion] add --name <clave> --file <ruta>` admite
+varios `--file` para shards y `--type` para el companion. Seleccionar las capas
+de receta antes de `model add`. La forma con ruta posicional registra un recurso
+externo en el inventario y admite `--try-match`. Download recibe selector remoto
 o backend version/variant y protege el resultado sin editar YAML.
-Define recibe nombre y `--file <definición.json>`; reset muestra impacto y exige
-confirmación o --yes, sin descartar valores de presets. Remove nunca implica
+`param define <nombre> --file <definición.yaml>` recibe un mapa de campos de una
+definición. `param set <nombre> <campo> <valor-yaml>` modifica un campo y
+`param unset <nombre> <campo>` lo retira. `param reset` muestra impacto y exige
+confirmación o `--yes`. Remove nunca implica
 cascada de archivos ajenos. Opciones de campos específicos siguen sus canónicos.
 
 Clean sin opciones previsualiza y pregunta; sin interacción sólo previsualiza y

@@ -137,7 +137,7 @@ internal static partial class RecipeStructure
         }
         void ArgDefs(RecipeValue value)
         {
-            Object(value, "imports definitions"); Field(value, "imports", Texts);
+            Object(value, "definitions");
             Field(value, "definitions", definitions =>
             {
                 Object(definitions);
@@ -264,7 +264,7 @@ internal static partial class RecipeStructure
         return root.WithFields(result);
     }
 
-    private static (string Repository, string Quantization) ShortModel(RecipeValue value)
+    internal static (string Repository, string Quantization) ShortModel(RecipeValue value)
     {
         // Prior to expansion this is checked only as a string, not as a selector.
         var separator = value.Text!.IndexOf(':');
