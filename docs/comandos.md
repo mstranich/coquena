@@ -31,7 +31,7 @@ automáticamente. No guardar secretos expandidos en archivos compartidos.
 | --help, -h, help | Consulta de ayuda de la CLI; no requiere receta. |
 | init | Inicialización opcional de la carpeta/receta seleccionada. |
 | import | Copia explícita de intención al ámbito global y preparación; no inicia. |
-| backend/runtime, model, preset, param, download | Proyecto por defecto; `--global` selecciona inventario e intención importados. |
+| backend/runtime, model, preset, param, download | Proyecto por defecto; `--global` selecciona el inventario y la intención del catálogo global. |
 | service/server start, stop, restart | Proceso del servicio seleccionado; no publicación de un consumidor. |
 | up, down | Publicar/retirar conjunto de la receta seleccionada; no detener servicio. |
 | ps, logs | Observación general o por servicio, sin cambiar intención; ps admite -w/--watch. |
@@ -147,7 +147,7 @@ intención, relativa a la base cuando está dentro del proyecto.
 Véase [reutilización local](modelos-y-companions.md#reutilizar-archivos-obtenidos-por-otra-herramienta).
 
 Refresh relee disponibilidad/metadatos; no restablece integridad.
-Verify y update no son sinónimos de refresh ni acciones de reparación.
+Verify y update no reparan archivos.
 Modelos y companions participan en update/upgrade mediante selecciones del proyecto.
 `model verify <nombre>` y `model companion verify <nombre>` comprueban una unidad
 del inventario del ámbito elegido. `model baseline <nombre>` y
@@ -323,7 +323,7 @@ clean [--dry-run|--yes]
 combination list|forget <combination-id>
 download list|show|pause|resume|cancel [<operation-id>]
 backend show|set|download|list|remove|protect|unprotect
-model [companion] list|show|add|set|download|refresh|remove|protect|unprotect
+model [companion] list|show|add|set|download|remove|protect|unprotect
 preset list|show|set|bind|unset|clone|remove
 param list|show|define|set|unset|remove|reset
 ```
@@ -412,6 +412,10 @@ cascada de archivos ajenos. Opciones de campos específicos siguen sus canónico
 Clean sin opciones previsualiza y pregunta; sin interacción sólo previsualiza y
 diagnostica falta de confirmación. Dry-run nunca borra; yes autoriza el conjunto
 mostrado sólo si su revisión sigue vigente. No existe clean --force.
+`backend remove <id-instalación>` retira una instalación gestionada elegible
+del ámbito elegido. Usa las mismas protecciones que clean. Un ID ajeno al
+ámbito es una selección inválida. Una instalación protegida requiere
+`backend unprotect` antes de retirarla.
 Logs sin subcomando lee salida reciente; -f equivale a follow y no es --file en
 esa familia. `logs show <id>` selecciona un histórico y no se combina con follow.
 IDs de log son locales al servicio, nunca rutas arbitrarias inferidas.

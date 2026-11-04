@@ -1,7 +1,7 @@
 using System.Text.Json.Nodes;
 using Coquena.Backends;
-using Coquena.Contracts;
 using Coquena.Downloads;
+using Coquena.Contracts;
 using Coquena.Projects;
 using Coquena.Recipes;
 using Coquena.Storage;
@@ -15,9 +15,9 @@ public static class ScopedBackendCli
         Func<HardwareContext, string, string, CancellationToken, Task<BackendResolution>>? resolve = null,
         IDownloadTransport? transport = null, Func<string, CancellationToken, Task<string>>? probe = null)
     {
-        if (args.Length == 0) { output.WriteLine("backend (alias runtime): show, list, download, protect, unprotect. Consulte coquena --help."); return 0; }
+        if (args.Length == 0) { output.WriteLine("backend (alias runtime): show, list, download, protect, unprotect, remove. Consulte coquena --help."); return 0; }
         var action = args[0];
-        if (action is not ("show" or "list" or "download" or "protect" or "unprotect")) return Invalid(error);
+        if (action is not ("show" or "list" or "download" or "protect" or "unprotect" or "remove")) return Invalid(error);
         try
         {
             var global = false; var json = false; var force = false;
@@ -46,18 +46,38 @@ public static class ScopedBackendCli
                         case "--variant": variant = args[i]; break;
                     }
                 }
-                else if (action is "protect" or "unprotect" && installation is null && Guid.TryParseExact(args[i], "D", out var id) && id != Guid.Empty)
+                else if (action is "protect" or "unprotect" or "remove" && installation is null && Guid.TryParseExact(args[i], "D", out var id) && id != Guid.Empty)
                     installation = args[i];
                 else return Invalid(error);
             }
             if (global && (files.Count != 0 || env.Count != 0 || projectDirectory is not null) || !global && service is not null ||
                 force && action != "download" || (version is not null || variant is not null) && action != "download" ||
-                action is "protect" or "unprotect" && installation is null || service is not null && action != "show") return Invalid(error);
+                action is "protect" or "unprotect" or "remove" && installation is null || service is not null && action != "show") return Invalid(error);
             BackendIntent? intent = action == "download" ? new(version, variant) : null;
             intent?.Validate(); // Reject before creating a home or scope.
             var selection = global ? null : new RecipeSelection(Environment.CurrentDirectory, files, projectDirectory, env);
             var context = global ? ScopeContext.Global(Home.Resolve()) : ScopeContext.Project(selection!.Files[0], selection.Base);
             var backends = new ScopedBackends(context, resolve, probe);
+            if (action == "remove")
+            {
+                var id = Guid.Parse(installation!);
+                var cleanup = new ResourceCleanup(context, Home.Resolve());
+                var plan = cleanup.Preview(id);
+                if (plan.Items.Count == 0)
+                {
+                    var selected = plan.Stores.ToList().FindIndex(store => store.Context.PhysicalRoot == context.PhysicalRoot);
+                    var resources = plan.Snapshots[selected].Documents.GetValueOrDefault("local/inventory.json")?["data"]?["resources"]?.AsArray() ?? [];
+                    var exists = resources.Any(resource => resource!["kind"]!.GetValue<string>() == "backend" &&
+                        resource["installations"]!.AsArray().Any(revision => Guid.Parse(revision!["installation-id"]!.GetValue<string>()) == id));
+                    error.WriteLine(exists ? "Error: backend-removal-blocked." : "Error: unknown-installation.");
+                    return exists ? 3 : 2;
+                }
+                var result = cleanup.Apply(plan);
+                foreach (var diagnostic in result.Diagnostics) error.WriteLine(diagnostic);
+                if (json) output.WriteLine(new JsonObject { ["freed-bytes"] = result.FreedBytes }.ToJsonString());
+                else output.WriteLine($"Liberado: {ByteSize.Format(result.FreedBytes)}.");
+                return result.Diagnostics.Count == 0 ? 0 : 7;
+            }
             if (action == "show")
             {
                 JsonNode value;
@@ -71,10 +91,9 @@ public static class ScopedBackendCli
                 {
                     var registry = new RecipeRegistry(new ScopeStore(context));
                     var serviceId = registry.ResolveGlobalService(service ?? "default");
-                    var entity = new ScopeStore(context).Read().Documents["local/recipes.json"]["data"]!["recipes"]!.AsArray()
-                        .SelectMany(r => r!["entities"]!.AsArray()).Single(e => e!["id"]!.GetValue<string>() == serviceId)!;
-                    value = entity["backend-intent-sensitive"]?.GetValue<bool>() == true ? JsonValue.Create("<redacted>")! :
-                        entity["backend-intent"]?.DeepClone() ?? throw new BackendException("backend-required", "El servicio no conserva intención de backend.");
+                    var recipe = RecipeReader.Read(new RecipeImporter(context).ServiceSelection(serviceId));
+                    _ = BackendIntent.FromRecipe(recipe);
+                    value = recipe.Root.Get("service")!.Get("backend")!.Redacted()!;
                 }
                 output.WriteLine(value.ToJsonString()); return 0;
             }
@@ -123,7 +142,7 @@ public static class ScopedBackendCli
             if (code is "backend-incompatible" or "unsupported-platform" or "no-candidate") return 5;
             if (code is "backend-integrity-invalid") return 6;
             if (e is RecipeException || code is "invalid-backend-selection" or "invalid-family" or "invalid-release" or "unknown-service" or "unknown-installation") return 2;
-            if (code is "scope-conflict" or "writer-busy" or "executor-busy") return 3;
+            if (code is "scope-conflict" or "writer-busy" or "executor-busy" or "cleanup-conflict") return 3;
             if (e is System.Net.Http.HttpRequestException || e is BackendException && code is "remote-unavailable" or "remote-timeout" or
                 "remote-rate-limit" or "remote-status" or "release-not-found" or "discovery-limit" or "invalid-metadata" or "metadata-limit") return 4;
             return 7;

@@ -44,13 +44,12 @@ internal static class CliHelp
           update [--global]               Consultar novedades y guardar un plan
           upgrade [--global]              Aplicar propuestas válidas del plan vigente
           clean [--dry-run|--yes]          Previsualizar y liberar recursos elegibles
-          combination list|forget <id>     Consultar u olvidar combinaciones del ámbito
-            --select referencia           Filtrar recursos; opción repetible
-          verify [--checksum] [--json]              Comprobar receta y recursos
-          verify --global [--checksum] [--json]     Auditar recursos globales
+            --select referencia           Filtrar update/upgrade; opción repetible
+          combination list | forget <id>   Consultar u olvidar combinaciones
+          verify [--global] [--checksum] [--json]  Auditar recursos
             --checksum                     Comprobar SHA-256 de cada archivo
             --select referencia            Elegir recurso a auditar; opción repetible
-            --include-unused               Incluir instalaciones globales no usadas
+            --include-unused               Incluir instalaciones sin uso (global)
             Referencias: backend://cuda@12, model://clave, companion://clave.
             Backend por alias: backend://alias o backend://proyecto/alias.
             También model://autor/repositorio:cuantización.
@@ -81,6 +80,8 @@ internal static class CliHelp
           --project-directory <carpeta>     Base del proyecto (alias --base)
           --private                        Permitir referencias exteriores privadas
             target YAML sólo admite global (predeterminado) o self.
+            --service <nombre|default|self> selecciona el destino.
+            Down sin selector usa el destino registrado.
             Global usa el servicio global designado default; self usa el propio.
             Requiere interacción; no admite -d. --start-service sólo autoriza el inicio.
             Otra combinación reconcilia los propios y conserva los de otros proyectos.
@@ -95,6 +96,8 @@ internal static class CliHelp
           backend protect <id-instalación>  Proteger una revisión gestionada
           backend unprotect <id-instalación>
             Retirar protección explícita sin borrar archivos ni referencias
+          backend remove <id-instalación>
+            Retirar una instalación gestionada, sin protección ni referencias
 
             Ámbito: proyecto actual; -f/--file repetible y --env-file explícito.
             --project-directory <carpeta> selecciona la base (alias --base).

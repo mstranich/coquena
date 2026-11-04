@@ -75,9 +75,10 @@ features:
 
   - id: scoped-resource-cleanup
     intent: Previsualizar y liberar archivos propios sin referencias, y olvidar combinaciones conservando publicaciones e instancias.
-    keywords: [clean, dry-run, yes, combination, forget, protection, ownership]
+    keywords: [clean, dry-run, yes, backend, remove, combination, forget, protection, ownership]
     entrypoints:
       - src/Coquena/CleanupCli.cs
+      - src/Coquena/ScopedBackendCli.cs
     implementation:
       - src/Coquena/Projects/ResourceCleanup.cs
       - src/Coquena/Projects/CombinationCleanup.cs

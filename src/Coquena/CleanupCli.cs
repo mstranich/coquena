@@ -50,7 +50,7 @@ public static class CleanupCli
             if (!clean || flags.Contains("--dry-run") || plan.Items.Count == 0) return 0;
             if (!flags.Contains("--yes"))
             {
-                if (Console.IsInputRedirected) { error.WriteLine("Error: confirmation-required; use --yes para confirmar."); return 2; }
+                if (Console.IsInputRedirected) { error.WriteLine("Error: confirmation-required; use --yes para confirmar."); return 3; }
                 output.Write("¿Eliminar el conjunto mostrado? [s/N] "); output.Flush();
                 if (Console.ReadLine()?.Trim().ToLowerInvariant() is not ("s" or "si" or "sí" or "y" or "yes")) return 0;
             }

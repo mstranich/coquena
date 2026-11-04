@@ -161,9 +161,7 @@ Ninguno de los cuatro exige calcular un hash completo. La integridad se comprueb
 
 **Cambio detectado (aviso, no estado):** si el tamaño o la fecha de modificación difieren
 de lo registrado, Coquena avisa y no bloquea. La consulta no actualiza el registro ni
-afirma que los bytes sigan íntegros. El registro se actualiza sólo cuando el usuario
-lo pide, con `model refresh`, que relee los metadatos necesarios y anota el tamaño y la
-fecha actuales.
+afirma que los bytes sigan íntegros.
 
 ## Modelos divididos en shards
 
@@ -262,7 +260,7 @@ combinaciones conocidas y recuperación descritas en
 ## Companions
 
 Companion es la categoría auxiliar; `mmproj` es un proyector multimodal de visión/audio,
-no el nombre de toda la categoría. Registro, listado, refresh, update, upgrade,
+no el nombre de toda la categoría. Registro, listado, update, upgrade,
 integridad y eliminación reutilizan las reglas de modelos bajo `model companion`.
 La descarga selecciona `usuario/repositorio#tipo[:cuantización]` con el mismo menú,
 limitado al tipo solicitado; no descarga el principal ni configura un preset.
@@ -431,7 +429,7 @@ archivos completos y compara contra esa referencia. Registra el resultado y su f
 no certifica indefinidamente que el disco sigue intacto.
 
 Una discrepancia se informa **sin sustituir el hash de referencia por el del archivo
-alterado**. `refresh` no restablece esa referencia ni declara integridad.
+alterado**.
 
 En externos, establecer una referencia de integridad es opcional y explícito. Sólo
 permite afirmar después «no cambió desde aquella lectura», no que la descarga original
@@ -445,8 +443,8 @@ La base se publica para la unidad completa: si falla una parte, se conservan tod
 las referencias anteriores. El resultado distingue la creación explícita de base
 de una comparación exitosa. La observación registra fecha, resultado del conjunto
 y resultados por archivo; conserva además la fecha de establecimiento de la base
-externa aunque se realicen comparaciones posteriores. Ni esa observación ni refresh
-cambian el seguimiento remoto.
+externa aunque se realicen comparaciones posteriores. Esa observación conserva
+el seguimiento remoto.
 
 Seguimiento remoto e integridad tienen propósitos distintos, pero pueden compartir
 algoritmo cuando corresponda. No se inventa un hash corto ni se confunden commit,
@@ -482,4 +480,4 @@ y verificada lo resuelven; excluir el preset evita seleccionarlo, sin declararlo
 Up valida sintaxis, esquema y referencias efectivas y consulta fallos conocidos;
 no recorre gigabytes para recalcular hashes en cada ejecución. Corrigir el YAML
 se comprueba en otro up. La incompatibilidad de hardware es otro diagnóstico,
-no un fallo permanente de integridad. Refresh de metadatos no borra estos resultados.
+no un fallo permanente de integridad.

@@ -22,18 +22,19 @@ internal static class CleanupTests
         var context = ScopeContext.Project(yaml); var store = new ScopeStore(context);
         var checks = 0;
         void Check(bool ok, string message) { if (!ok) throw new Exception(message); checks++; }
-        string Add(bool protect = false, string origin = "automatic")
+        string Add(bool protect = false, string origin = "automatic", string kind = "model")
         {
             var state = store.Read(); var docs = Next(state);
             if (!docs.ContainsKey("local/inventory.json")) docs["local/inventory.json"] = ProjectDocuments.Create("inventory", 1, new() { ["resources"] = new JsonArray() });
-            var id = Guid.NewGuid().ToString("D"); var location = "models/installations/" + id;
+            var id = Guid.NewGuid().ToString("D");
+            var location = (kind == "backend" ? "backends" : "models") + "/installations/" + id;
             Directory.CreateDirectory(context.PathFor(location));
             var file = context.PathFor(location + "/weights.gguf"); File.WriteAllBytes(file, new byte[1024]);
             using var identityHandle = File.OpenHandle(file);
             if (!Information(identityHandle, 18, out var identity, 24)) throw new Exception("fixture identity unavailable");
             docs["local/inventory.json"]["data"]!["resources"]!.AsArray().Add((JsonNode)new JsonObject
             {
-                ["resource-id"] = Guid.NewGuid().ToString("D"), ["logical-key"] = id, ["kind"] = "model", ["ownership"] = "managed",
+                ["resource-id"] = Guid.NewGuid().ToString("D"), ["logical-key"] = id, ["kind"] = kind, ["ownership"] = "managed",
                 ["installations"] = new JsonArray((JsonNode)new JsonObject { ["installation-id"] = id, ["location"] = location,
                     ["origin"] = origin, ["protected"] = protect, ["files"] = new JsonArray((JsonNode)new JsonObject {
                         ["path"] = "weights.gguf", ["size"] = 1024, ["volume"] = identity.Volume.ToString("x16"), ["file-id"] = identity.Low.ToString("x16") + identity.High.ToString("x16") }) })
@@ -51,6 +52,7 @@ internal static class CleanupTests
         Check(File.Exists(PathOf(first)), "preview never deletes");
         var result = cleanup.Apply(plan);
         Check(result.FreedBytes == 1024 && !File.Exists(PathOf(first)) && File.Exists(neighbor), "delete owns files only and reports actual bytes");
+        Check(!store.Read().Documents["local/inventory.json"].ToJsonString().Contains(first), "cleanup drops empty catalog entries");
         Check(File.Exists(PathOf(protectedId)) && File.Exists(PathOf(explicitId)), "protected bytes preserved");
         var changed = Add(); plan = cleanup.Preview();
         new Coquena.Models.ScopedModels(context).Protect(changed, true);
@@ -162,7 +164,14 @@ internal static class CleanupTests
             }
             var native = Add();
             Check(Invoke("clean", "--project-directory", project, "--dry-run").Code == 0 && File.Exists(PathOf(native)), "AOT dry run preserves bytes");
-            Check(Invoke("clean", "--project-directory", project).Code == 2 && File.Exists(PathOf(native)), "AOT redirected input requires confirmation");
+            var backend = Add(true, kind: "backend");
+            var backendPath = context.PathFor("backends/installations/" + backend + "/weights.gguf");
+            Check(Invoke("backend", "remove", backend, "--global").Code == 2 && File.Exists(backendPath), "AOT remove rejects foreign IDs");
+            Check(Invoke("backend", "remove", backend, "--base", project).Code == 3 && File.Exists(backendPath), "AOT remove preserves protection");
+            Check(Invoke("backend", "unprotect", backend, "--base", project).Code == 0, "AOT unprotect backend");
+            Check(Invoke("runtime", "remove", backend, "--base", project).Code == 0 && !File.Exists(backendPath) &&
+                File.Exists(PathOf(native)), "AOT targeted removal preserves other eligible resources");
+            Check(Invoke("clean", "--project-directory", project).Code == 3 && File.Exists(PathOf(native)), "AOT redirected input requires confirmation");
             var response = Invoke("clean", "--project-directory", project, "--yes");
             Check(response.Code == 0 && response.Text.Contains("Liberado:") && !File.Exists(PathOf(native)), "AOT confirmed cleanup");
             Check(Invoke("clean", "--project-directory", project, "--force").Code == 2, "AOT rejects force");

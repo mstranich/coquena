@@ -6,7 +6,8 @@ namespace Coquena.Projects;
 
 public sealed record CleanupItem(string ResourceId, string InstallationId, string Kind, long Bytes);
 public sealed record CleanupPlan(IReadOnlyList<CleanupItem> Items, long Bytes,
-    IReadOnlyList<ScopeStore> Stores, IReadOnlyList<ScopeSnapshot> Snapshots, IReadOnlyList<string> Diagnostics);
+    IReadOnlyList<ScopeStore> Stores, IReadOnlyList<ScopeSnapshot> Snapshots, IReadOnlyList<string> Diagnostics,
+    Guid? BackendInstallation = null);
 public sealed record CleanupResult(long FreedBytes, IReadOnlyList<string> Diagnostics);
 
 // Only inventories prove ownership. Navigation and publication records identify
@@ -15,15 +16,15 @@ public sealed class ResourceCleanup(ScopeContext context, Home home)
 {
     private const string Inventory = "local/inventory.json";
 
-    public CleanupPlan Preview()
+    public CleanupPlan Preview(Guid? backendInstallation = null)
     {
         var stores = Discover();
         return ScopeStore.Coordinated<CleanupPlan>(stores, states =>
         {
             var selected = Array.FindIndex(stores, s => s.Context.PhysicalRoot == context.PhysicalRoot);
             var diagnostics = new List<string>();
-            var items = Eligible(stores, states, selected, diagnostics);
-            return new(items, items.Sum(i => i.Bytes), stores, states, diagnostics);
+            var items = Select(Eligible(stores, states, selected, diagnostics), backendInstallation);
+            return new(items, items.Sum(i => i.Bytes), stores, states, diagnostics, backendInstallation);
         });
     }
 
@@ -42,7 +43,7 @@ public sealed class ResourceCleanup(ScopeContext context, Home home)
         // participant's callback. All writer leases remain held during deletion.
         changes[^1] = changes[^1] with { Validate = () =>
         {
-            var again = Eligible(plan.Stores.ToArray(), plan.Snapshots.ToArray(), selected);
+            var again = Select(Eligible(plan.Stores.ToArray(), plan.Snapshots.ToArray(), selected), plan.BackendInstallation);
             if (!again.SequenceEqual(plan.Items)) throw new StorageException("cleanup-conflict", "Cambió la elegibilidad o el tamaño; repita clean.");
             var resources = documents[selected].GetValueOrDefault(Inventory)?["data"]?["resources"]?.AsArray() ?? [];
             foreach (var item in plan.Items)
@@ -66,13 +67,21 @@ public sealed class ResourceCleanup(ScopeContext context, Home home)
                         diagnostics.Add(item.InstallationId + ": " + code);
                     }
                 }
-                if (errors.Count == 0) installations.Remove(installation);
+                if (errors.Count == 0)
+                {
+                    installations.Remove(installation);
+                    if (installations.Count == 0) resources.Remove(resource);
+                }
                 else installation["cleanup-diagnostics"] = errors;
             }
         }};
         ScopeStore.CommitTogether(changes);
         return new(freed, diagnostics);
     }
+
+    private static IReadOnlyList<CleanupItem> Select(List<CleanupItem> items, Guid? backendInstallation) =>
+        backendInstallation is null ? items :
+        items.Where(item => item.Kind == "backend" && Guid.Parse(item.InstallationId) == backendInstallation).ToArray();
 
     private ScopeStore[] Discover()
     {

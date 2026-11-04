@@ -96,6 +96,8 @@ carpeta no la convierte en archivo propio eliminable por limpieza.
 
 Mostrar recursos elegibles y espacio recuperable, y pedir confirmación antes de borrar.
 Borrar solo inventario propio; conservar vecinos y archivos añadidos por otros.
+Retirar del catálogo las instalaciones eliminadas y las entradas que quedan
+sin instalaciones.
 Retirada parcial mantiene diagnóstico/estado y es reintentable; no afirmar bytes
 liberados hasta que se eliminaron.
 

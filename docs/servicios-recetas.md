@@ -1,8 +1,10 @@
 # Servicios y recetas
 
 Una receta declara un servicio de inferencia, recursos y presets consumidores,
-o ambas responsabilidades. La pertenencia global se elige mediante importación;
-el YAML no impone instalar recursos en la home de quien lo recibe.
+o ambas responsabilidades. El catálogo global se administra con comandos que
+crean y modifican sus entidades. Importar una receta incorpora al catálogo la
+intención seleccionada. El YAML recibido por sí solo no instala recursos en
+la home de quien lo recibe.
 
 ## Nombres y destino
 

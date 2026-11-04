@@ -94,7 +94,7 @@ acciones por contexto para refinar pantallas y tarjetas de M4.
 | Servidor · Logs | Seguir, elegir histórico, abrir registro; pausa y scroll locales | `logs follow/list/show` |
 | Presets · Editor | Seleccionar, inspeccionar, asignar literal o vínculo, quitar override, clonar y eliminar definición | `preset list/show/set/bind/unset/clone/remove` |
 | Presets · Prueba | Publicar/retirar preset seleccionado; publicar/retirar contribución de receta desde acciones de proyecto | `preset apply/withdraw`, `up/down` |
-| Buscar modelos · Inventario | Ver, agregar archivo local, asignar referencia, descargar, refrescar y proteger o retirar instalación, con selector modelo/companion | `model [companion] list/show/add/set/download/refresh/protect/unprotect/remove` |
+| Buscar modelos · Inventario | Ver, agregar archivo local, asignar referencia, descargar y proteger o retirar instalación, con selector modelo/companion | `model [companion] list/show/add/set/download/protect/unprotect/remove` |
 | Buscar modelos · Transferencias | Ver progreso, pausar, reanudar y cancelar operación seleccionada | `download list/show/pause/resume/cancel` |
 | Proyecto · Definición | Seleccionar backend y editar definiciones YAML; consultar el impacto del restablecimiento global y confirmarlo | `backend show/set`, `param list/show/define/set/unset/remove/reset` |
 | Proyecto · Acciones | Inicializar, importar al global con selección explícita, listar u olvidar combinación | `init`, `import`, `combination list/forget` |
