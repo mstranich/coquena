@@ -1,18 +1,20 @@
 ---
-status: complete
+status: archived
 created: 2026-10-21
 priority: medium
 tags:
 - m3
 - correctivo
 created_at: 2026-10-21T23:16:24.525824600Z
-updated_at: 2026-10-22T17:08:15.382039400Z
+updated_at: 2026-11-04T19:52:46.450537100Z
 completed_at: 2026-10-22T17:08:15.382039400Z
 transitions:
 - status: in-progress
   at: 2026-10-22T16:32:57.157172900Z
 - status: complete
   at: 2026-10-22T17:08:15.382039400Z
+- status: archived
+  at: 2026-11-04T19:52:46.450537100Z
 ---
 # Descargar una cuantización explícita inequívoca sin interacción redundante
 

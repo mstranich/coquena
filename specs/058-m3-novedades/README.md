@@ -1,5 +1,5 @@
 ---
-status: complete
+status: archived
 created: 2026-10-21
 priority: medium
 tags:
@@ -7,13 +7,15 @@ tags:
 depends_on:
 - 051-m3-resoluciones-preparacion
 created_at: 2026-10-21T23:26:05.758536300Z
-updated_at: 2026-10-31T15:11:46.113834300Z
+updated_at: 2026-11-04T19:52:46.471246700Z
 completed_at: 2026-10-31T15:11:46.113834300Z
 transitions:
 - status: in-progress
   at: 2026-10-31T14:05:12.294149100Z
 - status: complete
   at: 2026-10-31T15:11:46.113834300Z
+- status: archived
+  at: 2026-11-04T19:52:46.471246700Z
 ---
 # Consultar novedades y persistir planes exactos por selección
 

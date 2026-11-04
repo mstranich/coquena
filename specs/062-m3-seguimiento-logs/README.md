@@ -1,5 +1,5 @@
 ---
-status: complete
+status: archived
 created: 2026-10-21
 priority: medium
 tags:
@@ -7,13 +7,15 @@ tags:
 depends_on:
 - 061-m3-logs-hooks
 created_at: 2026-10-21T23:26:06.166381400Z
-updated_at: 2026-11-02T17:21:27.358310100Z
+updated_at: 2026-11-04T19:52:46.477068600Z
 completed_at: 2026-11-02T17:21:27.358310100Z
 transitions:
 - status: in-progress
   at: 2026-11-02T15:36:53.259712300Z
 - status: complete
   at: 2026-11-02T17:21:27.358310100Z
+- status: archived
+  at: 2026-11-04T19:52:46.477068600Z
 ---
 # Seguir logs por identidad de servicio entre reinicios y rotación
 

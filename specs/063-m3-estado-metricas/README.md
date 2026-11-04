@@ -1,5 +1,5 @@
 ---
-status: complete
+status: archived
 created: 2026-10-21
 priority: high
 tags:
@@ -8,13 +8,15 @@ depends_on:
 - 042-unidades-legibles
 - 053-m3-servicios
 created_at: 2026-10-21T23:26:06.261807300Z
-updated_at: 2026-11-02T20:49:43.925382800Z
+updated_at: 2026-11-04T19:52:46.478514900Z
 completed_at: 2026-11-02T20:49:43.925382800Z
 transitions:
 - status: in-progress
   at: 2026-11-02T20:09:01.343380400Z
 - status: complete
   at: 2026-11-02T20:49:43.925382800Z
+- status: archived
+  at: 2026-11-04T19:52:46.478514900Z
 ---
 # Consultar servicios y hardware con métricas atribuibles y salida finita
 

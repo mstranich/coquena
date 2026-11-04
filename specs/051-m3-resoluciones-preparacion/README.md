@@ -1,5 +1,5 @@
 ---
-status: complete
+status: archived
 created: 2026-10-21
 priority: high
 tags:
@@ -9,13 +9,15 @@ depends_on:
 - 048-m3-backends
 - 050-m3-archivos-locales
 created_at: 2026-10-21T23:26:05.250489100Z
-updated_at: 2026-10-27T15:45:16.760063Z
+updated_at: 2026-11-04T19:52:46.461279500Z
 completed_at: 2026-10-27T15:45:16.760063Z
 transitions:
 - status: in-progress
   at: 2026-10-27T15:12:53.471852600Z
 - status: complete
   at: 2026-10-27T15:45:16.760063Z
+- status: archived
+  at: 2026-11-04T19:52:46.461279500Z
 ---
 # Persistir combinaciones y preparar recursos con resoluciones reproducibles
 

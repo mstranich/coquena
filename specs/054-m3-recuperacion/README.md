@@ -1,5 +1,5 @@
 ---
-status: complete
+status: archived
 created: 2026-10-21
 priority: high
 tags:
@@ -7,13 +7,15 @@ tags:
 depends_on:
 - 053-m3-servicios
 created_at: 2026-10-21T23:26:05.469823600Z
-updated_at: 2026-10-29T13:53:11.687167800Z
+updated_at: 2026-11-04T19:52:46.465537500Z
 completed_at: 2026-10-29T13:53:11.687167800Z
 transitions:
 - status: in-progress
   at: 2026-10-29T12:44:35.914616900Z
 - status: complete
   at: 2026-10-29T13:53:11.687167800Z
+- status: archived
+  at: 2026-11-04T19:52:46.465537500Z
 ---
 # Recuperar snapshots funcionales sin reinicios implícitos de consumidores
 

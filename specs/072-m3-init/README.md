@@ -1,17 +1,19 @@
 ---
-status: complete
+status: archived
 created: 2026-10-21
 priority: medium
 tags:
 - m3
 created_at: 2026-10-21T23:26:07.256314800Z
-updated_at: 2026-11-04T00:20:41.720214200Z
+updated_at: 2026-11-04T19:52:46.483270500Z
 completed_at: 2026-11-04T00:20:41.720214200Z
 transitions:
 - status: in-progress
   at: 2026-11-04T00:17:39.343342100Z
 - status: complete
   at: 2026-11-04T00:20:41.720214200Z
+- status: archived
+  at: 2026-11-04T19:52:46.483270500Z
 ---
 # Inicializar una receta mínima sin fabricar estado de ejecución
 

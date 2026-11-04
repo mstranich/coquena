@@ -1,5 +1,5 @@
 ---
-status: complete
+status: archived
 created: 2026-10-21
 priority: high
 tags:
@@ -8,13 +8,15 @@ depends_on:
 - 042-unidades-legibles
 - 044-m3-contextos-persistencia
 created_at: 2026-10-21T23:26:04.956876600Z
-updated_at: 2026-10-23T14:57:22.562562800Z
+updated_at: 2026-11-04T19:52:46.455985300Z
 completed_at: 2026-10-23T14:57:22.562562800Z
 transitions:
 - status: in-progress
   at: 2026-10-23T13:47:47.203608400Z
 - status: complete
   at: 2026-10-23T14:57:22.562562800Z
+- status: archived
+  at: 2026-11-04T19:52:46.455985300Z
 ---
 # Aislar transferencias y publicación física por ámbito
 

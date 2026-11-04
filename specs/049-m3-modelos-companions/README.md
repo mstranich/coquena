@@ -1,5 +1,5 @@
 ---
-status: complete
+status: archived
 created: 2026-10-21
 priority: high
 tags:
@@ -8,13 +8,15 @@ depends_on:
 - 045-m3-lectura-recetas
 - 047-m3-transferencias
 created_at: 2026-10-21T23:26:05.100040400Z
-updated_at: 2026-10-27T02:06:59.292099400Z
+updated_at: 2026-11-04T19:52:46.458677200Z
 completed_at: 2026-10-27T02:06:59.292099400Z
 transitions:
 - status: in-progress
   at: 2026-10-27T00:41:40.212678400Z
 - status: complete
   at: 2026-10-27T02:06:59.292099400Z
+- status: archived
+  at: 2026-11-04T19:52:46.458677200Z
 ---
 # Resolver inventario y adquisición de modelos y companions por ámbito
 

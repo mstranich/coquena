@@ -1,5 +1,5 @@
 ---
-status: complete
+status: archived
 created: 2026-10-21
 priority: high
 tags:
@@ -8,13 +8,15 @@ depends_on:
 - 051-m3-resoluciones-preparacion
 - 052-m3-evidencia-router
 created_at: 2026-10-21T23:26:05.397992100Z
-updated_at: 2026-10-28T16:15:31.767331200Z
+updated_at: 2026-11-04T19:52:46.464171100Z
 completed_at: 2026-10-28T16:15:31.767331200Z
 transitions:
 - status: in-progress
   at: 2026-10-28T13:29:46.884496200Z
 - status: complete
   at: 2026-10-28T16:15:31.767331200Z
+- status: archived
+  at: 2026-11-04T19:52:46.464171100Z
 ---
 # Registrar servicios y operar su proceso con identidad segura
 

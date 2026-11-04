@@ -1,5 +1,5 @@
 ---
-status: complete
+status: archived
 created: 2026-10-21
 priority: medium
 tags:
@@ -8,13 +8,15 @@ depends_on:
 - 055-m3-publicacion-presets
 - 059-m3-actualizacion
 created_at: 2026-10-21T23:26:05.923210500Z
-updated_at: 2026-11-02T13:41:54.943000500Z
+updated_at: 2026-11-04T19:52:46.474158400Z
 completed_at: 2026-11-02T13:41:54.943000500Z
 transitions:
 - status: in-progress
   at: 2026-11-02T13:13:29.541403900Z
 - status: complete
   at: 2026-11-02T13:41:54.943000500Z
+- status: archived
+  at: 2026-11-04T19:52:46.474158400Z
 ---
 # Liberar recursos sólo con propiedad y referencias comprobadas
 

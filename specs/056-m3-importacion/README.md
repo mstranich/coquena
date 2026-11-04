@@ -1,5 +1,5 @@
 ---
-status: complete
+status: archived
 created: 2026-10-21
 priority: high
 tags:
@@ -7,13 +7,15 @@ tags:
 depends_on:
 - 055-m3-publicacion-presets
 created_at: 2026-10-21T23:26:05.613396Z
-updated_at: 2026-10-30T22:01:59.616478Z
+updated_at: 2026-11-04T19:52:46.468401700Z
 completed_at: 2026-10-30T22:01:59.616478Z
 transitions:
 - status: in-progress
   at: 2026-10-30T20:18:05.525158700Z
 - status: complete
   at: 2026-10-30T22:01:59.616478Z
+- status: archived
+  at: 2026-11-04T19:52:46.468401700Z
 ---
 # Importar recetas completas o selectivas con reemplazo explícito
 

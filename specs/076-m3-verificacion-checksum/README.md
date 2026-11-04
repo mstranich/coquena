@@ -1,11 +1,11 @@
 ---
-status: complete
+status: archived
 created: 2026-11-03
 priority: medium
 tags:
 - m3
 created_at: 2026-11-03T12:37:35.415541100Z
-updated_at: 2026-11-03T13:31:34.234751100Z
+updated_at: 2026-11-04T19:52:46.489868900Z
 completed_at: 2026-11-03T13:23:22.750040100Z
 transitions:
 - status: in-progress
@@ -20,6 +20,8 @@ transitions:
   at: 2026-11-03T13:29:13.372423500Z
 - status: complete
   at: 2026-11-03T13:31:34.234751100Z
+- status: archived
+  at: 2026-11-04T19:52:46.489868900Z
 ---
 # Auditoría rápida y verificación de checksum opcional en verify
 

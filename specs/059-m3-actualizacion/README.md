@@ -1,5 +1,5 @@
 ---
-status: complete
+status: archived
 created: 2026-10-21
 priority: medium
 tags:
@@ -8,13 +8,15 @@ depends_on:
 - 057-m3-verificacion
 - 058-m3-novedades
 created_at: 2026-10-21T23:26:05.844068300Z
-updated_at: 2026-11-02T13:11:19.371670Z
+updated_at: 2026-11-04T19:52:46.472704400Z
 completed_at: 2026-11-02T13:11:19.371670Z
 transitions:
 - status: in-progress
   at: 2026-11-02T11:10:51.291618500Z
 - status: complete
   at: 2026-11-02T13:11:19.371670Z
+- status: archived
+  at: 2026-11-04T19:52:46.472704400Z
 ---
 # Aplicar planes selectivos con publicación conjunta recuperable
 

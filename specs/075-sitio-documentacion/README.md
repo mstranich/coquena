@@ -1,18 +1,20 @@
 ---
-status: complete
+status: archived
 created: 2026-10-28
 priority: medium
 tags:
 - docs
 - sitio
 created_at: 2026-10-28T11:09:03.576917700Z
-updated_at: 2026-10-30T15:24:09.248761400Z
+updated_at: 2026-11-04T19:52:46.488260300Z
 completed_at: 2026-10-30T15:24:09.248761400Z
 transitions:
 - status: in-progress
   at: 2026-10-28T11:25:28.639304Z
 - status: complete
   at: 2026-10-30T15:24:09.248761400Z
+- status: archived
+  at: 2026-11-04T19:52:46.488260300Z
 ---
 # Publicar la documentación funcional como sitio Zensical en GitHub Pages
 

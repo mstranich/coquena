@@ -1,5 +1,5 @@
 ---
-status: complete
+status: archived
 created: 2026-10-21
 priority: high
 tags:
@@ -7,13 +7,15 @@ tags:
 depends_on:
 - 073-m3-integracion-cli
 created_at: 2026-10-21T23:26:07.450587100Z
-updated_at: 2026-11-04T19:37:12.825561600Z
+updated_at: 2026-11-04T19:52:46.486510900Z
 completed_at: 2026-11-04T19:37:12.825561600Z
 transitions:
 - status: in-progress
   at: 2026-11-04T02:10:53.057144300Z
 - status: complete
   at: 2026-11-04T19:37:12.825561600Z
+- status: archived
+  at: 2026-11-04T19:52:46.486510900Z
 ---
 # Acreditar y preparar el paquete integrado Native AOT de M3
 
@@ -147,12 +149,15 @@ publicado y Backend el llama-server local compatible acordado. Cada directorio d
 fixture debe ser nuevo. Las demás suites de la tabla corresponden a los selectores
 homónimos de Program.cs, con directorio adicional en cleanup y recipe-upgrade.
 
-Paquete preparado `coquena-0.3.0-win-x64.zip`, 6 235 061 bytes.
-SHA-256 ZIP `7fbd7dfbd657a6cac61fcc4200ba27f030bd447f7c800b438bd0db79f98d3056`.
-SHA-256 ejecutable extraído `dc65fd7fd4db3d35d609374c18d74bb2dd7ad1a9f6ddb1d8d821540fd2f3fed2`.
+Paquete preparado `coquena-0.3.0-win-x64.zip`, 6 239 210 bytes.
+SHA-256 ZIP `d1082dc418a9228a1c3c760d09684da888b9804ef8d9993b5e6310c5080a9046`.
+SHA-256 ejecutable extraído `9fb41856d75574fda0c2949c210403bd4e4e48a16ed95ce9bddb64e46ae70394`.
 Tras promover Version a 0.3.0 se repitió la publicación Native AOT y la extracción.
 Los metadatos PE informaron FileVersion 0.3.0.0 y ProductVersion 0.3.0 con
-el sufijo de revisión Git. Config e init se ejecutaron con éxito desde ese paquete.
+el sufijo de revisión Git. Para preparar el release se recompiló desde
+`64eb76b12a96ddbba5b307505aa2885c56fe532c`, con las fuentes runtime ya commiteadas.
+El ZIP incluye ejecutable, README y LICENSE, con SHA256SUMS.txt separado.
+Config e init se ejecutaron con éxito desde ese paquete extraído.
 Las ubicaciones reales se conservan en el chat. El ZIP final sustituye los
 paquetes preliminares de esta ejecución.
 
@@ -172,5 +177,7 @@ de ejecución, sin motivo detallado. Los procesos propios ya terminaron y el
 paquete de revisión está fuera de ese directorio. La limpieza sigue pendiente.
 
 Todos los checks de aceptación están completos y la revisión fue aprobada.
-Versión del proyecto promovida a 0.3.0 por instrucción del usuario. Commit
-pendiente. No se crearon registros de hallazgos ni tareas adicionales.
+Versión del proyecto promovida a 0.3.0 por instrucción del usuario. Entrega
+registrada en `64eb76b`. Archivado autorizado junto con la preparación del
+release, cuyo texto requiere aprobación antes de publicarse.
+No se crearon registros de hallazgos ni tareas adicionales.

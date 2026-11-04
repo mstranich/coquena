@@ -1,5 +1,5 @@
 ---
-status: complete
+status: archived
 created: 2026-10-21
 priority: medium
 tags:
@@ -9,13 +9,15 @@ depends_on:
 - 048-m3-backends
 - 049-m3-modelos-companions
 created_at: 2026-10-21T23:26:07.173365300Z
-updated_at: 2026-11-03T22:05:52.135984400Z
+updated_at: 2026-11-04T19:52:46.481688800Z
 completed_at: 2026-11-03T22:05:52.135984400Z
 transitions:
 - status: in-progress
   at: 2026-11-03T21:16:07.183989200Z
 - status: complete
   at: 2026-11-03T22:05:52.135984400Z
+- status: archived
+  at: 2026-11-04T19:52:46.481688800Z
 ---
 # Persistir cambios puntuales de entidades en el YAML seleccionado
 

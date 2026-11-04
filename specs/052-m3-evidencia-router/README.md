@@ -1,17 +1,19 @@
 ---
-status: complete
+status: archived
 created: 2026-10-21
 priority: high
 tags:
 - m3
 created_at: 2026-10-21T23:26:05.322040800Z
-updated_at: 2026-10-27T21:26:52.969458400Z
+updated_at: 2026-11-04T19:52:46.462794900Z
 completed_at: 2026-10-27T21:26:52.969458400Z
 transitions:
 - status: in-progress
   at: 2026-10-27T15:47:03.446262500Z
 - status: complete
   at: 2026-10-27T21:26:52.969458400Z
+- status: archived
+  at: 2026-11-04T19:52:46.462794900Z
 ---
 # Acreditar capacidades del build oficial para presets y observación
 

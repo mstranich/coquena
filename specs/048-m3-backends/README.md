@@ -1,5 +1,5 @@
 ---
-status: complete
+status: archived
 created: 2026-10-21
 priority: high
 tags:
@@ -8,13 +8,15 @@ depends_on:
 - 045-m3-lectura-recetas
 - 047-m3-transferencias
 created_at: 2026-10-21T23:26:05.030887800Z
-updated_at: 2026-10-23T16:53:28.938176400Z
+updated_at: 2026-11-04T19:52:46.457448700Z
 completed_at: 2026-10-23T16:53:28.938176400Z
 transitions:
 - status: in-progress
   at: 2026-10-23T16:02:53.194833200Z
 - status: complete
   at: 2026-10-23T16:53:28.938176400Z
+- status: archived
+  at: 2026-11-04T19:52:46.457448700Z
 ---
 # Resolver backends de servicios globales y propios
 

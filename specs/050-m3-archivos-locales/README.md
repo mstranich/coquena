@@ -1,5 +1,5 @@
 ---
-status: complete
+status: archived
 created: 2026-10-21
 priority: high
 tags:
@@ -7,13 +7,15 @@ tags:
 depends_on:
 - 049-m3-modelos-companions
 created_at: 2026-10-21T23:26:05.178306100Z
-updated_at: 2026-10-27T14:54:15.389872400Z
+updated_at: 2026-11-04T19:52:46.459989800Z
 completed_at: 2026-10-27T14:54:15.389872400Z
 transitions:
 - status: in-progress
   at: 2026-10-27T14:15:08.701290500Z
 - status: complete
   at: 2026-10-27T14:54:15.389872400Z
+- status: archived
+  at: 2026-11-04T19:52:46.459989800Z
 ---
 # Reutilizar pesos locales y resolver referencias tipadas sin redescarga
 

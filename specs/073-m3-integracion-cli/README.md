@@ -1,5 +1,5 @@
 ---
-status: complete
+status: archived
 created: 2026-10-21
 priority: medium
 tags:
@@ -14,13 +14,15 @@ depends_on:
 - 071-m3-edicion-cli
 - 072-m3-init
 created_at: 2026-10-21T23:26:07.360340300Z
-updated_at: 2026-11-04T02:08:26.869914600Z
+updated_at: 2026-11-04T19:52:46.484825100Z
 completed_at: 2026-11-04T02:08:26.869914600Z
 transitions:
 - status: in-progress
   at: 2026-11-04T00:27:43.759336900Z
 - status: complete
   at: 2026-11-04T02:08:26.869914600Z
+- status: archived
+  at: 2026-11-04T19:52:46.484825100Z
 ---
 # Completar cobertura y ayuda de la CLI del milestone
 

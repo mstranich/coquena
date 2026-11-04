@@ -1,5 +1,5 @@
 ---
-status: complete
+status: archived
 created: 2026-10-21
 priority: medium
 tags:
@@ -7,13 +7,15 @@ tags:
 depends_on:
 - 051-m3-resoluciones-preparacion
 created_at: 2026-10-21T23:26:05.686014800Z
-updated_at: 2026-10-31T13:54:34.269588600Z
+updated_at: 2026-11-04T19:52:46.469834900Z
 completed_at: 2026-10-31T13:54:34.269588600Z
 transitions:
 - status: in-progress
   at: 2026-10-31T13:28:42.194749400Z
 - status: complete
   at: 2026-10-31T13:54:34.269588600Z
+- status: archived
+  at: 2026-11-04T19:52:46.469834900Z
 ---
 # Verificar integridad y mantener diagnósticos locales por recurso
 

@@ -1,5 +1,5 @@
 ---
-status: complete
+status: archived
 created: 2026-10-21
 priority: high
 tags:
@@ -7,13 +7,15 @@ tags:
 depends_on:
 - 063-m3-estado-metricas
 created_at: 2026-10-21T23:26:06.353833100Z
-updated_at: 2026-11-02T21:52:05.502269500Z
+updated_at: 2026-11-04T19:52:46.480060900Z
 completed_at: 2026-11-02T21:52:05.502269500Z
 transitions:
 - status: in-progress
   at: 2026-11-02T20:54:19.332198400Z
 - status: complete
   at: 2026-11-02T21:52:05.502269500Z
+- status: archived
+  at: 2026-11-04T19:52:46.480060900Z
 ---
 # Observar con ps -w o --watch y reconciliar eventos
 

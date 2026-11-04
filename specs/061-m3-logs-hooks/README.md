@@ -1,5 +1,5 @@
 ---
-status: complete
+status: archived
 created: 2026-10-21
 priority: medium
 tags:
@@ -7,13 +7,15 @@ tags:
 depends_on:
 - 054-m3-recuperacion
 created_at: 2026-10-21T23:26:06.006135900Z
-updated_at: 2026-11-02T15:29:40.951578500Z
+updated_at: 2026-11-04T19:52:46.475620600Z
 completed_at: 2026-11-02T15:29:40.951578500Z
 transitions:
 - status: in-progress
   at: 2026-11-02T15:03:02.669244200Z
 - status: complete
   at: 2026-11-02T15:29:40.951578500Z
+- status: archived
+  at: 2026-11-04T19:52:46.475620600Z
 ---
 # Configurar logs y notificar fallos de inicio tras recuperación
 

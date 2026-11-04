@@ -1,17 +1,19 @@
 ---
-status: complete
+status: archived
 created: 2026-10-21
 priority: high
 tags:
 - m3
 created_at: 2026-10-21T23:26:04.646221500Z
-updated_at: 2026-10-22T21:26:22.085117300Z
+updated_at: 2026-11-04T19:52:46.451955Z
 completed_at: 2026-10-22T21:26:22.085117300Z
 transitions:
 - status: in-progress
   at: 2026-10-22T17:20:19.237257800Z
 - status: complete
   at: 2026-10-22T21:26:22.085117300Z
+- status: archived
+  at: 2026-11-04T19:52:46.451955Z
 ---
 # Separar ámbitos y persistir identidad local de recetas y servicios
 

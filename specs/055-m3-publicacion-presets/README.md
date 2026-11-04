@@ -1,5 +1,5 @@
 ---
-status: complete
+status: archived
 created: 2026-10-21
 priority: high
 tags:
@@ -7,13 +7,15 @@ tags:
 depends_on:
 - 054-m3-recuperacion
 created_at: 2026-10-21T23:26:05.543274100Z
-updated_at: 2026-10-30T14:17:14.901196600Z
+updated_at: 2026-11-04T19:52:46.466977Z
 completed_at: 2026-10-30T14:17:14.901196600Z
 transitions:
 - status: in-progress
   at: 2026-10-30T13:06:16.075557Z
 - status: complete
   at: 2026-10-30T14:17:14.901196600Z
+- status: archived
+  at: 2026-11-04T19:52:46.466977Z
 ---
 # Publicar y retirar presets mediante el INI del servicio target
 

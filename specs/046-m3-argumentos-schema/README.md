@@ -1,5 +1,5 @@
 ---
-status: complete
+status: archived
 created: 2026-10-21
 priority: high
 tags:
@@ -7,13 +7,15 @@ tags:
 depends_on:
 - 045-m3-lectura-recetas
 created_at: 2026-10-21T23:26:04.830589Z
-updated_at: 2026-10-23T13:31:20.761943900Z
+updated_at: 2026-11-04T19:52:46.454596400Z
 completed_at: 2026-10-23T13:31:20.761943900Z
 transitions:
 - status: in-progress
   at: 2026-10-23T02:52:27.046476600Z
 - status: complete
   at: 2026-10-23T13:31:20.761943900Z
+- status: archived
+  at: 2026-11-04T19:52:46.454596400Z
 ---
 # Validar argumentos y emitir CLI e INI con schema optativo
 

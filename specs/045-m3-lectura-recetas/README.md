@@ -1,5 +1,5 @@
 ---
-status: complete
+status: archived
 created: 2026-10-21
 priority: high
 tags:
@@ -7,13 +7,15 @@ tags:
 depends_on:
 - 044-m3-contextos-persistencia
 created_at: 2026-10-21T23:26:04.736157Z
-updated_at: 2026-10-22T23:39:39.196900900Z
+updated_at: 2026-11-04T19:52:46.453269Z
 completed_at: 2026-10-22T23:39:39.196900900Z
 transitions:
 - status: in-progress
   at: 2026-10-22T21:31:06.973780800Z
 - status: complete
   at: 2026-10-22T23:39:39.196900900Z
+- status: archived
+  at: 2026-11-04T19:52:46.453269Z
 ---
 # Leer y componer recetas YAML y variables desde archivos manuales
 
