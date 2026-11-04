@@ -169,9 +169,16 @@ presets:
       threads: 8
 ```
 
-Run `coquena up --start-service` and select `my-lab/short-context` or
-`my-lab/long-context` in your client. Coquena prepares
-the remote model from [Hugging Face](https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF).
+From PowerShell in the folder containing `coquena.yaml`, publish the presets
+and send a request to the shared server's default endpoint.
+
+```powershell
+coquena up --start-service
+Invoke-RestMethod -Uri 'http://127.0.0.1:9931/v1/chat/completions' -Method Post -ContentType 'application/json' -Body '{"model":"my-lab/short-context","messages":[{"role":"user","content":"Hello from my AI lab!"}],"max_tokens":64}'
+```
+
+Select `my-lab/long-context` in the request to try the other profile.
+Coquena prepares the remote model from [Hugging Face](https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF).
 To add `my-lab/local-experiment`, provide the local file, change its `enable` field
 from `false` to `true`, and run `coquena up` again.
 Edit the settings and run `coquena up` again to apply another iteration.
