@@ -174,7 +174,22 @@ and send a request to the shared server's default endpoint.
 
 ```powershell
 coquena up --start-service
-Invoke-RestMethod -Uri 'http://127.0.0.1:9931/v1/chat/completions' -Method Post -ContentType 'application/json' -Body '{"model":"my-lab/short-context","messages":[{"role":"user","content":"Hello from my AI lab!"}],"max_tokens":64}'
+Invoke-RestMethod `
+  -Uri 'http://127.0.0.1:9931/v1/chat/completions' `
+  -Method Post `
+  -ContentType 'application/json' `
+  -Body @'
+{
+  "model": "my-lab/short-context",
+  "messages": [
+    {
+      "role": "user",
+      "content": "Hello from my AI lab!"
+    }
+  ],
+  "max_tokens": 64
+}
+'@
 ```
 
 Select `my-lab/long-context` in the request to try the other profile.

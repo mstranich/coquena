@@ -149,8 +149,8 @@ publicado y Backend el llama-server local compatible acordado. Cada directorio d
 fixture debe ser nuevo. Las demás suites de la tabla corresponden a los selectores
 homónimos de Program.cs, con directorio adicional en cleanup y recipe-upgrade.
 
-Paquete preparado `coquena-0.3.0-win-x64.zip`, 6 240 159 bytes.
-SHA-256 ZIP `1c9d77ec91bde6cc3dd02c797fc5c467fbc05677a9a204dc5dd05678962e72d4`.
+Paquete preparado `coquena-0.3.0-win-x64.zip`, 6 240 173 bytes.
+SHA-256 ZIP `551d641325c5518ced0634e6e4a38b40597af0c3871046bd4dcc7dfbb3b814df`.
 SHA-256 ejecutable extraído `9fb41856d75574fda0c2949c210403bd4e4e48a16ed95ce9bddb64e46ae70394`.
 Tras promover Version a 0.3.0 se repitió la publicación Native AOT y la extracción.
 Los metadatos PE informaron FileVersion 0.3.0.0 y ProductVersion 0.3.0 con
