@@ -142,7 +142,7 @@ internal static class ObservationTests
                     })!;
                     var stdout = process.StandardOutput.ReadToEndAsync(); var stderr = process.StandardError.ReadToEndAsync();
                     await process.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(25));
-                    Check(process.ExitCode == 0 && (await stdout).Contains(instance) && (await stdout).Contains("fixture"), "published CLI observes selected scoped service and terminates: " + await stderr);
+                    Check(process.ExitCode == 0 && (await stdout).Contains("Servicio fixture | alive | HTTP 200"), "published CLI observes selected scoped service and terminates: " + await stderr);
                     var general = await Product("ps");
                     Check(general.Contains("global-fixture (default)") && general.Contains("Servicio fixture |") && general.Contains("Servicio other |"),
                         "general observation includes global and known project services, including stopped");

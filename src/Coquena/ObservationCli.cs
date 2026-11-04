@@ -63,7 +63,6 @@ public static class ObservationCli
                 foreach (var target in targets)
                 {
                     var snapshot = new ServiceObservation(target.Store).CaptureAsync(target.Service, target.Selection, cancellation.Token).GetAwaiter().GetResult();
-                    if (!selected && snapshot.ProcessState == "stopped") continue;
                     shown = true;
                     output.WriteLine($"Servicio {snapshot.Name}{(snapshot.IsDefault ? " (default)" : "")} | {snapshot.ProcessState} | {snapshot.Health}");
                     var metrics = snapshot.Metrics.Where(m => m.Value is not null && m.Name is "cpu.utilization" or "ram.private-commit").Select(CompactSample).ToArray();
@@ -72,7 +71,7 @@ public static class ObservationCli
                         output.WriteLine($"  {entry.Name} | {entry.State switch { "loaded" => "cargado", "unloaded" => "publicado, sin cargar", _ => entry.State }}");
                     if (snapshot.Entries.Count == 0 && snapshot.ApiState == "available") output.WriteLine("  Sin presets publicados.");
                 }
-                if (!shown) output.WriteLine("Sin servicios activos.");
+                if (!shown) output.WriteLine("Sin servicios conocidos en la selección.");
                 void RefreshTargets()
                 {
                     targets.Clear(); discovered.Clear();

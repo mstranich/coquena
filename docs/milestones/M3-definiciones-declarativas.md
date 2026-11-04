@@ -1,6 +1,6 @@
 # M3 — Recetas YAML, servicios globales y proyectos
 
-**Estado:** en implementación, comenzando por la infraestructura de contextos y persistencia. **Depende de:** [M2](M2-gestion-completa.md).
+**Estado:** aceptado el 4 de noviembre de 2026. **Depende de:** [M2](M2-gestion-completa.md).
 
 ## Objetivo
 
@@ -52,7 +52,7 @@ No se adoptan dependencias sin comprobar AOT.
 
 ## Secuencia prioritaria
 
-El cierre comprende 071 (edición YAML), 072 (init), 073 (integración CLI) y 074 (aceptación Native AOT). La Terminal UI y la correlación de actividad se entregan en [M4](M4-experiencia-completa.md).
+El cierre comprende 071 (edición YAML), 072 (init), 073 (recorrido imperativo del catálogo global) y 074 (aceptación de recetas, catálogo local e importación en Native AOT). La Terminal UI y la correlación de actividad se entregan en [M4](M4-experiencia-completa.md).
 
 ## Entregas
 
@@ -86,8 +86,8 @@ Las tarjetas 041–043 se conservan; la tabla recoge las entregas de M3. Las dep
 | [064](../../specs/064-m3-observacion-continua/README.md) | Observar con ps -w o --watch y reconciliar eventos | 063 |
 | [071](../../specs/071-m3-edicion-cli/README.md) | Persistir cambios puntuales de entidades en el YAML seleccionado | 046, 048, 049 |
 | [072](../../specs/072-m3-init/README.md) | Inicializar una receta mínima sin fabricar estado de ejecución | — |
-| [073](../../specs/073-m3-integracion-cli/README.md) | Completar cobertura y ayuda de la CLI del milestone | 041, 043, 056, 060, 062, 064, 071, 072 |
-| [074](../../specs/074-m3-aceptacion/README.md) | Acreditar y preparar el paquete integrado Native AOT de M3 | 073 |
+| [073](../../specs/073-m3-integracion-cli/README.md) | Acreditar el recorrido imperativo y la ayuda del catálogo global | 041, 043, 056, 060, 062, 064, 071, 072 |
+| [074](../../specs/074-m3-aceptacion/README.md) | Acreditar el catálogo de proyecto, las recetas YAML y su importación desde el paquete Native AOT | 073 |
 
 ## Aceptación y evidencia
 

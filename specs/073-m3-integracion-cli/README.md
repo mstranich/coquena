@@ -26,7 +26,10 @@ transitions:
 
 ## Objetivo
 
-Acreditar coherencia de las familias CLI entregadas por M3, sin convertir la auditoría en implementación de dominios pendientes.
+Acreditar el recorrido imperativo del catálogo global y su ayuda en la CLI de
+M3. La evidencia previa de integración de la CLI se conserva para revisión.
+La composición y operación de YAML en el catálogo local y la importación de
+recetas se evalúan en la [074](../074-m3-aceptacion/README.md).
 
 ## Fuente de verdad
 

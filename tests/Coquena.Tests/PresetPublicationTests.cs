@@ -124,8 +124,9 @@ internal static class PresetPublicationTests
                 var overlay = Path.Combine(cliFolder, "coquena.local.yaml");
                 File.WriteAllText(overlay, "presets:\n  first:\n    enable: false\n  second:\n    enable: true\n");
                 decision.AllowConfirm = false;
-                Cli(130, "up", "-f", "coquena.yaml", "-f", "coquena.local.yaml");
-                if (!(await router.ObserveAsync(default)).Any(p => p!["id"]!.GetValue<string>() == "cli/first")) throw new Exception("Cancelar desde CLI alteró la contribución.");
+                var confirmations = decision.Confirmations;
+                Cli(0, "up", "-f", "coquena.yaml", "-f", "coquena.local.yaml");
+                if (decision.Confirmations != confirmations) throw new Exception("Publicar entradas ociosas pidió confirmación.");
                 decision.AllowConfirm = true;
                 Cli(0, "up", "-f", "coquena.yaml", "-f", "coquena.local.yaml");
                 catalog = await router.ObserveAsync(default);
@@ -147,7 +148,7 @@ internal static class PresetPublicationTests
                 var shifted = cliFolder + "-moved"; Directory.Move(cliFolder, shifted); cliFolder = shifted;
                 Cli(0, "down");
                 if ((await router.ObserveAsync(default)).Any(p => p!["id"]!.GetValue<string>().StartsWith("renamed/"))) throw new Exception("Down tras traslado perdió identidad.");
-                if (decision.Starts != 0 || decision.Confirmations < 6) throw new Exception("Contrato de decisiones incorrecto.");
+                if (decision.Starts != 0 || decision.Confirmations != 0) throw new Exception("Un router ocioso pidió autorización de inicio o publicación.");
                 var selfFolder = Path.Combine(folder, "self-project"); Directory.CreateDirectory(selfFolder);
                 File.Copy(weights.Replace("cli-project", "cli-project-moved"), Path.Combine(selfFolder, "fixture.gguf"));
                 using var selfPortProbe = new System.Net.Sockets.TcpListener(System.Net.IPAddress.Loopback, 0);
@@ -160,12 +161,15 @@ internal static class PresetPublicationTests
                     throw new Exception("Up no pidió autorización para destino detenido.");
                 var ownStore = new ScopeStore(ScopeContext.Project(selfYaml));
                 var ownService = new RecipeRegistry(ownStore).FindProjectService([selfYaml]);
+                var ownIni = new PresetPublication(ownStore, ownStore, ownService.ServiceId).IniPath.Replace('\\', '/');
+                File.WriteAllText(selfYaml, File.ReadAllText(selfYaml).Replace($"      port: {selfPort}\n",
+                    $"      port: {selfPort}\n      models-preset: '{ownIni}'\n"));
                 var ownLifecycle = new ScopedServiceProcess(ownStore);
                 try
                 {
                     ownDecision.AllowStart = true;
                     var ownResult = PublicationCli.Run(["up", "--start-service", "--private", "--base", selfFolder], ownOutput, ownError, ownDecision);
-                    if (ownResult != 0 || ownDecision.Starts != 1 || ownDecision.Confirmations != 1) throw new Exception($"Up --start-service: {ownResult}; {ownError}");
+                    if (ownResult != 0 || ownDecision.Starts != 1 || ownDecision.Confirmations != 0) throw new Exception($"Up --start-service: {ownResult}; {ownError}");
                     var firstInstance = ownStore.Read().Documents.Values.Single(d => d["kind"]!.GetValue<string>() == "active")["data"]!["instance-id"]!.GetValue<string>();
                     if (PublicationCli.Run(["up", "--start-service", "--private", "--base", selfFolder], ownOutput, ownError, ownDecision) != 0 ||
                         firstInstance != ownStore.Read().Documents.Values.Single(d => d["kind"]!.GetValue<string>() == "active")["data"]!["instance-id"]!.GetValue<string>())

@@ -42,6 +42,11 @@ internal static class RecipeImportRuntimeTests
         Check(await Product("import", yaml, "--as-default") == 0, "Native AOT product imports complete recipe");
         Check(!store.Read().Documents.Keys.Any(p => p.EndsWith("active.json", StringComparison.Ordinal)), "native import does not start backend");
         var serviceId = new RecipeRegistry(store).ResolveGlobalService("default");
+        var ini = new PresetPublication(store, store, serviceId).IniPath.Replace('\\', '/');
+        content = content.Replace($"      port: {port}\n", $"      port: {port}\n      models-preset: '{ini}'\n");
+        File.WriteAllText(yaml, content);
+        Check(await Product("import", yaml, "--select", "service", "--replace", "service:imported") == 0,
+            "external router receives an explicit INI argument without assuming build capabilities");
         var started = false;
         try
         {

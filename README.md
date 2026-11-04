@@ -24,83 +24,103 @@ The name brings that image to llama.cpp: a guardian that looks after your
 their environment ready for work. Read more about the legend in
 [this Perfil article (in Spanish)](https://www.perfil.com/noticias/cultura/el-coquena-la-leyenda-del-guardian-invisible-de-la-fauna-andina-y-las-leyes-del-cerro-a35.phtml).
 
-## Current version: 0.2.1
+## Current version: 0.3.0
 
-Version 0.2.1 includes catalog management, resource updates, external resource
-registration, companion management, preset cloning, and resource removal.
-It also fixes download contention, publication recovery, and MTP draft selection.
-The current target is
-**Windows x64**, with a Native AOT executable that **does not require .NET to be installed**.
+Coquena 0.3.0 brings shareable YAML recipes to your local AI lab. Define a shared
+llama.cpp service, give each project its own model presets, and apply changes
+while the router keeps running. A project can also run its own official or
+experimental backend alongside the shared service.
 
-- Discovery and installation of official CPU, CUDA, and Vulkan backends.
-- Selection and download of GGUF models from public Hugging Face repositories,
-  with integrity checks and validation of models split across multiple shards.
-- Downloads that can be paused and resumed.
-- Settings, presets, and server configuration for Router Mode.
-- Foreground or background execution, stopping, restarting, metrics, and logs.
+The current target is **Windows x64**, with a Native AOT executable that
+**does not require .NET to be installed**.
 
-The project will add features through successive milestones and releases.
-Linux and macOS support will be addressed after the initial features are complete.
-The 0.x series is under development and may introduce changes to commands or data
-formats; read the release notes before upgrading.
+- Write or receive a recipe and run it directly. Initialization is optional.
+- Combine YAML layers for services, models, presets, and experimental arguments.
+- Publish and withdraw project presets without restarting a compatible router.
+- Keep backend versions, model resources, and resolved selections scoped to each project.
+- Import recipes into the global catalog and reuse one service across projects.
+- Inspect services and logs, verify resources, and apply protected updates and cleanup.
+
+The 0.x series may introduce changes to commands or data formats. Read the release
+notes before upgrading.
 
 ## Quick start
 
-Published packages are hosted on
-[GitHub Releases](https://github.com/mstranich/coquena/releases). Download the
-Windows x64 package, extract it, and open PowerShell in that folder. Models and
-llama.cpp binaries are downloaded separately; disk space and memory requirements
-depend on your selections.
+Download and extract the Windows x64 ZIP from
+[GitHub Releases](https://github.com/mstranich/coquena/releases). Add the extracted
+folder to PATH or replace `coquena` below with the full path to `coquena.exe`.
+Backends and model weights are separate downloads and retain their own licenses.
 
-```powershell
-.\coquena.exe --help
-.\coquena.exe system probe
-.\coquena.exe backend remote
-.\coquena.exe backend install
+Save this as `service.yaml` to define an official CPU service for the lab.
+
+```yaml
+name: home-lab
+service:
+  backend:
+    version: latest
+    variant: cpu
 ```
 
-Installing without specifying a family selects an official backend compatible
-with your hardware. You can also explicitly choose `cpu`, `vulkan`, or a variant
-such as `cuda@13`. The first successfully installed backend becomes the default.
-
-To download a model, replace `user/repository` with a public Hugging Face
-repository containing GGUF models suitable for your machine:
+Import it and start the service in the background.
 
 ```powershell
-.\coquena.exe model download user/repository
-.\coquena.exe model list
+coquena import service.yaml --as-default
+coquena service default start -d
 ```
 
-The menu lets you read the model's documentation and choose what to download.
-Ctrl+C pauses a transfer and displays the GUID you can use to resume it:
+In a project directory, place a compatible GGUF model at `weights/model.gguf`
+and save this as `coquena.yaml`.
+
+```yaml
+name: ai-lab
+target: global
+models:
+  local:
+    files: [./weights/model.gguf]
+presets:
+  chat:
+    args:
+      model: model://local
+      ctx-size: 4096
+```
+
+Publish the project's preset to the shared service.
 
 ```powershell
-.\coquena.exe download resume <guid>
+coquena up
+coquena ps
 ```
 
-To create a preset and expose it through the initial `default` server, replace
-`user/repository:quantization` with the exact name shown by `model list`:
+With the default port available, point your client at `http://127.0.0.1:9931`
+and choose `ai-lab/chat`. llama.cpp loads the model when a request needs it.
+Other projects can publish their own presets to the same service.
+
+Edit the YAML or use the CLI, then apply the new definition.
 
 ```powershell
-.\coquena.exe preset create user/repository:quantization my-model
-.\coquena.exe preset set my-model ctx-size 2048
-.\coquena.exe server default preset add my-model
-.\coquena.exe server default start -d
-.\coquena.exe server ps
+coquena preset set chat ctx-size 8192
+coquena up
+coquena logs --service default
 ```
 
-With the initial port available and the default settings, the server listens on
-`http://127.0.0.1:9931`. Use `my-model` as the model name in your client compatible
-with the llama.cpp API. You can add more presets to the server; changes take
-effect the next time it starts.
+A preset change can unload a model and interrupt requests. Coquena asks for
+confirmation when it observes activity or cannot establish that the affected
+entries are idle. Check each experimental backend's router capabilities.
+
+Withdraw the project's presets and stop the service when you are finished.
 
 ```powershell
-.\coquena.exe server default logs
-.\coquena.exe server default stop
+coquena down
+coquena service default stop
 ```
 
-Data is stored in `%USERPROFILE%\.coquena` by default. Set the `COQUENA_HOME`
-environment variable to use a different directory.
+`down` leaves the service running and preserves other projects' presets. A recipe
+with `target: self` and a `service` block instead operates its own project service.
+
+Data is stored in `%USERPROFILE%\.coquena` by default. Set `COQUENA_HOME` to use
+another location. Managed project resources and local state are kept in `.coquena/`
+inside the project. See the [recipe format](docs/formato-proyecto.md) for remote
+models, explicit backend versions, layers, and external executables.
 
 ## Build and install from source (Windows x64)
 
@@ -122,7 +142,7 @@ dotnet pack .\src\Coquena\Coquena.csproj -c Release -p:PackAsTool=true -p:ToolCo
 dotnet pack .\src\Coquena\Coquena.csproj -c Release -r win-x64 -p:PackAsTool=true -p:ToolCommandName=coquena -p:ToolPackageRuntimeIdentifiers=win-x64 -o .\artifacts\tool
 
 # Install from the local packages.
-dotnet tool install --global coquena --version 0.2.1 --add-source .\artifacts\tool
+dotnet tool install --global coquena --version 0.3.0 --add-source .\artifacts\tool
 
 # Run from any directory.
 coquena --help
