@@ -471,6 +471,17 @@ features:
       - docs/servidores.md
       - docs/observabilidad.md
 
+  - id: recipe-init
+    intent: Inicializar una receta mínima y sus exclusiones Git.
+    keywords: [init, recipe, gitignore]
+    entrypoints:
+      - src/Coquena/Cli.cs
+    implementation:
+      - src/Coquena/InitCli.cs
+    references:
+      - docs/formato-proyecto.md
+      - specs/072-m3-init/README.md
+
   - id: documentation-site
     intent: Publicar docs/ como sitio Zensical en GitHub Pages con PlantUML renderizado a SVG sin modificar las fuentes.
     keywords: [documentation, site, zensical, pages, plantuml, svg, brand]

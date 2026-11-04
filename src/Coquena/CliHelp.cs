@@ -30,6 +30,7 @@ internal static class CliHelp
         Uso: coquena <comando> [argumentos] [opciones]
 
         Comandos:
+          init [<directorio>]              Inicializar una receta mínima
           system probe                     Mostrar hardware y aceleradores disponibles
           ps [--service <nombre|default|self>] [-w|--watch]
                                            Consultar o seguir hardware y servicios

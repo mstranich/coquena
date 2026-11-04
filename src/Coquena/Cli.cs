@@ -4,6 +4,9 @@ public static class Cli
 {
     public static int Run(string[] args, TextWriter output, TextWriter error)
     {
+        if (args.Length > 0 && args[0] == "init")
+            return InitCli.Run(args[1..], output, error);
+
         var prefix = 0;
         while (prefix < args.Length)
         {
