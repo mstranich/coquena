@@ -122,6 +122,67 @@ another location. Managed project resources and local state are kept in `.coquen
 inside the project. See the [recipe format](docs/formato-proyecto.md) for remote
 models, explicit backend versions, layers, and external executables.
 
+## Tune several profiles in one recipe
+
+Finding a useful configuration can take several attempts. Keep the alternatives
+in the same recipe while you try context lengths, GPU offload, CPU threads, and
+KV cache settings. The profiles you keep can be versioned with the project and
+shared with someone who wants to reproduce or adapt the experiment.
+
+This example combines a Hugging Face model with a GGUF file you supply locally.
+The short- and long-context presets share the same remote model selection.
+The values illustrate different profiles to tune for your model and available
+memory. GPU offload settings require a suitable CUDA or Vulkan backend.
+
+```yaml
+name: my-lab
+target: global
+models:
+  hf-model: Qwen/Qwen2.5-1.5B-Instruct-GGUF:Q4_K_M
+  local-model:
+    files: [./weights/local-model.gguf]
+presets:
+  short-context:
+    args:
+      model: model://hf-model
+      ctx-size: 8192
+      n-gpu-layers: 99
+      threads: 4
+      cache-type-k: q8_0
+      cache-type-v: q8_0
+      flash-attn: on
+  long-context:
+    args:
+      model: model://hf-model
+      ctx-size: 32768
+      n-gpu-layers: 20
+      threads: 8
+      cache-type-k: q4_0
+      cache-type-v: q4_0
+      flash-attn: on
+  local-experiment:
+    enable: false
+    args:
+      model: model://local-model
+      ctx-size: 16384
+      n-gpu-layers: 0
+      threads: 8
+```
+
+Run `coquena up --start-service` and select `my-lab/short-context` or
+`my-lab/long-context` in your client. Coquena prepares
+the remote model from [Hugging Face](https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF).
+To add `my-lab/local-experiment`, provide the local file, change its `enable` field
+from `false` to `true`, and run `coquena up` again.
+Edit the settings and run `coquena up` again to apply another iteration.
+
+A coding project can keep several profiles for different context requirements.
+A news project can instead use separate models for filtering and editing. Each
+project publishes its own presets to the shared service. To try a backend fork
+independently, define a project service with `target: self` and an external
+`service.backend.executable`, including the health and router configuration that
+build requires. See [backend and service configuration](docs/servidores.md).
+
 ## Build and install from source (Windows x64)
 
 Prerequisites: Git, the .NET 10 SDK selected by `global.json`, and Visual Studio

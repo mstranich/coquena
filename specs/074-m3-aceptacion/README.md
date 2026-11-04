@@ -149,14 +149,18 @@ publicado y Backend el llama-server local compatible acordado. Cada directorio d
 fixture debe ser nuevo. Las demás suites de la tabla corresponden a los selectores
 homónimos de Program.cs, con directorio adicional en cleanup y recipe-upgrade.
 
-Paquete preparado `coquena-0.3.0-win-x64.zip`, 6 239 210 bytes.
-SHA-256 ZIP `d1082dc418a9228a1c3c760d09684da888b9804ef8d9993b5e6310c5080a9046`.
+Paquete preparado `coquena-0.3.0-win-x64.zip`, 6 239 977 bytes.
+SHA-256 ZIP `7a65baf77b67586de344f656127a2e198072a2cc101019d584e96c1db29a0c1d`.
 SHA-256 ejecutable extraído `9fb41856d75574fda0c2949c210403bd4e4e48a16ed95ce9bddb64e46ae70394`.
 Tras promover Version a 0.3.0 se repitió la publicación Native AOT y la extracción.
 Los metadatos PE informaron FileVersion 0.3.0.0 y ProductVersion 0.3.0 con
 el sufijo de revisión Git. Para preparar el release se recompiló desde
 `64eb76b12a96ddbba5b307505aa2885c56fe532c`, con las fuentes runtime ya commiteadas.
 El ZIP incluye ejecutable, README y LICENSE, con SHA256SUMS.txt separado.
+El README incorpora un ejemplo ilustrativo de varios presets con modelo de
+Hugging Face y archivo local opcional. Se validaron lectura, referencias y
+emisión de argumentos sin descargar pesos. El cambio de ZIP corresponde a
+esa documentación y conserva el mismo ejecutable.
 Config e init se ejecutaron con éxito desde ese paquete extraído.
 Las ubicaciones reales se conservan en el chat. El ZIP final sustituye los
 paquetes preliminares de esta ejecución.
