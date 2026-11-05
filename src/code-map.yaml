@@ -171,7 +171,7 @@ features:
 
   - id: scoped-preset-publication
     intent: Combinar contribuciones de proyectos en servicios compartidos y reconciliar presets con protección y resultado remoto observable.
-    keywords: [up, down, apply, withdraw, target, global, self, INI, reload, warmup, consumer]
+    keywords: [up, down, apply, withdraw, target, global, self, INI, reload, warmup, consumer, stopped, published-name]
     entrypoints:
       - src/Coquena/PublicationCli.cs
     implementation:

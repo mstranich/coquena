@@ -57,11 +57,13 @@ internal static class CliHelp
           up [--start-service]             Publicar presets de la combinación elegida
           down                             Retirar presets propios sin detener servicio
           apply|withdraw <clave>           Publicar o retirar un preset individual
+            withdraw acepta también el nombre publicado receta/clave.
           config                           Configurar directorios y retención
           param                            Administrar definiciones de parámetros
 
         Ayuda:
           -h, --help                       Mostrar esta ayuda (también: coquena help)
+          --version                        Mostrar la versión de Coquena
 
         Importación:
           --select service,presets,model,params  Importar sólo categorías declaradas

@@ -136,6 +136,15 @@ internal static class PresetPublicationTests
                 await CheckBatch("cli/second", "256");
                 if ((await router.ObserveAsync(default)).Count(p => p!["id"]!.GetValue<string>().StartsWith("cli/")) != 2) throw new Exception("Apply individual reemplazó el conjunto.");
                 Cli(0, "preset", "withdraw", "first");
+                if ((await router.ObserveAsync(default)).Any(p => p!["id"]!.GetValue<string>() == "cli/first")) throw new Exception("Withdraw por clave no retiró la entrada.");
+                Cli(0, "apply", "first");
+                File.WriteAllText(yaml, definition.Replace("name: cli", "name: changed"));
+                Cli(0, "withdraw", "cli/first");
+                catalog = await router.ObserveAsync(default);
+                if (catalog.Any(p => p!["id"]!.GetValue<string>() == "cli/first") || !catalog.Any(p => p!["id"]!.GetValue<string>() == "cli/second") ||
+                    !catalog.Any(p => p!["id"]!.GetValue<string>() == "news/success")) throw new Exception("Withdraw por nombre publicado alteró entradas ajenas o no retiró la propia.");
+                Cli(2, "withdraw", "news/success");
+                Cli(2, "withdraw", "absent");
                 var alternate = registry.Register(["alternate.yaml"], "alternate"); var alternateService = registry.RegisterService(alternate.RecipeId);
                 registry.SetDefaultService(alternateService.ServiceId);
                 File.WriteAllText(yaml, "invalid: edited-after-publication\n");
@@ -189,6 +198,21 @@ internal static class PresetPublicationTests
             Console.WriteLine("OK: CLI up/down, capas, apply/withdraw, alias cambiado, YAML editado, rename y traslado; decisiones explícitas de interfaz.");
             Console.WriteLine("OK: CLI self, autorización de inicio, --start-service separado de decisión de publicación y down sin detener proceso.");
             lifecycle.Stop(service.ServiceId, () => true);
+            Environment.SetEnvironmentVariable("COQUENA_HOME", home.Root);
+            try
+            {
+                using var stoppedOutput = new StringWriter(); using var stoppedError = new StringWriter();
+                var stoppedDecision = new Decisions();
+                var newsBase = consumers[1].Store.Context.Base;
+                if (PublicationCli.Run(["withdraw", "news/summary", "--base", newsBase], stoppedOutput, stoppedError, stoppedDecision) != 0 ||
+                    File.ReadAllText(b.IniPath).Contains("[news/summary]") || !File.ReadAllText(b.IniPath).Contains("[news/success]"))
+                    throw new Exception("Withdraw sobre router detenido no retiró sólo la entrada seleccionada: " + stoppedError);
+                if (PublicationCli.Run(["down", "--base", newsBase], stoppedOutput, stoppedError, stoppedDecision) != 0 ||
+                    File.ReadAllText(b.IniPath) != "version=1\n" || lifecycle.Reconcile(service.ServiceId) || stoppedDecision.Starts != 0)
+                    throw new Exception("Down sobre router detenido falló o inició el proceso: " + stoppedError);
+                Console.WriteLine("OK: withdraw y down tras detener router real; INI actualizado sin iniciar proceso.");
+            }
+            finally { Environment.SetEnvironmentVariable("COQUENA_HOME", priorHome); }
             await b.PublishAsync(consumers[1].Recipe.RecipeId, [Preset("news/startup", warmup: true)], "fixture", "news", true, true, _ => true, null);
             var checkedBefore = target.Read().Documents.Values.Single(d => d["kind"]!.GetValue<string>() == "last-good")["data"]!["checked-at"]!.GetValue<string>();
             try
@@ -405,6 +429,40 @@ internal static class PresetPublicationTests
                 !Directory.Exists(invalidHome) && !Directory.Exists(Path.Combine(invalidFolder, ".coquena")), "known invalid references fail before registering or provisioning a global server");
         }
         finally { Environment.SetEnvironmentVariable("COQUENA_HOME", priorHome); }
+        var withdrawal = Consumer("withdrawal");
+        var withdrawalManager = new PresetPublication(withdrawal.Store, target, service.ServiceId);
+        var otherRecipe = globals.Register(["other.yaml"], "other"); var otherService = globals.RegisterService(otherRecipe.RecipeId);
+        var otherManager = new PresetPublication(withdrawal.Store, target, otherService.ServiceId);
+        await withdrawalManager.PublishAsync(withdrawal.Recipe.RecipeId, [Preset("withdrawal/first"), Preset("withdrawal/second")], "fixture", "withdrawal", true, true, _ => true, null);
+        await otherManager.PublishAsync(withdrawal.Recipe.RecipeId, [Preset("withdrawal/first"), Preset("withdrawal/elsewhere")], "fixture", "withdrawal", true, true, _ => true, null);
+        var neighbour = Consumer("neighbour");
+        await new PresetPublication(neighbour.Store, target, service.ServiceId).PublishAsync(neighbour.Recipe.RecipeId, [Preset("neighbour/chat")], "fixture", "neighbour", true, true, _ => true, null);
+        var savedHome = Environment.GetEnvironmentVariable("COQUENA_HOME");
+        Environment.SetEnvironmentVariable("COQUENA_HOME", globalContext.Base);
+        try
+        {
+            var decisions = new Decisions();
+            int Withdraw(params string[] args) => PublicationCli.Run(args.Concat(new[] { "--base", withdrawal.Store.Context.Base }).ToArray(), cliOutput, cliError, decisions);
+            File.WriteAllText(Path.Combine(withdrawal.Store.Context.Base, "coquena.yaml"), "invalid: changed\n");
+            Check(Withdraw("withdraw", "withdrawal/first") == 0 && !File.ReadAllText(withdrawalManager.IniPath).Contains("[withdrawal/first]") &&
+                File.ReadAllText(withdrawalManager.IniPath).Contains("[withdrawal/second]") && !File.ReadAllText(otherManager.IniPath).Contains("[withdrawal/first]") &&
+                File.ReadAllText(otherManager.IniPath).Contains("[withdrawal/elsewhere]"),
+                "qualified withdrawal removes matching entries across recorded stopped destinations with edited YAML");
+            Check(Withdraw("preset", "withdraw", "second") == 0 && !File.ReadAllText(withdrawalManager.IniPath).Contains("[withdrawal/second]"), "short key withdrawal works while stopped");
+            var preserved = File.ReadAllText(withdrawalManager.IniPath);
+            Check(Withdraw("withdraw", "neighbour/chat") == 2 && Withdraw("withdraw", "missing") == 2 && File.ReadAllText(withdrawalManager.IniPath) == preserved,
+                "unknown and foreign selectors are rejected without changing composition");
+            await withdrawalManager.PublishAsync(withdrawal.Recipe.RecipeId, [Preset("withdrawal/last")], "fixture", "withdrawal", true, true, _ => true, null);
+            Check(Withdraw("down") == 0 && !File.ReadAllText(otherManager.IniPath).Contains("[withdrawal/elsewhere]") &&
+                !File.ReadAllText(withdrawalManager.IniPath).Contains("[withdrawal/last]") && File.ReadAllText(withdrawalManager.IniPath).Contains("[neighbour/chat]") && decisions.Starts == 0,
+                "down withdraws multiple stopped targets without starting services or removing other owners");
+            Check(Withdraw("down") == 0, "repeated down remains idempotent while stopped");
+            Check(Withdraw("withdraw", "withdrawal/last") == 2, "withdraw after confirmed removal reports missing publication");
+            var emptyConsumer = Consumer("empty-consumer");
+            Check(PublicationCli.Run(["withdraw", "missing", "--base", emptyConsumer.Store.Context.Base], cliOutput, cliError, decisions) == 2,
+                "withdraw without any previous publication reports unknown preset");
+        }
+        finally { Environment.SetEnvironmentVariable("COQUENA_HOME", savedHome); }
         using var activityHandler = new ActivityHandler(); using var activityHttp = new HttpClient(activityHandler);
         var activityRouter = new LlamaPresetRouter(activityHttp, new Uri("http://fixture.invalid"));
         var activity = await activityRouter.ActivityAsync(["coding/chat"], default);

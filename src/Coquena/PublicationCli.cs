@@ -105,17 +105,31 @@ public static class PublicationCli
         {
             var found = store.Read().Documents.GetValueOrDefault("local/recipes.json")?["data"]?["recipes"]?.AsArray()
                 .SingleOrDefault(r => r!["project-consumer"]?.GetValue<bool>() == true);
-            if (found is null) { output.WriteLine("Sin publicaciones propias registradas."); return 0; }
+            if (found is null)
+            {
+                if (action == "withdraw") throw new StorageException("unknown-preset", "No hay publicaciones propias registradas para retirar el preset.");
+                output.WriteLine("Sin publicaciones propias registradas."); return 0;
+            }
             identity = registry.Get(found["recipe-id"]!.GetValue<string>());
         }
         else identity = registry.EnsureProjectConsumer(selection.Files, recipe!.Root.Get("name")?.Text);
         var entry = store.Read().Documents["local/recipes.json"]["data"]!["recipes"]!.AsArray()
             .Single(r => r!["recipe-id"]!.GetValue<string>() == identity.RecipeId)!;
         var publication = entry["publication-operation"] ?? recordedTarget ?? entry["publication"];
-        if (withdrawing && publication is null) { output.WriteLine("Sin publicaciones propias registradas."); return 0; }
+        if (withdrawing && publication is null)
+        {
+            if (action == "withdraw") throw new StorageException("unknown-preset", "No hay publicaciones propias registradas para retirar el preset.");
+            output.WriteLine("Sin publicaciones propias registradas."); return 0;
+        }
         if (withdrawing && entry["publication-operation"] is null && recordedTarget is null && selector is null && entry["publications"] is JsonArray all)
         {
             var remaining = all.Where(p => p!["presets"]!.AsArray().Count != 0).ToArray();
+            if (action == "withdraw")
+            {
+                remaining = remaining.Where(p => HasPublishedPreset(p!, key!)).ToArray();
+                if (remaining.Length == 0)
+                    throw new StorageException("unknown-preset", "El preset no figura entre las publicaciones propias registradas.");
+            }
             if (remaining.Length > 1)
             {
                 var exit = 0;
@@ -210,7 +224,6 @@ public static class PublicationCli
             running = lifecycle.Reconcile(service.ServiceId);
             if (!running) throw new StorageException("service-stopped", "El destino terminó después del inicio; no se acredita publicación.");
         }
-        if (!running && action == "down") throw new StorageException("service-stopped", "El servidor está detenido. Inicialo antes de ejecutar down.");
         var active = targetStore.Read().Documents.GetValueOrDefault(targetStore.RuntimeDocumentPath(service.ServiceId, "active"))?["data"];
         if (running && active?["execution"]?["arguments"]?.AsArray().Any(a => a?.GetValue<string>() == "--models-preset") != true)
             throw new StorageException("publication-unsupported", "La instancia no ofrece INI operativo recargable; requiere un inicio explícito compatible.");
@@ -253,9 +266,12 @@ public static class PublicationCli
         if (recipe is not null && recipe.Name != name)
             output.WriteLine($"La intención usa {recipe.Name}; se conserva el nombre publicado {name} hasta retirada confirmada.");
         var combination = publication?["combination"]?.GetValue<string>() ?? "";
+        if (action == "withdraw" && !HasPublishedPreset(publication!, key!))
+            throw new StorageException("unknown-preset", "El preset no figura entre las publicaciones propias registradas en el destino.");
         if (key is not null || withdrawing)
             foreach (var p in publication?["presets"]?.AsArray() ?? [])
-                if (action != "down" && p!["name"]!.GetValue<string>() != name + "/" + key)
+                if (action != "down" && p!["name"]!.GetValue<string>() != name + "/" + key &&
+                    (action != "withdraw" || p["name"]!.GetValue<string>() != key))
                     presets.Add(FromNode(p!));
         if (!withdrawing)
         {
@@ -327,6 +343,10 @@ public static class PublicationCli
         output.WriteLine(result.Confirmed ? (result.WarmupFailed ? (result.Restored ? "Carga fallida; entradas afectadas restauradas sin reiniciar." : "Carga fallida; no se dispone de un snapshot distinto para restaurar.") : "Composición confirmada; carga no comprobada salvo warmup explícito.") : "Resultado no confirmado; operación y recursos conservados.");
         return !result.Confirmed ? 9 : result.WarmupFailed ? 8 : 0;
     }
+
+    private static bool HasPublishedPreset(JsonNode publication, string key) =>
+        publication["presets"]?.AsArray().Any(p => p!["name"]!.GetValue<string>() == key ||
+            p["name"]!.GetValue<string>() == publication["recipe-name"]!.GetValue<string>() + "/" + key) == true;
 
     private static PublishedPreset FromNode(JsonNode p) => new(p["name"]!.GetValue<string>(), p["ini"]!.GetValue<string>(),
         p["expected-arguments"]!.AsArray().Select(a => a!.GetValue<string>()).ToArray(), p["resources"]!.DeepClone().AsArray(), p["warmup"]!.GetValue<bool>());

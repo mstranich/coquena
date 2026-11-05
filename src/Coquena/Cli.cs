@@ -1,9 +1,19 @@
+using System.Reflection;
+
 namespace Coquena;
 
 public static class Cli
 {
     public static int Run(string[] args, TextWriter output, TextWriter error)
     {
+        if (args is ["--version"])
+        {
+            var assembly = typeof(Cli).Assembly;
+            var version = assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion;
+            output.WriteLine(version?.Split('+', 2)[0] ?? assembly.GetName().Version?.ToString());
+            return 0;
+        }
+
         if (args.Length > 0 && args[0] == "init")
             return InitCli.Run(args[1..], output, error);
 
