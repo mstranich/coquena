@@ -1,15 +1,18 @@
 ---
-status: in-progress
+status: complete
 created: 2026-11-05
 priority: medium
 tags:
 - docs
 - sitio
 created_at: 2026-11-05T13:15:15.387499700Z
-updated_at: 2026-11-05T13:37:44.115558700Z
+updated_at: 2026-11-05T16:12:57.590326400Z
+completed_at: 2026-11-05T16:12:57.590326400Z
 transitions:
 - status: in-progress
   at: 2026-11-05T13:37:44.115558700Z
+- status: complete
+  at: 2026-11-05T16:12:57.590326400Z
 ---
 # Separar el manual de usuario de la documentación funcional
 
@@ -122,4 +125,6 @@ Local, 2026-11-05, con binario Native AOT 0.3.0 compilado desde el árbol actual
 
 Hallazgos registrados durante la revisión: [003](../../findings/003-publicacion-sin-interaccion.md), [004](../../findings/004-parada-sin-plazo-configurable.md), [005](../../findings/005-espacio-usado-no-consultable.md), [006](../../findings/006-verify-un-error-por-vez.md), [007](../../findings/007-formato-receta-tras-init.md) y [008](../../findings/008-aplicabilidad-de-argumentos.md).
 
-Pendiente: admitir tags `v*` en el entorno `github-pages`, desplegar y revisar el sitio publicado.
+Publicado el 2026-11-05 con el [run 42061920932](https://github.com/mstranich/coquena/actions/runs/42061920932), commit `f0a354f`. Recorrido del sitio publicado: 38 páginas y 23 imágenes (20 diagramas SVG) sin errores; `/coquena/` muestra el manual, la navegación llega a Roadmap y Design, el índice de búsqueda incluye ambos idiomas y `lang` coincide con cada sección. `git log --follow` conserva la historia de los documentos movidos. La búsqueda no se probó con consultas en el navegador.
+
+Paso del responsable antes del próximo release: admitir tags `v*` en el entorno `github-pages`; sin eso, el despliegue iniciado por un tag será rechazado. Los enlaces desde `mstranich.github.io` se actualizan allí.
