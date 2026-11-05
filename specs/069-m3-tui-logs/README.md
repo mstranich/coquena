@@ -21,9 +21,9 @@ Centralizar logs debajo de hardware y actividad con continuidad por identidad de
 ## Fuente de verdad
 
 - [Milestone M4](../../docs/milestones/M4-experiencia-completa.md)
-- [ui-servicio.md](../../docs/ui-servicio.md)
-- [interfaces-visuales.md](../../docs/interfaces-visuales.md)
-- [observabilidad.md](../../docs/observabilidad.md)
+- [ui-servicio.md](../../docs/design/ui-servicio.md)
+- [interfaces-visuales.md](../../docs/design/interfaces-visuales.md)
+- [observabilidad.md](../../docs/design/observabilidad.md)
 
 Las reglas funcionales de los documentos enlazados prevalecen. Esta tarjeta define trabajo y evidencia, sin crear una definición arquitectónica alternativa.
 

@@ -27,8 +27,8 @@ gestionada.
 
 ## Referencias
 - [M2](../../docs/milestones/M2-gestion-completa.md)
-- [Reglas funcionales](../../docs/modelos-y-companions.md#pasar-un-externo-a-gestión-de-coquena)
-- [CLI](../../docs/comandos.md)
+- [Reglas funcionales](../../docs/design/modelos-y-companions.md#pasar-un-externo-a-gestión-de-coquena)
+- [CLI](../../docs/design/comandos.md)
 
 ## Trabajo y aceptación
 - [x] Ofrecer transición explícita al descargar nombre ocupado por externo; cancelar/rechazar

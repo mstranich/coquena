@@ -26,9 +26,9 @@ Copiar intención seleccionada al ámbito global y preparar/publicar lo correspo
 ## Fuente de verdad
 
 - [Milestone M3](../../docs/milestones/M3-definiciones-declarativas.md)
-- [servicios-recetas.md#importación-global](../../docs/servicios-recetas.md#importación-global)
-- [persistencia-proyectos.md](../../docs/persistencia-proyectos.md)
-- [comandos.md](../../docs/comandos.md)
+- [servicios-recetas.md#importación-global](../../docs/design/servicios-recetas.md#importación-global)
+- [persistencia-proyectos.md](../../docs/design/persistencia-proyectos.md)
+- [comandos.md](../../docs/design/comandos.md)
 
 Las reglas funcionales de los documentos enlazados prevalecen. Esta tarjeta define trabajo y evidencia, sin crear una definición arquitectónica alternativa.
 

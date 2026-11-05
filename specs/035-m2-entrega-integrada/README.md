@@ -53,7 +53,7 @@ acordado.
 
 ## Referencias
 - [M2](../../docs/milestones/M2-gestion-completa.md)
-- [CLI](../../docs/comandos.md)
+- [CLI](../../docs/design/comandos.md)
 
 ## Trabajo y aceptación
 - [x] Auditar cada comando acordado contra tarjetas/ejecutable; asignar huecos a su entrega

@@ -27,9 +27,9 @@ Entregar limpieza explícita y gestión de protecciones sin borrar recursos ajen
 ## Fuente de verdad
 
 - [Milestone M3](../../docs/milestones/M3-definiciones-declarativas.md)
-- [actualizacion-y-limpieza.md#limpieza](../../docs/actualizacion-y-limpieza.md#limpieza)
-- [persistencia-proyectos.md](../../docs/persistencia-proyectos.md)
-- [comandos.md](../../docs/comandos.md)
+- [actualizacion-y-limpieza.md#limpieza](../../docs/design/actualizacion-y-limpieza.md#limpieza)
+- [persistencia-proyectos.md](../../docs/design/persistencia-proyectos.md)
+- [comandos.md](../../docs/design/comandos.md)
 
 Las reglas funcionales de los documentos enlazados prevalecen. Esta tarjeta define trabajo y evidencia, sin crear una definición arquitectónica alternativa.
 

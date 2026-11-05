@@ -24,12 +24,12 @@ Fijar evidencia ejecutada del build/plataforma que respalda el adaptador, subord
 ## Fuente de verdad
 
 - [Milestone M3](../../docs/milestones/M3-definiciones-declarativas.md)
-- [servidores.md](../../docs/servidores.md)
-- [catalogo-de-parametros.md](../../docs/catalogo-de-parametros.md)
-- [observabilidad.md](../../docs/observabilidad.md)
-- [implementacion-catalogo-modelos.md](../../docs/implementacion-catalogo-modelos.md)
-- [ui-servicio.md](../../docs/ui-servicio.md)
-- [interfaces-visuales.md](../../docs/interfaces-visuales.md)
+- [servidores.md](../../docs/design/servidores.md)
+- [catalogo-de-parametros.md](../../docs/design/catalogo-de-parametros.md)
+- [observabilidad.md](../../docs/design/observabilidad.md)
+- [guia-tecnica.md](../../docs/design/guia-tecnica.md)
+- [ui-servicio.md](../../docs/design/ui-servicio.md)
+- [interfaces-visuales.md](../../docs/design/interfaces-visuales.md)
 
 Las reglas funcionales de los documentos enlazados prevalecen. Esta tarjeta define trabajo y evidencia, sin crear una definición arquitectónica alternativa.
 
@@ -185,8 +185,8 @@ dotnet run --project tests/Coquena.Tests -c Release -- --runtime-tests
 # Publicar producto y runner con los comandos Native AOT anteriores, después:
 & (Join-Path $TestsOutput 'Coquena.Tests.exe') --runtime-tests (Join-Path $ProductOutput 'coquena.exe')
 & (Join-Path $ProductOutput 'coquena.exe') server ps
-java -jar $PlantUmlJar -charset UTF-8 -tpng -o $RenderOutput docs/tui-servicio.salt.puml
-java -jar $PlantUmlJar -charset UTF-8 -checkonly docs/secuencias.md
+java -jar $PlantUmlJar -charset UTF-8 -tpng -o $RenderOutput docs/design/tui-servicio.salt.puml
+java -jar $PlantUmlJar -charset UTF-8 -checkonly docs/design/secuencias.md
 git diff --check
 ```
 

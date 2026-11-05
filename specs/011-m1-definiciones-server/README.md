@@ -34,8 +34,8 @@ Integrar create/default/use/set/unset/preset/show/list y resolución de nombre o
 
 ## Referencias
 - [Milestone M1](../../docs/milestones/M1-servidor-local.md)
-- [comandos.md](../../docs/comandos.md)
-- [servidores.md](../../docs/servidores.md)
+- [comandos.md](../../docs/design/comandos.md)
+- [servidores.md](../../docs/design/servidores.md)
 
 ## Trabajo y aceptación
 - [x] Probar server create default y server default default, herencia backend, latest/pin, selección ausente, preset inválido y puerto único. Asignación automática max+1/8080 inicial informa valor y rechaza overflow sin envolver. Inicio sin sustitutos ni presets omitidos.

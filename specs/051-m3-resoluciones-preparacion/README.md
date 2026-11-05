@@ -28,10 +28,10 @@ Preparar una combinación de receta sin resolver novedades ajenas ni acreditar e
 ## Fuente de verdad
 
 - [Milestone M3](../../docs/milestones/M3-definiciones-declarativas.md)
-- [persistencia-proyectos.md](../../docs/persistencia-proyectos.md)
-- [definiciones-declarativas.md](../../docs/definiciones-declarativas.md)
-- [formato-proyecto.md](../../docs/formato-proyecto.md)
-- [actualizacion-y-limpieza.md](../../docs/actualizacion-y-limpieza.md)
+- [persistencia-proyectos.md](../../docs/design/persistencia-proyectos.md)
+- [definiciones-declarativas.md](../../docs/design/definiciones-declarativas.md)
+- [formato-proyecto.md](../../docs/design/formato-proyecto.md)
+- [actualizacion-y-limpieza.md](../../docs/design/actualizacion-y-limpieza.md)
 
 Las reglas funcionales de los documentos enlazados prevalecen. Esta tarjeta define trabajo y evidencia, sin crear una definición arquitectónica alternativa.
 

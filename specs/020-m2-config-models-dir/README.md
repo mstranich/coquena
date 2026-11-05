@@ -24,9 +24,9 @@ Consultar y ajustar la ubicación de modelos y companions gestionados mediante c
 
 ## Referencias
 - [M2](../../docs/milestones/M2-gestion-completa.md)
-- [CLI](../../docs/comandos.md#config)
-- [Directorios gestionados](../../docs/servidores.md#directorios-gestionados)
-- [Propiedad y registros](../../docs/modelos-y-companions.md)
+- [CLI](../../docs/design/comandos.md#config)
+- [Directorios gestionados](../../docs/design/servidores.md#directorios-gestionados)
+- [Propiedad y registros](../../docs/design/modelos-y-companions.md)
 
 ## Trabajo y aceptación
 - [x] Persistir el directorio y usarlo al descargar, listar y resolver archivos para presets.

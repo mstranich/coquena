@@ -26,11 +26,11 @@ Implementar up/down y apply/withdraw como reconciliación de presets, con identi
 ## Fuente de verdad
 
 - [Milestone M3](../../docs/milestones/M3-definiciones-declarativas.md)
-- [servicios-recetas.md](../../docs/servicios-recetas.md)
-- [servidores.md](../../docs/servidores.md)
-- [secuencias.md](../../docs/secuencias.md)
-- [persistencia-proyectos.md](../../docs/persistencia-proyectos.md)
-- [comandos.md](../../docs/comandos.md)
+- [servicios-recetas.md](../../docs/design/servicios-recetas.md)
+- [servidores.md](../../docs/design/servidores.md)
+- [secuencias.md](../../docs/design/secuencias.md)
+- [persistencia-proyectos.md](../../docs/design/persistencia-proyectos.md)
+- [comandos.md](../../docs/design/comandos.md)
 
 Las reglas funcionales de los documentos enlazados prevalecen. Esta tarjeta define trabajo y evidencia, sin crear una definición arquitectónica alternativa.
 

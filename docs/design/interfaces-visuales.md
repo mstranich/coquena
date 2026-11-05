@@ -87,7 +87,7 @@ Las herramientas aparecen al final:
   Los argumentos del backend se editan como parte de la definición del proyecto.
 
 La navegación de terminal distingue pestaña activa y foco de teclado. Usa la
-[paleta de Coquena](../docs-site/assets/coquena.css), con terracota para selección,
+[paleta de Coquena](../../docs-site/assets/coquena.css), con terracota para selección,
 turquesa como acento y etiquetas legibles aun sin color. Los wireframes muestran
 la jerarquía y los recorridos con datos ilustrativos.
 

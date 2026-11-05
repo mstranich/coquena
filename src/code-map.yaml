@@ -17,8 +17,8 @@ features:
     tests:
       - tests/Coquena.Tests/WatchTests.cs
     references:
-      - docs/observabilidad.md
-      - docs/comandos.md
+      - docs/design/observabilidad.md
+      - docs/design/comandos.md
 
   - id: scoped-service-hardware-snapshots
     intent: Consultar hardware y servicios conocidos con identidad, fuente, alcance y disponibilidad explícitos.
@@ -36,8 +36,8 @@ features:
     tests:
       - tests/Coquena.Tests/ObservationTests.cs
     references:
-      - docs/observabilidad.md
-      - docs/comandos.md
+      - docs/design/observabilidad.md
+      - docs/design/comandos.md
 
   - id: scoped-service-log-observation
     intent: Consultar históricos por instancia y seguir la identidad del servicio entre reinicios sin controlar su proceso.
@@ -52,8 +52,8 @@ features:
       - tests/Coquena.Tests/ServiceLogFollowTests.cs
       - tests/Coquena.Tests/ServiceLogHookTests.cs
     references:
-      - docs/observabilidad.md
-      - docs/comandos.md
+      - docs/design/observabilidad.md
+      - docs/design/comandos.md
 
   - id: scoped-service-logs-hooks
     intent: Conservar logs por instancia con retención protegida y notificar una vez los fallos de inicio después de recuperar.
@@ -70,8 +70,8 @@ features:
       - tests/Coquena.Tests/ServiceLogHookTests.cs
       - tests/Coquena.Tests/ServiceRecoveryTests.cs
     references:
-      - docs/observabilidad.md
-      - docs/servidores.md
+      - docs/design/observabilidad.md
+      - docs/design/servidores.md
 
   - id: scoped-resource-cleanup
     intent: Previsualizar y liberar archivos propios sin referencias, y olvidar combinaciones conservando publicaciones e instancias.
@@ -87,9 +87,9 @@ features:
     tests:
       - tests/Coquena.Tests/CleanupTests.cs
     references:
-      - docs/actualizacion-y-limpieza.md
-      - docs/persistencia-proyectos.md
-      - docs/comandos.md
+      - docs/design/actualizacion-y-limpieza.md
+      - docs/design/persistencia-proyectos.md
+      - docs/design/comandos.md
 
   - id: recipe-upgrade
     intent: Preparar propuestas exactas válidas y publicar conjuntamente inventario y resoluciones sin modificar instancias activas.
@@ -104,9 +104,9 @@ features:
     tests:
       - tests/Coquena.Tests/RecipeUpgradeTests.cs
     references:
-      - docs/actualizacion-y-limpieza.md
-      - docs/persistencia-proyectos.md
-      - docs/descargas.md
+      - docs/design/actualizacion-y-limpieza.md
+      - docs/design/persistencia-proyectos.md
+      - docs/design/descargas.md
 
   - id: recipe-update-plans
     intent: Consultar metadatos y conservar propuestas exactas locales sin modificar resoluciones ni archivos instalados.
@@ -122,9 +122,9 @@ features:
       - tests/Coquena.Tests/RecipeUpdateTests.cs
       - tests/Coquena.Tests/BackendAliasTests.cs
     references:
-      - docs/actualizacion-y-limpieza.md
-      - docs/modelos-y-companions.md
-      - docs/comandos.md
+      - docs/design/actualizacion-y-limpieza.md
+      - docs/design/modelos-y-companions.md
+      - docs/design/comandos.md
 
   - id: recipe-resource-verification
     intent: Auditar recetas y recursos sin reparar, conservar observaciones locales y bloquear nuevos inicios por fallos conocidos.
@@ -143,9 +143,9 @@ features:
       - tests/Coquena.Tests/ResourceVerificationTests.cs
       - tests/Coquena.Tests/BackendAliasTests.cs
     references:
-      - docs/actualizacion-y-limpieza.md
-      - docs/modelos-y-companions.md
-      - docs/comandos.md
+      - docs/design/actualizacion-y-limpieza.md
+      - docs/design/modelos-y-companions.md
+      - docs/design/comandos.md
 
   - id: global-recipe-import
     intent: Promover intención seleccionada a global, preparar recursos y publicar presets con recuperación y protección de consumidores.
@@ -165,9 +165,9 @@ features:
       - tests/Coquena.Tests/RecipeImportIntegrationTests.cs
       - tests/Coquena.Tests/RecipeImportRuntimeTests.cs
     references:
-      - docs/servicios-recetas.md
-      - docs/comandos.md
-      - docs/persistencia-proyectos.md
+      - docs/design/servicios-recetas.md
+      - docs/design/comandos.md
+      - docs/design/persistencia-proyectos.md
 
   - id: scoped-preset-publication
     intent: Combinar contribuciones de proyectos en servicios compartidos y reconciliar presets con protección y resultado remoto observable.
@@ -187,9 +187,9 @@ features:
       - tests/Coquena.Tests/RecipeTests.cs
       - tests/Coquena.Tests/ScopedServiceTests.cs
     references:
-      - docs/servicios-recetas.md
-      - docs/servidores.md
-      - docs/persistencia-proyectos.md
+      - docs/design/servicios-recetas.md
+      - docs/design/servidores.md
+      - docs/design/persistencia-proyectos.md
 
   - id: scoped-service-lifecycle
     intent: Seleccionar servicios por ámbito y operar su proceso con identidad verificada, salud y preparación separada de presets.
@@ -214,9 +214,9 @@ features:
       - tests/Coquena.Tests/ProjectPersistenceTests.cs
       - tests/Coquena.Tests/CombinationTests.cs
     references:
-      - docs/servidores.md
-      - docs/servicios-recetas.md
-      - docs/persistencia-proyectos.md
+      - docs/design/servidores.md
+      - docs/design/servicios-recetas.md
+      - docs/design/persistencia-proyectos.md
 
   - id: combination-preparation
     intent: Registrar combinaciones explícitas, reutilizar resoluciones exactas y publicar conjuntos preparados sin promover ejecución.
@@ -233,9 +233,9 @@ features:
     tests:
       - tests/Coquena.Tests/CombinationTests.cs
     references:
-      - docs/persistencia-proyectos.md
-      - docs/definiciones-declarativas.md
-      - docs/formato-proyecto.md
+      - docs/design/persistencia-proyectos.md
+      - docs/design/definiciones-declarativas.md
+      - docs/design/formato-proyecto.md
 
   - id: scoped-local-models
     intent: Registrar pesos externos sin adoptar bytes, resolver rutas de argumentos y publicar una transición explícita verificada.
@@ -253,9 +253,9 @@ features:
     tests:
       - tests/Coquena.Tests/ScopedLocalModelTests.cs
     references:
-      - docs/modelos-y-companions.md
-      - docs/formato-proyecto.md
-      - docs/persistencia-proyectos.md
+      - docs/design/modelos-y-companions.md
+      - docs/design/formato-proyecto.md
+      - docs/design/persistencia-proyectos.md
 
   - id: scoped-model-inventory
     intent: Adquirir unidades GGUF por ámbito, compartir aliases por identidad y retirar archivos propios de forma recuperable.
@@ -272,9 +272,9 @@ features:
       - tests/Coquena.Tests/ScopedModelTests.cs
       - tests/Coquena.Tests/ScopeTransferTests.cs
     references:
-      - docs/modelos-y-companions.md
-      - docs/formato-proyecto.md
-      - docs/descargas.md
+      - docs/design/modelos-y-companions.md
+      - docs/design/formato-proyecto.md
+      - docs/design/descargas.md
 
   - id: scoped-service-backends
     intent: Preparar backends oficiales o externos por ámbito, conservar pins y revisiones y diagnosticar compatibilidad sin modificar ejecución.
@@ -294,10 +294,10 @@ features:
       - tests/Coquena.Tests/ScopedBackendTests.cs
       - tests/Coquena.Tests/ScopeTransferTests.cs
     references:
-      - docs/formato-proyecto.md
-      - docs/servidores.md
-      - docs/comandos.md
-      - docs/actualizacion-y-limpieza.md
+      - docs/design/formato-proyecto.md
+      - docs/design/servidores.md
+      - docs/design/comandos.md
+      - docs/design/actualizacion-y-limpieza.md
 
   - id: scoped-resource-transfers
     intent: Aislar GUID y checkpoints por ámbito y publicar instalaciones físicas verificadas sin modificar resoluciones de combinaciones.
@@ -315,8 +315,8 @@ features:
       - tests/Coquena.Tests/DownloadTests.cs
       - tests/Coquena.Tests/ContentionTests.cs
     references:
-      - docs/descargas.md
-      - docs/persistencia-proyectos.md
+      - docs/design/descargas.md
+      - docs/design/persistencia-proyectos.md
 
   - id: recipe-argument-schema-emission
     intent: Componer definiciones locales, validar argumentos y relaciones, consultar impacto y emitir tokens CLI o INI con codec por build.
@@ -331,8 +331,8 @@ features:
     tests:
       - tests/Coquena.Tests/ArgumentTests.cs
     references:
-      - docs/catalogo-de-parametros.md
-      - docs/formato-proyecto.md
+      - docs/design/catalogo-de-parametros.md
+      - docs/design/formato-proyecto.md
 
   - id: recipe-reading-composition
     intent: Leer capas YAML y env explícitas, validar estructura y consultar intención efectiva sin preparar ni ejecutar.
@@ -349,10 +349,10 @@ features:
     tests:
       - tests/Coquena.Tests/RecipeTests.cs
     references:
-      - docs/formato-proyecto.md
-      - docs/definiciones-declarativas.md
-      - docs/servicios-recetas.md
-      - docs/comandos.md
+      - docs/design/formato-proyecto.md
+      - docs/design/definiciones-declarativas.md
+      - docs/design/servicios-recetas.md
+      - docs/design/comandos.md
 
   - id: project-context-persistence
     intent: Separar ámbitos, registrar identidades locales y publicar generaciones recuperables entre proyectos y servicios.
@@ -368,9 +368,9 @@ features:
     tests:
       - tests/Coquena.Tests/ProjectPersistenceTests.cs
     references:
-      - docs/persistencia-proyectos.md
-      - docs/formato-proyecto.md
-      - docs/servicios-recetas.md
+      - docs/design/persistencia-proyectos.md
+      - docs/design/formato-proyecto.md
+      - docs/design/servicios-recetas.md
 
   - id: model-selection-download
     intent: Seleccionar una cuantización GGUF de Hugging Face y descargarla con integridad.
@@ -391,8 +391,8 @@ features:
       - tests/Coquena.Tests/ModelInstallerTests.cs
       - tests/Coquena.Tests/GgufTests.cs
     references:
-      - docs/modelos-y-companions.md
-      - docs/descargas.md
+      - docs/design/modelos-y-companions.md
+      - docs/design/descargas.md
 
   - id: download-pause-resume
     intent: Localizar transferencias, pausa, reanudación y publicación tras completar una descarga.
@@ -409,7 +409,7 @@ features:
       - tests/Coquena.Tests/ContentionTests.cs
       - tests/Coquena.Tests/BackendPublicationTests.cs
     references:
-      - docs/descargas.md
+      - docs/design/descargas.md
 
   - id: backend-install-update
     intent: Descubrir e instalar backends oficiales, consultar novedades y aplicar actualizaciones.
@@ -431,8 +431,8 @@ features:
       - tests/Coquena.Tests/BackendUpgradeTests.cs
       - tests/Coquena.Tests/RetentionTests.cs
     references:
-      - docs/servidores.md
-      - docs/actualizacion-y-limpieza.md
+      - docs/design/servidores.md
+      - docs/design/actualizacion-y-limpieza.md
 
   - id: preset-configuration
     intent: Crear y clonar presets, configurar valores, asociar companions y componer CLI e INI.
@@ -449,9 +449,9 @@ features:
       - tests/Coquena.Tests/ParameterTests.cs
       - tests/Coquena.Tests/MtpResolutionTests.cs
     references:
-      - docs/catalogo-de-parametros.md
-      - docs/modelos-y-companions.md
-      - docs/servidores.md
+      - docs/design/catalogo-de-parametros.md
+      - docs/design/modelos-y-companions.md
+      - docs/design/servidores.md
 
   - id: server-lifecycle-observation
     intent: Definir servidores, asociar presets, iniciar y detener procesos, consultar estado, métricas y logs.
@@ -469,8 +469,8 @@ features:
       - tests/Coquena.Tests/ServerRuntimeTests.cs
       - tests/Coquena.Tests/ObservabilityTests.cs
     references:
-      - docs/servidores.md
-      - docs/observabilidad.md
+      - docs/design/servidores.md
+      - docs/design/observabilidad.md
 
   - id: recipe-init
     intent: Inicializar una receta mínima y sus exclusiones Git.
@@ -480,12 +480,12 @@ features:
     implementation:
       - src/Coquena/InitCli.cs
     references:
-      - docs/formato-proyecto.md
+      - docs/design/formato-proyecto.md
       - specs/072-m3-init/README.md
 
   - id: documentation-site
-    intent: Publicar docs/ como sitio Zensical en GitHub Pages con PlantUML renderizado a SVG sin modificar las fuentes.
-    keywords: [documentation, site, zensical, pages, plantuml, svg, brand]
+    intent: Publicar el manual de usuario, el roadmap y la documentación funcional como sitio Zensical en GitHub Pages con PlantUML renderizado a SVG sin modificar las fuentes.
+    keywords: [documentation, user-guide, site, zensical, pages, plantuml, svg, brand]
     entrypoints:
       - .github/workflows/docs.yml
       - docs-site/build.py
@@ -493,5 +493,7 @@ features:
       - zensical.toml
       - docs-site/assets/coquena.css
     references:
-      - docs/README.md
+      - docs/design/README.md
+      - docs/user-guide/README.md
       - specs/075-sitio-documentacion/README.md
+      - specs/077-manual-usuario-y-reorganizacion-docs/README.md

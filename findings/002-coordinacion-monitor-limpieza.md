@@ -33,8 +33,8 @@ recursos publicados ni se acredita corrupción por esta excepción.
    reanudación de operaciones que ya están en fase cleanup.
 
 La publicación coherente y el tratamiento de errores se fundamentan en
-[descargas](../docs/descargas.md) y
-[persistencia de proyectos](../docs/persistencia-proyectos.md). Este registro no
+[descargas](../docs/design/descargas.md) y
+[persistencia de proyectos](../docs/design/persistencia-proyectos.md). Este registro no
 introduce una política funcional nueva.
 
 ## Evidencia y atribución

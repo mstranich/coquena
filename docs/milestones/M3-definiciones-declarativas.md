@@ -42,9 +42,9 @@ La prioridad es que cualquier persona pueda usar el paquete CLI con una receta e
 
 ## Contratos y documentación
 
-[Servicios y recetas](../servicios-recetas.md), [formato](../formato-proyecto.md),
-[comandos](../comandos.md), [persistencia](../persistencia-proyectos.md) y el
-[índice funcional](../README.md) mantienen las reglas.
+[Servicios y recetas](../design/servicios-recetas.md), [formato](../design/formato-proyecto.md),
+[comandos](../design/comandos.md), [persistencia](../design/persistencia-proyectos.md) y el
+[índice funcional](../design/README.md) mantienen las reglas.
 La propuesta documental no acredita comportamiento del ejecutable.
 No se reabren tarjetas históricas M1/M2. La documentación no acredita runtime.
 Las referencias a master no prueban compatibilidad universal de forks.

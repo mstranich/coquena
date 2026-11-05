@@ -1,6 +1,6 @@
 # Tareas de Coquena
 
-LeanSpec organiza trabajo y evidencia. Las reglas funcionales permanecen en ../docs/README.md;
+LeanSpec organiza trabajo y evidencia. Las reglas funcionales permanecen en ../docs/design/README.md;
 las tarjetas deben enlazar los documentos del área, no replicarlos.
 Los entregables grandes están en [docs/milestones](../docs/milestones/M1-servidor-local.md),
 no son tarjetas del tablero. Cada tarea enlaza el milestone al que contribuye;

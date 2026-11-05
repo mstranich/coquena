@@ -2,7 +2,7 @@
 
 Inventario por proyecto, selección, propiedad e integridad. Los diagramas de disponibilidad están en [estados.md](estados.md).
 
-La [guía de implementación](implementacion-catalogo-modelos.md) descompone estas reglas
+La [guía de implementación](guia-tecnica.md) descompone estas reglas
 en contratos e invariantes técnicas. Los mecanismos propuestos
 allí no sustituyen las decisiones funcionales de este documento.
 

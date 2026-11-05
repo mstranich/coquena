@@ -23,8 +23,8 @@ Resolver home y estructura acordada; guardar catálogos JSON indentados con reem
 
 ## Referencias
 - [Milestone M1](../../docs/milestones/M1-servidor-local.md)
-- [implementacion-catalogo-modelos.md](../../docs/implementacion-catalogo-modelos.md)
-- [servidores.md](../../docs/servidores.md)
+- [guia-tecnica.md](../../docs/design/guia-tecnica.md)
+- [servidores.md](../../docs/design/servidores.md)
 
 ## Trabajo y aceptación
 - [x] Probar precedencia de home, dos escritores, JSON dañado y fallo antes/después del reemplazo. No perder cambios ni presentar documentos corruptos como catálogos vacíos. Documentar mecanismo y límites elegidos.

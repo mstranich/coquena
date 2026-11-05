@@ -2,8 +2,10 @@
 
 ## Contexto y alcance
 
-- Leer docs/README.md y los documentos canónicos del área antes de trabajar.
-- docs/ contiene las reglas funcionales; docs/milestones/ define entregables y alcance.
+- Leer docs/design/README.md y los documentos canónicos del área antes de trabajar.
+- docs/design/ contiene las reglas funcionales; docs/milestones/ define entregables y alcance.
+  docs/user-guide/ es el manual en inglés de la versión publicada; se actualiza en cada
+  release con tag, sólo con lo disponible en esa versión y con ejemplos probados.
   specs/ contiene tareas concretas y evidencia, enlazadas a su milestone sin duplicar reglas.
 - La documentación funcional/general describe el comportamiento y las reglas del producto,
   independientemente de la planificación. No incluir en ella números o estados de tareas,
@@ -53,7 +55,7 @@ Mantener cada entrega acotada; enlazar las reglas canónicas en vez de copiarlas
 
 ## Privacidad de la evidencia pública
 
-- Aplicar [Privacidad y datos compartibles](docs/privacidad.md) al redactar
+- Aplicar [Privacidad y datos compartibles](docs/design/privacidad.md) al redactar
   documentación, tarjetas, logs y capturas versionados. Ese documento mantiene
   las reglas de anonimización, reproducción y autoría pública.
 - Conservar las ubicaciones reales de pruebas sólo en el chat o en evidencia

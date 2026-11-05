@@ -33,8 +33,8 @@ Implementar lectura acotada de encabezados y agrupación estándar, completitud 
 
 ## Referencias
 - [Milestone M1](../../docs/milestones/M1-servidor-local.md)
-- [modelos-y-companions.md](../../docs/modelos-y-companions.md)
-- [implementacion-catalogo-modelos.md](../../docs/implementacion-catalogo-modelos.md)
+- [modelos-y-companions.md](../../docs/design/modelos-y-companions.md)
+- [guia-tecnica.md](../../docs/design/guia-tecnica.md)
 
 ## Trabajo y aceptación
 - [x] Fixtures de un archivo y múltiples shards: faltantes, duplicados, encabezado truncado, metadatos contradictorios y digest incorrecto. Hash incremental con memoria acotada y prefijo reanudado cubierto. No certificar compatibilidad de inferencia ni tratar commit/ETag como SHA de pesos.

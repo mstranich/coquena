@@ -3,6 +3,7 @@ name: Documentación
 on:
   push:
     branches: [main]
+    tags: ["v*"]
     paths:
       - docs/**
       - docs-site/**
@@ -28,6 +29,9 @@ jobs:
     steps:
       - uses: actions/configure-pages@v6
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          fetch-tags: true
       - uses: actions/setup-java@v6
         with:
           distribution: temurin
@@ -36,6 +40,7 @@ jobs:
       - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends graphviz
       - run: uv run docs-site/build.py
       - run: uvx zensical@0.0.73 build --clean --strict
+      - run: uv run docs-site/build.py --finalize
       - uses: actions/upload-pages-artifact@v5
         with:
           path: artifacts/docs-site/site

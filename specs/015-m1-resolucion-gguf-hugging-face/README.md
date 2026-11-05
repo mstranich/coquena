@@ -57,11 +57,11 @@ No prometer reconocer cualquier archivo arbitrario sin evidencia ni inventar eti
 ## 2. Referencias canónicas y límites
 
 Leer antes de modificar comportamiento:
-- [Índice funcional](../../docs/README.md).
-- [CLI y menú model](../../docs/comandos.md#model).
-- [Identidad, shards y companions](../../docs/modelos-y-companions.md).
-- [Proveedor y adquisición](../../docs/implementacion-catalogo-modelos.md).
-- [Transferencia y publicación](../../docs/descargas.md).
+- [Índice funcional](../../docs/design/README.md).
+- [CLI y menú model](../../docs/design/comandos.md#model).
+- [Identidad, shards y companions](../../docs/design/modelos-y-companions.md).
+- [Proveedor y adquisición](../../docs/design/guia-tecnica.md).
+- [Transferencia y publicación](../../docs/design/descargas.md).
 - [Milestone M1](../../docs/milestones/M1-servidor-local.md).
 - [007: selección existente](../007-m1-seleccion-hugging-face/README.md).
 - [008: inspector](../008-m1-gguf-integridad/README.md).

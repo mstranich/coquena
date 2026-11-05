@@ -27,9 +27,9 @@ Reutilizar las garantías de transferencia M2 con operaciones, preparación y pr
 ## Fuente de verdad
 
 - [Milestone M3](../../docs/milestones/M3-definiciones-declarativas.md)
-- [descargas.md](../../docs/descargas.md)
-- [persistencia-proyectos.md](../../docs/persistencia-proyectos.md)
-- [implementacion-catalogo-modelos.md](../../docs/implementacion-catalogo-modelos.md)
+- [descargas.md](../../docs/design/descargas.md)
+- [persistencia-proyectos.md](../../docs/design/persistencia-proyectos.md)
+- [guia-tecnica.md](../../docs/design/guia-tecnica.md)
 
 Las reglas funcionales de los documentos enlazados prevalecen. Esta tarjeta define trabajo y evidencia, sin crear una definición arquitectónica alternativa.
 

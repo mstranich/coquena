@@ -35,9 +35,9 @@ Aplicar la convención funcional de unidades a la entrada y a todas las salidas 
 ## Fuente de verdad
 
 - [Milestone M3](../../docs/milestones/M3-definiciones-declarativas.md)
-- [glosario.md#unidades-de-tamaño-y-memoria](../../docs/glosario.md#unidades-de-tamaño-y-memoria)
-- [comandos.md](../../docs/comandos.md)
-- [observabilidad.md](../../docs/observabilidad.md)
+- [glosario.md#unidades-de-tamaño-y-memoria](../../docs/design/glosario.md#unidades-de-tamaño-y-memoria)
+- [comandos.md](../../docs/design/comandos.md)
+- [observabilidad.md](../../docs/design/observabilidad.md)
 
 Las reglas están en la documentación funcional enlazada. Esta tarjeta delimita trabajo y aceptación; no redefine esas reglas.
 

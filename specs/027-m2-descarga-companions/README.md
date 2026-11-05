@@ -23,8 +23,8 @@ Instalar unidades auxiliares de forma independiente del modelo principal y de lo
 
 ## Referencias
 - [M2](../../docs/milestones/M2-gestion-completa.md)
-- [Reglas funcionales](../../docs/modelos-y-companions.md#companions)
-- [CLI](../../docs/comandos.md)
+- [Reglas funcionales](../../docs/design/modelos-y-companions.md#companions)
+- [CLI](../../docs/design/comandos.md)
 
 ## Trabajo y aceptación
 - [x] Implementar companion download/list reutilizando selección de 015 y publicación de 009,

@@ -35,10 +35,10 @@ preset e incorporar la retención global y por servidor.
 
 ## Referencias
 - [M1: servidor local](../../docs/milestones/M1-servidor-local.md)
-- [CLI](../../docs/comandos.md#config) y [presets](../../docs/comandos.md#preset)
-- [Valores de presets](../../docs/modelos-y-companions.md#presets)
-- [Retención y unidades](../../docs/servidores.md#consulta-de-logs)
-- [Persistencia](../../docs/servidores.md#persistencia)
+- [CLI](../../docs/design/comandos.md#config) y [presets](../../docs/design/comandos.md#preset)
+- [Valores de presets](../../docs/design/modelos-y-companions.md#presets)
+- [Retención y unidades](../../docs/design/servidores.md#consulta-de-logs)
+- [Persistencia](../../docs/design/servidores.md#persistencia)
 - Antecedentes implementados: [010](../010-m1-config-presets-ini/README.md) y
   [013](../013-m1-metricas-logs/README.md).
 
@@ -57,7 +57,7 @@ preset e incorporar la retención global y por servidor.
   valores globales, de familia ni del modelo.
 - [x] Dos servidores con el mismo backend mantienen parámetros de proceso independientes.
 - [x] Verificar la composición del INI conforme al
-  [alcance por instancia](../../docs/catalogo-de-parametros.md#aplicación-en-router-mode),
+  [alcance por instancia](../../docs/design/catalogo-de-parametros.md#aplicación-en-router-mode),
   sin incorporar los ámbitos retirados.
 - [x] La sintaxis retirada recibe el diagnóstico normal de argumentos inválidos.
 

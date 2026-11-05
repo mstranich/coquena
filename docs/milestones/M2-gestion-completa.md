@@ -11,11 +11,11 @@ Native AOT y las reglas canónicas. La evidencia de aceptación está en
 
 ## Referencias
 
-- [CLI](../comandos.md)
-- [Modelos y companions](../modelos-y-companions.md)
-- [Parámetros](../catalogo-de-parametros.md)
-- [Servidores](../servidores.md)
-- [Descargas](../descargas.md)
+- [CLI](../design/comandos.md)
+- [Modelos y companions](../design/modelos-y-companions.md)
+- [Parámetros](../design/catalogo-de-parametros.md)
+- [Servidores](../design/servidores.md)
+- [Descargas](../design/descargas.md)
 
 ## Entregas
 

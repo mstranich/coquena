@@ -27,10 +27,10 @@ Adaptar selección, adquisición y catálogo de archivos de pesos a recetas y á
 ## Fuente de verdad
 
 - [Milestone M3](../../docs/milestones/M3-definiciones-declarativas.md)
-- [modelos-y-companions.md](../../docs/modelos-y-companions.md)
-- [formato-proyecto.md](../../docs/formato-proyecto.md)
-- [descargas.md](../../docs/descargas.md)
-- [comandos.md#model](../../docs/comandos.md#model)
+- [modelos-y-companions.md](../../docs/design/modelos-y-companions.md)
+- [formato-proyecto.md](../../docs/design/formato-proyecto.md)
+- [descargas.md](../../docs/design/descargas.md)
+- [comandos.md#model](../../docs/design/comandos.md#model)
 
 Las reglas funcionales de los documentos enlazados prevalecen. Esta tarjeta define trabajo y evidencia, sin crear una definición arquitectónica alternativa.
 

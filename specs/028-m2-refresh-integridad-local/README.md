@@ -26,8 +26,8 @@ Exponer observaciones locales e integridad como operaciones explícitas y difere
 
 ## Referencias
 - [M2](../../docs/milestones/M2-gestion-completa.md)
-- [Reglas funcionales](../../docs/modelos-y-companions.md#integridad-local)
-- [CLI](../../docs/comandos.md)
+- [Reglas funcionales](../../docs/design/modelos-y-companions.md#integridad-local)
+- [CLI](../../docs/design/comandos.md)
 
 ## Trabajo y aceptación
 - [x] Implementar refresh/verify de modelos y companions; refresh anota observaciones sin red

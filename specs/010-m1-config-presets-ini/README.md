@@ -33,9 +33,9 @@ Implementar catálogo mínimo de parámetros sustentado para el backend objetivo
 
 ## Referencias
 - [Milestone M1](../../docs/milestones/M1-servidor-local.md)
-- [catalogo-de-parametros.md](../../docs/catalogo-de-parametros.md)
-- [comandos.md](../../docs/comandos.md)
-- [servidores.md](../../docs/servidores.md)
+- [catalogo-de-parametros.md](../../docs/design/catalogo-de-parametros.md)
+- [comandos.md](../../docs/design/comandos.md)
+- [servidores.md](../../docs/design/servidores.md)
 
 ## Trabajo y aceptación
 - [x] Fixtures de precedencia, unset restaurando herencia, referencias rotas y separación parámetros server/modelo. Verificar nombres/parámetros con evidencia del release elegido, sin convertir desconocido en rechazo ficticio. Sin import/export, clonación ni companions.

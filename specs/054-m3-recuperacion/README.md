@@ -26,9 +26,9 @@ Conservar disponibilidad ante fallos recuperables de la candidata conforme al mo
 ## Fuente de verdad
 
 - [Milestone M3](../../docs/milestones/M3-definiciones-declarativas.md)
-- [servidores.md#recuperación-y-fallos](../../docs/servidores.md#recuperación-y-fallos)
-- [persistencia-proyectos.md](../../docs/persistencia-proyectos.md)
-- [definiciones-declarativas.md](../../docs/definiciones-declarativas.md)
+- [servidores.md#recuperación-y-fallos](../../docs/design/servidores.md#recuperación-y-fallos)
+- [persistencia-proyectos.md](../../docs/design/persistencia-proyectos.md)
+- [definiciones-declarativas.md](../../docs/design/definiciones-declarativas.md)
 
 Las reglas funcionales de los documentos enlazados prevalecen. Esta tarjeta define trabajo y evidencia, sin crear una definición arquitectónica alternativa.
 

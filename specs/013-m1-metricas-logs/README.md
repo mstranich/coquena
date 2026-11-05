@@ -33,8 +33,8 @@ Integrar server ps con métricas por modelo y server logs/-f para instancia actu
 
 ## Referencias
 - [Milestone M1](../../docs/milestones/M1-servidor-local.md)
-- [servidores.md](../../docs/servidores.md)
-- [comandos.md](../../docs/comandos.md)
+- [servidores.md](../../docs/design/servidores.md)
+- [comandos.md](../../docs/design/comandos.md)
 
 ## Trabajo y aceptación
 - [x] Fixtures prueban métricas desactivadas, timeout/formato inválido y modelo no cargado sin cifras inventadas. Ctrl+C de logs -f termina seguimiento, no servidor. Probar retención sin borrar log activo y acceso tras stop; no incorporar TUI.
@@ -71,7 +71,7 @@ draft sin implementación. Dependencia 012 complete verificada por board/view.
   positivo; ausencia conserva 100 MiB. No hay paquetes nuevos.
 - Por solicitud del usuario se creó [017 draft](../017-configuracion-retencion-logs/README.md)
   para diseñar consulta/ajuste por CLI. Su implementación queda fuera de 013.
-- Reglas y referencia técnica en [servidores.md](../../docs/servidores.md#consulta-de-logs).
+- Reglas y referencia técnica en [servidores.md](../../docs/design/servidores.md#consulta-de-logs).
 
 ### Verificación
 ```powershell

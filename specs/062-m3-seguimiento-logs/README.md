@@ -26,9 +26,9 @@ Mantener un observador continuo de logs y permitir consulta histórica sin contr
 ## Fuente de verdad
 
 - [Milestone M3](../../docs/milestones/M3-definiciones-declarativas.md)
-- [observabilidad.md#logs](../../docs/observabilidad.md#logs)
-- [comandos.md](../../docs/comandos.md)
-- [ui-servicio.md](../../docs/ui-servicio.md)
+- [observabilidad.md#logs](../../docs/design/observabilidad.md#logs)
+- [comandos.md](../../docs/design/comandos.md)
+- [ui-servicio.md](../../docs/design/ui-servicio.md)
 
 Las reglas funcionales de los documentos enlazados prevalecen. Esta tarjeta define trabajo y evidencia, sin crear una definición arquitectónica alternativa.
 

@@ -35,8 +35,8 @@ distribución oficial de llama.cpp, incluido el ajuste de builds soportados.
 
 ## Referencias
 - [M2](../../docs/milestones/M2-gestion-completa.md)
-- [CLI](../../docs/comandos.md#param)
-- [Gestión del catálogo](../../docs/catalogo-de-parametros.md#gestión-de-parámetros-personalizados)
+- [CLI](../../docs/design/comandos.md#param)
+- [Gestión del catálogo](../../docs/design/catalogo-de-parametros.md#gestión-de-parámetros-personalizados)
 
 ## Alcance
 Implementar la gestión local de definiciones, su persistencia y su aplicación al componer
@@ -54,35 +54,35 @@ terceros ni parámetros específicos de runtimes externos locales.
 - [x] Editar y eliminar definiciones iniciales y creadas por el usuario; verificar
   la protección de las definiciones host, port y metrics.
 - [x] Verificar el diagnóstico de usos y los recorridos de confirmación, cancelación y
-  falta de entrada interactiva de la [eliminación](../../docs/catalogo-de-parametros.md#eliminación-de-definiciones).
+  falta de entrada interactiva de la [eliminación](../../docs/design/catalogo-de-parametros.md#eliminación-de-definiciones).
 - [x] Comprobar la cascada en varios presets y servidores, preservando los recursos
   referenciados, y la consistencia del estado ante fallos de persistencia.
 - [x] Editar metadatos y asociaciones oficiales sin duplicar la definición ni borrar presets.
 - [x] Probar cambios de tipo y enumeración con asignaciones compatibles e incompatibles,
   confirmación, cancelación y fallos conforme a la
-  [edición del catálogo](../../docs/catalogo-de-parametros.md#edición-con-asignaciones-incompatibles).
+  [edición del catálogo](../../docs/design/catalogo-de-parametros.md#edición-con-asignaciones-incompatibles).
 - [x] Validar enumeraciones y defaults contra el tipo declarado.
 - [x] Verificar las opciones de tipo, descripción, default, alias, valores enumerados,
-  ámbito y destino de define/edit según la [CLI](../../docs/comandos.md#param).
+  ámbito y destino de define/edit según la [CLI](../../docs/design/comandos.md#param).
 - [x] Verificar opciones repetidas para alias y enumeraciones: reemplazo de la lista
   durante edit, conservación al omitirla y alias que comienzan con guiones.
 - [x] Verificar la limpieza explícita de default, descripción y alias; rechazar opciones
   contradictorias y definiciones resultantes con enumeración vacía o default incompatible.
 - [x] Verificar que editar el default no modifica asignaciones existentes y que retirar
   una asignación no lo repone, conforme a los
-  [defaults para formularios](../../docs/catalogo-de-parametros.md#valores-predeterminados-para-formularios).
-- [x] Verificar la [consulta del impacto](../../docs/catalogo-de-parametros.md#consulta-del-impacto)
+  [defaults para formularios](../../docs/design/catalogo-de-parametros.md#valores-predeterminados-para-formularios).
+- [x] Verificar la [consulta del impacto](../../docs/design/catalogo-de-parametros.md#consulta-del-impacto)
   en edición y eliminación, sin escrituras ni interacción, incluida la salida a archivo.
 - [x] Comparar el informe con la operación real sobre el mismo estado; comprobar que
   un cambio posterior del catálogo o de las asignaciones obliga a recalcular el impacto.
 - [x] Verificar enteros, fracciones y booleanos según los
-  [tipos documentados](../../docs/catalogo-de-parametros.md#tipos-y-evidencia-del-backend),
+  [tipos documentados](../../docs/design/catalogo-de-parametros.md#tipos-y-evidencia-del-backend),
   sin inferir el tipo a partir del valor asignado.
 - [x] Comprobar asignación al ámbito correcto: parámetros de modelo en presets y
   parámetros de proceso en servidores; guardar definiciones no asigna valores.
 - [x] Probar rangos con ambos límites, un solo límite y sin límites; comprobar inclusión
   de los extremos, exclusión de versiones exteriores y versión exacta con límites iguales.
-- [x] Verificar la [comparación de builds](../../docs/catalogo-de-parametros.md#comparación-de-versiones):
+- [x] Verificar la [comparación de builds](../../docs/design/catalogo-de-parametros.md#comparación-de-versiones):
   orden numérico bNNNN; rechazar rangos invertidos y versiones inválidas.
 - [x] Guardar un valor en un preset; incluirlo con backend/versión compatibles y omitirlo
   con warning en una ejecución fuera de su aplicabilidad, conservando el valor guardado.

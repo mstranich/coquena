@@ -23,8 +23,8 @@ Implementar motor común con transporte inyectable, GUID persistido antes de byt
 
 ## Referencias
 - [Milestone M1](../../docs/milestones/M1-servidor-local.md)
-- [descargas.md](../../docs/descargas.md)
-- [comandos.md](../../docs/comandos.md)
+- [descargas.md](../../docs/design/descargas.md)
+- [comandos.md](../../docs/design/comandos.md)
 
 ## Trabajo y aceptación
 - [x] Fixtures HTTP prueban Range/200/validadores, total desconocido, caída, reintentos acotados, pausa coherente, ejecutor exclusivo y reanudación sin repetir archivos completos. Cancelar limpia sólo preparación; fallo preserva GUID y devuelve prompt. Consumidores posteriores completan publicación/limpieza.

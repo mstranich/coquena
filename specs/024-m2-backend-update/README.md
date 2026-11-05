@@ -34,8 +34,8 @@ latest.
 
 ## Referencias
 - [M2](../../docs/milestones/M2-gestion-completa.md)
-- [Reglas funcionales](../../docs/servidores.md#definición-persistida)
-- [CLI](../../docs/comandos.md)
+- [Reglas funcionales](../../docs/design/servidores.md#definición-persistida)
+- [CLI](../../docs/design/comandos.md)
 
 ## Trabajo y aceptación
 - [x] Consultar todos los seguimientos latest o uno seleccionado y guardar

@@ -26,10 +26,10 @@ Obtener intención efectiva y diagnósticos desde recetas escritas externamente,
 ## Fuente de verdad
 
 - [Milestone M3](../../docs/milestones/M3-definiciones-declarativas.md)
-- [formato-proyecto.md](../../docs/formato-proyecto.md)
-- [definiciones-declarativas.md](../../docs/definiciones-declarativas.md)
-- [servicios-recetas.md](../../docs/servicios-recetas.md)
-- [comandos.md](../../docs/comandos.md)
+- [formato-proyecto.md](../../docs/design/formato-proyecto.md)
+- [definiciones-declarativas.md](../../docs/design/definiciones-declarativas.md)
+- [servicios-recetas.md](../../docs/design/servicios-recetas.md)
+- [comandos.md](../../docs/design/comandos.md)
 
 Las reglas funcionales de los documentos enlazados prevalecen. Esta tarjeta define trabajo y evidencia, sin crear una definición arquitectónica alternativa.
 

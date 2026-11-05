@@ -12,9 +12,9 @@ New-Item -ItemType Directory -Force $TestRoot | Out-Null
 
 El paquete es una preparación local para revisión. La aceptación, estado y resultados
 están en [la tarjeta](README.md). No incluye pesos, llama.cpp ni runtime .NET.
-Las reglas de producto están en [CLI](../../docs/comandos.md),
-[servidores](../../docs/servidores.md), [modelos](../../docs/modelos-y-companions.md),
-[descargas](../../docs/descargas.md) y [parámetros](../../docs/catalogo-de-parametros.md).
+Las reglas de producto están en [CLI](../../docs/design/comandos.md),
+[servidores](../../docs/design/servidores.md), [modelos](../../docs/design/modelos-y-companions.md),
+[descargas](../../docs/design/descargas.md) y [parámetros](../../docs/design/catalogo-de-parametros.md).
 
 ## Auditoría de superficie
 

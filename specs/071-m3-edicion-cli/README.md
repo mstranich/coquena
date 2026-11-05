@@ -28,10 +28,10 @@ Integrar los comandos de configuración con intención YAML sin construir un edi
 ## Fuente de verdad
 
 - [Milestone M3](../../docs/milestones/M3-definiciones-declarativas.md)
-- [formato-proyecto.md](../../docs/formato-proyecto.md)
-- [definiciones-declarativas.md](../../docs/definiciones-declarativas.md)
-- [comandos.md](../../docs/comandos.md)
-- [catalogo-de-parametros.md](../../docs/catalogo-de-parametros.md)
+- [formato-proyecto.md](../../docs/design/formato-proyecto.md)
+- [definiciones-declarativas.md](../../docs/design/definiciones-declarativas.md)
+- [comandos.md](../../docs/design/comandos.md)
+- [catalogo-de-parametros.md](../../docs/design/catalogo-de-parametros.md)
 
 Las reglas funcionales de los documentos enlazados prevalecen. Esta tarjeta define trabajo y evidencia, sin crear una definición arquitectónica alternativa.
 

@@ -28,11 +28,11 @@ global. El recorrido imperativo global se evalúa en la 073.
 ## Fuente de verdad
 
 - [Milestone M3](../../docs/milestones/M3-definiciones-declarativas.md)
-- [README.md](../../docs/README.md)
-- [Servicios y recetas](../../docs/servicios-recetas.md)
-- [Formato de proyecto](../../docs/formato-proyecto.md)
-- [Persistencia](../../docs/persistencia-proyectos.md)
-- [Comandos](../../docs/comandos.md)
+- [README.md](../../docs/design/README.md)
+- [Servicios y recetas](../../docs/design/servicios-recetas.md)
+- [Formato de proyecto](../../docs/design/formato-proyecto.md)
+- [Persistencia](../../docs/design/persistencia-proyectos.md)
+- [Comandos](../../docs/design/comandos.md)
 
 Las reglas funcionales prevalecen. Esta tarjeta registra aceptación y evidencia.
 

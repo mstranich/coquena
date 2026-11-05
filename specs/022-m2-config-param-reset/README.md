@@ -37,9 +37,9 @@ suministrado por Coquena y ajustar las asignaciones afectadas con confirmación.
 
 ## Referencias
 - [M2](../../docs/milestones/M2-gestion-completa.md)
-- [CLI](../../docs/comandos.md#config)
-- [Restablecimiento de fábrica](../../docs/catalogo-de-parametros.md#restablecimiento-de-fábrica)
-- [Informe de impacto](../../docs/catalogo-de-parametros.md#consulta-del-impacto)
+- [CLI](../../docs/design/comandos.md#config)
+- [Restablecimiento de fábrica](../../docs/design/catalogo-de-parametros.md#restablecimiento-de-fábrica)
+- [Informe de impacto](../../docs/design/catalogo-de-parametros.md#consulta-del-impacto)
 
 ## Trabajo
 - [x] Resolver el catálogo de fábrica suministrado con la versión instalada.

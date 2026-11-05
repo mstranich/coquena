@@ -33,8 +33,8 @@ Implementar backend register y la selección de instalaciones externas por nombr
 
 ## Referencias
 - [M2](../../docs/milestones/M2-gestion-completa.md)
-- [CLI](../../docs/comandos.md#backend)
-- [Identificación](../../docs/servidores.md#identificación-de-backends)
+- [CLI](../../docs/design/comandos.md#backend)
+- [Identificación](../../docs/design/servidores.md#identificación-de-backends)
 
 ## Trabajo y aceptación
 - [x] Validar ruta, nombre, familia declarada y sondeo local válido de --version; persistir

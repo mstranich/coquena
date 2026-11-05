@@ -1,6 +1,6 @@
 # M1 — Servidor local con dos modelos
 
-**Estado:** borrador.
+**Estado:** entregado el 9 de octubre de 2026 en la versión 0.1.0.
 
 ## Objetivo
 
@@ -9,17 +9,16 @@ el usuario pueda instalar un backend oficial, descargar dos modelos GGUF, crear
 un preset por modelo y ejecutar un único servidor en Router Mode. Ambos presets
 deben ser accesibles para inferencia, con métricas y logs consultables desde Coquena.
 
-Borrador de alcance y tareas: no autoriza implementación ni selección de paquetes.
 No es el milestone de todas las funcionalidades de Coquena ni habilita todavía la TUI.
 
 ## Referencias canónicas
 
-- [CLI](../comandos.md)
-- [Servidores y persistencia](../servidores.md)
-- [Modelos y companions](../modelos-y-companions.md)
-- [Descargas](../descargas.md)
-- [Parámetros](../catalogo-de-parametros.md)
-- [Guía del catálogo](../implementacion-catalogo-modelos.md)
+- [CLI](../design/comandos.md)
+- [Servidores y persistencia](../design/servidores.md)
+- [Modelos y companions](../design/modelos-y-companions.md)
+- [Descargas](../design/descargas.md)
+- [Parámetros](../design/catalogo-de-parametros.md)
+- [Guía del catálogo](../design/guia-tecnica.md)
 
 Las reglas existentes no se copian ni se reinterpretan. Las entregas M0–M6 de la guía
 son piezas del catálogo, no milestones del producto; esta tarjeta cubre un recorrido

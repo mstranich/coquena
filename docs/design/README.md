@@ -95,7 +95,7 @@ aceptación del riesgo de interrupción se definen en
 | [Casos de uso](casos-de-uso.md) | Actores y recorrido |
 | [Secuencias](secuencias.md) | Colaboración entre operaciones |
 | [Actividades](actividades.md) | Decisiones de ejecución y edición |
-| [Guía técnica](implementacion-catalogo-modelos.md) | Contratos e invariantes de implementación |
+| [Guía técnica](guia-tecnica.md) | Contratos e invariantes de implementación |
 
 Una regla se mantiene en su documento responsable; diagramas y comandos la enlazan.
 Las cuestiones no concretadas se identifican, sin autorizar otra política implícita.
@@ -105,7 +105,7 @@ Las cuestiones no concretadas se identifican, sin autorizar otra política impl�
 El contrato funcional no acredita que el ejecutable publicado ya implemente todo.
 Recortes, entregas y evidencia pertenecen a specs/ y milestones.
 
-- [M1: servidor local](milestones/M1-servidor-local.md).
-- [M2: gestión completa](milestones/M2-gestion-completa.md).
-- [M3: soporte completo de proyectos con YAML](milestones/M3-definiciones-declarativas.md).
-- [M4: experiencia completa e interfaces visuales](milestones/M4-experiencia-completa.md).
+- [M1: servidor local](../milestones/M1-servidor-local.md).
+- [M2: gestión completa](../milestones/M2-gestion-completa.md).
+- [M3: soporte completo de proyectos con YAML](../milestones/M3-definiciones-declarativas.md).
+- [M4: experiencia completa en Terminal UI](../milestones/M4-experiencia-completa.md).

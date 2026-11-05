@@ -23,8 +23,8 @@ Definir datos mínimos de backend, selección remota, unidad GGUF, preset, servi
 
 ## Referencias
 - [Milestone M1](../../docs/milestones/M1-servidor-local.md)
-- [modelo-de-datos.md](../../docs/modelo-de-datos.md)
-- [servidores.md](../../docs/servidores.md)
+- [modelo-de-datos.md](../../docs/design/modelo-de-datos.md)
+- [servidores.md](../../docs/design/servidores.md)
 
 ## Trabajo y aceptación
 - [x] Round-trip de fixtures pequeños; distinguir intención de selección y ejecución concreta. Revisar esquema de servidores acordado y diagnosticar versión desconocida/documento inválido.

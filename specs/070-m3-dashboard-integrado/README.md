@@ -23,10 +23,10 @@ Entregar una pantalla semigráfica de terminal utilizable para vigilar el servid
 ## Fuente de verdad
 
 - [Milestone M4](../../docs/milestones/M4-experiencia-completa.md)
-- [ui-servicio.md](../../docs/ui-servicio.md)
-- [interfaces-visuales.md](../../docs/interfaces-visuales.md)
-- [observabilidad.md](../../docs/observabilidad.md)
-- [tui-servicio.salt.puml](../../docs/tui-servicio.salt.puml)
+- [ui-servicio.md](../../docs/design/ui-servicio.md)
+- [interfaces-visuales.md](../../docs/design/interfaces-visuales.md)
+- [observabilidad.md](../../docs/design/observabilidad.md)
+- [tui-servicio.salt.puml](../../docs/design/tui-servicio.salt.puml)
 
 Las reglas funcionales de los documentos enlazados prevalecen. Esta tarjeta define trabajo y evidencia, sin crear una definición arquitectónica alternativa.
 

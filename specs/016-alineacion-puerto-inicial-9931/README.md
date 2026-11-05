@@ -33,8 +33,8 @@ Cambiar el puerto inicial de Coquena de 8080 a 9931 para nuevas definiciones con
 
 ## Referencias
 - [Milestone M1](../../docs/milestones/M1-servidor-local.md)
-- [Puertos y configuración de servidores](../../docs/servidores.md#puertos)
-- [CLI de servidores](../../docs/comandos.md#servidores-e-instancias)
+- [Puertos y configuración de servidores](../../docs/design/servidores.md#puertos)
+- [CLI de servidores](../../docs/design/comandos.md#servidores-e-instancias)
 - [011 — Definiciones, defaults y puertos](../011-m1-definiciones-server/README.md)
 - [Anuncio upstream: PR 26508](https://github.com/ggml-org/llama.cpp/pull/26508)
 

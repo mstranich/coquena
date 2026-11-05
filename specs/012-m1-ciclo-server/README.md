@@ -35,8 +35,8 @@ Integrar start foreground/-d, stop por servidor/default o --id y restart con pla
 
 ## Referencias
 - [Milestone M1](../../docs/milestones/M1-servidor-local.md)
-- [servidores.md](../../docs/servidores.md)
-- [comandos.md](../../docs/comandos.md)
+- [servidores.md](../../docs/design/servidores.md)
+- [comandos.md](../../docs/design/comandos.md)
 
 ## Trabajo y aceptación
 - [x] Proceso fixture y binario nativo prueban Ctrl+C deteniendo foreground, detached sobreviviendo terminal, segundo start sin duplicación, puerto ocupado, PID reutilizado/identidad incierta y caída. Stop limpia registro/INI y conserva log; restart usa configuración guardada y backend instalado vigente, sin red.
@@ -144,8 +144,8 @@ board/search/view; no se amplía 013/014 ni M2.
 El 9 de octubre de 2026 el usuario sustituyó el ID posicional por selección
 de servidor/default y selección explícita mediante --id, aprovechando la
 restricción de una instancia activa por servidor. La gramática y conducta
-vigentes se mantienen en [comandos.md](../../docs/comandos.md#servidores-e-instancias)
-y [servidores.md](../../docs/servidores.md#inicio-y-detención).
+vigentes se mantienen en [comandos.md](../../docs/design/comandos.md#servidores-e-instancias)
+y [servidores.md](../../docs/design/servidores.md#inicio-y-detención).
 
 `ServerManager.Actions` reconoce stop como acción del servidor, incluida la
 referencia explícita al nombre default. `ServerCli` interpreta ambas formas

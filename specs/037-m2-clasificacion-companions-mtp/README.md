@@ -58,8 +58,8 @@ compatibilidad de inferencia entre arquitecturas.
 ## Referencias
 
 - [M2](../../docs/milestones/M2-gestion-completa.md).
-- [Modelos y companions](../../docs/modelos-y-companions.md).
-- [CLI](../../docs/comandos.md), [evidencia Ornith](../035-m2-entrega-integrada/prueba-ornith.md).
+- [Modelos y companions](../../docs/design/modelos-y-companions.md).
+- [CLI](../../docs/design/comandos.md), [evidencia Ornith](../035-m2-entrega-integrada/prueba-ornith.md).
 - Código: src/Coquena/Models/ModelResolution.cs y consumidores de selección.
 - Inventario EryriLabs observado en commit 2e9f6f487b82200f2a045e67d01a3f1e2982b00a.
 - Antecedentes completos: 015 y 027. Sin dependencia bloqueante con las otras correcciones.

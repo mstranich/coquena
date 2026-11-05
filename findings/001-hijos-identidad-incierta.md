@@ -27,7 +27,7 @@ detecta miembros vivos. La recuperación respeta ese rechazo y no convierte un P
 o un nombre de grupo en autorización para terminar procesos.
 
 El fundamento es la regla de
-[recuperación tras un cierre inesperado](../docs/servidores.md#recuperación-tras-un-cierre-inesperado):
+[recuperación tras un cierre inesperado](../docs/design/servidores.md#recuperación-tras-un-cierre-inesperado):
 identidad incierta conserva evidencia y bloquea sustitución. El registro de este
 hallazgo no modifica esa regla ni autoriza una excepción.
 

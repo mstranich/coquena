@@ -27,9 +27,9 @@ Entregar ps y snapshots reutilizables con fuente, unidad y disponibilidad sin ef
 ## Fuente de verdad
 
 - [Milestone M3](../../docs/milestones/M3-definiciones-declarativas.md)
-- [observabilidad.md](../../docs/observabilidad.md)
-- [ui-servicio.md](../../docs/ui-servicio.md)
-- [comandos.md](../../docs/comandos.md)
+- [observabilidad.md](../../docs/design/observabilidad.md)
+- [ui-servicio.md](../../docs/design/ui-servicio.md)
+- [comandos.md](../../docs/design/comandos.md)
 
 Las reglas funcionales de los documentos enlazados prevalecen. Esta tarjeta define trabajo y evidencia, sin crear una definición arquitectónica alternativa.
 

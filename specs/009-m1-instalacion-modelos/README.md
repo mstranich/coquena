@@ -36,9 +36,9 @@ Integrar model download y listado local con selección fijada, transferencia y v
 
 ## Referencias
 - [Milestone M1](../../docs/milestones/M1-servidor-local.md)
-- [descargas.md](../../docs/descargas.md)
-- [modelos-y-companions.md](../../docs/modelos-y-companions.md)
-- [implementacion-catalogo-modelos.md](../../docs/implementacion-catalogo-modelos.md)
+- [descargas.md](../../docs/design/descargas.md)
+- [modelos-y-companions.md](../../docs/design/modelos-y-companions.md)
+- [guia-tecnica.md](../../docs/design/guia-tecnica.md)
 
 ## Trabajo y aceptación
 - [x] Pruebas de múltiples shards, colisiones, rutas inseguras, espacio insuficiente y recuperación entre movimiento e índice. SHA-256 completo por archivo; contraste remoto sólo comparable. Ctrl+C/resume conserva commit y partes verificadas; éxito limpia operación y registra transacción. Sin externos/update/upgrade.

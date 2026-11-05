@@ -21,7 +21,7 @@ Crear solución mínima, pruebas y CLI inicial; fijar SDK 10.0.401, net10.0 y wi
 
 ## Referencias
 - [Milestone M1](../../docs/milestones/M1-servidor-local.md)
-- [README.md](../../docs/README.md)
+- [README.md](../../docs/design/README.md)
 
 ## Trabajo y aceptación
 - [x] Publicar y ejecutar el binario nativo; probar ayuda y diagnóstico de comando inválido. No anunciar comandos sin implementar.

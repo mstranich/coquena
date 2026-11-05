@@ -1,10 +1,10 @@
 # Sitio de documentación de Coquena. Las fuentes se preparan con
-# `uv run docs-site/build.py` (copia de docs/ con PlantUML renderizado)
+# `uv run docs-site/build.py` (copia de docs/ con el manual en la raíz)
 # y se construyen con `uvx zensical build --clean` o `uvx zensical serve`.
 
 [project]
 site_name = "Coquena"
-site_description = "Documentación funcional de Coquena"
+site_description = "User guide and design documentation for Coquena"
 site_author = "Maximiliano Stranich"
 # Único lugar con la URL pública; con dominio propio basta cambiarla y agregar CNAME.
 site_url = "https://mstranich.github.io/coquena/"
@@ -15,47 +15,68 @@ site_dir = "artifacts/docs-site/site"
 extra_css = ["stylesheets/coquena.css"]
 
 nav = [
-  { "Inicio" = "README.md" },
-  { "Reglas" = [
-    { "Formato del proyecto" = "formato-proyecto.md" },
-    { "Servicios y recetas" = "servicios-recetas.md" },
-    { "Persistencia de proyectos" = "persistencia-proyectos.md" },
-    { "Definiciones declarativas" = "definiciones-declarativas.md" },
-    { "Servidores" = "servidores.md" },
-    { "Modelos y companions" = "modelos-y-companions.md" },
-    { "Descargas" = "descargas.md" },
-    { "Parámetros" = "catalogo-de-parametros.md" },
-    { "Actualización y limpieza" = "actualizacion-y-limpieza.md" },
-    { "Observabilidad" = "observabilidad.md" },
-    { "Privacidad y datos compartibles" = "privacidad.md" },
+  { "Overview" = "README.md" },
+  { "Getting started" = "getting-started.md" },
+  { "Global and local" = "global-and-local.md" },
+  { "Recipes" = "recipes.md" },
+  { "Services and backends" = "services-and-backends.md" },
+  { "Models and Presets" = "models-and-presets.md" },
+  { "Maintenance" = "maintenance.md" },
+  { "Configuration" = "configuration.md" },
+  { "CLI reference" = "cli-reference.md" },
+  { "Troubleshooting" = "troubleshooting.md" },
+  { "Roadmap" = [
+    { "Overview" = "milestones/README.md" },
+    { "M1" = "milestones/M1-servidor-local.md" },
+    { "M2" = "milestones/M2-gestion-completa.md" },
+    { "M3" = "milestones/M3-definiciones-declarativas.md" },
+    { "M4" = "milestones/M4-experiencia-completa.md" },
   ] },
-  { "Interfaces" = [
-    { "Interfaces visuales" = "interfaces-visuales.md" },
-    { "Pantalla Servicios" = "ui-servicio.md" },
-    { "Comandos" = "comandos.md" },
-  ] },
-  { "Modelos" = [
-    { "Modelo de datos" = "modelo-de-datos.md" },
-    { "Estados" = "estados.md" },
-    { "Casos de uso" = "casos-de-uso.md" },
-    { "Secuencias" = "secuencias.md" },
-    { "Actividades" = "actividades.md" },
-  ] },
-  { "Referencia" = [
-    { "Benchmarking" = "benchmarking.md" },
-    { "Glosario" = "glosario.md" },
+  { "Design" = [
+    { "Inicio" = "design/README.md" },
+    { "Reglas" = [
+      { "Formato del proyecto" = "design/formato-proyecto.md" },
+      { "Servicios y recetas" = "design/servicios-recetas.md" },
+      { "Persistencia de proyectos" = "design/persistencia-proyectos.md" },
+      { "Definiciones declarativas" = "design/definiciones-declarativas.md" },
+      { "Servidores" = "design/servidores.md" },
+      { "Modelos y companions" = "design/modelos-y-companions.md" },
+      { "Descargas" = "design/descargas.md" },
+      { "Parámetros" = "design/catalogo-de-parametros.md" },
+      { "Actualización y limpieza" = "design/actualizacion-y-limpieza.md" },
+      { "Observabilidad" = "design/observabilidad.md" },
+      { "Privacidad y datos compartibles" = "design/privacidad.md" },
+    ] },
+    { "Interfaces" = [
+      { "Interfaces visuales" = "design/interfaces-visuales.md" },
+      { "Pantalla Servicios" = "design/ui-servicio.md" },
+      { "Comandos" = "design/comandos.md" },
+    ] },
+    { "Modelos" = [
+      { "Modelo de datos" = "design/modelo-de-datos.md" },
+      { "Estados" = "design/estados.md" },
+      { "Casos de uso" = "design/casos-de-uso.md" },
+      { "Secuencias" = "design/secuencias.md" },
+      { "Actividades" = "design/actividades.md" },
+    ] },
+    { "Referencia" = [
+      { "Benchmarking" = "design/benchmarking.md" },
+      { "Glosario" = "design/glosario.md" },
+    ] },
+    { "Guía técnica" = "design/guia-tecnica.md" },
   ] },
 ]
 
 [project.theme]
-language = "es"
+language = "en"
+logo = "assets/coquena-logo.png"
+favicon = "assets/coquena-favicon.png"
 features = [
   "content.code.copy",
   "navigation.footer",
   "navigation.indexes",
   "navigation.instant",
   "navigation.path",
-  "navigation.sections",
   "navigation.top",
   "navigation.tracking",
   "search.highlight",

@@ -32,8 +32,8 @@ Permitir que la verificación de proyectos y catálogo global audite por defecto
 ## Fuente de verdad
 
 - [Milestone M3](../../docs/milestones/M3-definiciones-declarativas.md)
-- [actualizacion-y-limpieza.md](../../docs/actualizacion-y-limpieza.md)
-- [comandos.md](../../docs/comandos.md)
+- [actualizacion-y-limpieza.md](../../docs/design/actualizacion-y-limpieza.md)
+- [comandos.md](../../docs/design/comandos.md)
 - [057: Verificar integridad y mantener diagnósticos locales por recurso](../057-m3-verificacion/README.md)
 
 ## Trabajo y aceptación
@@ -42,7 +42,7 @@ Permitir que la verificación de proyectos y catálogo global audite por defecto
 - [x] Por defecto (sin `--checksum`), verificar receta, existencia, legibilidad y estructura GGUF sin computar SHA-256 byte a byte.
 - [x] Con `--checksum`, ejecutar la lectura completa y comparación de SHA-256 contra la referencia registrada.
 - [x] Preservar fallos conocidos previos: una verificación rápida sin `--checksum` no limpia un fallo de integridad preexistente si no se ha comprobado el hash con éxito.
-- [x] Actualizar la documentación canónica (`docs/actualizacion-y-limpieza.md` y `docs/comandos.md`) y la ayuda de la CLI (`CliHelp`).
+- [x] Actualizar la documentación canónica (`docs/design/actualizacion-y-limpieza.md` y `docs/design/comandos.md`) y la ayuda de la CLI (`CliHelp`).
 - [x] Validar cobertura completa en pruebas administradas y publicación Native AOT.
 
 ## Dependencias
@@ -71,7 +71,7 @@ Implementada y validada en Windows win-x64; sin commit. Evidencia con ubicacione
   - Los fallos con referencia se limpian al comparar con éxito el digest original. Un bloqueo previo sin detalle se conserva hasta una comparación SHA-256 satisfactoria de la unidad.
 - `verify` muestra un resumen y acciones sugeridas por defecto. `--json` devuelve el informe estructurado. `quick-ok` distingue el éxito de la auditoría rápida de `verified`, que indica coincidencia SHA-256.
 - `code-map.yaml`: añade `checksum` a las palabras clave de `recipe-resource-verification`.
-- Documentos canónicos: `docs/actualizacion-y-limpieza.md` y `docs/comandos.md` actualizados para expresar la regla del producto.
+- Documentos canónicos: `docs/design/actualizacion-y-limpieza.md` y `docs/design/comandos.md` actualizados para expresar la regla del producto.
 
 ### Validación ejecutada
 

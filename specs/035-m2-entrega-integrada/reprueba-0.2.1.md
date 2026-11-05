@@ -26,9 +26,9 @@ El usuario amplió explícitamente la limpieza a todos los registros externos.
 Inventario previo de catálogos/configuración en `before`; estado limpio en
 `after-clean`; comandos de limpieza/reconstrucción en `commands.txt`.
 
-Reglas contrastadas: [retirada de recursos](../../docs/modelos-y-companions.md),
-[parámetros y cascadas](../../docs/catalogo-de-parametros.md),
-[servidores](../../docs/servidores.md) y [CLI](../../docs/comandos.md).
+Reglas contrastadas: [retirada de recursos](../../docs/design/modelos-y-companions.md),
+[parámetros y cascadas](../../docs/design/catalogo-de-parametros.md),
+[servidores](../../docs/design/servidores.md) y [CLI](../../docs/design/comandos.md).
 
 ## Limpieza comprobada
 

@@ -26,7 +26,7 @@ Exponer el sondeo de SO y hardware mediante system probe.
 
 ## Referencias
 - [M2](../../docs/milestones/M2-gestion-completa.md)
-- [CLI](../../docs/comandos.md#system)
+- [CLI](../../docs/design/comandos.md#system)
 
 ## Trabajo y aceptación
 - [x] Trasladar el sondeo existente a system probe conservando informe y diagnósticos.

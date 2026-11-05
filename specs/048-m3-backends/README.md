@@ -27,10 +27,10 @@ Preparar el backend del único servicio definido por una receta o registrado glo
 ## Fuente de verdad
 
 - [Milestone M3](../../docs/milestones/M3-definiciones-declarativas.md)
-- [servicios-recetas.md](../../docs/servicios-recetas.md)
-- [formato-proyecto.md#backend](../../docs/formato-proyecto.md#backend)
-- [servidores.md](../../docs/servidores.md)
-- [persistencia-proyectos.md](../../docs/persistencia-proyectos.md)
+- [servicios-recetas.md](../../docs/design/servicios-recetas.md)
+- [formato-proyecto.md#backend](../../docs/design/formato-proyecto.md#backend)
+- [servidores.md](../../docs/design/servidores.md)
+- [persistencia-proyectos.md](../../docs/design/persistencia-proyectos.md)
 
 Las reglas funcionales de los documentos enlazados prevalecen. Esta tarjeta define trabajo y evidencia, sin crear una definición arquitectónica alternativa.
 
@@ -62,7 +62,7 @@ Implementación revisada y aprobada por el usuario; tarea completa. Todos los ar
 
 ### Decisión de comportamiento aprobada
 
-El usuario indicó detener la preparación ante incompatibilidad detectable por System Probe y permitir intentar con `--force`, conservando la advertencia. Se concretó en `docs/servidores.md` y `docs/comandos.md`: la autorización es por invocación, también al reanudar; no cambia variante ni omite integridad, plataforma soportada, archivos requeridos o sondeo de versión. Evidencia insuficiente sigue siendo `unknown`, con advertencia, sin inventar incompatibilidad. Es una decisión nueva del producto, no una adaptación silenciosa de las reglas al código.
+El usuario indicó detener la preparación ante incompatibilidad detectable por System Probe y permitir intentar con `--force`, conservando la advertencia. Se concretó en `docs/design/servidores.md` y `docs/design/comandos.md`: la autorización es por invocación, también al reanudar; no cambia variante ni omite integridad, plataforma soportada, archivos requeridos o sondeo de versión. Evidencia insuficiente sigue siendo `unknown`, con advertencia, sin inventar incompatibilidad. Es una decisión nueva del producto, no una adaptación silenciosa de las reglas al código.
 
 ### Implementación y límites de integración
 

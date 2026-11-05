@@ -24,20 +24,20 @@ Publicar `docs/` como sitio de documentación en `https://mstranich.github.io/co
 
 ## Fuente de verdad
 
-- [README.md](../../docs/README.md): índice y punto de entrada de la documentación funcional.
-- [privacidad.md](../../docs/privacidad.md): reglas de contenido compartible; publicar no cambia qué puede versionarse.
+- [README.md](../../docs/design/README.md): índice y punto de entrada de la documentación funcional.
+- [privacidad.md](../../docs/design/privacidad.md): reglas de contenido compartible; publicar no cambia qué puede versionarse.
 - Paleta de marca definitiva (colores del design system de Coquena): terracota `#C85A32`/`#B24C26`, turquesa `#2EC4B6`/`#25A89C`, dorado `#DDA15E`/`#C98E4B`, fondos `#14171A`/`#1E2328`/`#252B32`, borde `#3E4651`, texto `#EAEBED`/`#88929A`, estados `#2EC4B6`/`#E09F3E`/`#E63946`/`#457B9D`. El resto del CSS de referencia (clases, tipografías, botones) es orientativo y no se adopta como definitivo.
 
 La documentación funcional no se reescribe para el sitio: el sitio la presenta tal como está.
 
 ## Trabajo y aceptación
 
-- [x] `zensical.toml` en la raíz con `site_url = "https://mstranich.github.io/coquena/"` definido en un único lugar, navegación basada en el índice de `docs/README.md` y versión de Zensical fijada (0.0.73). `docs_dir` apunta a la copia preparada `artifacts/docs-site/docs`, no a `docs/`, para que el render no toque las fuentes.
+- [x] `zensical.toml` en la raíz con `site_url = "https://mstranich.github.io/coquena/"` definido en un único lugar, navegación basada en el índice de `docs/design/README.md` y versión de Zensical fijada (0.0.73). `docs_dir` apunta a la copia preparada `artifacts/docs-site/docs`, no a `docs/`, para que el render no toque las fuentes.
 - [x] Esquema oscuro propio (`coquena`) con `primary`/`accent = "custom"` y `extra_css` que mapea la paleta de marca a variables `--md-*`; banner `docs/assets/coquena-banner.jpg` en la portada, agregado sólo en la copia.
 - [x] Contraste AA en texto: barra en superficie con borde terracota (blanco sobre terracota da 4,23:1, bajo AA), terracota sólo en títulos h1/h2 (4,25:1, AA para texto grande), enlaces turquesa (8,30:1), hover dorado (8,00:1), texto principal 15,08:1 y atenuado 5,68:1 sobre `#14171A`. Calculado con la fórmula WCAG 2.x.
 - [x] PlantUML renderizado a SVG con `plantuml.jar` 1.2026.8 (SHA-256 fijado) y Graphviz, tanto bloques ```` ```plantuml ```` embebidos como archivos `.salt.puml` (enlaces reescritos a `.svg`). Las fuentes en `docs/` no se modifican.
 - [x] Workflow `.github/workflows/docs.yml`: push a `main` con filtro de rutas y ejecución manual; permisos `contents: read`, `pages: write`, `id-token: write`; Java, uv, Graphviz, `docs-site/build.py`, `zensical build --clean --strict`, `upload-pages-artifact`, `deploy-pages`.
-- [x] `docs/milestones/` y `docs/implementacion-catalogo-modelos.md` fuera de la navegación principal; se publican igual y los enlaces que salen de `docs/` (p. ej. a `specs/`) se reescriben a GitHub.
+- [x] `docs/milestones/` y `docs/design/guia-tecnica.md` fuera de la navegación principal; se publican igual y los enlaces que salen de `docs/` (p. ej. a `specs/`) se reescriben a GitHub.
 - [ ] Enlaces locales de `docs/` resueltos en el sitio publicado (sin 404 internos) y diagramas visibles en los cinco documentos con PlantUML y en los tres wireframes Salt. Acreditado en build local; falta el sitio desplegado.
 - [x] README del repositorio con enlace a la documentación publicada.
 

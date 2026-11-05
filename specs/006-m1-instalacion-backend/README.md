@@ -25,9 +25,9 @@ Integrar backend remote/install/list/use con transferencia común; preparar, ext
 
 ## Referencias
 - [Milestone M1](../../docs/milestones/M1-servidor-local.md)
-- [descargas.md](../../docs/descargas.md)
-- [comandos.md](../../docs/comandos.md)
-- [servidores.md](../../docs/servidores.md)
+- [descargas.md](../../docs/design/descargas.md)
+- [comandos.md](../../docs/design/comandos.md)
+- [servidores.md](../../docs/design/servidores.md)
 
 ## Trabajo y aceptación
 - [x] Pruebas de archivo malicioso/incompleto, --version inválido, colisión y fallo entre movimiento e índice. Reanudar instalación sin cambiar release; no registrar parciales. No calcular ni persistir SHA-256 para backends. Sin externos ni update/upgrade.

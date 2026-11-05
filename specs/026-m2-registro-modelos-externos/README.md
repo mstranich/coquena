@@ -24,8 +24,8 @@ remoto.
 
 ## Referencias
 - [M2](../../docs/milestones/M2-gestion-completa.md)
-- [Reglas funcionales](../../docs/modelos-y-companions.md#incorporación-externo-o-gestionado)
-- [CLI](../../docs/comandos.md)
+- [Reglas funcionales](../../docs/design/modelos-y-companions.md#incorporación-externo-o-gestionado)
+- [CLI](../../docs/design/comandos.md)
 
 ## Trabajo y aceptación
 - [x] Implementar model add y companion add con nombre canónico, ID estable y propiedad

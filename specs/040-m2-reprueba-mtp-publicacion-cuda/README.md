@@ -52,8 +52,8 @@ Commit/tag/release no forman parte de esta tarea de corrección.
 ## Referencias y dependencias
 
 - [M2](../../docs/milestones/M2-gestion-completa.md), [M3](../../docs/milestones/M3-definiciones-declarativas.md).
-- [Modelos y companions](../../docs/modelos-y-companions.md), [descargas](../../docs/descargas.md),
-  [servidores](../../docs/servidores.md), [CLI](../../docs/comandos.md).
+- [Modelos y companions](../../docs/design/modelos-y-companions.md), [descargas](../../docs/design/descargas.md),
+  [servidores](../../docs/design/servidores.md), [CLI](../../docs/design/comandos.md).
 - Antecedentes terminados: 036 y 037; no son bloqueos abiertos.
 - [Recorrido y evidencia](../035-m2-entrega-integrada/reprueba-0.2.1.md).
 - Estado local real: `${CoquenaHome}`; validar preferentemente en homes aislados en D:.

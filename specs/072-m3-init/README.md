@@ -24,9 +24,9 @@ Ofrecer init como conveniencia independiente, preservando el uso de recetas crea
 ## Fuente de verdad
 
 - [Milestone M3](../../docs/milestones/M3-definiciones-declarativas.md)
-- [formato-proyecto.md#inicialización](../../docs/formato-proyecto.md#inicialización)
-- [definiciones-declarativas.md](../../docs/definiciones-declarativas.md)
-- [comandos.md](../../docs/comandos.md)
+- [formato-proyecto.md#inicialización](../../docs/design/formato-proyecto.md#inicialización)
+- [definiciones-declarativas.md](../../docs/design/definiciones-declarativas.md)
+- [comandos.md](../../docs/design/comandos.md)
 
 Las reglas funcionales de los documentos enlazados prevalecen. Esta tarjeta define trabajo y evidencia, sin crear una definición arquitectónica alternativa.
 

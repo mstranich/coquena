@@ -34,9 +34,9 @@ Consultar y ajustar la ubicación de los backends gestionados mediante config ba
 
 ## Referencias
 - [M2](../../docs/milestones/M2-gestion-completa.md)
-- [CLI](../../docs/comandos.md#config)
-- [Directorios gestionados](../../docs/servidores.md#directorios-gestionados)
-- [Persistencia](../../docs/servidores.md#persistencia)
+- [CLI](../../docs/design/comandos.md#config)
+- [Directorios gestionados](../../docs/design/servidores.md#directorios-gestionados)
+- [Persistencia](../../docs/design/servidores.md#persistencia)
 
 ## Trabajo y aceptación
 - [x] Persistir el directorio y usarlo en instalación, consulta y resolución de backends.

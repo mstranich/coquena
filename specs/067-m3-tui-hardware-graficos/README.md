@@ -22,16 +22,16 @@ Hacer visible consumo de CPU, RAM y cada GPU/VRAM con cifras y gráficas que man
 ## Fuente de verdad
 
 - [Milestone M4](../../docs/milestones/M4-experiencia-completa.md)
-- [ui-servicio.md](../../docs/ui-servicio.md)
-- [interfaces-visuales.md](../../docs/interfaces-visuales.md)
-- [observabilidad.md](../../docs/observabilidad.md)
-- [glosario.md](../../docs/glosario.md)
+- [ui-servicio.md](../../docs/design/ui-servicio.md)
+- [interfaces-visuales.md](../../docs/design/interfaces-visuales.md)
+- [observabilidad.md](../../docs/design/observabilidad.md)
+- [glosario.md](../../docs/design/glosario.md)
 
 Las reglas funcionales de los documentos enlazados prevalecen. Esta tarjeta define trabajo y evidencia, sin crear una definición arquitectónica alternativa.
 
 ## Trabajo y aceptación
 
-- [ ] Alimentar la barra de estado común con las mismas muestras de hardware que el monitor. Verificar continuidad al cambiar de espacio y pestaña, identificación de GPU y degradación por ancho o fuente ausente según [interfaces visuales](../../docs/interfaces-visuales.md#barra-de-estado-de-la-máquina).
+- [ ] Alimentar la barra de estado común con las mismas muestras de hardware que el monitor. Verificar continuidad al cambiar de espacio y pestaña, identificación de GPU y degradación por ancho o fuente ausente según [interfaces visuales](../../docs/design/interfaces-visuales.md#barra-de-estado-de-la-máquina).
 
 - [ ] Mostrar hardware compartido en la región superior del monitor, por dispositivo, con fuente, unidad, cifra y serie temporal; distinguir consumo por proceso de totales globales sin duplicar GPU compartida.
 - [ ] Representar historial acotado de sesión con caracteres de terminal Unicode/braille/ASCII, ejes o etiquetas legibles y formato humano de 042. Dato ausente no es cero.

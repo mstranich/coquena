@@ -35,9 +35,9 @@ Corregir el camino actual de descarga cuando el selector identifica una única u
 ## Fuente de verdad
 
 - [Milestone M3](../../docs/milestones/M3-definiciones-declarativas.md)
-- [comandos.md#model](../../docs/comandos.md#model)
-- [modelos-y-companions.md](../../docs/modelos-y-companions.md)
-- [descargas.md](../../docs/descargas.md)
+- [comandos.md#model](../../docs/design/comandos.md#model)
+- [modelos-y-companions.md](../../docs/design/modelos-y-companions.md)
+- [descargas.md](../../docs/design/descargas.md)
 
 Las reglas están en la documentación funcional enlazada. Esta tarjeta delimita trabajo y aceptación; no redefine esas reglas.
 

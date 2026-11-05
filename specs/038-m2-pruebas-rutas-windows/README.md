@@ -52,7 +52,7 @@ Limitar la revisión a aserciones equivalentes afectadas, sin refactorización g
 ## Referencias
 
 - [M2](../../docs/milestones/M2-gestion-completa.md).
-- [Servidores](../../docs/servidores.md).
+- [Servidores](../../docs/design/servidores.md).
 - [Evidencia Ornith](../035-m2-entrega-integrada/prueba-ornith.md).
 - Código: tests/Coquena.Tests/ServerRuntimeTests.cs; comparación de referencia
   en src/Coquena/Servers/WindowsServerProcess.cs.

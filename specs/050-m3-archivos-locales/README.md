@@ -26,9 +26,9 @@ Usar recursos aportados por el usuario y resolver referencias de argumentos cons
 ## Fuente de verdad
 
 - [Milestone M3](../../docs/milestones/M3-definiciones-declarativas.md)
-- [modelos-y-companions.md](../../docs/modelos-y-companions.md)
-- [formato-proyecto.md](../../docs/formato-proyecto.md)
-- [persistencia-proyectos.md](../../docs/persistencia-proyectos.md)
+- [modelos-y-companions.md](../../docs/design/modelos-y-companions.md)
+- [formato-proyecto.md](../../docs/design/formato-proyecto.md)
+- [persistencia-proyectos.md](../../docs/design/persistencia-proyectos.md)
 
 Las reglas funcionales de los documentos enlazados prevalecen. Esta tarjeta define trabajo y evidencia, sin crear una definición arquitectónica alternativa.
 

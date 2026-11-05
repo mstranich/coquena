@@ -61,7 +61,7 @@ preservar sus contratos y comprobar regresiones.
 ## Referencias
 
 - [M2](../../docs/milestones/M2-gestion-completa.md).
-- [Descargas](../../docs/descargas.md), [modelos](../../docs/modelos-y-companions.md).
+- [Descargas](../../docs/design/descargas.md), [modelos](../../docs/design/modelos-y-companions.md).
 - [Evidencia e investigación Ornith](../035-m2-entrega-integrada/prueba-ornith.md).
 - Código: src/Coquena/Downloads/DownloadManager.cs,
   src/Coquena/Storage/LocalStore.cs y src/Coquena/Models/ModelInstaller.cs.

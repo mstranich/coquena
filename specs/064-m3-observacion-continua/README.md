@@ -26,9 +26,9 @@ Añadir observación continua explícita y transporte reutilizable mientras el o
 ## Fuente de verdad
 
 - [Milestone M3](../../docs/milestones/M3-definiciones-declarativas.md)
-- [observabilidad.md](../../docs/observabilidad.md)
-- [comandos.md](../../docs/comandos.md)
-- [ui-servicio.md](../../docs/ui-servicio.md)
+- [observabilidad.md](../../docs/design/observabilidad.md)
+- [comandos.md](../../docs/design/comandos.md)
+- [ui-servicio.md](../../docs/design/ui-servicio.md)
 
 Las reglas funcionales de los documentos enlazados prevalecen. Esta tarjeta define trabajo y evidencia, sin crear una definición arquitectónica alternativa.
 

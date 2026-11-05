@@ -26,9 +26,9 @@ Entregar validación y emisión segura de argumentos según el schema opcional d
 ## Fuente de verdad
 
 - [Milestone M3](../../docs/milestones/M3-definiciones-declarativas.md)
-- [catalogo-de-parametros.md](../../docs/catalogo-de-parametros.md)
-- [formato-proyecto.md](../../docs/formato-proyecto.md)
-- [servidores.md](../../docs/servidores.md)
+- [catalogo-de-parametros.md](../../docs/design/catalogo-de-parametros.md)
+- [formato-proyecto.md](../../docs/design/formato-proyecto.md)
+- [servidores.md](../../docs/design/servidores.md)
 
 Las reglas funcionales de los documentos enlazados prevalecen. Esta tarjeta define trabajo y evidencia, sin crear una definición arquitectónica alternativa.
 

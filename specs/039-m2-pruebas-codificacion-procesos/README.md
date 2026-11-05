@@ -57,7 +57,7 @@ No rediseñar logging, traducciones ni comandos.
 ## Referencias
 
 - [M2](../../docs/milestones/M2-gestion-completa.md).
-- [Servidores y logs](../../docs/servidores.md), [CLI](../../docs/comandos.md).
+- [Servidores y logs](../../docs/design/servidores.md), [CLI](../../docs/design/comandos.md).
 - [Evidencia Ornith](../035-m2-entrega-integrada/prueba-ornith.md).
 - Código: tests/Coquena.Tests/ServerRuntimeTests.cs y
   specs/035-m2-entrega-integrada/run-native-tests.ps1; inspeccionar los productores
@@ -108,8 +108,8 @@ Comprueba bytes del archivo, bytes emitidos, texto intacto y máximo de 65 536 b
 de salida reciente. Otra invocación comprueba un error con el mismo texto Unicode
 en stderr y salida fallida. No se eliminaron acentos ni se relajó la aserción.
 
-Las reglas de consulta reciente de `docs/servidores.md` y la sintaxis de
-`docs/comandos.md` se mantienen. No se añadió una política funcional ni se modificó
+Las reglas de consulta reciente de `docs/design/servidores.md` y la sintaxis de
+`docs/design/comandos.md` se mantienen. No se añadió una política funcional ni se modificó
 documentación funcional, JSON, diagramas, dependencias o paquetes. No se anticipan
 funciones de M3: el contrato fijado aquí corresponde a la captura del ejecutable
 actual en Windows, no define codificación de YAML ni compatibilidad de otros runtimes.

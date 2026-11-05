@@ -37,8 +37,8 @@ auxiliares.
 
 ## Referencias
 - [M2](../../docs/milestones/M2-gestion-completa.md)
-- [Reglas funcionales](../../docs/modelos-y-companions.md#presets)
-- [CLI](../../docs/comandos.md)
+- [Reglas funcionales](../../docs/design/modelos-y-companions.md#presets)
+- [CLI](../../docs/design/comandos.md)
 
 ## Trabajo y aceptación
 - [x] Implementar preset clone a nombre libre conservando modelo o usando --model; copiar

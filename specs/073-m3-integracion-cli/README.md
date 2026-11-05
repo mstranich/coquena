@@ -36,10 +36,10 @@ recetas se evalúan en la [074](../074-m3-aceptacion/README.md).
 ## Fuente de verdad
 
 - [Milestone M3](../../docs/milestones/M3-definiciones-declarativas.md)
-- [comandos.md](../../docs/comandos.md)
-- [servicios-recetas.md](../../docs/servicios-recetas.md)
-- [formato-proyecto.md](../../docs/formato-proyecto.md)
-- [glosario.md](../../docs/glosario.md)
+- [comandos.md](../../docs/design/comandos.md)
+- [servicios-recetas.md](../../docs/design/servicios-recetas.md)
+- [formato-proyecto.md](../../docs/design/formato-proyecto.md)
+- [glosario.md](../../docs/design/glosario.md)
 
 Las reglas funcionales de los documentos enlazados prevalecen. Esta tarjeta define trabajo y evidencia, sin crear una definición arquitectónica alternativa.
 

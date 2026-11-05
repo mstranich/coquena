@@ -23,9 +23,9 @@ Adaptador de metadatos públicos: resolver commit, inventario paginado, variante
 
 ## Referencias
 - [Milestone M1](../../docs/milestones/M1-servidor-local.md)
-- [comandos.md](../../docs/comandos.md)
-- [modelos-y-companions.md](../../docs/modelos-y-companions.md)
-- [implementacion-catalogo-modelos.md](../../docs/implementacion-catalogo-modelos.md)
+- [comandos.md](../../docs/design/comandos.md)
+- [modelos-y-companions.md](../../docs/design/modelos-y-companions.md)
+- [guia-tecnica.md](../../docs/design/guia-tecnica.md)
 
 ## Trabajo y aceptación
 - [x] Fixtures prueban paginación, revisión inexistente, rate limit, variantes ambiguas/shard faltante y README del mismo commit. Cancelar no crea GUID; elegir variante inicia sin segunda confirmación. No clonar ni recorrer historial; verificar API oficial vigente al implementar.

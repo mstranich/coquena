@@ -1,10 +1,10 @@
-# M4 — Experiencia completa e interfaces visuales
+# M4 — Experiencia completa en Terminal UI
 
 **Estado:** horizonte de alcance, sin implementación iniciada. **Depende de:** [M3](M3-definiciones-declarativas.md).
 
 ## Objetivo
 
-Completar las funcionalidades acordadas en el relevamiento sobre recetas, servicios y consumidores de M3, incluida la Web UI y los editores de TUI/Web. Las interfaces usan
+Completar las funcionalidades acordadas en el relevamiento sobre recetas, servicios y consumidores de M3, incluidos los editores de la TUI. La Web UI queda para después de M4, porque la TUI es la interfaz prioritaria y permite operar en un VPS. La TUI usa
 los mismos contratos y capacidades de la CLI; no crean catálogos ni ciclos de
 ejecución propios. No es una segunda reescritura del producto.
 
@@ -13,8 +13,8 @@ posponer partes de ese ciclo necesarias para que el proyecto funcione mediante C
 
 ## Experiencia a completar
 
-- Entregar el dashboard Servicios en Terminal UI y ampliar la experiencia con acciones de control; Web UI con estado, logs, métricas, gráficos y notificaciones accionables.
-- Experiencia avanzada de edición en TUI/Web UI: editores/formularios de proyecto, presets y argumentos, aprovechando schemas
+- Entregar el dashboard Servicios en Terminal UI y ampliar la experiencia con acciones de control.
+- Experiencia avanzada de edición en TUI: editores/formularios de proyecto, presets y argumentos, aprovechando schemas
   cuando existan y conservando edición libre donde corresponda.
 - Borradores recuperables por sesión, conflictos con cambios externos, guardado
   explícito y creación de overrides de diferencias; separación entre archivos
@@ -46,7 +46,7 @@ los del proyecto. En cada servidor se sigue el avance de varias entradas con
 gráficos arriba y logs abajo, o desde Logs dentro del servidor si falta altura.
 La 066 evalúa Terminal.Gui v2 en Native AOT antes de fijar la dependencia.
 
-Los [wireframes de Presets, Buscar modelos y Configuración](../interfaces-visuales.md#dashboards-de-observación)
+Los [wireframes de Presets, Buscar modelos y Configuración](../design/interfaces-visuales.md#dashboards-de-observación)
 orientan las herramientas al final de la navegación. Sus recorridos se
 descomponen al acordar las entregas de edición, exploración y preferencias.
 La aceptación de experimentación conecta preparación del preset, publicación
@@ -62,7 +62,7 @@ ajustar, guardar YAML o retirar la prueba.
 | [069](../../specs/069-m3-tui-logs/README.md) | Integrar logs continuos con selección de servicio y navegación | 062, 066 |
 | [070](../../specs/070-m3-dashboard-integrado/README.md) | Integrar y acreditar el dashboard Servicios completo | 055, 067, 068, 069 |
 
-La 070 acredita la [pantalla Servicios](../ui-servicio.md) desde el paquete Native AOT extraído en una terminal real, con una receta manual, varios presets y peticiones reales. Se contrastan fases de prompt y generación, cifras, recursos y logs con sus fuentes y se registra evidencia visual.
+La 070 acredita la [pantalla Servicios](../design/ui-servicio.md) desde el paquete Native AOT extraído en una terminal real, con una receta manual, varios presets y peticiones reales. Se contrastan fases de prompt y generación, cifras, recursos y logs con sus fuentes y se registra evidencia visual.
 
 ## Cobertura restante y entregas
 
@@ -84,7 +84,7 @@ descompuesto, no incorporar indefinidamente cualquier idea futura.
 
 ## Acciones de terminal a partir de la CLI
 
-El mapa usa la [superficie canónica de comandos](../comandos.md). Ubica las
+El mapa usa la [superficie canónica de comandos](../design/comandos.md). Ubica las
 acciones por contexto para refinar pantallas y tarjetas de M4.
 
 | Pantalla o menú | Controles visuales | Operaciones CLI |
@@ -119,15 +119,13 @@ por concretar; el mapa no le atribuye un comando existente.
   intención guardada y composición aplicada.
 - Comprobar dependencias visuales y telemetría en el camino Native AOT antes de
   adoptarlas, con publicación y ejecución para los destinos acordados.
-- No presumir métricas, eventos o recarga en cualquier fork. La Web UI requiere
-  concretar acceso y despliegue antes de implementarse; esta inclusión no acredita
-  hoy un servicio web disponible.
+- No presumir métricas, eventos o recarga en cualquier fork.
 - Crear tarjetas al acordar entregas; este horizonte no crea tareas ni autoriza
   paquetes, código o commits por sí mismo.
 
 La edición asistida no es una dependencia de M3. M3 permite usar un editor externo y validar/componer YAML, además de comandos puntuales que persisten asignaciones. M4 utiliza esos contratos para edición visual, sin exigir construir un editor de texto generalista ni un IDE completo.
 
-La prioridad de edición es combinar servidor, modelos y presets en TUI/Web UI.
+La prioridad de edición es combinar servidor, modelos y presets en TUI.
 El buscador y los formularios de argumentos/parámetros se ordenan después de ese
 recorrido. El catálogo y la validación declarativa ya existen como contrato de M3;
 la experiencia avanzada de autoría de parámetros no bloquea su aceptación y su

@@ -35,7 +35,7 @@ Hacer legible la ayuda actual y permitir identificar exactamente los argumentos 
 ## Fuente de verdad
 
 - [Milestone M3](../../docs/milestones/M3-definiciones-declarativas.md)
-- [comandos.md](../../docs/comandos.md)
+- [comandos.md](../../docs/design/comandos.md)
 
 Las reglas están en la documentación funcional enlazada. Esta tarjeta delimita trabajo y aceptación; no redefine esas reglas.
 

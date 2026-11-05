@@ -27,9 +27,9 @@ Aplicar exactamente un plan vigente conservando activo y resoluciones anteriores
 ## Fuente de verdad
 
 - [Milestone M3](../../docs/milestones/M3-definiciones-declarativas.md)
-- [actualizacion-y-limpieza.md](../../docs/actualizacion-y-limpieza.md)
-- [persistencia-proyectos.md](../../docs/persistencia-proyectos.md)
-- [descargas.md](../../docs/descargas.md)
+- [actualizacion-y-limpieza.md](../../docs/design/actualizacion-y-limpieza.md)
+- [persistencia-proyectos.md](../../docs/design/persistencia-proyectos.md)
+- [descargas.md](../../docs/design/descargas.md)
 
 Las reglas funcionales de los documentos enlazados prevalecen. Esta tarjeta define trabajo y evidencia, sin crear una definición arquitectónica alternativa.
 

@@ -21,10 +21,10 @@ Entregar la base ejecutable de la TUI, su navegación y ciclo de vida para integ
 ## Fuente de verdad
 
 - [Milestone M4](../../docs/milestones/M4-experiencia-completa.md)
-- [comandos.md](../../docs/comandos.md)
-- [interfaces-visuales.md](../../docs/interfaces-visuales.md)
-- [ui-servicio.md](../../docs/ui-servicio.md)
-- [tui-servicio.salt.puml](../../docs/tui-servicio.salt.puml)
+- [comandos.md](../../docs/design/comandos.md)
+- [interfaces-visuales.md](../../docs/design/interfaces-visuales.md)
+- [ui-servicio.md](../../docs/design/ui-servicio.md)
+- [tui-servicio.salt.puml](../../docs/design/tui-servicio.salt.puml)
 
 Las reglas funcionales de los documentos enlazados prevalecen. Esta tarjeta define trabajo y evidencia, sin crear una definición arquitectónica alternativa.
 

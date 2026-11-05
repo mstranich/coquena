@@ -26,9 +26,9 @@ Informar novedades globales o de combinación y conservar un plan explicable sin
 ## Fuente de verdad
 
 - [Milestone M3](../../docs/milestones/M3-definiciones-declarativas.md)
-- [actualizacion-y-limpieza.md](../../docs/actualizacion-y-limpieza.md)
-- [servicios-recetas.md](../../docs/servicios-recetas.md)
-- [comandos.md](../../docs/comandos.md)
+- [actualizacion-y-limpieza.md](../../docs/design/actualizacion-y-limpieza.md)
+- [servicios-recetas.md](../../docs/design/servicios-recetas.md)
+- [comandos.md](../../docs/design/comandos.md)
 
 Las reglas funcionales de los documentos enlazados prevalecen. Esta tarjeta define trabajo y evidencia, sin crear una definición arquitectónica alternativa.
 

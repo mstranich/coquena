@@ -26,9 +26,9 @@ Conservar diagnóstico de cada ejecución y emitir sólo las notificaciones conf
 ## Fuente de verdad
 
 - [Milestone M3](../../docs/milestones/M3-definiciones-declarativas.md)
-- [servidores.md#hook-de-fallo-de-inicio](../../docs/servidores.md#hook-de-fallo-de-inicio)
-- [observabilidad.md#logs](../../docs/observabilidad.md#logs)
-- [formato-proyecto.md](../../docs/formato-proyecto.md)
+- [servidores.md#hook-de-fallo-de-inicio](../../docs/design/servidores.md#hook-de-fallo-de-inicio)
+- [observabilidad.md#logs](../../docs/design/observabilidad.md#logs)
+- [formato-proyecto.md](../../docs/design/formato-proyecto.md)
 
 Las reglas funcionales de los documentos enlazados prevalecen. Esta tarjeta define trabajo y evidencia, sin crear una definición arquitectónica alternativa.
 

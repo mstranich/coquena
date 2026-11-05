@@ -26,10 +26,10 @@ Auditar la selección y exponer fallos conocidos sin convertir cada inicio en le
 ## Fuente de verdad
 
 - [Milestone M3](../../docs/milestones/M3-definiciones-declarativas.md)
-- [actualizacion-y-limpieza.md](../../docs/actualizacion-y-limpieza.md)
-- [modelos-y-companions.md](../../docs/modelos-y-companions.md)
-- [comandos.md](../../docs/comandos.md)
-- [servidores.md](../../docs/servidores.md)
+- [actualizacion-y-limpieza.md](../../docs/design/actualizacion-y-limpieza.md)
+- [modelos-y-companions.md](../../docs/design/modelos-y-companions.md)
+- [comandos.md](../../docs/design/comandos.md)
+- [servidores.md](../../docs/design/servidores.md)
 
 Las reglas funcionales de los documentos enlazados prevalecen. Esta tarjeta define trabajo y evidencia, sin crear una definición arquitectónica alternativa.
 

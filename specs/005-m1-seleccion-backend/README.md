@@ -25,8 +25,8 @@ Detectar plataforma/hardware y consultar metadatos oficiales con pruebas simulad
 
 ## Referencias
 - [Milestone M1](../../docs/milestones/M1-servidor-local.md)
-- [comandos.md](../../docs/comandos.md)
-- [servidores.md](../../docs/servidores.md)
+- [comandos.md](../../docs/design/comandos.md)
+- [servidores.md](../../docs/design/servidores.md)
 
 ## Trabajo y aceptación
 - [x] Probar prioridad release antes de hardware, CUDA@12 distinto de release, fallback CPU nativo y exclusión automática de unknown/incompatible. Selección explícita respeta plataforma; diagnósticos no afirman capacidades no detectadas.

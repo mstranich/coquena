@@ -27,10 +27,10 @@ Entregar registro, selección y ciclo de servicios globales y propios sin acopla
 ## Fuente de verdad
 
 - [Milestone M3](../../docs/milestones/M3-definiciones-declarativas.md)
-- [servidores.md](../../docs/servidores.md)
-- [servicios-recetas.md](../../docs/servicios-recetas.md)
-- [comandos.md](../../docs/comandos.md)
-- [persistencia-proyectos.md](../../docs/persistencia-proyectos.md)
+- [servidores.md](../../docs/design/servidores.md)
+- [servicios-recetas.md](../../docs/design/servicios-recetas.md)
+- [comandos.md](../../docs/design/comandos.md)
+- [persistencia-proyectos.md](../../docs/design/persistencia-proyectos.md)
 
 Las reglas funcionales de los documentos enlazados prevalecen. Esta tarjeta define trabajo y evidencia, sin crear una definición arquitectónica alternativa.
 
