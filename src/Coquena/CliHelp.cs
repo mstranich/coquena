@@ -34,6 +34,7 @@ internal static class CliHelp
           system probe                     Mostrar hardware y aceleradores disponibles
           ps [--service <nombre|default|self>] [-w|--watch]
                                            Consultar o seguir hardware y servicios
+          tui                              Abrir el monitor de servicios en terminal
           backend (runtime)                Consultar y preparar backends por ámbito
           model                            Descargar y administrar modelos
           model companion                  Administrar auxiliares mmproj y MTP

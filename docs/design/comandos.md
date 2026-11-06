@@ -29,6 +29,7 @@ automáticamente. No guardar secretos expandidos en archivos compartidos.
 | config | Preferencias globales de Coquena; no requiere receta. |
 | system probe | Consulta del entorno; no requiere receta. |
 | --help, -h, help | Consulta de ayuda de la CLI; no requiere receta. |
+| --version | Mostrar la versión de Coquena sin requerir receta. |
 | init | Inicialización opcional de la carpeta/receta seleccionada. |
 | import | Copia explícita de intención al ámbito global y preparación; no inicia. |
 | backend/runtime, model, preset, param, download | Proyecto por defecto; `--global` selecciona el inventario y la intención del catálogo global. |
@@ -223,6 +224,11 @@ una falla de integridad conocida es fatal en ambos modos.
 ### Selectores de control
 
 Apply/withdraw opera sobre presets de la receta.
+Withdraw acepta la clave o el nombre publicado completo `receta/clave`, y busca
+únicamente en las publicaciones propias registradas, con sus nombres y destinos
+guardados. Un selector sin coincidencia se informa como error; no acredita una
+retirada. Con el servicio detenido, down/withdraw actualizan la composición del
+próximo inicio sin iniciar el proceso.
 Apply publica/recarga/retira presets sobre el router compatible sin reiniciarlo
 si sus capacidades lo permiten. Cambiar backend requiere reinicio.
 Véase [servidores](servidores.md#aplicación-dinámica-y-memoria).

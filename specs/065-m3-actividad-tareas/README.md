@@ -18,6 +18,26 @@ updated_at: 2026-11-03T20:18:55.143585400Z
 
 Reconstruir actividad observable del servidor para que la TUI muestre qué trabaja cada entrada, sin atribuciones inventadas.
 
+## Acuerdo de producto y continuidad entre sesiones
+
+M4 es un milestone abierto, centrado en una Terminal UI con buena experiencia de
+usuario. Se agregan, corrigen y refinan tarjetas una por una a partir del uso y la
+revisión visual. Las tarjetas actuales no definen un inventario cerrado ni su
+finalización implica cerrar M4. Cada tarjeta mantiene un alcance concreto; el
+horizonte abierto no autoriza implementar otras secciones sin acordarlas.
+
+La primera entrega utilizable es [066](../066-m3-tui-base/README.md): observar
+inferencia real con fases, avance disponible hacia la respuesta, curvas de tokens,
+promedio/pico, consumo y logs dentro de la terminal. Leer su intención, matriz de
+fuentes y aceptación antes de implementar esta tarjeta. Una carcasa de navegación,
+hardware aislado o un indicador binario de actividad no satisfacen ese recorrido.
+
+Se comienza por 066; 065, 067, 068 y 069 amplían una experiencia ya utilizable;
+070 contrasta su integración. Los IDs/directorios conservan nombres históricos,
+no fijan el orden. No esperar a 070 para integrar datos o probar inferencia real.
+La Web UI será otra iteración: lo aprendido de UX y los contratos sin widgets
+servirán de base, sin implementar ahora web ni copiar literalmente su layout.
+
 ## Fuente de verdad
 
 - [Milestone M4](../../docs/milestones/M4-experiencia-completa.md)
@@ -37,7 +57,23 @@ Las reglas funcionales de los documentos enlazados prevalecen. Esta tarjeta defi
 - [ ] Contrastar fixtures con una captura real de prompt y generación del build acreditado; exponer un modelo de lectura reutilizable por TUI sin dependencia de widgets.
 - [ ] Separar tasas/buckets por hijo de cifras por petición y totales compatibles según observabilidad; tratar reemplazo del hijo como otra generación aun con router vivo. No usar puerto, tarea o slot aislado como identidad, ni n_prompt_tokens como denominador fijo sin semántica acreditada. Incorporar los contrastes de la matriz ejecutada de 052.
 
+## Profundización sobre el monitor existente
+
+066 ya entrega fases y correlación mínimas para observar inferencia. Aquí se
+profundiza robustez y cobertura sin bloquear aquella experiencia.
+
+- [ ] Contrastar matriz por build de fases y campos: endpoints de consulta, eventos de modelos, logs y stream propio, con momento real de actualización de cada contador.
+- [ ] Correlacionar presets distintos con mismos pesos, tareas simultáneas, IDs reutilizados, tareas sin slot, huecos, cancelación y reemplazo del hijo sin mezclar promedios/picos entre generaciones.
+- [ ] Conservar duración, tokens/caché/tasas y sus ventanas atribuibles; proporcionar datos para promedio y pico observado sin convertir agregados en cifras individuales.
+- [ ] Separar razonamiento de salida visible sólo con evidencia atribuible; no deducirlo de silencio ni leer conversaciones ajenas.
+- [ ] Integrar el resultado en el monitor y demostrar mejora con peticiones reales, además de probar el modelo reutilizable sin widgets.
+
 ## Dependencias
+
+La integración de esta ampliación requiere el monitor de [066](../066-m3-tui-base/README.md).
+`leanspec rel add` no está migrado al adaptador local: la relación se declara
+aquí y queda por reconciliar en metadatos mediante CLI, sin edición manual.
+
 
 - [052: Acreditar capacidades del build oficial para presets y observación](../052-m3-evidencia-router/README.md)
 - [064: Observar con ps -w o --watch y reconciliar eventos](../064-m3-observacion-continua/README.md)

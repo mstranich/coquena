@@ -19,7 +19,8 @@ public sealed partial class ScopedServiceProcess
         Func<CancellationToken, Task<ScopedStartPlan>> prepare,
         Func<JsonObject, CancellationToken, Task<ScopedStartPlan>> restore,
         Func<string, bool, ServiceRecoveryChoice>? decide = null,
-        CancellationToken cancellation = default, Func<bool>? forceRequested = null, StartFailureHook? hook = null)
+        CancellationToken cancellation = default, Func<bool>? forceRequested = null, StartFailureHook? hook = null,
+        string? expectedInstanceId = null)
     {
         using var lease = Lease(serviceId);
         var running = ReconcileLocked(serviceId);
@@ -28,6 +29,8 @@ public sealed partial class ScopedServiceProcess
             throw new StorageException("publication-pending", "Reconciliar la publicación antes de iniciar o reiniciar.");
         var activePath = store.RuntimeDocumentPath(serviceId, "active");
         var originalInstance = running ? before.Documents[activePath]["data"]!["instance-id"]!.GetValue<string>() : null;
+        if (expectedInstanceId is not null && originalInstance != expectedInstanceId)
+            throw new StorageException("instance-conflict", "La instancia cambió desde que se confirmó la operación.");
         if (running && !restart) return originalInstance!;
         var good = before.Documents.GetValueOrDefault(store.RuntimeDocumentPath(serviceId, "last-good"))?["data"]?.DeepClone().AsObject();
         if (good is not null && good["service-id"]?.GetValue<string>() != serviceId)

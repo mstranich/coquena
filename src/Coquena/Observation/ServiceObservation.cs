@@ -10,7 +10,10 @@ using Coquena.Servers;
 namespace Coquena.Observation;
 
 public sealed record EntrySnapshot(string Name, string State, DateTimeOffset ObservedAt,
-    IReadOnlyList<MetricSample> Metrics, string? Diagnostic = null);
+    IReadOnlyList<MetricSample> Metrics, string? Diagnostic = null)
+{
+    internal InferenceSnapshot? Inference { get; init; }
+}
 public sealed record ServiceSnapshot(string ServiceId, string Name, string Scope, string? InstanceId,
     DateTimeOffset StartedAt, DateTimeOffset CompletedAt, string ProcessState, string ApiState, string Health,
     string IntentComparison, string Recovery, bool CompositionCurrent, JsonObject? ActiveComposition, JsonObject? CurrentIntention,
@@ -23,7 +26,7 @@ public sealed class ServiceObservation(ScopeStore store, HttpClient? client = nu
     private JsonNode? catalogComposition;
     private DateTimeOffset catalogAt;
     public async Task<ServiceSnapshot> CaptureAsync(ServiceIdentity service, RecipeSelection? selection = null,
-        CancellationToken cancellation = default, bool reconcileCatalog = true)
+        CancellationToken cancellation = default, bool reconcileCatalog = true, bool observeInference = false)
     {
         var start = DateTimeOffset.UtcNow;
         var diagnostics = new List<string>(); var samples = new List<MetricSample>(); var entries = new List<EntrySnapshot>();
@@ -124,7 +127,13 @@ public sealed class ServiceObservation(ScopeStore store, HttpClient? client = nu
                         }
                         catch (Exception e) when (ObservationError(e)) { diagnostic = "Métricas no disponibles: " + e.GetType().Name; }
                     }
-                    entries.Add(new(name, status, observedCatalogAt, entrySamples, diagnostic));
+                    InferenceSnapshot? inference = null;
+                    if (observeInference && status == "loaded" && expected.Contains(name))
+                    {
+                        try { inference = await CaptureInferenceAsync(http, address, process, model["status"]?["args"] as JsonArray, name, deadline.Token); }
+                        catch (Exception e) when (ObservationError(e)) { /* Other entry evidence remains usable. */ }
+                    }
+                    entries.Add(new(name, status, observedCatalogAt, entrySamples, diagnostic) { Inference = inference });
                 }
                 foreach (var missing in expected.Except(names)) entries.Add(new(missing, "absent", observedCatalogAt, [], "Ausente del catálogo del router."));
                 if (freshCatalog)
@@ -135,7 +144,11 @@ public sealed class ServiceObservation(ScopeStore store, HttpClient? client = nu
             }
             catch (Exception e) when (ObservationError(e)) { catalog = null; api = "unavailable"; current = false; diagnostics.Add("API: " + e.GetType().Name); }
             if (!process.IsAlive || !process.OwnsEndpoint(host, port) || !JsonNode.DeepEquals(store.ReadVerified().Documents.GetValueOrDefault(path)?["data"], active))
-            { current = false; diagnostics.Add("Instancia/composición cambió durante la muestra; conservarla como histórica, sin enlazar con el reemplazo."); }
+            {
+                current = false;
+                for (var i = 0; i < entries.Count; i++) entries[i] = entries[i] with { Inference = null };
+                diagnostics.Add("Instancia/composición cambió durante la muestra; conservarla como histórica, sin enlazar con el reemplazo.");
+            }
         }
         catch (OperationCanceledException) when (cancellation.IsCancellationRequested) { throw; }
         catch (Exception e) when (ObservationError(e)) { current = false; diagnostics.Add(e.Message); }
@@ -166,6 +179,46 @@ public sealed class ServiceObservation(ScopeStore store, HttpClient? client = nu
             catch (Exception e) when (ObservationError(e)) { diagnostics.Add("Intención actual no comparable: " + e.GetType().Name); return "unavailable"; }
         }
         string[] registeredFiles() => new RecipeRegistry(store).Get(service.RecipeId).Files;
+    }
+
+    private static async Task<InferenceSnapshot?> CaptureInferenceAsync(HttpClient http, Uri router, IObservedInstance instance,
+        JsonArray? args, string entry, CancellationToken cancellation)
+    {
+        if (args is null) return null;
+        string? host = null;
+        int port = 0;
+        for (var i = 0; i + 1 < args.Count; i++)
+        {
+            var option = args[i]?.GetValue<string>();
+            if (option == "--host") host = args[++i]?.GetValue<string>();
+            else if (option == "--port") int.TryParse(args[++i]?.GetValue<string>(), out port);
+        }
+        if (host is null || !System.Net.IPAddress.TryParse(host, out var ip) || !System.Net.IPAddress.IsLoopback(ip) ||
+            port is < 1 or > 65535 || port == router.Port || instance.ObserveListener(host, port) is not { } child)
+            return null;
+
+        var query = "?model=" + Uri.EscapeDataString(entry) + "&autoload=false";
+        var props = JsonNode.Parse(await Fetch(http, new(router, "/props" + query), cancellation));
+        // Only this slot schema and counter semantics have been checked against a controlled stream.
+        if (props?["build_info"]?.GetValue<string>() != "b12058-3f8af15a7") return null;
+        var slots = JsonNode.Parse(await Fetch(http, new(router, "/slots" + query), cancellation))?.AsArray();
+        var time = System.Diagnostics.Stopwatch.GetTimestamp();
+        if (slots is null || slots.Count > 128 || instance.ObserveListener(host, port) != child) return null;
+        var active = new List<InferenceSlot>();
+        foreach (var slot in slots)
+        {
+            if (slot?["is_processing"]?.GetValue<bool>() is not bool processing) return null;
+            if (!processing) continue;
+            if (slot["id"]?.GetValue<int>() is not int slotId || slotId < 0 ||
+                slot["id_task"]?.GetValue<int>() is not int task || task < 0 ||
+                slot["n_prompt_tokens_processed"]?.GetValue<long>() is not long prompt || prompt < 0 ||
+                slot["n_prompt_tokens_cache"]?.GetValue<long>() is not long cached || cached < 0 ||
+                slot["next_token"] is not JsonArray { Count: 1 } next ||
+                next[0]?["n_decoded"]?.GetValue<long>() is not long decoded || decoded < 0)
+                return null;
+            active.Add(new(slotId, task, prompt, cached, decoded));
+        }
+        return new(child.Pid, child.Creation, time, active);
     }
 
     internal static InstanceDocument Identity(string serviceId, JsonObject active)

@@ -164,12 +164,14 @@ public sealed unsafe partial class WindowsServerProcess : IDisposable
     {
         if (!TerminateJobObject(group, 1)) throw Error("Forzar cierre del grupo");
     }
-    internal static bool BelongsToInstance(int pid, Guid instanceId)
+    internal static long? ObserveMember(int pid, Guid instanceId, bool includeCreation)
     {
         using var process = OpenProcess(0x1000, false, (uint)pid);
-        if (process.IsInvalid) return false;
+        if (process.IsInvalid) return null;
         using var job = OpenJobObjectW(4, false, JobName(instanceId));
-        return !job.IsInvalid && IsProcessInJob(process, job, out var belongs) && belongs;
+        if (job.IsInvalid || !IsProcessInJob(process, job, out var belongs) || !belongs) return null;
+        if (!includeCreation) return 0;
+        return !Exited(process) && GetProcessTimes(process, out var created, out _, out _, out _) ? created : null;
     }
     internal static int ExitCode(SafeFileHandle handle)
     {

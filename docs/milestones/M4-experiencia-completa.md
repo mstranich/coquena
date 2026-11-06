@@ -1,17 +1,34 @@
 # M4 — Experiencia completa en Terminal UI
 
-**Estado:** horizonte de alcance, sin implementación iniciada. **Depende de:** [M3](M3-definiciones-declarativas.md).
+**Estado:** abierto, con entregas incrementales y refinamiento de UX. La primera entrega de TUI se cerró en [066](../../specs/066-m3-tui-base/README.md), donde consta la evidencia disponible y sus límites. **Depende de:** [M3](M3-definiciones-declarativas.md).
 
 ## Objetivo
 
-Completar las funcionalidades acordadas en el relevamiento sobre recetas, servicios y consumidores de M3, incluidos los editores de la TUI. La Web UI queda para después de M4, porque la TUI es la interfaz prioritaria y permite operar en un VPS. La TUI usa
+Desarrollar una Terminal UI con buena experiencia de usuario sobre recetas, servicios y consumidores de M3, comenzando por observar inferencia real y ampliando secciones de forma incremental. La Web UI queda para después de M4, porque la TUI es la interfaz prioritaria y permite operar en un VPS. La TUI usa
 los mismos contratos y capacidades de la CLI; no crean catálogos ni ciclos de
 ejecución propios. No es una segunda reescritura del producto.
 
 El soporte completo de proyectos con YAML pertenece a M3; M4 no se utiliza para
 posponer partes de ese ciclo necesarias para que el proyecto funcione mediante CLI.
 
-## Experiencia a completar
+## Forma de trabajo y evolución
+
+M4 permanece abierto. Se agregan, corrigen y refinan tarjetas una por una según
+el uso y revisión de UX. Las tarjetas actuales no son un inventario exhaustivo
+ni su finalización cierra automáticamente el milestone. Cada entrega conserva
+alcance concreto; nuevas funciones requieren acuerdo, sin ampliar por iniciativa
+propia el trabajo autorizado.
+
+La primera experiencia debe permitir entender una respuesta mientras se genera:
+fase, avance disponible, consumo, curvas de tokens, promedio, pico observado y
+logs. Los wireframes de docs/design/ son aproximaciones de intención que orientan
+jerarquía y navegación, no diseños completos o inmutables. La revisión de UX es
+parte de la aceptación junto a las pruebas técnicas.
+
+La TUI, sus contratos reutilizables y lo aprendido de UX serán base de Web UI en
+otra iteración. No se implementa web ahora ni se supone traslado literal de layout.
+
+## Horizonte de experiencia
 
 - Entregar el dashboard Servicios en Terminal UI y ampliar la experiencia con acciones de control.
 - Experiencia avanzada de edición en TUI: editores/formularios de proyecto, presets y argumentos, aprovechando schemas
@@ -53,25 +70,39 @@ La aceptación de experimentación conecta preparación del preset, publicación
 en caliente, inferencia de prueba, observación de la entrada y decisión de
 ajustar, guardar YAML o retirar la prueba.
 
-| Tarea | Entrega | Depende de |
-| --- | --- | --- |
-| [065](../../specs/065-m3-actividad-tareas/README.md) | Correlacionar actividad de prompts y generación por entrada, slot y tarea | 052, 064 |
-| [066](../../specs/066-m3-tui-base/README.md) | Abrir la interfaz de terminal y navegar entre servicios conocidos | 044, 052 |
-| [067](../../specs/067-m3-tui-hardware-graficos/README.md) | Mostrar hardware y gráficas temporales legibles en la terminal | 042, 063, 066 |
-| [068](../../specs/068-m3-tui-prompts-tokens/README.md) | Visualizar prompts, generación de tokens y tareas de cada preset | 065, 066 |
-| [069](../../specs/069-m3-tui-logs/README.md) | Integrar logs continuos con selección de servicio y navegación | 062, 066 |
-| [070](../../specs/070-m3-dashboard-integrado/README.md) | Integrar y acreditar el dashboard Servicios completo | 055, 067, 068, 069 |
+La secuencia comienza por 066. Los IDs y directorios históricos no fijan orden.
 
-La 070 acredita la [pantalla Servicios](../design/ui-servicio.md) desde el paquete Native AOT extraído en una terminal real, con una receta manual, varios presets y peticiones reales. Se contrastan fases de prompt y generación, cifras, recursos y logs con sus fuentes y se registra evidencia visual.
+| Orden | Tarjeta | Entrega | Dependencias de ejecución |
+| --- | --- | --- | --- |
+| 1 | [066](../../specs/066-m3-tui-base/README.md) | Primer monitor real: fases, avance, curvas, promedio/pico, consumo y logs | 044, 052, 062, 063, 064 |
+| 2 | [065](../../specs/065-m3-actividad-tareas/README.md) | Profundizar correlación y robustez de tareas sobre el monitor | 052, 064, 066 |
+| 3 | [067](../../specs/067-m3-tui-hardware-graficos/README.md) | Ampliar hardware por dispositivo y legibilidad de gráficas | 042, 063, 066 |
+| 4 | [068](../../specs/068-m3-tui-prompts-tokens/README.md) | Ampliar detalle, concurrencia e histórico de inferencias | 065, 066 |
+| 5 | [069](../../specs/069-m3-tui-logs/README.md) | Completar históricos y endurecer continuidad/navegación de logs | 062, 066 |
+| 6 | [070](../../specs/070-m3-dashboard-integrado/README.md) | Contrastar dashboard ampliado, escenarios compartidos y UX | 055, 067, 068, 069 |
+
+Las dependencias de ejecución de la tabla incluyen la reorganización acordada.
+El adaptador local rechaza `leanspec rel add`: las nuevas relaciones 066→062/063/064
+y 065→066 están declaradas en el cuerpo de las tarjetas, pero no en sus metadatos.
+No interpretar el grafo actual como el orden completo; reconciliarlo mediante CLI
+cuando el comando esté disponible, sin modificar manualmente frontmatter.
+
+La 066 contiene intención, matriz de fuentes, semántica de avance/promedio/pico,
+wireframes y aceptación detallados para futuras sesiones. Evalúa la dependencia
+visual con publicación/ejecución Native AOT win-x64 antes de adoptarla. Reutiliza
+062–064 e implementa la observación mínima requerida sin depender de las
+ampliaciones 065/067/068/069. La 070 contrasta el dashboard ampliado en terminal
+real con varios presets, consumidores y peticiones; no es la primera integración
+ni determina el cierre de M4.
 
 ## Cobertura restante y entregas
 
-M4 completa el alcance acordado que no se entregue en M3. La planificación de
+M4 desarrolla y refina el alcance de TUI acordado sobre M3. La planificación de
 tarjetas debe mantener trazabilidad de las funcionalidades para que no se pierdan
 al dividir el trabajo; una pantalla no acredita por sí sola un flujo completo.
 
 El benchmarking local de rendimiento y consumo forma parte de la visión acordada.
-Al descomponer M3/M4 se ubicará su primera entrega; M4 cierra la cobertura restante.
+Al descomponer M3/M4 se ubicará su primera entrega; su entrega se acordará en tarjetas concretas sin condicionar el primer monitor a una plataforma formal de benchmarking.
 No se impone como condición de aceptación de M3 por este documento. Se reutiliza
 el procedimiento de peticiones/tokens/timings estudiado, sin exigir /metrics para
 tasas básicas. RAM/VRAM requiere instrumentación comprobada y compatible con

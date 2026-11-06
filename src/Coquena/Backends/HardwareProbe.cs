@@ -8,17 +8,28 @@ namespace Coquena.Backends;
 // Direct OS/driver APIs, source-generated interop, no shell, WMI or NuGet dependency.
 public static unsafe partial class HardwareProbe
 {
-    public static HardwareContext Inspect()
+    internal sealed record AdapterEvidence(HardwareContext Context, HashSet<string> Cuda, HashSet<string> Vulkan);
+
+    internal static AdapterEvidence InspectAdapters()
+    {
+        var cuda = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var vulkan = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        return new(Inspect(cuda, vulkan), cuda, vulkan);
+    }
+
+    public static HardwareContext Inspect() => Inspect(null, null);
+
+    private static HardwareContext Inspect(HashSet<string>? cudaIds, HashSet<string>? vulkanIds)
     {
         var arch = RuntimeInformation.OSArchitecture.ToString().ToLowerInvariant();
         if (!OperatingSystem.IsWindows())
             return new($"{(OperatingSystem.IsLinux() ? "linux" : "other")}-{arch}", RuntimeInformation.OSDescription,
                 null, [], null, [], new("unknown", "Sondeo CUDA sólo implementado en Windows."), new("unknown", "Sondeo Vulkan sólo implementado en Windows."));
-        return Windows(arch);
+        return Windows(arch, cudaIds, vulkanIds);
     }
 
     [SupportedOSPlatform("windows")]
-    private static HardwareContext Windows(string arch)
+    private static HardwareContext Windows(string arch, HashSet<string>? cudaIds, HashSet<string>? vulkanIds)
     {
         string cpu = "Nombre de CPU no disponible";
         try
@@ -36,11 +47,11 @@ public static unsafe partial class HardwareProbe
             if (EnumDisplayDevicesW(null, i, &display, 0) == 0) break;
             if ((display.Flags & 8) == 0) adapters.Add(new string(display.Description).Trim());
         }
-        var (driver, devices, cuda) = ProbeCuda();
-        return new($"win-{arch}", cpu.Trim(), ram, adapters.Distinct().ToArray(), driver, devices, cuda, ProbeVulkan());
+        var (driver, devices, cuda) = ProbeCuda(cudaIds);
+        return new($"win-{arch}", cpu.Trim(), ram, adapters.Distinct().ToArray(), driver, devices, cuda, ProbeVulkan(vulkanIds));
     }
 
-    private static (int?, CudaDevice[], AccelerationEvidence) ProbeCuda()
+    private static (int?, CudaDevice[], AccelerationEvidence) ProbeCuda(HashSet<string>? ids)
     {
         try
         {
@@ -59,6 +70,15 @@ public static unsafe partial class HardwareProbe
                     return (version, devices.ToArray(), new("unknown", "Enumeración CUDA incompleta."));
                 var length = new ReadOnlySpan<byte>(name, 256).IndexOf((byte)0);
                 devices.Add(new(Encoding.UTF8.GetString(new ReadOnlySpan<byte>(name, length < 0 ? 256 : length)), major * 10 + minor));
+                if (ids is not null)
+                {
+                    try
+                    {
+                        ulong luid = 0;
+                        if (cuDeviceGetLuid(&luid, out var nodeMask, device) == 0) AddAdapterId(ids, luid, nodeMask);
+                    }
+                    catch (EntryPointNotFoundException) { }
+                }
             }
             return (version, devices.ToArray(), new(count > 0 ? "compatible" : "incompatible",
                 count > 0 ? "Driver y dispositivos CUDA detectados." : "Enumeración CUDA completa sin dispositivos."));
@@ -67,7 +87,7 @@ public static unsafe partial class HardwareProbe
         { return (null, [], new("unknown", "API del driver NVIDIA no disponible; no se afirma ausencia de GPU.")); }
     }
 
-    private static AccelerationEvidence ProbeVulkan()
+    private static AccelerationEvidence ProbeVulkan(HashSet<string>? ids)
     {
         nint instance = 0;
         try
@@ -113,6 +133,17 @@ public static unsafe partial class HardwareProbe
                 var name = new ReadOnlySpan<byte>(properties + 20, 256);
                 var end = name.IndexOf((byte)0);
                 compatible.Add(Encoding.UTF8.GetString(end < 0 ? name : name[..end]));
+                if (ids is not null)
+                {
+                    var identity = new VulkanDeviceIdentity { Type = 1000071004 };
+                    var properties2 = new PhysicalProperties2 { Type = 1000059001, Next = &identity };
+                    try
+                    {
+                        vkGetPhysicalDeviceProperties2(devices[i], &properties2);
+                        if (identity.LuidValid != 0) AddAdapterId(ids, identity.Luid, identity.NodeMask);
+                    }
+                    catch (EntryPointNotFoundException) { }
+                }
             }
             return compatible.Count > 0
                 ? new("compatible", $"Vulkan 1.2, GPU, cola compute y almacenamiento de 16 bits: {string.Join(", ", compatible)}. Sondeo básico; no garantiza inferencia del binario concreto.")
@@ -121,6 +152,12 @@ public static unsafe partial class HardwareProbe
         catch (Exception e) when (e is DllNotFoundException or EntryPointNotFoundException or BadImageFormatException)
         { return new("unknown", "API Vulkan no disponible o incompleta; no se deduce soporte a partir del fabricante."); }
         finally { if (instance != 0) vkDestroyInstance(instance, 0); }
+    }
+
+    private static void AddAdapterId(HashSet<string> ids, ulong luid, uint nodeMask)
+    {
+        // DXGI inventory exposes phys_0. Do not guess how other linked nodes map to PDH.
+        if (luid != 0 && nodeMask == 1) ids.Add($"luid_0x{(uint)(luid >> 32):x8}_0x{(uint)luid:x8}_phys_0");
     }
 
     [StructLayout(LayoutKind.Sequential)]
@@ -133,6 +170,17 @@ public static unsafe partial class HardwareProbe
     private struct InstanceCreateInfo { public uint Type; public nint Next; public uint Flags; public ApplicationInfo* Application; public uint LayerCount; public nint Layers; public uint ExtensionCount; public nint Extensions; }
     [StructLayout(LayoutKind.Sequential)]
     private struct PhysicalFeatures2 { public uint Type; public void* Next; public fixed uint Features[55]; }
+    [StructLayout(LayoutKind.Sequential)]
+    private struct PhysicalProperties2 { public uint Type; public void* Next; public fixed ulong Properties[128]; }
+    [StructLayout(LayoutKind.Sequential)]
+    private struct VulkanDeviceIdentity
+    {
+        public uint Type;
+        public void* Next;
+        public fixed byte DeviceAndDriverUuid[32];
+        public ulong Luid;
+        public uint NodeMask, LuidValid;
+    }
     [StructLayout(LayoutKind.Sequential)]
     private struct Vulkan11Features { public uint Type; public nint Next; public uint StorageBuffer16BitAccess; public fixed uint Others[11]; }
     [StructLayout(LayoutKind.Sequential)]
@@ -154,6 +202,8 @@ public static unsafe partial class HardwareProbe
     private static partial int cuDeviceGetName(byte* name, int length, int device);
     [LibraryImport("nvcuda.dll")][DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
     private static partial int cuDeviceGetAttribute(out int value, int attribute, int device);
+    [LibraryImport("nvcuda.dll")][DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
+    private static partial int cuDeviceGetLuid(ulong* luid, out uint nodeMask, int device);
     [LibraryImport("vulkan-1.dll")][DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
     private static partial int vkEnumerateInstanceVersion(out uint version);
     [LibraryImport("vulkan-1.dll")][DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
@@ -164,6 +214,8 @@ public static unsafe partial class HardwareProbe
     private static partial int vkEnumeratePhysicalDevices(nint instance, uint* count, nint* devices);
     [LibraryImport("vulkan-1.dll")][DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
     private static partial void vkGetPhysicalDeviceProperties(nint device, byte* properties);
+    [LibraryImport("vulkan-1.dll")][DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
+    private static partial void vkGetPhysicalDeviceProperties2(nint device, PhysicalProperties2* properties);
     [LibraryImport("vulkan-1.dll")][DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
     private static partial void vkGetPhysicalDeviceFeatures2(nint device, PhysicalFeatures2* features);
     [LibraryImport("vulkan-1.dll")][DefaultDllImportSearchPaths(DllImportSearchPath.System32)]

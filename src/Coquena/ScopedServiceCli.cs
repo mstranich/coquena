@@ -229,10 +229,6 @@ public static class ScopedServiceCli
                 output.WriteLine("Servicio ya ejecutándose.");
                 return 0;
             }
-            Task<ScopedStartPlan> Prepare(CancellationToken token) => PrepareAsync(command, target, output, error, token);
-            StartFailureHook? hook = null;
-            try { hook = StartFailureHook.FromRecipe(RecipeReader.Read(target.Selection)); }
-            catch (RecipeException e) when (e.Code != "sensitive-hook-argument") { /* Invalid intention has no trusted hook. Preparation retains its diagnostic. */ }
             ServiceRecoveryChoice Decide(string code, bool available)
             {
                 if (Console.IsInputRedirected) return ServiceRecoveryChoice.Cancel;
@@ -241,24 +237,37 @@ public static class ScopedServiceCli
                 return Console.ReadLine()?.Trim().ToLowerInvariant() switch
                 { "r" => ServiceRecoveryChoice.Retry, "u" when available => ServiceRecoveryChoice.LastGood, _ => ServiceRecoveryChoice.Cancel };
             }
-            var instance = lifecycle.RunAsync(service.ServiceId, command.Action == "restart", command.Detached,
-                Prepare, (snapshot, token) => RestoreAsync(target, snapshot, error, token), Decide,
-                cancellation.Token, ForceRequested, hook).GetAwaiter().GetResult();
+            var instance = RunCandidateAsync(lifecycle, target, command.Action == "restart", command.Detached, command.Private,
+                output, error, new ConsoleModelSelectionInteraction(), cancellation.Token, Decide, ForceRequested).GetAwaiter().GetResult();
             output.WriteLine($"Servicio {service.Name}; instancia {instance}.");
             return command.Detached ? 0 : lifecycle.Foreground(service.ServiceId, instance, output, interrupt);
         }
         finally { Console.CancelKeyPress -= handler; }
     }
 
-    private static async Task<ScopedStartPlan> PrepareAsync(ServiceCommand command, Target target, TextWriter output, TextWriter error, CancellationToken cancellation)
+    internal static Task<string> RunCandidateAsync(ScopedServiceProcess lifecycle, Target target, bool restart, bool detached,
+        bool privateResources, TextWriter output, TextWriter error, IModelSelectionInteraction interaction, CancellationToken cancellation,
+        Func<string, bool, ServiceRecoveryChoice>? decide = null, Func<bool>? forceRequested = null, string? expectedInstanceId = null)
+    {
+        StartFailureHook? hook = null;
+        try { hook = StartFailureHook.FromRecipe(RecipeReader.Read(target.Selection)); }
+        catch (RecipeException e) when (e.Code != "sensitive-hook-argument") { /* Preparation retains the diagnostic. */ }
+        return lifecycle.RunAsync(target.Service.ServiceId, restart, detached,
+            token => PrepareAsync(target, privateResources, output, error, interaction, token),
+            (snapshot, token) => RestoreAsync(target, snapshot, error, token), decide,
+            cancellation, forceRequested, hook, expectedInstanceId);
+    }
+
+    private static async Task<ScopedStartPlan> PrepareAsync(Target target, bool privateResources, TextWriter output,
+        TextWriter error, IModelSelectionInteraction interaction, CancellationToken cancellation)
     {
         using var http = new HttpClient();
         using var transport = new OfficialArtifactTransport();
         var resources = new ScopedCombinationResources(target.Context, HardwareProbe.Inspect(), new HuggingFaceStore(http), transport,
-            new ConsoleModelSelectionInteraction(), warning: message => error.WriteLine(message), serviceName: target.Service.Name,
+            interaction, warning: message => error.WriteLine(message), serviceName: target.Service.Name,
             downloadProgress: operation => DownloadCli.Show(operation, output));
         var prepared = await new CombinationPreparation(target.Context).PrepareServiceAsync(target.Selection, resources,
-            command.Private || target.Context.IsGlobal, cancellation: cancellation);
+            privateResources || target.Context.IsGlobal, cancellation: cancellation);
         var recipe = RecipeReader.Read(target.Selection);
         var id = Guid.NewGuid();
         var logs = target.Context.IsGlobal

@@ -16,6 +16,8 @@ public static class Cli
 
         if (args.Length > 0 && args[0] == "init")
             return InitCli.Run(args[1..], output, error);
+        if (args.Length > 0 && args[0] == "tui")
+            return DashboardCli.Run(args[1..], output, error);
 
         var prefix = 0;
         while (prefix < args.Length)

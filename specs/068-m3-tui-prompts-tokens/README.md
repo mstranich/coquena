@@ -18,6 +18,26 @@ updated_at: 2026-11-03T20:18:55.153264700Z
 
 Entregar el panel central donde se vea la actividad de llama-server por servicio y entrada, desde prompt hasta salida.
 
+## Acuerdo de producto y continuidad entre sesiones
+
+M4 es un milestone abierto, centrado en una Terminal UI con buena experiencia de
+usuario. Se agregan, corrigen y refinan tarjetas una por una a partir del uso y la
+revisión visual. Las tarjetas actuales no definen un inventario cerrado ni su
+finalización implica cerrar M4. Cada tarjeta mantiene un alcance concreto; el
+horizonte abierto no autoriza implementar otras secciones sin acordarlas.
+
+La primera entrega utilizable es [066](../066-m3-tui-base/README.md): observar
+inferencia real con fases, avance disponible hacia la respuesta, curvas de tokens,
+promedio/pico, consumo y logs dentro de la terminal. Leer su intención, matriz de
+fuentes y aceptación antes de implementar esta tarjeta. Una carcasa de navegación,
+hardware aislado o un indicador binario de actividad no satisfacen ese recorrido.
+
+Se comienza por 066; 065, 067, 068 y 069 amplían una experiencia ya utilizable;
+070 contrasta su integración. Los IDs/directorios conservan nombres históricos,
+no fijan el orden. No esperar a 070 para integrar datos o probar inferencia real.
+La Web UI será otra iteración: lo aprendido de UX y los contratos sin widgets
+servirán de base, sin implementar ahora web ni copiar literalmente su layout.
+
 ## Fuente de verdad
 
 - [Milestone M4](../../docs/milestones/M4-experiencia-completa.md)
@@ -37,6 +57,18 @@ Las reglas funcionales de los documentos enlazados prevalecen. Esta tarjeta defi
 - [ ] Mostrar tareas simultáneas y finalizadas con histórico configurable, scroll y último valor observado; el límite sólo afecta finalizadas. Mantener activas visibles y diferenciadas.
 - [ ] Adaptar columnas y gráficos al ancho/alto sin perder servicio, entrada, fase ni progreso disponible. Ampliar logs o pausar visualización no detiene la captura de actividad.
 - [ ] Acreditar con peticiones reales de prueba la transición prompt→generación→fin, dos presets/entradas y cambio de instancia; contrastar cifras con la fuente. No basta animar fixtures.
+
+## Profundización de inferencias, comparación visual e histórico
+
+066 ya muestra fases, curvas, avance, promedio y pico disponibles. Aquí se amplían
+detalle, concurrencia e histórico; no se posterga hasta esta tarjeta la primera
+observación de tokens o una inferencia real.
+
+- [ ] Separar resumen de entrada de detalle por tarea y cola agregada; no duplicar tasas ni inventar tareas por un contador.
+- [ ] Ampliar histórico configurable de finalizadas con scroll/selección estable sin expulsar actividad actual ni limitar ejecución.
+- [ ] Revisar ejecuciones recientes de presets del mismo modelo con distinta configuración, incluida especulación cuando sea viable. Mostrar configuración activa, caché, ventana y condiciones que impiden comparación directa.
+- [ ] Dar acceso a tiempos, promedio y pico observado/máximo de medias sin sobrecargar vista compacta. No representar máximo de tokens como longitud final ni prometer mejora por usar borrador.
+- [ ] Probar varias peticiones reales y cambio del hijo manteniendo log/hardware usables; no implementar un sistema formal de benchmarks por esta tarjeta.
 
 ## Dependencias
 

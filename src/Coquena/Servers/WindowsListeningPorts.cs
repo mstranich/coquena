@@ -12,6 +12,9 @@ internal static partial class WindowsListeningPorts
     private static partial uint GetExtendedTcpTable(nint table, ref int size, int order, int family, int tableClass, uint reserved);
 
     internal static bool IsOwned(string host, int port, Guid instanceId)
+        => FindOwned(host, port, instanceId, includeCreation: false) is not null;
+
+    internal static (int Pid, long Creation)? FindOwned(string host, int port, Guid instanceId, bool includeCreation)
     {
         IPAddress[] expected;
         try { expected = IPAddress.TryParse(host, out var parsed) ? [parsed] : Dns.GetHostAddresses(host); }
@@ -43,11 +46,13 @@ internal static partial class WindowsListeningPorts
                     var address = family == 2 ? new IPAddress(bytes) : new IPAddress(bytes, (uint)Marshal.ReadInt32(table, offset + 16));
                     var matches = expected.Any(value => value.AddressFamily == address.AddressFamily &&
                         (value.Equals(address) || address.Equals(family == 2 ? IPAddress.Any : IPAddress.IPv6Any)));
-                    if (matches && WindowsServerProcess.BelongsToInstance(Marshal.ReadInt32(table, offset + pidOffset), instanceId)) return true;
+                    var pid = Marshal.ReadInt32(table, offset + pidOffset);
+                    if (matches && WindowsServerProcess.ObserveMember(pid, instanceId, includeCreation) is long creation)
+                        return (pid, creation);
                 }
             }
             finally { Marshal.FreeHGlobal(table); }
         }
-        return false;
+        return null;
     }
 }

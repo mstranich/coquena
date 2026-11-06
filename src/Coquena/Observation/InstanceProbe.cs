@@ -14,6 +14,7 @@ public interface IObservedInstance : IDisposable
 {
     bool IsAlive { get; }
     bool OwnsEndpoint(string host, int port);
+    (int Pid, long Creation)? ObserveListener(string host, int port) => null;
     Task<IReadOnlyList<MetricSample>> CaptureAsync(CancellationToken cancellation);
 }
 public static class InstanceProbe
@@ -37,6 +38,8 @@ internal sealed class WindowsInstanceProbe : IInstanceProbe
     {
         public bool IsAlive => !WindowsServerProcess.Exited(handle);
         public bool OwnsEndpoint(string host, int port) => WindowsListeningPorts.IsOwned(host, port, identity.InstanceId);
+        public (int Pid, long Creation)? ObserveListener(string host, int port) =>
+            WindowsListeningPorts.FindOwned(host, port, identity.InstanceId, includeCreation: true);
         public async Task<IReadOnlyList<MetricSample>> CaptureAsync(CancellationToken cancellation)
         {
             var clock = System.Diagnostics.Stopwatch.GetTimestamp();

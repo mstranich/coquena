@@ -19,6 +19,26 @@ updated_at: 2026-11-03T20:18:55.151265900Z
 
 Hacer visible consumo de CPU, RAM y cada GPU/VRAM con cifras y gráficas que mantengan su alcance y disponibilidad.
 
+## Acuerdo de producto y continuidad entre sesiones
+
+M4 es un milestone abierto, centrado en una Terminal UI con buena experiencia de
+usuario. Se agregan, corrigen y refinan tarjetas una por una a partir del uso y la
+revisión visual. Las tarjetas actuales no definen un inventario cerrado ni su
+finalización implica cerrar M4. Cada tarjeta mantiene un alcance concreto; el
+horizonte abierto no autoriza implementar otras secciones sin acordarlas.
+
+La primera entrega utilizable es [066](../066-m3-tui-base/README.md): observar
+inferencia real con fases, avance disponible hacia la respuesta, curvas de tokens,
+promedio/pico, consumo y logs dentro de la terminal. Leer su intención, matriz de
+fuentes y aceptación antes de implementar esta tarjeta. Una carcasa de navegación,
+hardware aislado o un indicador binario de actividad no satisfacen ese recorrido.
+
+Se comienza por 066; 065, 067, 068 y 069 amplían una experiencia ya utilizable;
+070 contrasta su integración. Los IDs/directorios conservan nombres históricos,
+no fijan el orden. No esperar a 070 para integrar datos o probar inferencia real.
+La Web UI será otra iteración: lo aprendido de UX y los contratos sin widgets
+servirán de base, sin implementar ahora web ni copiar literalmente su layout.
+
 ## Fuente de verdad
 
 - [Milestone M4](../../docs/milestones/M4-experiencia-completa.md)
@@ -39,6 +59,17 @@ Las reglas funcionales de los documentos enlazados prevalecen. Esta tarjeta defi
 - [ ] Mantener hardware global al cambiar de pestaña; la vista aísla fallos por instancia y no bloquea toda la pantalla por una fuente lenta.
 - [ ] Probar CPU/GPU sin permisos, múltiples GPU, falta de proveedor, terminal pequeña, resize y uso sin color. Medir límites de buffers y comprobar que el observador no consume recursos crecientes.
 - [ ] Publicar Native AOT y observar cifras reales del equipo; contrastar alcance con la fuente y documentar qué mediciones están disponibles.
+
+## Profundización de hardware y gráficas existentes
+
+066 ya muestra consumo y series junto a inferencia/logs. Esta tarjeta amplía
+cobertura y legibilidad, sin entregar por primera vez las curvas esenciales.
+
+- [ ] Alinear visualmente muestras de recursos con fases; conservar fecha/resolución efectiva sin afirmar causalidad o consumo exclusivo de un preset.
+- [ ] Detallar múltiples GPU, RAM/VRAM y alcance proceso/máquina/dispositivo; no sumar ni atribuir varias veces recursos compartidos.
+- [ ] Refinar ejes, escalas, leyendas y detalle de fuente/unidad/ventana; pico observado y huecos conservan la semántica de 066.
+- [ ] Mantener continuidad de barra/series en la navegación ya implementada, sin construir herramientas nuevas para acreditar el cambio.
+- [ ] Revisar UX en terminal grande/compacta con fuentes lentas y múltiples dispositivos; medir cotas de memoria/captura y documentar límites de escala comprobados.
 
 ## Dependencias
 

@@ -20,6 +20,26 @@ updated_at: 2026-11-03T20:18:55.158104100Z
 
 Entregar una pantalla semigráfica de terminal utilizable para vigilar el servidor y sus presets durante inferencia real.
 
+## Acuerdo de producto y continuidad entre sesiones
+
+M4 es un milestone abierto, centrado en una Terminal UI con buena experiencia de
+usuario. Se agregan, corrigen y refinan tarjetas una por una a partir del uso y la
+revisión visual. Las tarjetas actuales no definen un inventario cerrado ni su
+finalización implica cerrar M4. Cada tarjeta mantiene un alcance concreto; el
+horizonte abierto no autoriza implementar otras secciones sin acordarlas.
+
+La primera entrega utilizable es [066](../066-m3-tui-base/README.md): observar
+inferencia real con fases, avance disponible hacia la respuesta, curvas de tokens,
+promedio/pico, consumo y logs dentro de la terminal. Leer su intención, matriz de
+fuentes y aceptación antes de implementar esta tarjeta. Una carcasa de navegación,
+hardware aislado o un indicador binario de actividad no satisfacen ese recorrido.
+
+Se comienza por 066; 065, 067, 068 y 069 amplían una experiencia ya utilizable;
+070 contrasta su integración. Los IDs/directorios conservan nombres históricos,
+no fijan el orden. No esperar a 070 para integrar datos o probar inferencia real.
+La Web UI será otra iteración: lo aprendido de UX y los contratos sin widgets
+servirán de base, sin implementar ahora web ni copiar literalmente su layout.
+
 ## Fuente de verdad
 
 - [Milestone M4](../../docs/milestones/M4-experiencia-completa.md)
@@ -39,6 +59,19 @@ Las reglas funcionales de los documentos enlazados prevalecen. Esta tarjeta defi
 - [ ] Comprobar resize, teclado, foco, scroll, falta de color, terminal pequeña, buffers acotados y aislamiento de errores; mostrar identidad, fase/progreso y cifras aun al simplificar gráficos.
 - [ ] Registrar evidencia visual de la aplicación Native AOT en terminal real, pasos reproducibles y comparación con fuentes. Capturas estáticas o dashboard sin actividad no acreditan el recorrido.
 - [ ] Comprobar que cerrar la TUI deja el servicio atendiendo y no modifica intención ni publicación.
+
+## Integración ampliada y milestone abierto
+
+El primer monitor se acredita en 066. Aquí se contrastan las ampliaciones y los
+escenarios compartidos; no se posterga hasta esta tarjeta la integración básica,
+las peticiones reales ni la revisión de UX. Completar 070 no cierra M4, que sigue
+abierto a nuevas tarjetas acordadas una por una.
+
+- [ ] Repetir matriz de 066 tras ampliaciones: fases, avance conocido, consumo, curvas, promedio/pico y logs siguen accesibles durante inferencia real.
+- [ ] Contrastar presets con mismos pesos y distinta configuración, con/sin especulación cuando sea viable, y modelos diferentes. Identificar caché, ventanas y concurrencia que impiden comparaciones directas.
+- [ ] Incluir una petición externa además de pruebas propias: el stream del cliente propio no demuestra telemetría universal.
+- [ ] Revisar con el usuario jerarquía, foco estable, datos desconocidos, resize y vuelta desde histórico/logs; registrar hallazgos de UX y técnicos.
+- [ ] Reportar cobertura por fuente/build y consecuencias para contratos reutilizables en Web UI posterior, sin implementar web ni exigir secciones aún no acordadas.
 
 ## Dependencias
 
