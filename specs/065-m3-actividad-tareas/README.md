@@ -47,26 +47,29 @@ servirán de base, sin implementar ahora web ni copiar literalmente su layout.
 
 Las reglas funcionales de los documentos enlazados prevalecen. Esta tarjeta define trabajo y evidencia, sin crear una definición arquitectónica alternativa.
 
+## Base entregada y reparto con 068
+
+La [066](../066-m3-tui-base/README.md#primera-evidencia-de-curvas-de-inferencia)
+acreditó lectura de slots, identidad del hijo y tasas por fase para una tarea
+activa de un preset en el build probado. Ya separa los intervalos de prompt y
+generación y corta las tasas ante huecos o cambio de identidad. El adaptador
+base sólo calcula deltas cuando hay una tarea activa atribuible.
+
+La 065 es dueña de la identidad, la atribución y el modelo de lectura de
+tareas activas y finalizadas, incluido el límite de retención de finalizadas.
+La [068](../068-m3-tui-prompts-tokens/README.md) consume ese modelo para
+presentar, navegar y comparar tareas. La integración en 065 verifica la
+atribución en el monitor existente.
+
 ## Trabajo y aceptación
 
-- [ ] Consumir las fuentes acreditadas en 052 y el seguimiento 064; identificar cada observación por servicio, instancia, entrada y slot/tarea disponibles. Correlacionar nombre publicado del preset y modelo sólo cuando exista evidencia.
-- [ ] Distinguir cola, procesamiento de prompt, generación y finalización; admitir tarea sin slot y estados desconocidos. Un contador agregado de cola no crea filas individuales.
-- [ ] Proporcionar tokens procesados/cacheados, progreso del prompt, duración de fase, tokens de salida y tasas con fuente, ventana y vigencia. Distinguir acumulados, media, pico de muestras y estimación de valores instantáneos.
-- [ ] Conservar últimas cifras observadas al finalizar; histórico acotado de sesión con límite configurable de filas finalizadas, independiente de filas activas, capacidad del backend y retención de logs.
-- [ ] Probar tareas simultáneas de presets distintos, eventos repetidos/desordenados, huecos de observación, cancelación/fallo, reinicio e IDs reutilizados. No atribuir proyecto o cliente por prefijo de entrada.
-- [ ] Contrastar fixtures con una captura real de prompt y generación del build acreditado; exponer un modelo de lectura reutilizable por TUI sin dependencia de widgets.
-- [ ] Separar tasas/buckets por hijo de cifras por petición y totales compatibles según observabilidad; tratar reemplazo del hijo como otra generación aun con router vivo. No usar puerto, tarea o slot aislado como identidad, ni n_prompt_tokens como denominador fijo sin semántica acreditada. Incorporar los contrastes de la matriz ejecutada de 052.
-
-## Profundización sobre el monitor existente
-
-066 ya entrega fases y correlación mínimas para observar inferencia. Aquí se
-profundiza robustez y cobertura sin bloquear aquella experiencia.
-
-- [ ] Contrastar matriz por build de fases y campos: endpoints de consulta, eventos de modelos, logs y stream propio, con momento real de actualización de cada contador.
+- [ ] Ampliar la matriz acreditada en 052 y 066 con el seguimiento de 064. Contrastar endpoints, eventos, logs y stream propio por build, incluido el momento de actualización de cada contador.
 - [ ] Correlacionar presets distintos con mismos pesos, tareas simultáneas, IDs reutilizados, tareas sin slot, huecos, cancelación y reemplazo del hijo sin mezclar promedios/picos entre generaciones.
-- [ ] Conservar duración, tokens/caché/tasas y sus ventanas atribuibles; proporcionar datos para promedio y pico observado sin convertir agregados en cifras individuales.
+- [ ] Distinguir cola, prompt, generación, finalización, fallo y estados desconocidos con evidencia. La cola agregada no crea filas individuales. No atribuir proyecto o cliente por el nombre de la entrada.
+- [ ] Conservar duración, progreso disponible, tokens/caché/tasas y sus ventanas atribuibles. Separar acumulados y buckets por hijo de cifras por tarea, promedio y pico observado. Un puerto, slot o ID de tarea aislado no acredita identidad. Validar la semántica del denominador antes de calcular porcentajes.
+- [ ] Conservar las últimas cifras observadas de tareas finalizadas en un histórico de sesión con límite configurable, independiente de las tareas activas, la capacidad del backend y la retención de logs.
 - [ ] Separar razonamiento de salida visible sólo con evidencia atribuible; no deducirlo de silencio ni leer conversaciones ajenas.
-- [ ] Integrar el resultado en el monitor y demostrar mejora con peticiones reales, además de probar el modelo reutilizable sin widgets.
+- [ ] Probar el modelo reutilizable sin widgets con concurrencia, eventos repetidos/desordenados, huecos, cancelación, fallos, reinicio e IDs reutilizados. Contrastar fixtures con peticiones reales de varios presets e integrar el resultado en el monitor existente.
 
 ## Dependencias
 
@@ -88,4 +91,4 @@ Sin inferir contenido privado, crear un scheduler, controlar residencia de model
 
 ## Estado y evidencia
 
-Planificada, sin implementación ni pruebas ejecutadas. No se acredita funcionalidad por redactar esta tarjeta; inicio, cierre y commit requieren su autorización correspondiente.
+Planificada. La evidencia de una tarea activa pertenece a 066. Falta ejecutar y acreditar la ampliación de correlación descrita aquí.

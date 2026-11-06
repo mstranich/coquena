@@ -50,15 +50,23 @@ servirán de base, sin implementar ahora web ni copiar literalmente su layout.
 
 Las reglas funcionales de los documentos enlazados prevalecen. Esta tarjeta define trabajo y evidencia, sin crear una definición arquitectónica alternativa.
 
+## Base entregada en 066
+
+La [066](../066-m3-tui-base/README.md#estado-y-evidencia) entrega un monitor
+ejecutable en Native AOT y registra una prueba controlada con un cliente
+externo. Esa evidencia sirve de referencia para repetir el recorrido con
+las ampliaciones, varios presets y servicios propios y compartidos.
+
 ## Trabajo y aceptación
 
-- [ ] Integrar actividad y series temporales arriba, hardware compartido y logs abajo. Verificar orden de pestañas y acceso a Logs dentro del servidor al reducir la altura.
+- [ ] Verificar la integración de actividad, series temporales, hardware compartido y logs. Contrastar orden de pestañas y acceso a Logs dentro del servicio al reducir la altura.
 - [ ] Partir de un proyecto con target self y varios presets; iniciar/publicar mediante CLI y abrir tui. Enviar peticiones desde un cliente de prueba y observar las fases y cifras disponibles mientras ocurre inferencia.
 - [ ] Repetir con servicio compartido por consumidores, dos entradas de modelos distintos usando recursos acordados y actividad simultánea cuando el backend lo soporte; verificar correlación y ausencia de métricas mezcladas.
 - [ ] Probar cambio de preset/entrada observado, recarga de publicación, reinicio del servidor, reconexión y telemetría parcial; mantener información vigente y distinguir incertidumbre.
 - [ ] Comprobar resize, teclado, foco, scroll, falta de color, terminal pequeña, buffers acotados y aislamiento de errores; mostrar identidad, fase/progreso y cifras aun al simplificar gráficos.
 - [ ] Registrar evidencia visual de la aplicación Native AOT en terminal real, pasos reproducibles y comparación con fuentes. Capturas estáticas o dashboard sin actividad no acreditan el recorrido.
 - [ ] Comprobar que cerrar la TUI deja el servicio atendiendo y no modifica intención ni publicación.
+- [ ] Acreditar con un backend real y recursos locales acordados el arranque y el reinicio desde los controles ya entregados en 066. Verificar el estado observado, la confirmación de reinicio y el regreso al monitor tras la operación.
 
 ## Integración ampliada y milestone abierto
 
@@ -90,4 +98,4 @@ Dashboard de observación de M4. Los editores, la experimentación asistida y la
 
 ## Estado y evidencia
 
-Planificada, sin implementación ni pruebas ejecutadas. No se acredita funcionalidad por redactar esta tarjeta; inicio, cierre y commit requieren su autorización correspondiente.
+Planificada. El recorrido de un preset de 066 es la referencia inicial. Queda por ejecutar y acreditar la matriz integrada de esta tarjeta.

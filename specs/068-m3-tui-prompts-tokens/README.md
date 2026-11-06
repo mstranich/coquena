@@ -48,24 +48,28 @@ servirán de base, sin implementar ahora web ni copiar literalmente su layout.
 
 Las reglas funcionales de los documentos enlazados prevalecen. Esta tarjeta define trabajo y evidencia, sin crear una definición arquitectónica alternativa.
 
+## Base entregada y reparto con 065
+
+La [066](../066-m3-tui-base/README.md#primera-evidencia-de-curvas-de-inferencia)
+ya presenta curvas de prompt y generación, tokens procesados, caché, media y
+pico observado de una tarea atribuible en el preset enfocado. La evidencia
+corresponde a un build. En ese build el contador de contexto del slot también
+crece durante la generación y no acredita un porcentaje de avance de prompt.
+
+La [065](../065-m3-actividad-tareas/README.md) proporciona identidad,
+atribución, cifras y retención de tareas en el modelo de lectura. La 068 usa
+ese modelo para mostrar, recorrer y comparar tareas y presets.
+
 ## Trabajo y aceptación
 
 - [ ] Priorizar las entradas activas y sus series temporales arriba del log. Mostrar servicio, entrada/preset y modelo correlacionado, slot, tarea y fase; conservar estas identidades al navegar y distinguir instancias.
 - [ ] Separar resumen por entrada (acumulados, medias del backend, actividad/cola agregada y período) del detalle por tarea, según el Salt actualizado y observabilidad. Mostrar totales compatibles sin sumar medias como velocidad instantánea; señalar huecos y ausencia de fuentes por tarea. Distinguir generaciones del hijo e IDs reutilizados.
-- [ ] Visualizar procesamiento de prompt con tokens procesados/cacheados y progreso disponible, tiempo de fase, generación con tokens de salida y tasa etiquetada; mostrar curvas de prompt/generación según fuentes acreditadas.
+- [ ] Extender las curvas existentes al detalle de las tareas observadas. Mostrar tokens procesados/cacheados, progreso cuando exista denominador válido, tiempo de fase, tokens de salida y tasa con su fuente y ventana.
 - [ ] Diferenciar cola, prompt, generación, finalización y fallo cuando estén observados; preservar cifras desconocidas/no disponibles y su motivo, sin deducir inactividad de silencio de logs.
-- [ ] Mostrar tareas simultáneas y finalizadas con histórico configurable, scroll y último valor observado; el límite sólo afecta finalizadas. Mantener activas visibles y diferenciadas.
+- [ ] Mostrar tareas simultáneas y finalizadas, con scroll, selección estable y último valor observado. Aplicar al histórico visual el límite configurable de finalizadas del modelo de 065, conservando visibles las activas.
 - [ ] Adaptar columnas y gráficos al ancho/alto sin perder servicio, entrada, fase ni progreso disponible. Ampliar logs o pausar visualización no detiene la captura de actividad.
 - [ ] Acreditar con peticiones reales de prueba la transición prompt→generación→fin, dos presets/entradas y cambio de instancia; contrastar cifras con la fuente. No basta animar fixtures.
 
-## Profundización de inferencias, comparación visual e histórico
-
-066 ya muestra fases, curvas, avance, promedio y pico disponibles. Aquí se amplían
-detalle, concurrencia e histórico; no se posterga hasta esta tarjeta la primera
-observación de tokens o una inferencia real.
-
-- [ ] Separar resumen de entrada de detalle por tarea y cola agregada; no duplicar tasas ni inventar tareas por un contador.
-- [ ] Ampliar histórico configurable de finalizadas con scroll/selección estable sin expulsar actividad actual ni limitar ejecución.
 - [ ] Revisar ejecuciones recientes de presets del mismo modelo con distinta configuración, incluida especulación cuando sea viable. Mostrar configuración activa, caché, ventana y condiciones que impiden comparación directa.
 - [ ] Dar acceso a tiempos, promedio y pico observado/máximo de medias sin sobrecargar vista compacta. No representar máximo de tokens como longitud final ni prometer mejora por usar borrador.
 - [ ] Probar varias peticiones reales y cambio del hijo manteniendo log/hardware usables; no implementar un sistema formal de benchmarks por esta tarjeta.
@@ -85,4 +89,4 @@ Sin visor del texto de conversaciones, botones para cargar modelos ni promesa de
 
 ## Estado y evidencia
 
-Planificada, sin implementación ni pruebas ejecutadas. No se acredita funcionalidad por redactar esta tarjeta; inicio, cierre y commit requieren su autorización correspondiente.
+Planificada. La evidencia básica de curvas pertenece a 066. Queda por ejecutar y acreditar la ampliación visual de concurrencia, histórico y comparación.

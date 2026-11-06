@@ -47,19 +47,21 @@ servirán de base, sin implementar ahora web ni copiar literalmente su layout.
 
 Las reglas funcionales de los documentos enlazados prevalecen. Esta tarjeta define trabajo y evidencia, sin crear una definición arquitectónica alternativa.
 
+## Base entregada en 066
+
+La [066](../066-m3-tui-base/README.md#estado-y-evidencia) entrega el panel de
+logs por servicio y refresca un tramo reciente del archivo. La lectura es
+acotada. Quedan por integrar el seguimiento continuo de 062 y la experiencia
+de pausa, lectura estable, regreso al final e históricos.
+
 ## Trabajo y aceptación
 
 - [ ] Usar seguimiento de 062: pestaña de servidor y alias default, cambio de log entre reinicios/rotación y señal visible de transición; esperar cuando el servicio esté detenido.
-- [ ] Cambiar de pestaña cambia actividad y logs al mismo servicio; el hardware conserva alcance global.
+- [ ] Verificar que al cambiar de servicio, la actividad y el log conservan el mismo destino mientras el hardware mantiene alcance global.
 - [ ] Permitir scroll, pausa visual, regreso al seguimiento y acceso a históricos; continuar captura en buffers acotados sin congelar tablas ni peticiones.
 - [ ] Destinar al log el espacio restante y moverlo a una subpestaña del mismo servidor cuando falte altura, conservando fase y progreso en Monitor; soportar líneas largas, Unicode, ausencia de archivo y pérdida de acceso.
 - [ ] Probar dos servicios, ráfagas de logs, resize, retención, reinicio y eliminación/recreación del mismo nombre con otra identidad; no enlazar silenciosamente servicios distintos.
 - [ ] Ejecutar la TUI publicada con logs reales y comprobar que salida/pausa no detienen el backend ni provocan crecimiento ilimitado.
-
-## Profundización del visor de logs existente
-
-066 ya permite consultar, recorrer y pausar el log dentro de la TUI y volver al
-seguimiento. Esta tarjeta completa históricos y endurece continuidad/retención.
 
 - [ ] Seleccionar históricos por instancia/archivo y volver inequívocamente al servicio actual, distinguiendo histórico, pausa visual, espera y desconexión.
 - [ ] Conservar posición/foco de lectura al llegar líneas; comunicar descartes del buffer si corresponde sin prometer conservación ilimitada.
@@ -81,4 +83,4 @@ Sin mezclar logs de distintas instancias como una sola ejecución ni modificar c
 
 ## Estado y evidencia
 
-Planificada, sin implementación ni pruebas ejecutadas. No se acredita funcionalidad por redactar esta tarjeta; inicio, cierre y commit requieren su autorización correspondiente.
+Planificada. La lectura de líneas recientes por servicio tiene evidencia en 066. Quedan por acreditar seguimiento, navegación e históricos.

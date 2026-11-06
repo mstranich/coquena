@@ -49,27 +49,22 @@ servirán de base, sin implementar ahora web ni copiar literalmente su layout.
 
 Las reglas funcionales de los documentos enlazados prevalecen. Esta tarjeta define trabajo y evidencia, sin crear una definición arquitectónica alternativa.
 
+## Base entregada en 066
+
+La [066](../066-m3-tui-base/README.md#estado-y-evidencia) ya entrega barra común,
+gráficos acotados de CPU, RAM, GPU y VRAM, numeración por adaptador y un
+componente reutilizable de dos líneas. Sistema muestra el inventario y el
+sondeo; la barra y los gráficos de GPU usan los adaptadores correlacionados con
+CUDA o Vulkan. Esta tarjeta refina y acredita esa base.
+
 ## Trabajo y aceptación
-
-- [ ] Alimentar la barra de estado común con las mismas muestras de hardware que el monitor. Verificar continuidad al cambiar de espacio y pestaña, identificación de GPU y degradación por ancho o fuente ausente según [interfaces visuales](../../docs/design/interfaces-visuales.md#barra-de-estado-de-la-máquina).
-
-- [ ] Mostrar hardware compartido en la región superior del monitor, por dispositivo, con fuente, unidad, cifra y serie temporal; distinguir consumo por proceso de totales globales sin duplicar GPU compartida.
-- [ ] Representar historial acotado de sesión con caracteres de terminal Unicode/braille/ASCII, ejes o etiquetas legibles y formato humano de 042. Dato ausente no es cero.
-- [ ] Separar refresco visual de referencia de un segundo del ritmo real de muestreo; marcar muestras desactualizadas y huecos en lugar de interpolar actividad inexistente.
-- [ ] Mantener hardware global al cambiar de pestaña; la vista aísla fallos por instancia y no bloquea toda la pantalla por una fuente lenta.
-- [ ] Probar CPU/GPU sin permisos, múltiples GPU, falta de proveedor, terminal pequeña, resize y uso sin color. Medir límites de buffers y comprobar que el observador no consume recursos crecientes.
-- [ ] Publicar Native AOT y observar cifras reales del equipo; contrastar alcance con la fuente y documentar qué mediciones están disponibles.
-
-## Profundización de hardware y gráficas existentes
-
-066 ya muestra consumo y series junto a inferencia/logs. Esta tarjeta amplía
-cobertura y legibilidad, sin entregar por primera vez las curvas esenciales.
 
 - [ ] Alinear visualmente muestras de recursos con fases; conservar fecha/resolución efectiva sin afirmar causalidad o consumo exclusivo de un preset.
 - [ ] Detallar múltiples GPU, RAM/VRAM y alcance proceso/máquina/dispositivo; no sumar ni atribuir varias veces recursos compartidos.
-- [ ] Refinar ejes, escalas, leyendas y detalle de fuente/unidad/ventana; pico observado y huecos conservan la semántica de 066.
-- [ ] Mantener continuidad de barra/series en la navegación ya implementada, sin construir herramientas nuevas para acreditar el cambio.
-- [ ] Revisar UX en terminal grande/compacta con fuentes lentas y múltiples dispositivos; medir cotas de memoria/captura y documentar límites de escala comprobados.
+- [ ] Refinar ejes, escalas, leyendas y detalle de fuente/unidad/ventana. Separar cadencia de refresco y muestreo; señalar vigencia, huecos y datos ausentes sin interpolar ni mostrar ceros falsos.
+- [ ] Verificar que la barra y las series comparten muestras y conservan continuidad al cambiar de espacio, servicio o panel. Aislar fuentes lentas y fallos por instancia.
+- [ ] Revisar terminal grande y compacta, resize y lectura sin color con múltiples dispositivos, permisos insuficientes y proveedores ausentes o lentos. Medir cotas de captura y memoria.
+- [ ] Repetir en Native AOT con cifras reales y contrastar fuente, alcance y disponibilidad de cada medición.
 
 ## Dependencias
 
@@ -87,4 +82,4 @@ Sin sumar totales compartidos como consumo de cada servicio, benchmark ni guarda
 
 ## Estado y evidencia
 
-Planificada, sin implementación ni pruebas ejecutadas. No se acredita funcionalidad por redactar esta tarjeta; inicio, cierre y commit requieren su autorización correspondiente.
+Planificada. El hardware y los gráficos básicos tienen evidencia en 066. Quedan por acreditar las ampliaciones y validaciones de esta tarjeta.
