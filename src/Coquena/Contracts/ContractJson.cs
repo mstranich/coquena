@@ -188,6 +188,7 @@ public static class ContractValidation
     {
         Version(value.SchemaVersion);
         Require(value.Observer is null || value.Observer.RetryInitialSeconds >= 1 && value.Observer.RetryMaxSeconds >= value.Observer.RetryInitialSeconds && value.Observer.RetryMaxSeconds <= 3600, "Reconexión inválida: 1 <= inicial <= máximo <= 3600 segundos.");
+        Require(value.InferenceHistoryLimit is null or (>= 0 and <= 10000), "Histórico de inferencia inválido: 0 a 10000 tareas.");
         if (value.BackendsDirectory is not null) Text(value.BackendsDirectory);
         if (value.ModelsDirectory is not null) Text(value.ModelsDirectory);
         Require(value.LogRetention is null || value.LogRetention.MaxBytes > 0, "Retención de logs inválida.");

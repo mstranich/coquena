@@ -12,8 +12,12 @@ features:
     implementation:
       - src/Coquena/Observation/ServiceObservation.cs
       - src/Coquena/Observation/InferenceSeries.cs
+      - src/Coquena/Observation/InferenceTasks.cs
       - src/Coquena/Observation/SystemMetrics.cs
       - src/Coquena/Servers/ServiceLogReader.cs
+    tests:
+      - tests/Coquena.Tests/InferenceTaskTests.cs
+      - tests/Coquena.Tests/InferenceRouterTests.cs
     references:
       - docs/design/ui-servicio.md
       - docs/design/tui-servicio.salt.puml

@@ -201,6 +201,8 @@ internal static class CliHelp
         Configuración:
           config observer-retry show|unset  Consultar/restablecer reconexión (1..30 s)
           config observer-retry set <inicial-s> <máximo-s>
+          config inference-history show|unset
+          config inference-history set <cantidad>    Tareas conservadas por sesión TUI (0..10000)
                                            Espera exponencial, máximo 3600 s
           config log-retention show        Consultar la retención global de logs
           config log-retention set <tamaño> Establecer el límite global de logs

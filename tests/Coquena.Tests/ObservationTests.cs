@@ -41,6 +41,7 @@ internal static class ObservationTests
         Check(hardware.Samples.All(s => s.Value is null || double.IsFinite(s.Value.Value) && s.Value >= 0), "real OS samples are finite and nonnegative");
         Check(hardware.Samples.Where(s => s.Name.StartsWith("ram.")).All(s => s.Value > 0), "real OS RAM is available");
         Check(hardware.Devices.Select(d => d.Id).Distinct(StringComparer.OrdinalIgnoreCase).Count() == hardware.Devices.Count, "shared devices are enumerated once");
+        InferenceTaskTests.Run(Check);
         if (OperatingSystem.IsWindows()) await Services();
         if (OperatingSystem.IsWindows() && backend is not null) await Router();
         Console.WriteLine($"Observation checks: {checks}; platform {hardware.Environment}. Local fixtures: {root}");

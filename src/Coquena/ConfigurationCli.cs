@@ -16,6 +16,20 @@ public static class ConfigurationCli
             // Check grammar before creating the home or modifying state.
             if (command == "config")
             {
+                if (args is ["inference-history", ..])
+                {
+                    int? limit = null;
+                    if (args is ["inference-history", "set", var count])
+                    {
+                        if (!int.TryParse(count, out var parsed) || parsed is < 0 or > 10000) Invalid();
+                        limit = parsed;
+                    }
+                    else if (args is not (["inference-history", "show"] or ["inference-history", "unset"])) Invalid();
+                    manager ??= new(Home.Resolve());
+                    if (args[1] != "show") manager.SetInferenceHistory(limit);
+                    output.WriteLine($"Histórico de inferencia: {manager.InferenceHistory()} tareas.");
+                    return 0;
+                }
                 if (args.Length >= 1 && args[0] == "observer-retry")
                 {
                     if (!(args.Length == 2 && args[1] is "show" or "unset" || args.Length == 4 && args[1] == "set")) Invalid();

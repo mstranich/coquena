@@ -142,7 +142,20 @@ public sealed class ServiceObservation(ScopeStore store, HttpClient? client = nu
                     catalogComposition = active["preset-composition"]?.DeepClone();
                 }
             }
-            catch (Exception e) when (ObservationError(e)) { catalog = null; api = "unavailable"; current = false; diagnostics.Add("API: " + e.GetType().Name); }
+            catch (Exception e) when (ObservationError(e))
+            {
+                catalog = null;
+                api = "unavailable";
+                current = false;
+                diagnostics.Add("API: " + e.GetType().Name);
+                for (var i = 0; i < entries.Count; i++) entries[i] = entries[i] with { Inference = null };
+            }
+            var sharedChildren = entries.Where(entry => entry.Inference is not null)
+                .GroupBy(entry => (entry.Inference!.Pid, entry.Inference.Creation))
+                .Where(group => group.Count() > 1).SelectMany(group => group.Select(entry => entry.Name))
+                .ToHashSet(StringComparer.Ordinal);
+            for (var i = 0; i < entries.Count && sharedChildren.Count > 0; i++)
+                if (sharedChildren.Contains(entries[i].Name)) entries[i] = entries[i] with { Inference = null };
             if (!process.IsAlive || !process.OwnsEndpoint(host, port) || !JsonNode.DeepEquals(store.ReadVerified().Documents.GetValueOrDefault(path)?["data"], active))
             {
                 current = false;
@@ -205,12 +218,14 @@ public sealed class ServiceObservation(ScopeStore store, HttpClient? client = nu
         var time = System.Diagnostics.Stopwatch.GetTimestamp();
         if (slots is null || slots.Count > 128 || instance.ObserveListener(host, port) != child) return null;
         var active = new List<InferenceSlot>();
+        var slotIds = new HashSet<int>();
         foreach (var slot in slots)
         {
             if (slot?["is_processing"]?.GetValue<bool>() is not bool processing) return null;
+            if (slot["id"]?.GetValue<int>() is not int slotId || slotId < 0 || !slotIds.Add(slotId))
+                return null;
             if (!processing) continue;
-            if (slot["id"]?.GetValue<int>() is not int slotId || slotId < 0 ||
-                slot["id_task"]?.GetValue<int>() is not int task || task < 0 ||
+            if (slot["id_task"]?.GetValue<int>() is not int task || task < 0 ||
                 slot["n_prompt_tokens_processed"]?.GetValue<long>() is not long prompt || prompt < 0 ||
                 slot["n_prompt_tokens_cache"]?.GetValue<long>() is not long cached || cached < 0 ||
                 slot["next_token"] is not JsonArray { Count: 1 } next ||

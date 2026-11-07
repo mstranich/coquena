@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.Globalization;
 using Coquena.Backends;
+using Coquena.Configuration;
 using Coquena.Models;
 using Coquena.Observation;
 using Coquena.Projects;
@@ -236,7 +237,8 @@ internal static class DashboardCli
         Task<string?>? operation = null;
         ServiceSnapshot? selectedSnapshot = null;
         string? shownPresets = null, shownLogs = null, shownSystem = null;
-        var inference = new InferenceSeries();
+        var inference = new InferenceTasks(new ConfigurationManager(Home.Resolve()).InferenceHistory());
+        InferenceTaskIdentity? graphTask = null;
         string? inferenceEntry = null, preferredEntry = null;
         IReadOnlyList<EntrySnapshot> lastEntries = [];
         bool refreshingEntries = false;
@@ -288,6 +290,7 @@ internal static class DashboardCli
                         startButton.Enabled = stopButton.Enabled = false;
                         status.Text = "Observación no disponible · " + message;
                         SetStatusColor(Palette.Warning, ColorName16.BrightYellow);
+                        inference.Suspend();
                         ShowInference([]);
                     }
                 }
@@ -313,6 +316,7 @@ internal static class DashboardCli
         {
             if (index == selected) return;
             index = selected;
+            samplingIndex = -1;
             Select();
         }
 
@@ -545,6 +549,7 @@ internal static class DashboardCli
             startButton.Text = "Iniciar";
             lines.Visible = !systemSelected && showLogsPanel;
             entries.Visible = !systemSelected && !showLogsPanel;
+            inference.Suspend();
             if (systemSelected)
             {
                 ShowSystem(lastHardware);
@@ -553,7 +558,7 @@ internal static class DashboardCli
             status.Text = targets.Count == 0 ? diagnostic : "Consultando estado del servicio…";
             SetStatusColor(Palette.Information, ColorName16.BrightBlue);
             preferredEntry = inferenceEntry = null;
-            inference = new();
+            graphTask = null;
             promptGraph.Clear();
             outputGraph.Clear();
             lastEntries = [];
@@ -592,43 +597,46 @@ internal static class DashboardCli
             else if (previousSelection is >= 0 && previousSelection < snapshot.Entries.Count)
                 entries.SelectedItem = previousSelection;
             refreshingEntries = false;
+            inference.Observe(snapshot);
             ShowInference(snapshot.Entries);
             SetRows(lines, ref shownLogs, panel.Logs);
         }
 
         void ShowInference(IReadOnlyList<EntrySnapshot> observed)
         {
-            var entry = preferredEntry is null ? null : observed.FirstOrDefault(item => item.Name == preferredEntry);
-            entry ??= observed.FirstOrDefault(item => item.Inference?.Active.Count > 0)
+            var entry = observed.FirstOrDefault(item => item.Name == preferredEntry)
+                ?? observed.FirstOrDefault(item => item.Inference?.Active.Count > 0)
                 ?? observed.FirstOrDefault(item => item.Name == inferenceEntry)
                 ?? observed.FirstOrDefault(item => item.Inference is not null);
-            if (entry is not null && entry.Name != inferenceEntry)
+            inferenceEntry = entry?.Name ?? inferenceEntry;
+            var active = inference.Active.Where(task => task.Identity.Entry == inferenceEntry).ToArray();
+            var latest = selectedSnapshot is { } current ? inference.History.LastOrDefault(task =>
+                task.Identity.Scope == current.Scope && task.Identity.Service == current.ServiceId &&
+                task.Identity.Entry == inferenceEntry) : null;
+            var focused = active.FirstOrDefault(task => task.Identity == graphTask) ?? active.FirstOrDefault();
+            var display = focused ?? latest;
+            if (display?.Identity != graphTask)
             {
-                inferenceEntry = entry.Name;
-                inference = new();
+                graphTask = display?.Identity;
                 promptGraph.Clear();
                 outputGraph.Clear();
             }
-            var source = entry?.Inference;
-            var (prompt, output, reset) = inference.Observe(source);
-            if (reset)
+
+            var phase = focused?.Phase switch
             {
-                promptGraph.Clear();
-                outputGraph.Clear();
-            }
-            var phase = source?.Active.Count switch
-            {
-                null => "señal /slots sin verificar",
-                0 when inference.Last is { } last => $"sin tarea activa · último observado: {last.Prompt} tk P / {last.Decoded} tk G",
-                0 => "sin tarea activa",
-                1 when inference.Last is { Decoded: > 0 } task => $"generación · {task.Decoded} tk",
-                1 when inference.Last is { Prompt: > 0 } task => $"prompt · {task.Prompt} tk · caché {task.Cached}",
-                1 => "tarea activa · fase sin confirmar",
-                _ => "varias tareas activas"
+                InferenceTaskPhase.Generation => $"generación · {focused.Last.Decoded} tk",
+                InferenceTaskPhase.Prompt => $"prompt · {focused.Last.Prompt} tk · caché {focused.Last.Cached}",
+                not null => "fase sin confirmar",
+                _ when entry?.Inference is null => "señal /slots sin verificar",
+                _ => "sin tarea activa"
             };
-            inferenceLabel.Text = $"Inferencia /slots · {entry?.Name ?? inferenceEntry ?? "—"} · {phase}";
-            promptGraph.AddRate(prompt, inference.PromptMean, inference.PromptPeak, inference.PromptSeconds);
-            outputGraph.AddRate(output, inference.OutputMean, inference.OutputPeak, inference.OutputSeconds);
+            if (focused is not null)
+                phase += $" · slot {focused.Identity.Slot} / tarea {focused.Identity.Task} · {active.Length}/{inference.Active.Count()} activas";
+            else if (latest is not null)
+                phase += $" · último observado: {latest.Last.Prompt} tk P / {latest.Last.Decoded} tk G";
+            inferenceLabel.Text = $"/slots · {inferenceEntry ?? "—"} · {phase}";
+            promptGraph.AddRate(focused?.PromptRate, display?.PromptMean, display?.PromptPeak, display?.PromptSeconds ?? 0);
+            outputGraph.AddRate(focused?.OutputRate, display?.OutputMean, display?.OutputPeak, display?.OutputSeconds ?? 0);
         }
 
         void SetStatusColor(Color color, ColorName16 fallback)
