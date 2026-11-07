@@ -13,6 +13,7 @@ public sealed record EntrySnapshot(string Name, string State, DateTimeOffset Obs
     IReadOnlyList<MetricSample> Metrics, string? Diagnostic = null)
 {
     internal InferenceSnapshot? Inference { get; init; }
+    internal string? InferenceDiagnostic { get; init; }
 }
 public sealed record ServiceSnapshot(string ServiceId, string Name, string Scope, string? InstanceId,
     DateTimeOffset StartedAt, DateTimeOffset CompletedAt, string ProcessState, string ApiState, string Health,
@@ -111,6 +112,8 @@ public sealed class ServiceObservation(ScopeStore store, HttpClient? client = nu
                     var name = model!["id"]!.GetValue<string>();
                     if (!names.Add(name)) throw new FormatException("Catálogo con entradas duplicadas.");
                     var status = model["status"]?["value"]?.GetValue<string>() ?? "unknown";
+                    var childArgs = model["status"]?["args"] as JsonArray;
+                    var beforeChild = observeInference && status == "loaded" ? ChildEndpoint(address, process, childArgs) : null;
                     var entrySamples = new List<MetricSample>(); string? diagnostic = null;
                     if (!expected.Contains(name)) diagnostic = "Entrada observada ajena a la composición activa registrada.";
                     if (status != "loaded") diagnostic = "Modelo no cargado; métricas no consultadas.";
@@ -128,12 +131,27 @@ public sealed class ServiceObservation(ScopeStore store, HttpClient? client = nu
                         catch (Exception e) when (ObservationError(e)) { diagnostic = "Métricas no disponibles: " + e.GetType().Name; }
                     }
                     InferenceSnapshot? inference = null;
+                    string? inferenceDiagnostic = null;
                     if (observeInference && status == "loaded" && expected.Contains(name))
                     {
-                        try { inference = await CaptureInferenceAsync(http, address, process, model["status"]?["args"] as JsonArray, name, deadline.Token); }
-                        catch (Exception e) when (ObservationError(e)) { /* Other entry evidence remains usable. */ }
+                        try { inference = await CaptureInferenceAsync(http, address, process, childArgs, name, deadline.Token); }
+                        catch (Exception e) when (ObservationError(e)) { inferenceDiagnostic = "Tareas no disponibles: " + e.GetType().Name; }
                     }
-                    entries.Add(new(name, status, observedCatalogAt, entrySamples, diagnostic) { Inference = inference });
+                    if (observeInference && status == "loaded")
+                    {
+                        var afterChild = ChildEndpoint(address, process, childArgs);
+                        if (beforeChild != afterChild)
+                        {
+                            entrySamples.Clear();
+                            inference = null;
+                            diagnostic = inferenceDiagnostic = "El hijo cambió durante la consulta; muestra descartada.";
+                        }
+                        else if (afterChild is { } verified)
+                            entrySamples = entrySamples.Select(metric => metric with
+                            { Scope = metric.Scope + $"/child:{verified.Pid}/{verified.Creation}" }).ToList();
+                    }
+                    entries.Add(new(name, status, observedCatalogAt, entrySamples, diagnostic)
+                    { Inference = inference, InferenceDiagnostic = inferenceDiagnostic });
                 }
                 foreach (var missing in expected.Except(names)) entries.Add(new(missing, "absent", observedCatalogAt, [], "Ausente del catálogo del router."));
                 if (freshCatalog)
@@ -197,18 +215,8 @@ public sealed class ServiceObservation(ScopeStore store, HttpClient? client = nu
     private static async Task<InferenceSnapshot?> CaptureInferenceAsync(HttpClient http, Uri router, IObservedInstance instance,
         JsonArray? args, string entry, CancellationToken cancellation)
     {
-        if (args is null) return null;
-        string? host = null;
-        int port = 0;
-        for (var i = 0; i + 1 < args.Count; i++)
-        {
-            var option = args[i]?.GetValue<string>();
-            if (option == "--host") host = args[++i]?.GetValue<string>();
-            else if (option == "--port") int.TryParse(args[++i]?.GetValue<string>(), out port);
-        }
-        if (host is null || !System.Net.IPAddress.TryParse(host, out var ip) || !System.Net.IPAddress.IsLoopback(ip) ||
-            port is < 1 or > 65535 || port == router.Port || instance.ObserveListener(host, port) is not { } child)
-            return null;
+        if (ChildEndpoint(router, instance, args) is not { } endpoint) return null;
+        var child = (endpoint.Pid, endpoint.Creation);
 
         var query = "?model=" + Uri.EscapeDataString(entry) + "&autoload=false";
         var props = JsonNode.Parse(await Fetch(http, new(router, "/props" + query), cancellation));
@@ -216,7 +224,7 @@ public sealed class ServiceObservation(ScopeStore store, HttpClient? client = nu
         if (props?["build_info"]?.GetValue<string>() != "b12058-3f8af15a7") return null;
         var slots = JsonNode.Parse(await Fetch(http, new(router, "/slots" + query), cancellation))?.AsArray();
         var time = System.Diagnostics.Stopwatch.GetTimestamp();
-        if (slots is null || slots.Count > 128 || instance.ObserveListener(host, port) != child) return null;
+        if (slots is null || slots.Count > 128 || instance.ObserveListener(endpoint.Host, endpoint.Port) != child) return null;
         var active = new List<InferenceSlot>();
         var slotIds = new HashSet<int>();
         foreach (var slot in slots)
@@ -231,9 +239,30 @@ public sealed class ServiceObservation(ScopeStore store, HttpClient? client = nu
                 slot["next_token"] is not JsonArray { Count: 1 } next ||
                 next[0]?["n_decoded"]?.GetValue<long>() is not long decoded || decoded < 0)
                 return null;
-            active.Add(new(slotId, task, prompt, cached, decoded));
+            active.Add(new(slotId, task, prompt, cached, decoded)
+            {
+                Context = slot["n_ctx"]?.GetValue<long>(),
+                Speculative = slot["speculative"]?.GetValue<bool>(),
+                PredictLimit = slot["params"]?["n_predict"]?.GetValue<long>()
+            });
         }
-        return new(child.Pid, child.Creation, time, active);
+        return new(child.Pid, child.Creation, time, active) { Model = props?["model_path"]?.GetValue<string>() };
+    }
+
+    private static (string Host, int Port, int Pid, long Creation)? ChildEndpoint(Uri router, IObservedInstance instance, JsonArray? args)
+    {
+        if (args is null) return null;
+        string? host = null;
+        int port = 0;
+        for (var i = 0; i + 1 < args.Count; i++)
+        {
+            var option = args[i]?.GetValue<string>();
+            if (option == "--host") host = args[++i]?.GetValue<string>();
+            else if (option == "--port") int.TryParse(args[++i]?.GetValue<string>(), out port);
+        }
+        if (host is null || !System.Net.IPAddress.TryParse(host, out var ip) || !System.Net.IPAddress.IsLoopback(ip) ||
+            port is < 1 or > 65535 || port == router.Port || instance.ObserveListener(host, port) is not { } child) return null;
+        return (host, port, child.Pid, child.Creation);
     }
 
     internal static InstanceDocument Identity(string serviceId, JsonObject active)
@@ -247,6 +276,9 @@ public sealed class ServiceObservation(ScopeStore store, HttpClient? client = nu
         IOException or UnauthorizedAccessException or HttpRequestException or OperationCanceledException or JsonException or
         InvalidOperationException or KeyNotFoundException or FormatException or ArgumentException or NullReferenceException or OverflowException or System.ComponentModel.Win32Exception;
     private static string Unit(string name) => name.EndsWith("tokens_seconds", StringComparison.Ordinal) ? "tokens/s (backend mean)" :
+        name == "llamacpp:n_decode_total" || name == "llamacpp:spec_decode_num_drafts_total" ? "calls (cumulative)" :
+        name == "llamacpp:n_busy_slots_per_decode" ? "slots/call (backend mean)" :
+        name == "llamacpp:n_tokens_max" ? "tokens (context high watermark)" :
         name.Contains("seconds_total", StringComparison.Ordinal) ? "seconds (cumulative)" :
         name.Contains("requests_", StringComparison.Ordinal) ? "requests" : "tokens (cumulative)";
     private static async Task<string> Fetch(HttpClient client, Uri url, CancellationToken cancellation)

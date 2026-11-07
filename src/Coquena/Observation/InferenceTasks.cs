@@ -15,9 +15,13 @@ internal sealed record InferenceTask(
     double? PromptPeak, double? OutputPeak, double PromptSeconds, double OutputSeconds,
     InferenceTaskEnd? End = null)
 {
+    public IReadOnlyList<InferencePoint> Points { get; init; } = [];
+    public string? Model { get; init; }
     public InferenceTaskPhase Phase => Last.Decoded > 0 ? InferenceTaskPhase.Generation :
         PromptRate is not null ? InferenceTaskPhase.Prompt : InferenceTaskPhase.Unknown;
 }
+
+internal sealed record InferencePoint(DateTimeOffset At, double? Prompt, double? Output, InferenceTaskPhase Phase);
 
 // Updated from reconciled snapshots. Disappearance does not reveal the request outcome.
 internal sealed class InferenceTasks(int historyLimit)
@@ -81,9 +85,19 @@ internal sealed class InferenceTasks(int historyLimit)
                 var identity = prior?.Identity ?? new(snapshot.Scope, snapshot.ServiceId, instance, entry, source.Pid,
                     source.Creation, slot.Slot, slot.Task, source.Timestamp);
                 var (prompt, output) = series.Observe(slot, source.Timestamp);
-                active[key] = (new(identity, slot, source.Timestamp, prompt, output,
+                var observed = new InferenceTask(identity, slot, source.Timestamp, prompt, output,
                     series.PromptMean, series.OutputMean, series.PromptPeak, series.OutputPeak,
-                    series.PromptSeconds, series.OutputSeconds), series);
+                    series.PromptSeconds, series.OutputSeconds) { Model = source.Model };
+                var at = DateTimeOffset.UtcNow - Stopwatch.GetElapsedTime(source.Timestamp);
+                var point = new InferencePoint(at, prompt, output, observed.Phase);
+                var points = prior?.Points.ToList() ?? [];
+                // Same two-second columns as hardware. Retention is per observed task.
+                var column = at.ToUnixTimeMilliseconds() / 2000;
+                if (points.Count > 0 && points[^1].At.ToUnixTimeMilliseconds() / 2000 == column)
+                    points[^1] = point;
+                else points.Add(point);
+                if (points.Count > ObservationTimeline.Capacity) points.RemoveAt(0);
+                active[key] = (observed with { Points = points }, series);
             }
         }
     }

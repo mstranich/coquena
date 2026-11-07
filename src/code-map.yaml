@@ -13,12 +13,16 @@ features:
       - src/Coquena/Observation/ServiceObservation.cs
       - src/Coquena/Observation/InferenceSeries.cs
       - src/Coquena/Observation/InferenceTasks.cs
+      - src/Coquena/Observation/InferencePresentation.cs
       - src/Coquena/Observation/SystemMetrics.cs
       - src/Coquena/Observation/ObservationTimeline.cs
       - src/Coquena/Observation/WindowsSystemMetrics.cs
       - src/Coquena/Servers/ServiceLogReader.cs
+      - src/Coquena/Servers/ServerObservability.cs
     tests:
       - tests/Coquena.Tests/InferenceTaskTests.cs
+      - tests/Coquena.Tests/InferencePresentationTests.cs
+      - tests/Coquena.Tests/InferenceObservationTests.cs
       - tests/Coquena.Tests/ObservationTimelineTests.cs
       - tests/Coquena.Tests/DashboardFixture.cs
       - tests/Coquena.Tests/InferenceRouterTests.cs

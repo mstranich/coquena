@@ -3,31 +3,47 @@ using Coquena;
 
 // Match the product's output contract, including fixture and failure diagnostics.
 Console.OutputEncoding = new System.Text.UTF8Encoding(false);
+// Preserve a failing exit code without sending ordinary assertion/setup failures
+// through Native AOT's unhandled-exception termination path and Windows dialogs.
+static async Task CheckedRun(Func<Task> run)
+{
+    try { await run(); }
+    catch (Exception error)
+    {
+        Console.Error.WriteLine(error);
+        Environment.ExitCode = 1;
+    }
+}
 if (args is ["--dashboard-fixture", var dashboardRoot, var dashboardHardware])
 {
     if (dashboardHardware is not ("real" or "synthetic")) throw new ArgumentException("Use real or synthetic.");
-    await Coquena.Tests.DashboardFixture.Run(dashboardRoot, dashboardHardware == "synthetic");
+    await CheckedRun(() => Coquena.Tests.DashboardFixture.Run(dashboardRoot, dashboardHardware == "synthetic"));
     return;
 }
 if (args is ["--dashboard-tests"])
 {
-    var checks = 0;
-    void Check(bool condition, string message)
+    await CheckedRun(async () =>
     {
-        if (!condition) throw new Exception(message);
-        checks++;
-    }
-    Coquena.Tests.ObservationTimelineTests.Run(Check);
-    Coquena.Tests.InferenceTaskTests.Run(Check);
-    Console.WriteLine($"Dashboard checks: {checks}.");
+        var checks = 0;
+        void Check(bool condition, string message)
+        {
+            if (!condition) throw new Exception(message);
+            checks++;
+        }
+        Coquena.Tests.ObservationTimelineTests.Run(Check);
+        Coquena.Tests.InferenceTaskTests.Run(Check);
+        Coquena.Tests.InferencePresentationTests.Run(Check);
+        await Coquena.Tests.InferenceObservationTests.Run(Check);
+        Console.WriteLine($"Dashboard checks: {checks}.");
+    });
     return;
 }
 if (args.Length is >= 1 and <= 3 && args[0] == "--watch-tests")
 { await Coquena.Tests.WatchTests.Run(args.Length >= 2 ? Path.GetFullPath(args[1]) : null, args.Length == 3 ? Path.GetFullPath(args[2]) : null); return; }
 if (args is ["--inference-router-tests", var inferenceBackend, var inferenceModel, var inferenceRoot])
-{ await Coquena.Tests.InferenceRouterTests.Run(inferenceBackend, inferenceModel, inferenceRoot); return; }
+{ await CheckedRun(() => Coquena.Tests.InferenceRouterTests.Run(inferenceBackend, inferenceModel, inferenceRoot)); return; }
 if (args.Length is >= 1 and <= 3 && args[0] == "--observation-tests")
-{ await Coquena.Tests.ObservationTests.Run(args.Length >= 2 ? Path.GetFullPath(args[1]) : null, args.Length == 3 ? Path.GetFullPath(args[2]) : null); return; }
+{ await CheckedRun(() => Coquena.Tests.ObservationTests.Run(args.Length >= 2 ? Path.GetFullPath(args[1]) : null, args.Length == 3 ? Path.GetFullPath(args[2]) : null)); return; }
 if (args.Length is 1 or 2 && args[0] == "--service-log-follow-tests")
 { await Coquena.Tests.ServiceLogFollowTests.Run(args.Length == 2 ? Path.GetFullPath(args[1]) : null); return; }
 if (args.Length == 3 && args[0] == "--start-failure-hook")

@@ -158,7 +158,10 @@ public sealed partial class ServerRuntime
         string[] wanted = ["llamacpp:prompt_tokens_seconds", "llamacpp:predicted_tokens_seconds",
             "llamacpp:tokens_predicted_total", "llamacpp:prompt_tokens_total", "llamacpp:prompt_tokens_cached_total",
             "llamacpp:prompt_seconds_total", "llamacpp:tokens_predicted_seconds_total",
-            "llamacpp:requests_processing", "llamacpp:requests_deferred"];
+            "llamacpp:requests_processing", "llamacpp:requests_deferred",
+            "llamacpp:n_decode_total", "llamacpp:n_tokens_max", "llamacpp:n_busy_slots_per_decode",
+            "llamacpp:spec_decode_num_draft_tokens_total", "llamacpp:spec_decode_num_accepted_tokens_total",
+            "llamacpp:spec_decode_num_drafts_total", "llamacpp:spec_decode_num_accepted_tokens_per_pos_total"];
         var result = new Dictionary<string, double>(StringComparer.Ordinal);
         foreach (var raw in text.Split('\n'))
         {
@@ -169,6 +172,14 @@ public sealed partial class ServerRuntime
             if (!sample.Success) throw new FormatException("Formato Prometheus inválido.");
             var key = sample.Groups[1].Value;
             if (!wanted.Contains(key)) continue;
+            if (key == "llamacpp:spec_decode_num_accepted_tokens_per_pos_total")
+            {
+                var end = line.IndexOf('}');
+                if (end < key.Length || !Regex.IsMatch(line[key.Length..(end + 1)],
+                    "^\\{position=\"[0-9]{1,6}\"\\}$", RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(100)))
+                    throw new FormatException("Posición especulativa sin identidad reconocida.");
+                key += line[key.Length..(end + 1)];
+            }
             if (!double.TryParse(sample.Groups[2].Value, NumberStyles.Float, CultureInfo.InvariantCulture, out var value) || !double.IsFinite(value) || value < 0 || !result.TryAdd(key, value))
                 throw new FormatException("Métrica inválida o ambigua.");
         }

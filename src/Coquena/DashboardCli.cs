@@ -11,6 +11,7 @@ using Coquena.Servers;
 using Coquena.Storage;
 using Terminal.Gui.App;
 using Terminal.Gui.Drawing;
+using Terminal.Gui.Input;
 using Terminal.Gui.ViewBase;
 using Terminal.Gui.Views;
 
@@ -211,6 +212,18 @@ internal static class DashboardCli
         var inferenceLabel = new Label { Y = Pos.Bottom(status), Width = Dim.Fill(), Text = "Inferencia · esperando catálogo" };
         var promptGraph = new UsageChart("Prompt", useColor) { Y = Pos.Bottom(inferenceLabel) };
         var outputGraph = new UsageChart("Generación", useColor) { Y = Pos.Bottom(promptGraph) };
+        var summary = new ListView
+        {
+            Y = Pos.Bottom(status), Width = Dim.Fill(), Height = 2,
+            ViewportSettings = ViewportSettingsFlags.HasHorizontalScrollBar | ViewportSettingsFlags.HasVerticalScrollBar
+        };
+        var taskRows = new ListView
+        {
+            Y = Pos.Bottom(summary), Width = Dim.Fill(),
+            Height = Dim.Func(_ => window.Viewport.Height < 28 ? 2 : 4),
+            ViewportSettings = ViewportSettingsFlags.HasVerticalScrollBar
+        };
+        inferenceLabel.Y = Pos.Bottom(taskRows);
         charts.Y = Pos.Bottom(outputGraph);
         var logsButton = new Button { Y = Pos.Bottom(charts), NoDecorations = true, ShadowStyle = ShadowStyles.None };
         var presetsButton = new Button { X = Pos.Right(logsButton) + 1, Y = Pos.Top(logsButton), NoDecorations = true, ShadowStyle = ShadowStyles.None };
@@ -223,7 +236,7 @@ internal static class DashboardCli
         var lines = new ListView { Y = Pos.Bottom(logsButton), Width = Dim.Fill(), Height = Dim.Fill(Dim.Height(machine)) };
         var entries = new ListView { Y = Pos.Bottom(logsButton), Width = Dim.Fill(), Height = Dim.Fill(Dim.Height(machine)) };
         var system = new ListView { Y = Pos.Bottom(services), Width = Dim.Fill(), Height = Dim.Fill(Dim.Height(machine)), Visible = false };
-        window.Add(services, startButton, stopButton, statusMark, status, charts, inferenceLabel, promptGraph, outputGraph,
+        window.Add(summary, taskRows, services, startButton, stopButton, statusMark, status, charts, inferenceLabel, promptGraph, outputGraph,
             logsButton, presetsButton, resourcesButton, lines, entries, resources, system, machine);
         if (useColor)
         {
@@ -236,6 +249,8 @@ internal static class DashboardCli
             Paint(charts, Palette.Muted, Palette.Surface);
             Paint(inferenceLabel, Palette.Muted, Palette.Surface);
             Paint(entries, Palette.Text, Palette.Surface);
+            Paint(taskRows, Palette.Text, Palette.Surface);
+            Paint(summary, Palette.Text, Palette.Surface);
             Paint(lines, Palette.Text, Palette.Surface);
             Paint(resources, Palette.Text, Palette.Surface);
             Paint(system, Palette.Text, Palette.Surface);
@@ -244,6 +259,13 @@ internal static class DashboardCli
         var showLogsPanel = true;
         var showResources = false;
         string? shownResources = null;
+        bool expandedLogs = false;
+        var expandButton = new Button { X = Pos.Right(resourcesButton) + 1, Y = Pos.Top(logsButton),
+            NoDecorations = true, ShadowStyle = ShadowStyles.None, Text = "Ampliar" };
+        var pauseButton = new Button { X = Pos.Right(resourcesButton) + 1, Y = Pos.Top(logsButton),
+            NoDecorations = true, ShadowStyle = ShadowStyles.None, Text = "Pausar" };
+        pauseButton.X = Pos.Right(expandButton) + 1;
+        window.Add(expandButton, pauseButton);
         logsButton.Accepted += (_, _) => SelectPanel(showLogs: true);
         presetsButton.Accepted += (_, _) => SelectPanel(showLogs: false);
         resourcesButton.Accepted += (_, _) => SelectPanel(showLogs: false, resourcePanel: true);
@@ -256,7 +278,6 @@ internal static class DashboardCli
         string? hardwareProblem = null;
         Task<HardwareSnapshot>? machineSample = null;
         var machineClock = new Stopwatch();
-        var lastPhaseObservation = 0L;
         var serviceSamples = new Dictionary<int, (int Epoch, Task<ServicePanel> Task)>();
         var serviceCaptures = new Dictionary<int, Stopwatch>();
         Task<string?>? operation = null;
@@ -266,13 +287,68 @@ internal static class DashboardCli
         InferenceTaskIdentity? graphTask = null;
         string? inferenceEntry = null, preferredEntry = null;
         IReadOnlyList<EntrySnapshot> lastEntries = [];
-        bool refreshingEntries = false;
+        bool refreshingEntries = false, refreshingTasks = false, paused = false;
+        IReadOnlyList<InferenceTask> visibleTasks = [];
+        InferenceTaskIdentity? preferredTask = null;
+        string? shownTasks = null, shownSummary = null;
+        expandButton.Accepted += (_, _) =>
+        {
+            expandedLogs = !expandedLogs;
+            expandButton.Text = expandedLogs ? "Monitor" : "Ampliar";
+            SelectPanel(showLogs: true);
+        };
+        pauseButton.Accepted += (_, _) =>
+        {
+            paused = !paused;
+            pauseButton.Text = paused ? "Reanudar" : "Pausar";
+            if (!paused && selectedSnapshot is not null) ShowInference(selectedSnapshot.Entries);
+        };
+        taskRows.ValueChanged += (_, _) =>
+        {
+            if (refreshingTasks || taskRows.SelectedItem is not int row || row < 0 || row >= visibleTasks.Count) return;
+            preferredTask = visibleTasks[row].Identity;
+            if (selectedSnapshot is not null) ShowInference(selectedSnapshot.Entries);
+        };
+        taskRows.KeyDown += (_, key) =>
+        {
+            if (key != Key.Enter) return;
+            key.Handled = true;
+            if (taskRows.SelectedItem is int row && row >= 0 && row < visibleTasks.Count)
+                ShowDetail("Tarea · último valor observado", InferencePresentation.Detail(visibleTasks[row]));
+        };
+        entries.KeyDown += (_, key) =>
+        {
+            if (key != Key.Enter) return;
+            key.Handled = true;
+            if (entries.SelectedItem is int row && row >= 0 && row < lastEntries.Count)
+                ShowDetail("Entrada · métricas del backend", EntryDetail(lastEntries[row]));
+        };
+        summary.KeyDown += (_, key) =>
+        {
+            if (key != Key.Enter) return;
+            key.Handled = true;
+            if (summary.SelectedItem is int row && row >= 0 && row < lastEntries.Count)
+                ShowDetail("Entrada · métricas del backend", EntryDetail(lastEntries[row]));
+        };
         SelectPanel(showLogs: true);
         Select();
         entries.ValueChanged += (_, _) =>
         {
             if (!refreshingEntries && entries.SelectedItem is int selected && selected >= 0 && selected < lastEntries.Count)
+            {
                 preferredEntry = lastEntries[selected].Name;
+                preferredTask = null;
+                ShowInference(lastEntries);
+            }
+        };
+        summary.ValueChanged += (_, _) =>
+        {
+            if (!refreshingEntries && summary.SelectedItem is int selected && selected >= 0 && selected < lastEntries.Count)
+            {
+                preferredEntry = lastEntries[selected].Name;
+                preferredTask = null;
+                ShowInference(lastEntries);
+            }
         };
         startButton.Accepted += (_, _) => BeginServiceAction(stopService: false);
         stopButton.Accepted += (_, _) => BeginServiceAction(stopService: true);
@@ -447,6 +523,11 @@ internal static class DashboardCli
             lines.Visible = index < targets.Count && showLogs;
             entries.Visible = index < targets.Count && !showLogs && !resourcePanel;
             resources.Visible = index < targets.Count && resourcePanel;
+            if (!showLogs) expandedLogs = false;
+            expandButton.Text = expandedLogs ? "Monitor" : "Ampliar";
+            summary.Visible = taskRows.Visible = inferenceLabel.Visible = promptGraph.Visible = outputGraph.Visible =
+                charts.Visible = index < targets.Count && !expandedLogs;
+            logsButton.Y = expandedLogs ? Pos.Bottom(status) : Pos.Bottom(charts);
         }
 
         void ShowHardware(HardwareSnapshot? sample, bool captured)
@@ -637,7 +718,8 @@ internal static class DashboardCli
             system.Visible = systemSelected;
             statusMark.Visible = status.Visible = startButton.Visible = stopButton.Visible = charts.Visible =
                 inferenceLabel.Visible = promptGraph.Visible = outputGraph.Visible =
-                logsButton.Visible = presetsButton.Visible = resourcesButton.Visible = !systemSelected;
+                logsButton.Visible = presetsButton.Visible = resourcesButton.Visible = taskRows.Visible = summary.Visible =
+                expandButton.Visible = pauseButton.Visible = !systemSelected;
             selectedSnapshot = null;
             startButton.Enabled = stopButton.Enabled = false;
             startButton.Text = "Iniciar";
@@ -645,7 +727,6 @@ internal static class DashboardCli
             entries.Visible = !systemSelected && !showLogsPanel && !showResources;
             resources.Visible = !systemSelected && showResources;
             phaseGraph.Clear();
-            lastPhaseObservation = 0;
             inference.Suspend();
             if (resources.Visible) ShowResourceDetails();
             if (systemSelected)
@@ -655,11 +736,16 @@ internal static class DashboardCli
             }
             status.Text = targets.Count == 0 ? diagnostic : "Consultando estado del servicio…";
             SetStatusColor(Palette.Information, ColorName16.BrightBlue);
+            preferredTask = null;
+            paused = false;
+            pauseButton.Text = "Pausar";
             preferredEntry = inferenceEntry = null;
             graphTask = null;
             promptGraph.Clear();
             outputGraph.Clear();
             lastEntries = [];
+            SetRows(summary, ref shownSummary, "Esperando catálogo…");
+            SelectPanel(showLogsPanel, showResources);
             ShowInference([]);
             SetRows(entries, ref shownPresets, targets.Count == 0 ? "Los presets del servicio seleccionado aparecerán aquí." : "Esperando catálogo…");
             SetRows(lines, ref shownLogs, targets.Count == 0 ? "Los logs del servicio seleccionado aparecerán aquí." : "Consultando últimas líneas…");
@@ -668,6 +754,8 @@ internal static class DashboardCli
         void Show(ServicePanel panel)
         {
             var snapshot = panel.Snapshot;
+            snapshot = snapshot with { Entries = snapshot.Entries.OrderByDescending(entry => entry.Inference?.Active.Count > 0)
+                .ThenBy(entry => entry.Name, StringComparer.Ordinal).ToArray() };
             selectedSnapshot = snapshot;
             var running = snapshot.ProcessState == "alive" && snapshot.InstanceId is not null;
             startButton.Text = running ? "Reiniciar" : "Iniciar";
@@ -680,6 +768,8 @@ internal static class DashboardCli
             else if (snapshot.ApiState == "available" && snapshot.Health.StartsWith("HTTP 2", StringComparison.Ordinal))
                 SetStatusColor(Palette.Success, ColorName16.BrightCyan);
             else SetStatusColor(Palette.Warning, ColorName16.BrightYellow);
+            inference.Observe(snapshot);
+            if (paused) return;
             var presets = snapshot.Entries.Count == 0
                 ? snapshot.ApiState == "available" ? "Sin presets publicados." : "Catálogo no disponible."
                 : string.Join("\n", snapshot.Entries.Select(FormatEntry));
@@ -687,42 +777,60 @@ internal static class DashboardCli
             lastEntries = snapshot.Entries;
             refreshingEntries = true;
             SetRows(entries, ref shownPresets, presets);
+            if (!paused) SetRows(summary, ref shownSummary, presets);
             if (preferredEntry is not null)
             {
                 var selected = snapshot.Entries.ToList().FindIndex(entry => entry.Name == preferredEntry);
-                if (selected >= 0) entries.SelectedItem = selected;
+                if (selected >= 0) entries.SelectedItem = summary.SelectedItem = selected;
             }
             else if (previousSelection is >= 0 && previousSelection < snapshot.Entries.Count)
                 entries.SelectedItem = previousSelection;
             refreshingEntries = false;
-            inference.Observe(snapshot);
             ShowInference(snapshot.Entries);
-            SetRows(lines, ref shownLogs, panel.Logs);
+            if (!paused) SetRows(lines, ref shownLogs, panel.Logs);
         }
 
         void ShowInference(IReadOnlyList<EntrySnapshot> observed)
         {
-            var entry = observed.FirstOrDefault(item => item.Name == preferredEntry)
+            if (paused) return;
+            visibleTasks = index < targets.Count ? InferencePresentation.Rows(inference,
+                targets[index].Store.Context.IsGlobal ? "global" : targets[index].Store.Context.Base,
+                targets[index].Service.ServiceId) : [];
+            refreshingTasks = true;
+            SetRows(taskRows, ref shownTasks, visibleTasks.Count == 0 ? "Sin tareas observables · Enter en Presets: fuentes y métricas" :
+                string.Join('\n', visibleTasks.Select(task => InferencePresentation.Row(task, window.Viewport.Width))));
+            var selectedTask = visibleTasks.FirstOrDefault(task => task.Identity == preferredTask)
+                ?? (preferredEntry is null ? null : visibleTasks.FirstOrDefault(task => task.Identity.Entry == preferredEntry));
+            if (selectedTask is not null) taskRows.SelectedItem = visibleTasks.ToList().IndexOf(selectedTask);
+            else if (visibleTasks.Count > 0) taskRows.SelectedItem = 0;
+            refreshingTasks = false;
+            var entry = observed.FirstOrDefault(item => item.Name == selectedTask?.Identity.Entry)
+                ?? observed.FirstOrDefault(item => item.Name == preferredEntry)
                 ?? observed.FirstOrDefault(item => item.Inference?.Active.Count > 0)
                 ?? observed.FirstOrDefault(item => item.Name == inferenceEntry)
                 ?? observed.FirstOrDefault(item => item.Inference is not null);
-            inferenceEntry = entry?.Name ?? inferenceEntry;
+            inferenceEntry = selectedTask?.Identity.Entry ?? entry?.Name ?? inferenceEntry;
             var active = inference.Active.Where(task => task.Identity.Entry == inferenceEntry).ToArray();
             var latest = selectedSnapshot is { } current ? inference.History.LastOrDefault(task =>
                 task.Identity.Scope == current.Scope && task.Identity.Service == current.ServiceId &&
                 task.Identity.Entry == inferenceEntry) : null;
-            var focused = active.FirstOrDefault(task => task.Identity == graphTask) ?? active.FirstOrDefault();
-            var display = focused ?? latest;
-            if (display?.Identity != graphTask)
+            var display = selectedTask ?? active.FirstOrDefault(task => task.Identity == graphTask) ?? active.FirstOrDefault() ?? latest;
+            var focused = display?.End is null ? display : null;
+            graphTask = display?.Identity;
+            phaseGraph.Clear();
+            promptGraph.Clear();
+            outputGraph.Clear();
+            foreach (var point in display?.Points ?? [])
             {
-                graphTask = display?.Identity;
-                if (focused is not null)
+                var date = point.At;
+                phaseGraph.AddTimedSample(date, point.Phase switch
                 {
-                    phaseGraph.Clear();
-                    lastPhaseObservation = 0;
-                }
-                promptGraph.Clear();
-                outputGraph.Clear();
+                    InferenceTaskPhase.Prompt => 1,
+                    InferenceTaskPhase.Generation => 2,
+                    _ => 0
+                });
+                promptGraph.AddRate(point.Prompt, display?.PromptMean, display?.PromptPeak, display?.PromptSeconds ?? 0, date);
+                outputGraph.AddRate(point.Output, display?.OutputMean, display?.OutputPeak, display?.OutputSeconds ?? 0, date);
             }
 
             var phase = focused?.Phase switch
@@ -735,23 +843,43 @@ internal static class DashboardCli
             };
             if (focused is not null)
                 phase += $" · slot {focused.Identity.Slot} / tarea {focused.Identity.Task} · {active.Length}/{inference.Active.Count()} activas";
-            else if (latest is not null)
-                phase += $" · último observado: {latest.Last.Prompt} tk P / {latest.Last.Decoded} tk G";
+            else if (display is not null)
+                phase = $"{InferencePresentation.Phase(display)} · P {display.Last.Prompt} / G {display.Last.Decoded} tk · resultado sin confirmar";
             inferenceLabel.Text = $"/slots · {inferenceEntry ?? "—"} · {phase}";
-            DateTimeOffset? observedAt = focused is null ? null :
-                DateTimeOffset.UtcNow - Stopwatch.GetElapsedTime(focused.ObservedAt);
-            if (focused is not null && focused.ObservedAt != lastPhaseObservation)
+            promptGraph.AddRate(focused?.PromptRate, display?.PromptMean, display?.PromptPeak, display?.PromptSeconds ?? 0, null);
+            outputGraph.AddRate(focused?.OutputRate, display?.OutputMean, display?.OutputPeak, display?.OutputSeconds ?? 0, null);
+        }
+
+        void ShowDetail(string title, string text)
+        {
+            using var dialog = new Dialog { Title = title, Width = Dim.Percent(95), Height = Dim.Percent(90) };
+            var detail = new ListView { Width = Dim.Fill(), Height = Dim.Fill(),
+                ViewportSettings = ViewportSettingsFlags.HasHorizontalScrollBar | ViewportSettingsFlags.HasVerticalScrollBar };
+            var rows = text.Split('\n');
+            detail.SetSource(new ObservableCollection<string>(rows));
+            detail.SetContentSize(new System.Drawing.Size(rows.Max(row => row.Length), rows.Length));
+            dialog.Add(detail);
+            app.Run(dialog);
+        }
+
+        string EntryDetail(EntrySnapshot entry)
+        {
+            var source = entry.Inference;
+            var rows = new List<string>
             {
-                lastPhaseObservation = focused.ObservedAt;
-                phaseGraph.AddTimedSample(observedAt!.Value, focused.Phase switch
-                {
-                    InferenceTaskPhase.Prompt => 1,
-                    InferenceTaskPhase.Generation => 2,
-                    _ => 0
-                });
-            }
-            promptGraph.AddRate(focused?.PromptRate, display?.PromptMean, display?.PromptPeak, display?.PromptSeconds ?? 0, observedAt);
-            outputGraph.AddRate(focused?.OutputRate, display?.OutputMean, display?.OutputPeak, display?.OutputSeconds ?? 0, observedAt);
+                $"{entry.Name} · {entry.State} · modelo {source?.Model ?? "n/d"}",
+                $"Instancia {selectedSnapshot?.InstanceId ?? "n/d"} · hijo {source?.Pid.ToString() ?? "n/d"}/{source?.Creation.ToString() ?? "n/d"}",
+                "Acumulados y medias del backend: período no informado.",
+                "Cada hijo abre otro período; sin total acumulado entre intentos.",
+                "Las medias de entradas no se suman como tasa instantánea del servicio.",
+                "Instantánea de detalle; la captura continúa mientras se consulta.",
+                entry.Diagnostic ?? "Métricas disponibles según la fuente",
+                source is null ? entry.InferenceDiagnostic ?? "Tareas /slots: n/d · hijo/build/endpoint sin verificar" : "Tareas /slots: hijo y build verificados"
+            };
+            rows.AddRange(entry.Metrics.Select(metric => FormatMetric(metric, DateTimeOffset.UtcNow)));
+            rows.Add("Especulación: contadores propuestos/aceptados sólo cuando /metrics los expone.");
+            rows.Add("TTFT, ETA, resultado y razonamiento por tarea: n/d · sin fuente atribuible.");
+            return string.Join('\n', rows);
         }
 
         void SetStatusColor(Color color, ColorName16 fallback)
@@ -844,7 +972,11 @@ internal static class DashboardCli
     {
         var prompt = Rate("prompt_tokens_seconds");
         var generation = Rate("predicted_tokens_seconds");
-        return $"{entry.Name} · {entry.State}   Prompt {prompt}   Generación {generation}";
+        return $"{entry.Name} · {entry.State} · activas {Value("requests_processing")} / cola {Value("requests_deferred")} · medias P {prompt} / G {generation}" +
+            $" · acumulados P {Value("prompt_tokens_total")} / caché {Value("prompt_tokens_cached_total")} / G {Value("tokens_predicted_total")} tk · Enter: detalle";
+
+        string Value(string suffix) => entry.Metrics.FirstOrDefault(sample => sample.Name == "llamacpp:" + suffix)?.Value
+            is double value ? value.ToString("0.#", CultureInfo.InvariantCulture) : "n/d";
 
         string Rate(string suffix) => entry.Metrics.FirstOrDefault(sample => sample.Name.EndsWith(suffix, StringComparison.Ordinal))?.Value
             is double rate ? rate.ToString("0.#", CultureInfo.InvariantCulture) + " tk/s" : "—";

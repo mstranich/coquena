@@ -69,6 +69,9 @@ descomponen al acordar las entregas de edición, exploración y preferencias.
 La aceptación de experimentación conecta preparación del preset, publicación
 en caliente, inferencia de prueba, observación de la entrada y decisión de
 ajustar, guardar YAML o retirar la prueba.
+En 068 se acredita el ciclo mediante edición externa de YAML y comandos
+`down`/`up`, con el panel abierto o reabierto entre intentos. No incluye un
+comparador de ejecuciones o configuraciones dentro del monitor.
 
 La secuencia comienza por 066. Los IDs y directorios históricos no fijan orden.
 

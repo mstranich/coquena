@@ -150,6 +150,14 @@ automática ni bloquearla por adelantado.
 
 ## Experimentación en vivo
 
+El usuario puede escribir y editar la receta YAML en un editor externo, publicarla
+con `up` y abrir el panel para observar cómo se comporta el modelo durante las
+peticiones. Puede cerrar el panel, retirar con `down`, editar la receta, aplicar
+otra vez con `up` y volver a observar. También puede mantener el panel abierto
+mientras ejecuta esos comandos desde otra terminal. El panel reconcilia los
+cambios publicados y distingue las generaciones e instancias observadas.
+Editar el YAML por sí solo no cambia el preset activo.
+
 El recorrido visual empieza con un modelo y un uso a probar. El usuario prepara
 un preset con parámetros y, si corresponde, un companion compatible. Publica la
 prueba explícitamente en el router en ejecución y sigue esa entrada en la pestaña
@@ -160,9 +168,10 @@ es una operación distinta de publicar o retirar una entrada.
 
 La calidad de la salida se evalúa en el cliente que hizo la prueba. El monitor
 aporta evidencia de rendimiento y diagnóstico para decidir si ajustar el preset,
-probar otro companion, guardar la receta YAML o retirar la prueba. Para comparar
-variantes, se identifica la configuración activa y se contrasta el mismo caso
-de uso con cifras de alcance y ventana comparables.
+probar otro companion, guardar la receta YAML o retirar la prueba. El usuario
+evalúa cada intento con las cifras observadas, su fuente, alcance y ventana.
+Este recorrido no requiere un comparador de ejecuciones o configuraciones en
+el panel ni conservar el histórico entre aperturas.
 
 
 Buscar/explorar modelos, leer README, seleccionar/descargar y crear preset de prueba.

@@ -66,8 +66,8 @@ Las reglas funcionales de los documentos enlazados prevalecen. Esta tarjeta defi
 ## Intención detallada del primer monitor
 
 El usuario necesita evaluar y mejorar presets mientras llama-server responde,
-incluso comparar dos presets con los mismos pesos y distinta configuración, por
-ejemplo uno con borrador especulativo y otro sin él. Necesita ver algo más que
+incluso evaluar sucesivos ajustes de una receta editada externamente y aplicada
+con `up`, manteniendo el panel abierto o volviéndolo a abrir. Necesita ver algo más que
 «el proceso está vivo» o «hay actividad». Sin salir de la TUI debe poder responder:
 
 1. Qué servicio, entrada/preset y modelo están trabajando. Conservar configuración
@@ -206,8 +206,9 @@ Estos son puntos de navegación, no imposición de nuevas clases o arquitectura.
 065 profundiza robustez y cobertura de tareas; 067 amplía hardware/gráficos;
 068 amplía detalle, concurrencia e histórico; 069 endurece históricos y navegación
 de logs. Ninguna justifica dejar vacío el primer monitor. 070 contrasta escenarios
-integrados, sin posponer hasta allí datos reales. La comparación visual de presets
-orienta las cifras del monitor; no exige implementar una plataforma formal de
+integrados, sin posponer hasta allí datos reales. La observación de sucesivos
+intentos orienta las cifras del monitor; no exige implementar un comparador de
+ejecuciones o configuraciones, una plataforma formal de
 benchmarking, persistencia histórica, editores o Web UI.
 
 ## Dependencias

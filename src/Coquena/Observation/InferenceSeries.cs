@@ -2,8 +2,16 @@ using System.Diagnostics;
 
 namespace Coquena.Observation;
 
-internal sealed record InferenceSlot(int Slot, int Task, long Prompt, long Cached, long Decoded);
-internal sealed record InferenceSnapshot(int Pid, long Creation, long Timestamp, IReadOnlyList<InferenceSlot> Active);
+internal sealed record InferenceSlot(int Slot, int Task, long Prompt, long Cached, long Decoded)
+{
+    public long? Context { get; init; }
+    public bool? Speculative { get; init; }
+    public long? PredictLimit { get; init; }
+}
+internal sealed record InferenceSnapshot(int Pid, long Creation, long Timestamp, IReadOnlyList<InferenceSlot> Active)
+{
+    public string? Model { get; init; }
+}
 
 // One contiguous task. Rates are deltas over observed wall time within a phase.
 internal sealed class InferenceSeries
