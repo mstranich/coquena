@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Text;
 using System.Text.Json.Nodes;
 using Coquena.Projects;
+using Coquena.Observation;
 using Coquena.Servers;
 using Coquena.Storage;
 
@@ -13,6 +14,15 @@ internal static class ServiceLogFollowTests
     {
         var checks = 0;
         void Check(bool condition, string message) { if (!condition) throw new Exception(message); checks++; }
+        const string proxy = "0.01 I srv  proxy_reques: proxying request to model fixture on port 12345";
+        var noisyTail = string.Join("\r\n", new[] { "carga terminada", "error de prueba" }
+            .Concat(Enumerable.Repeat(proxy, 35)));
+        var buffer = new LogBuffer(); buffer.Write(noisyTail);
+        Check(buffer.Read(true).Rows.Where(row => row.Length > 0).SequenceEqual(new[] { "carga terminada", "error de prueba" }),
+            "filter keeps useful rows before presenting the bounded log buffer");
+        Check(buffer.Read(false).Rows.Count(row => row == proxy) == 35,
+            "disabling the filter restores forwarded requests from the captured buffer");
+        await DashboardLogTests.Run(Check);
         var root = Path.Combine("D:/tmp", "coquena-follow-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(root);
         var store = new ScopeStore(ScopeContext.Project(Path.Combine(root, "coquena.yaml")));

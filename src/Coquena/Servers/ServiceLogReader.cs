@@ -20,8 +20,9 @@ public sealed class ServiceLogReader(ScopeStore store, string serviceId)
             e["started-at"]!.GetValue<string>(), e["instance-id"]!.GetValue<string>() == activeId)).ToArray();
     }
 
-    public void Recent(TextWriter output, string? id = null)
+    public void Recent(TextWriter output, string? id = null, CancellationToken cancellation = default)
     {
+        cancellation.ThrowIfCancellationRequested();
         var logs = List();
         var log = id is null ? logs.LastOrDefault() : logs.SingleOrDefault(l => l.Id == id)
             ?? throw new StorageException("unknown-log", "Log no registrado en este servicio.");
@@ -34,6 +35,7 @@ public sealed class ServiceLogReader(ScopeStore store, string serviceId)
         var decoder = Encoding.UTF8.GetDecoder();
         while (remaining > 0)
         {
+            cancellation.ThrowIfCancellationRequested();
             var count = stream.Read(bytes, 0, (int)Math.Min(remaining, bytes.Length));
             if (count == 0) break;
             remaining -= count;
@@ -61,7 +63,7 @@ public sealed class ServiceLogReader(ScopeStore store, string serviceId)
         }
     }
 
-    public async Task FollowAsync(TextWriter output, CancellationToken cancellation)
+    public async Task FollowAsync(TextWriter output, CancellationToken cancellation, Action<ServiceLog>? transition = null)
     {
         FileStream? stream = null;
         string? current = null, diagnostic = null;
@@ -121,6 +123,7 @@ public sealed class ServiceLogReader(ScopeStore store, string serviceId)
                         else stream.Position = offset;
                         offset = stream.Position;
                         output.WriteLine($"\n[Logs] Servicio {serviceId}; instancia {next.Id}; inicio {next.StartedAt}.");
+                        transition?.Invoke(next);
                         if (first) foreach (var log in logs.TakeWhile(l => l.Id != next.Id)) seen.Add(log.Id);
                         seen.Add(next.Id); first = false;
                         diagnostic = null;

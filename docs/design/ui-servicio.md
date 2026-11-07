@@ -101,6 +101,41 @@ La pestaña de servidor determina el alcance de actividad y logs. El encabezado
 identifica el servicio y su alias default cuando corresponde. El log sigue al
 servicio entre reinicios y cambios de archivo, con una indicación de transición.
 
+La pestaña Configuración, después de Sistema, ofrece «Filtrar logging de
+monitoreo». La preferencia global se guarda al cambiar la casilla y viene
+activada por defecto. Oculta en la vista de logs los avisos de reenvío del
+router antes de seleccionar las líneas recientes. Esos avisos también pueden
+corresponder a inferencias, porque el mensaje no identifica la ruta HTTP.
+Los archivos de log conservan todas las líneas.
+
 El scroll y la pausa afectan la visualización. Se puede volver al seguimiento
 y consultar el historial de archivos. Abrir, cerrar o navegar la pantalla
 conserva el ciclo de vida del servidor y su configuración.
+
+El seguimiento mantiene un buffer acotado por servicio visitado. La lectura se
+ordena desde las líneas anteriores hacia las nuevas; en seguimiento la vista
+avanza al final. Seleccionar una fila o desplazar la lectura suspende ese avance,
+sin detener la captura. «Pausar log» congela sólo el texto del log; la pausa del
+monitor es independiente. «Reanudar log» vuelve al avance y «Actual / seguir»
+abandona un histórico y vuelve inequívocamente al servicio observado.
+
+Los históricos se eligen por instancia, fecha y archivo registrado del mismo
+servicio. Su lectura tiene un tamaño final fijo, incluso para un archivo activo,
+y se muestra como histórico. La captura actual continúa en segundo plano. Si
+el archivo ya no está disponible, se informa el fallo sin elegir otro archivo.
+Eliminar y recrear el nombre del servicio desconecta la identidad anterior.
+
+La memoria del observador no sustituye la retención en disco: se conservan hasta
+2000 filas completas y 256 Ki caracteres por buffer, más una línea parcial de
+hasta 8193 unidades UTF-16. Las líneas largas se segmentan sin romper pares
+sustitutos y se pueden recorrer horizontalmente. Se informa cuántas filas
+salieron del buffer; una vista pausada conserva su lectura hasta reanudar, pero
+no garantiza conservar las líneas que llegaron durante la pausa. El filtro se
+aplica sobre los datos capturados antes de poblar la vista; no amplía el buffer.
+
+Con altura suficiente, el log ocupa el espacio que queda bajo el monitor.
+En terminal baja, Monitor conserva fases y progreso y Logs se abre como
+subpestaña del mismo servicio. El encabezado del servidor y el hardware global
+permanecen visibles. El estado distingue seguimiento, pausa visual, histórico,
+espera con servicio detenido y desconexión. Los cambios de instancia, truncados
+y fallos de acceso se anuncian sin modificar el ciclo del backend.

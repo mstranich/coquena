@@ -70,6 +70,17 @@ if (args.Length == 5 && args[0] == "--internal-scoped-signal")
 
 if (args.Contains("--scoped-health-child"))
 {
+    if (args.Contains("--log-stream"))
+        _ = Task.Run(async () =>
+        {
+            var row = 0;
+            while (true)
+            {
+                Console.WriteLine(row % 3 == 0 ? "proxying request to model fixture on port 12345" : $"LOG-{row} · á € 漢 😀 · {new string('x', row % 10 == 0 ? 200 : 0)}");
+                Console.Out.Flush(); row++;
+                await Task.Delay(100);
+            }
+        });
     var logMarker = Array.IndexOf(args, "--log-marker");
     if (logMarker >= 0) { Console.WriteLine(args[logMarker + 1]); Console.Out.Flush(); }
     var childMarker = Array.IndexOf(args, "--spawn-stubborn-child");

@@ -140,6 +140,9 @@ public sealed class ConfigurationManager(Home home, LocalStore? storage = null)
     public int InferenceHistory() => Config().InferenceHistoryLimit ?? 100;
     public void SetInferenceHistory(int? limit) => store.Update(DocumentKind.Config, Json.ConfigDocument, ContractValidation.Config,
         old => (old ?? new(1, null, null, new(5))) with { InferenceHistoryLimit = limit });
+    public bool FilterMonitoringLogs() => Config().FilterMonitoringLogs ?? true;
+    public void SetFilterMonitoringLogs(bool enabled) => store.Update(DocumentKind.Config, Json.ConfigDocument, ContractValidation.Config,
+        old => (old ?? new(1, null, null, new(5))) with { FilterMonitoringLogs = enabled ? null : false });
     public RetentionView Retention() => store.Exclusive(() => LogRetentionPolicy.Resolve(Config().LogRetention));
     public BackendRetention BackendRetention() => Config().BackendRetention;
     public void SetBackendRetention(int? count)

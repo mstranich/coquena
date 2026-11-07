@@ -135,7 +135,7 @@ internal static class DashboardCli
         public string Label => (Store.Context.IsGlobal ? "◎ " : "◇ ") + (IsDefault ? "★ " : "") + Service.Name;
     }
 
-    private sealed record ServicePanel(ServiceSnapshot Snapshot, string Logs);
+    private sealed record ServicePanel(ServiceSnapshot Snapshot);
 
     public static int Run(string[] args, TextWriter output, TextWriter error)
     {
@@ -161,6 +161,7 @@ internal static class DashboardCli
     internal static int RunDashboard(ISystemMetrics? metrics = null, HardwareProbe.AdapterEvidence? adapters = null)
     {
         var targets = Discover(out var diagnostic);
+        var preferences = new ConfigurationManager(Home.Resolve());
         var hardware = metrics ?? SystemMetrics.Create();
         using var stop = new CancellationTokenSource();
         using var app = Application.Create().Init();
@@ -173,7 +174,7 @@ internal static class DashboardCli
         var ramValue = AddHardwareField(machine, "  RAM ", Pos.Right(cpuValue), memoryStatsWidth);
         var services = new View { Width = Dim.Fill(), Height = 1, CanFocus = true };
         var serviceButtons = new List<Button>();
-        for (var i = 0; i <= targets.Count; i++)
+        for (var i = 0; i <= targets.Count + 1; i++)
         {
             var button = new Button
             {
@@ -233,11 +234,39 @@ internal static class DashboardCli
             Y = Pos.Bottom(logsButton), Width = Dim.Fill(), Height = Dim.Fill(Dim.Height(machine)), Visible = false,
             ViewportSettings = ViewportSettingsFlags.HasHorizontalScrollBar | ViewportSettingsFlags.HasVerticalScrollBar
         };
-        var lines = new ListView { Y = Pos.Bottom(logsButton), Width = Dim.Fill(), Height = Dim.Fill(Dim.Height(machine)) };
+        var logTools = new View { Y = Pos.Bottom(logsButton), Width = Dim.Fill(), Height = 1 };
+        var logPause = new Button { Text = "Pausar log", NoDecorations = true, ShadowStyle = ShadowStyles.None };
+        var logCurrent = new Button { X = Pos.Right(logPause) + 1, Text = "Actual / seguir", NoDecorations = true, ShadowStyle = ShadowStyles.None };
+        var logHistory = new Button { X = Pos.Right(logCurrent) + 1, Text = "Históricos", NoDecorations = true, ShadowStyle = ShadowStyles.None };
+        logTools.Add(logPause, logCurrent, logHistory);
+        var logState = new Label { Y = Pos.Bottom(logTools), Width = Dim.Fill(), Height = 1 };
+        var lines = new ListView { Y = Pos.Bottom(logState), Width = Dim.Fill(), Height = Dim.Fill(Dim.Height(machine)),
+            ViewportSettings = ViewportSettingsFlags.HasHorizontalScrollBar | ViewportSettingsFlags.HasVerticalScrollBar };
         var entries = new ListView { Y = Pos.Bottom(logsButton), Width = Dim.Fill(), Height = Dim.Fill(Dim.Height(machine)) };
         var system = new ListView { Y = Pos.Bottom(services), Width = Dim.Fill(), Height = Dim.Fill(Dim.Height(machine)), Visible = false };
+        var filterLogs = new CheckBox
+        {
+            Y = Pos.Bottom(services),
+            Text = "Filtrar logging de monitoreo",
+            Value = preferences.FilterMonitoringLogs() ? CheckState.Checked : CheckState.UnChecked,
+            Visible = false
+        };
+        var preferenceError = new Label { Y = Pos.Bottom(filterLogs), Width = Dim.Fill(), Visible = false };
+        filterLogs.ValueChanging += (_, change) =>
+        {
+            try
+            {
+                preferences.SetFilterMonitoringLogs(change.NewValue == CheckState.Checked);
+                preferenceError.Text = "";
+            }
+            catch (Exception e) when (ServiceObservation.ObservationError(e))
+            {
+                change.Handled = true;
+                preferenceError.Text = "No se pudo guardar la preferencia: " + e.Message;
+            }
+        };
         window.Add(summary, taskRows, services, startButton, stopButton, statusMark, status, charts, inferenceLabel, promptGraph, outputGraph,
-            logsButton, presetsButton, resourcesButton, lines, entries, resources, system, machine);
+            logsButton, presetsButton, resourcesButton, logTools, logState, lines, entries, resources, system, filterLogs, preferenceError, machine);
         if (useColor)
         {
             Paint(window, Palette.Text, Palette.Base);
@@ -254,6 +283,7 @@ internal static class DashboardCli
             Paint(lines, Palette.Text, Palette.Surface);
             Paint(resources, Palette.Text, Palette.Surface);
             Paint(system, Palette.Text, Palette.Surface);
+            Paint(filterLogs, Palette.Text, Palette.Surface);
         }
         var index = targets.Count == 0 ? targets.Count : 0;
         var showLogsPanel = true;
@@ -266,10 +296,54 @@ internal static class DashboardCli
             NoDecorations = true, ShadowStyle = ShadowStyles.None, Text = "Pausar" };
         pauseButton.X = Pos.Right(expandButton) + 1;
         window.Add(expandButton, pauseButton);
-        logsButton.Accepted += (_, _) => SelectPanel(showLogs: true);
+        logsButton.Accepted += (_, _) => { expandedLogs = window.Viewport.Height < 32; SelectPanel(showLogs: true); };
         presetsButton.Accepted += (_, _) => SelectPanel(showLogs: false);
         resourcesButton.Accepted += (_, _) => SelectPanel(showLogs: false, resourcePanel: true);
 
+        var logSessions = new Dictionary<int, ServiceLogSession>();
+        var layoutHeight = -1;
+        bool logHeld = false, paintingLog = false;
+        string? lastLogText = null;
+        logPause.Accepted += (_, _) => { logHeld = !logHeld; if (!logHeld) lastLogText = null; logPause.Text = logHeld ? "Reanudar log" : "Pausar log"; };
+        logCurrent.Accepted += (_, _) =>
+        {
+            if (logSessions.TryGetValue(index, out var session)) session.Current();
+            logHeld = false; lastLogText = null; logPause.Text = "Pausar log";
+        };
+        lines.ValueChanged += (_, _) =>
+        {
+            if (!paintingLog && lines.HasFocus) { logHeld = true; logPause.Text = "Reanudar log"; }
+        };
+        lines.ViewportChanged += (_, _) =>
+        {
+            if (!paintingLog && lines.HasFocus && (lines.Viewport.X > 0 || lines.Viewport.Y < lines.GetContentSize().Height - lines.Viewport.Height))
+            { logHeld = true; logPause.Text = "Reanudar log"; }
+        };
+        logHistory.Accepted += (_, action) =>
+        {
+            action.Handled = true;
+            if (!logSessions.TryGetValue(index, out var session)) return;
+            var files = session.Files.Reverse().ToArray();
+            using var dialog = new Dialog { Title = "Históricos · " + targets[index].Label, Width = Dim.Percent(95), Height = Dim.Percent(75) };
+            var choices = new ListView { Width = Dim.Fill(), Height = Dim.Fill(),
+                ViewportSettings = ViewportSettingsFlags.HasHorizontalScrollBar | ViewportSettingsFlags.HasVerticalScrollBar };
+            choices.SetSource(new ObservableCollection<string>(files.Length == 0 ? ["Sin archivos registrados disponibles."] :
+                files.Select(file => $"{file.StartedAt} · {file.Id} · {System.IO.Path.GetFileName(file.Path)}{(file.Active ? " · activo" : "")}")));
+            choices.SelectedItem = 0;
+            var open = new Button { Text = "Abrir", Enabled = files.Length > 0, IsDefault = true };
+            var cancel = new Button { Text = "Cancelar" };
+            dialog.Add(choices); dialog.AddButton(open); dialog.AddButton(cancel);
+            open.IsDefault = true; cancel.IsDefault = false;
+            app.Run(dialog);
+            // Dialog handles button activation itself; its Result is the accepted
+            // button index. Child Button.Accepted is not the dialog result contract.
+            if (dialog.Result == 0 && files.Length > 0)
+            {
+                var row = choices.SelectedItem ?? 0;
+                if (row >= 0 && row < files.Length)
+                { session.SelectHistory(files[row].Id); logHeld = false; lastLogText = null; }
+            }
+        };
         var selectionEpoch = 0;
         var probe = adapters is null ? Task.Run(HardwareProbe.InspectAdapters) : Task.FromResult(adapters);
         HardwareProbe.AdapterEvidence? evidence = null;
@@ -283,7 +357,7 @@ internal static class DashboardCli
         Task<string?>? operation = null;
         ServiceSnapshot? selectedSnapshot = null;
         string? shownPresets = null, shownLogs = null, shownSystem = null;
-        var inference = new InferenceTasks(new ConfigurationManager(Home.Resolve()).InferenceHistory());
+        var inference = new InferenceTasks(preferences.InferenceHistory());
         InferenceTaskIdentity? graphTask = null;
         string? inferenceEntry = null, preferredEntry = null;
         IReadOnlyList<EntrySnapshot> lastEntries = [];
@@ -293,7 +367,7 @@ internal static class DashboardCli
         string? shownTasks = null, shownSummary = null;
         expandButton.Accepted += (_, _) =>
         {
-            expandedLogs = !expandedLogs;
+            expandedLogs = window.Viewport.Height < 32 ? false : !expandedLogs;
             expandButton.Text = expandedLogs ? "Monitor" : "Ampliar";
             SelectPanel(showLogs: true);
         };
@@ -430,12 +504,35 @@ internal static class DashboardCli
                 })));
             }
             if (showResources && index < targets.Count) ShowResourceDetails();
+            if (layoutHeight != window.Viewport.Height)
+            { layoutHeight = window.Viewport.Height; SelectPanel(showLogsPanel, showResources); }
+            if (index < targets.Count && logSessions.TryGetValue(index, out var logSession))
+            {
+                var frame = logSession.Read(filterLogs.Value == CheckState.Checked);
+                logState.Text = $"{(logHeld ? "Pausa visual · captura continúa" : logSession.Status)} · descartadas {frame.Discarded} filas";
+                if (!logHeld)
+                {
+                    var text = string.Join('\n', frame.Rows);
+                    if (text.Length == 0) text = "Sin líneas visibles.";
+                    if (text != lastLogText)
+                    {
+                        paintingLog = true;
+                        SetRows(lines, ref lastLogText, text);
+                        var rows = text.Split('\n');
+                        lines.SetContentSize(new System.Drawing.Size(rows.Max(row => row.Length), rows.Length));
+                        lines.SelectedItem = logSession.Historical ? 0 : rows.Length - 1;
+                        lines.ScrollVertical((logSession.Historical ? 0 : Math.Max(0, rows.Length - lines.Viewport.Height)) - lines.Viewport.Y);
+                        paintingLog = false;
+                    }
+                }
+            }
             return true;
         });
         try { app.Run(window); }
         finally
         {
             stop.Cancel();
+            Task.WhenAll(logSessions.Values.Select(session => session.CloseAsync())).GetAwaiter().GetResult();
             var observations = Task.WhenAll(serviceSamples.Values.Select(value => (Task)value.Task)
                 .Concat(machineSample is null ? [] : new Task[] { machineSample }));
             _ = observations.ContinueWith(task => { _ = task.Exception; }, TaskContinuationOptions.OnlyOnFaulted);
@@ -509,9 +606,10 @@ internal static class DashboardCli
 
         void SelectPanel(bool showLogs, bool resourcePanel = false)
         {
+            var low = window.Viewport.Height < 32;
             showLogsPanel = showLogs;
             showResources = resourcePanel;
-            logsButton.Text = showLogs ? "▸ Logs" : "  Logs";
+            logsButton.Text = showLogs && (!low || expandedLogs) ? "▸ Logs" : "  Logs";
             presetsButton.Text = showLogs || resourcePanel ? "  Presets" : "▸ Presets";
             resourcesButton.Text = resourcePanel ? "▸ Recursos" : "  Recursos";
             if (useColor)
@@ -520,14 +618,19 @@ internal static class DashboardCli
                 Paint(presetsButton, showLogs || resourcePanel ? Palette.Text : Palette.Accent, Palette.Card);
                 Paint(resourcesButton, resourcePanel ? Palette.Accent : Palette.Text, Palette.Card);
             }
-            lines.Visible = index < targets.Count && showLogs;
+            lines.Visible = logTools.Visible = logState.Visible = index < targets.Count && showLogs && (!low || expandedLogs);
             entries.Visible = index < targets.Count && !showLogs && !resourcePanel;
             resources.Visible = index < targets.Count && resourcePanel;
             if (!showLogs) expandedLogs = false;
             expandButton.Text = expandedLogs ? "Monitor" : "Ampliar";
             summary.Visible = taskRows.Visible = inferenceLabel.Visible = promptGraph.Visible = outputGraph.Visible =
                 charts.Visible = index < targets.Count && !expandedLogs;
-            logsButton.Y = expandedLogs ? Pos.Bottom(status) : Pos.Bottom(charts);
+            logsButton.Y = expandedLogs || low ? Pos.Bottom(status) : Pos.Bottom(charts);
+            summary.Y = low ? Pos.Bottom(logsButton) : Pos.Bottom(status);
+            expandButton.Text = low ? expandedLogs ? "Monitor" : "▸ Monitor" : expandedLogs ? "Monitor" : "Ampliar";
+            // Compact Monitor keeps task phase/progress; Logs is a sibling page.
+            if (low && !expandedLogs) charts.Height = 2;
+            else charts.Height = Dim.Func(_ => Math.Min(visibleChartRows, Math.Max(2, window.Viewport.Height / 2 - 3)));
         }
 
         void ShowHardware(HardwareSnapshot? sample, bool captured)
@@ -709,31 +812,34 @@ internal static class DashboardCli
             for (var i = 0; i < serviceButtons.Count; i++)
             {
                 var button = serviceButtons[i];
-                button.Text = (i == index ? "▸ " : "  ") + (i == targets.Count ? "Sistema" : targets[i].Label);
+                var label = i < targets.Count ? targets[i].Label : i == targets.Count ? "Sistema" : "Configuración";
+                button.Text = (i == index ? "▸ " : "  ") + label;
                 if (useColor) Paint(button, i == index ? Palette.Accent : Palette.Muted, Palette.Card);
             }
             if (serviceButtons.Count > 0)
                 services.SetContentSize(new System.Drawing.Size(serviceButtons.Sum(button => button.Text.Length + 3), 1));
             var systemSelected = index == targets.Count;
+            var serviceSelected = index < targets.Count;
+            if (serviceSelected && !logSessions.ContainsKey(index))
+                logSessions[index] = new ServiceLogSession(new ServiceLogReader(targets[index].Store, targets[index].Service.ServiceId), stop.Token);
+            logHeld = false; lastLogText = null; logPause.Text = "Pausar log";
             system.Visible = systemSelected;
+            filterLogs.Visible = preferenceError.Visible = index == targets.Count + 1;
             statusMark.Visible = status.Visible = startButton.Visible = stopButton.Visible = charts.Visible =
                 inferenceLabel.Visible = promptGraph.Visible = outputGraph.Visible =
                 logsButton.Visible = presetsButton.Visible = resourcesButton.Visible = taskRows.Visible = summary.Visible =
-                expandButton.Visible = pauseButton.Visible = !systemSelected;
+                expandButton.Visible = pauseButton.Visible = serviceSelected;
             selectedSnapshot = null;
             startButton.Enabled = stopButton.Enabled = false;
             startButton.Text = "Iniciar";
-            lines.Visible = !systemSelected && showLogsPanel;
-            entries.Visible = !systemSelected && !showLogsPanel && !showResources;
-            resources.Visible = !systemSelected && showResources;
+            lines.Visible = serviceSelected && showLogsPanel;
+            entries.Visible = serviceSelected && !showLogsPanel && !showResources;
+            resources.Visible = serviceSelected && showResources;
             phaseGraph.Clear();
             inference.Suspend();
             if (resources.Visible) ShowResourceDetails();
-            if (systemSelected)
-            {
-                ShowSystem(lastHardware);
-                return;
-            }
+            if (systemSelected) ShowSystem(lastHardware);
+            if (!serviceSelected) { logTools.Visible = logState.Visible = false; return; }
             status.Text = targets.Count == 0 ? diagnostic : "Consultando estado del servicio…";
             SetStatusColor(Palette.Information, ColorName16.BrightBlue);
             preferredTask = null;
@@ -787,7 +893,7 @@ internal static class DashboardCli
                 entries.SelectedItem = previousSelection;
             refreshingEntries = false;
             ShowInference(snapshot.Entries);
-            if (!paused) SetRows(lines, ref shownLogs, panel.Logs);
+            // Log capture and pause are independent from inference refresh.
         }
 
         void ShowInference(IReadOnlyList<EntrySnapshot> observed)
@@ -955,17 +1061,7 @@ internal static class DashboardCli
     {
         var snapshot = await new ServiceObservation(target.Store).CaptureAsync(target.Service, cancellation: cancellation, observeInference: true);
         cancellation.ThrowIfCancellationRequested();
-        using var output = new StringWriter();
-        try
-        {
-            var reader = new ServiceLogReader(target.Store, target.Service.ServiceId);
-            // Recent without an ID bounds the read to the tail of the latest log.
-            reader.Recent(output);
-        }
-        catch (Exception e) when (ServiceObservation.ObservationError(e)) { output.Write("Log no disponible: " + e.Message); }
-        var tail = output.ToString().Replace("\r", "").TrimEnd().Split('\n').TakeLast(30).Reverse();
-        var text = string.Join('\n', tail.Select(line => new string(line.Where(c => c == '\t' || !char.IsControl(c)).ToArray())));
-        return new(snapshot, text.Length == 0 ? "Log vacío." : text);
+        return new(snapshot);
     }
 
     private static string FormatEntry(EntrySnapshot entry)
