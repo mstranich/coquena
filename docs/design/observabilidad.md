@@ -202,6 +202,8 @@ del servicio. La capacidad dedicada de una GPU,
 su uso de memoria dedicada y su uso de memoria compartida son cifras distintas.
 La actividad de GPU calculada por motores identifica la agregación utilizada;
 no suma porcentajes de motores distintos como si fueran una única capacidad.
+Una agregación fuera del rango de porcentaje se presenta como no disponible
+con el motivo de la lectura inválida.
 Cada muestra conserva fecha y, cuando se conoce, ventana. Su vigencia se evalúa
 respecto de esa fecha: una captura completada no convierte todas sus lecturas
 en simultáneas. Un cambio de instancia o composición durante la consulta impide

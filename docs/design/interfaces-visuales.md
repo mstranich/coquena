@@ -48,7 +48,7 @@ publicar en el global compartido o usar el servidor propio con su backend.
 
 ## Barra de estado de la máquina
 
-La TUI mantiene una línea visible en el borde superior en todos los espacios y
+La TUI mantiene una barra visible en el borde inferior en todos los espacios y
 pestañas, incluido el selector de espacios. Resume CPU, GPU, RAM y VRAM de la
 máquina. Cambiar de catálogo o servidor conserva la misma serie de muestras.
 Con varias GPU, identifica el dispositivo resumido y señala si hay otros;

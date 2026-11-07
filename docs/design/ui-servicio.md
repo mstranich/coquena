@@ -21,6 +21,30 @@ El hardware conserva su alcance global al cambiar de pestaña. Cada serie
 identifica dispositivo o fuente, valor y unidad. Las mediciones ausentes se
 indican como no disponibles.
 
+Los gráficos y la barra de GPU/VRAM incluyen los adaptadores cuya identidad
+puede correlacionarse con compatibilidad CUDA o Vulkan confirmada. Sistema
+permite consultar también el inventario y los motivos de falta de confirmación.
+
+Las series de recursos y la fase de la tarea enfocada comparten columnas de
+dos segundos, ubicadas por la fecha de cada lectura. Cada dispositivo conserva
+sus huecos aunque otros sigan respondiendo. La leyenda identifica la resolución,
+la hora y las fases observadas. La coincidencia temporal permite comparar
+actividad y recursos compartidos sin atribuir causalidad ni consumo exclusivo.
+El histórico conserva hasta 24 columnas durante la sesión; al reducir el ancho
+se muestra su tramo más reciente.
+
+Una lectura con más de cuatro segundos de antigüedad se marca como antigua.
+El detalle conserva la cifra y su fecha. Esta marca afecta la presentación del
+valor actual; el gráfico conserva cada lectura en su instante original y los
+intervalos sin lectura permanecen visibles como huecos.
+
+El panel Recursos muestra fuente, unidad, alcance, fecha, ventana de medición
+y motivo de indisponibilidad de cada contador. Distingue el consumo de máquina,
+los totales por dispositivo y las mediciones de instancia o proceso verificado.
+Muestra por separado memoria privada comprometida, RAM residente por proceso,
+VRAM dedicada y memoria compartida de GPU. Permite consultar duración de captura
+e intervalo efectivo entre capturas junto al refresco visual y la cadencia mínima.
+
 ## Slots, tareas y entradas
 
 Cada fila identifica servicio, slot, tarea y entrada cuando el backend permite

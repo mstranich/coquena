@@ -3,6 +3,25 @@ using Coquena;
 
 // Match the product's output contract, including fixture and failure diagnostics.
 Console.OutputEncoding = new System.Text.UTF8Encoding(false);
+if (args is ["--dashboard-fixture", var dashboardRoot, var dashboardHardware])
+{
+    if (dashboardHardware is not ("real" or "synthetic")) throw new ArgumentException("Use real or synthetic.");
+    await Coquena.Tests.DashboardFixture.Run(dashboardRoot, dashboardHardware == "synthetic");
+    return;
+}
+if (args is ["--dashboard-tests"])
+{
+    var checks = 0;
+    void Check(bool condition, string message)
+    {
+        if (!condition) throw new Exception(message);
+        checks++;
+    }
+    Coquena.Tests.ObservationTimelineTests.Run(Check);
+    Coquena.Tests.InferenceTaskTests.Run(Check);
+    Console.WriteLine($"Dashboard checks: {checks}.");
+    return;
+}
 if (args.Length is >= 1 and <= 3 && args[0] == "--watch-tests")
 { await Coquena.Tests.WatchTests.Run(args.Length >= 2 ? Path.GetFullPath(args[1]) : null, args.Length == 3 ? Path.GetFullPath(args[2]) : null); return; }
 if (args is ["--inference-router-tests", var inferenceBackend, var inferenceModel, var inferenceRoot])
@@ -48,6 +67,7 @@ if (args.Contains("--scoped-health-child"))
     var portValue = args.Length == 2 ? args[1] : args[Array.IndexOf(args, "--port") + 1];
     var listener = new System.Net.Sockets.TcpListener(System.Net.IPAddress.Loopback, int.Parse(portValue));
     listener.Start();
+    var healthRequests = 0;
     while (true)
     {
         using var connection = await listener.AcceptTcpClientAsync();
@@ -55,6 +75,7 @@ if (args.Contains("--scoped-health-child"))
         var buffer = new byte[4096];
         var received = await stream.ReadAsync(buffer);
         if (received == 0) continue;
+        if (args.Contains("--slow-after-first-request") && healthRequests++ > 0) await Task.Delay(6000);
         var status = args.Contains("--health-unready") ? "503 Service Unavailable" : "200 OK";
         await stream.WriteAsync(System.Text.Encoding.ASCII.GetBytes($"HTTP/1.1 {status}\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"));
     }

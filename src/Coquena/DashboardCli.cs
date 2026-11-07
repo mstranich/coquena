@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 using System.Globalization;
 using Coquena.Backends;
 using Coquena.Configuration;
@@ -17,6 +18,9 @@ namespace Coquena;
 
 internal static class DashboardCli
 {
+    private static readonly TimeSpan CaptureInterval = ObservationTimeline.Interval;
+    private static readonly TimeSpan MetricLifetime = TimeSpan.FromSeconds(4);
+
     // Coquena web/showcase tokens. Keep semantic roles distinct even when they share a color.
     private static class Palette
     {
@@ -55,18 +59,19 @@ internal static class DashboardCli
             if (useColor) Paint(this, Palette.Muted, Palette.Surface);
         }
 
-        public void AddSample(string display, double? used, double? total, string suffix = "")
+        public void ShowResource(string display, double? ratio, string suffix,
+            DateTimeOffset? observedAt, double? observedRatio)
         {
-            var ratio = Fraction(used, total);
             value.Text = display;
             totalLabel.Text = suffix;
             if (useColor) Paint(value, UsageColor(ratio, App?.Driver?.Force16Colors == true), Palette.Surface);
-            graph.AddSample(ratio);
+            if (observedAt is { } date) graph.AddTimedSample(date, observedRatio);
+            graph.SetNeedsDraw();
         }
 
         public void Clear() => graph.Clear();
 
-        public void AddRate(double? rate, double? mean, double? peak, double seconds)
+        public void AddRate(double? rate, double? mean, double? peak, double seconds, DateTimeOffset? observedAt)
         {
             var maximum = 1d;
             if (peak is > 1)
@@ -77,25 +82,28 @@ internal static class DashboardCli
             value.Text = Rate(rate);
             totalLabel.Text = $" tk/s · media {Rate(mean)} · pico {Rate(peak)} · {seconds:0.0}s · escala 0–{maximum:0}";
             if (useColor) Paint(value, rate is null ? Palette.Muted : Palette.Accent, Palette.Surface);
-            graph.AddSample(rate, maximum);
+            if (observedAt is { } date) graph.AddTimedSample(date, rate, maximum);
+            graph.SetNeedsDraw();
 
             static string Rate(double? number) => number?.ToString("0.#", CultureInfo.CurrentCulture) ?? "—";
         }
     }
 
-    private sealed class UsageGraph(bool useColor) : View
+    private sealed class UsageGraph(bool useColor, string? symbols = null) : View
     {
-        private const int Capacity = 24;
-        private readonly Queue<double?> history = new();
+        private readonly ObservationTimeline timedHistory = new();
         private double? maximum;
 
-        public void Clear() => history.Clear();
+        public void Clear()
+        {
+            timedHistory.Clear();
+            SetNeedsDraw();
+        }
 
-        public void AddSample(double? value, double? scale = null)
+        public void AddTimedSample(DateTimeOffset observedAt, double? value, double? scale = null)
         {
             maximum = scale;
-            if (history.Count == Capacity) history.Dequeue();
-            history.Enqueue(value);
+            timedHistory.Add(observedAt, value);
             SetNeedsDraw();
         }
 
@@ -103,7 +111,7 @@ internal static class DashboardCli
         {
             const string levels = "▁▂▃▄▅▆▇█";
             var column = 0;
-            foreach (var sample in history.TakeLast(Viewport.Width))
+            foreach (var sample in timedHistory.Read(DateTimeOffset.UtcNow, Viewport.Width))
             {
                 var normalized = sample / (maximum ?? 1);
                 var ratio = normalized is double value ? Math.Clamp(value, 0, 1) : 0;
@@ -114,7 +122,8 @@ internal static class DashboardCli
                     SetAttribute(new Terminal.Gui.Drawing.Attribute(color, Palette.Surface));
                 }
                 Move(column++, 0);
-                AddRune(sample is null ? '·' : levels[Math.Min((int)(ratio * levels.Length), levels.Length - 1)]);
+                AddRune(sample is null ? '·' : symbols is not null ? symbols[(int)sample.Value] :
+                    levels[Math.Min((int)(ratio * levels.Length), levels.Length - 1)]);
             }
             return true;
         }
@@ -148,10 +157,10 @@ internal static class DashboardCli
         }
     }
 
-    private static int RunDashboard()
+    internal static int RunDashboard(ISystemMetrics? metrics = null, HardwareProbe.AdapterEvidence? adapters = null)
     {
         var targets = Discover(out var diagnostic);
-        var hardware = SystemMetrics.Create();
+        var hardware = metrics ?? SystemMetrics.Create();
         using var stop = new CancellationTokenSource();
         using var app = Application.Create().Init();
         var useColor = string.IsNullOrEmpty(Environment.GetEnvironmentVariable("NO_COLOR"));
@@ -186,28 +195,36 @@ internal static class DashboardCli
         var stopButton = new Button { X = Pos.Right(startButton), Y = Pos.Top(startButton), Width = 12, Text = "Detener", ShadowStyle = ShadowStyles.None, Enabled = false };
         var statusMark = new Label { X = Pos.Right(stopButton) + 1, Y = Pos.Top(startButton), Text = "●" };
         var status = new Label { X = Pos.Right(statusMark) + 1, Y = Pos.Top(statusMark), Width = Dim.Fill() };
-        var deviceCharts = new Dictionary<string, (Label Name, UsageChart Gpu, UsageChart Vram, View Stats, Label Load, Label Memory, int StatsWidth)>();
-        var deviceNumbers = new Dictionary<string, int>();
-        var visibleChartRows = 2;
+        var deviceCharts = new Dictionary<string, (int Number, Label Name, UsageChart Gpu, UsageChart Vram, View Stats, Label Load, Label Memory, int StatsWidth)>(StringComparer.OrdinalIgnoreCase);
+        var visibleChartRows = 4;
         var charts = new View
         {
-            Y = Pos.Bottom(status), Width = Dim.Fill(), CanFocus = true,
-            Height = Dim.Func(_ => Math.Min(visibleChartRows, Math.Max(2, window.Viewport.Height / 2))),
+            Width = Dim.Fill(), CanFocus = true,
+            Height = Dim.Func(_ => Math.Min(visibleChartRows, Math.Max(2, window.Viewport.Height / 2 - 3))),
             ViewportSettings = ViewportSettingsFlags.HasVerticalScrollBar
         };
-        var cpuGraph = new UsageChart("CPU", useColor) { Width = Dim.Percent(50) };
-        var ramGraph = new UsageChart("RAM", useColor) { X = Pos.Right(cpuGraph) };
-        charts.Add(cpuGraph, ramGraph);
-        var inferenceLabel = new Label { Y = Pos.Bottom(charts), Width = Dim.Fill(), Text = "Inferencia · esperando catálogo" };
+        var phaseGraph = new UsageGraph(useColor, "?PG") { Y = 1, Width = Dim.Percent(50), Height = 1 };
+        var axis = new Label { Width = Dim.Fill(), Text = "Fase /slots · 2 s/col · P prompt · G generación · ? incierta · · sin muestra" };
+        var cpuGraph = new UsageChart("CPU", useColor) { Y = 2, Width = Dim.Percent(50) };
+        var ramGraph = new UsageChart("RAM", useColor) { Y = 2, X = Pos.Right(cpuGraph), Width = Dim.Percent(50) };
+        charts.Add(axis, phaseGraph, cpuGraph, ramGraph);
+        var inferenceLabel = new Label { Y = Pos.Bottom(status), Width = Dim.Fill(), Text = "Inferencia · esperando catálogo" };
         var promptGraph = new UsageChart("Prompt", useColor) { Y = Pos.Bottom(inferenceLabel) };
         var outputGraph = new UsageChart("Generación", useColor) { Y = Pos.Bottom(promptGraph) };
-        var logsButton = new Button { Y = Pos.Bottom(outputGraph), NoDecorations = true, ShadowStyle = ShadowStyles.None };
+        charts.Y = Pos.Bottom(outputGraph);
+        var logsButton = new Button { Y = Pos.Bottom(charts), NoDecorations = true, ShadowStyle = ShadowStyles.None };
         var presetsButton = new Button { X = Pos.Right(logsButton) + 1, Y = Pos.Top(logsButton), NoDecorations = true, ShadowStyle = ShadowStyles.None };
+        var resourcesButton = new Button { X = Pos.Right(presetsButton) + 1, Y = Pos.Top(logsButton), NoDecorations = true, ShadowStyle = ShadowStyles.None, Text = "Recursos" };
+        var resources = new ListView
+        {
+            Y = Pos.Bottom(logsButton), Width = Dim.Fill(), Height = Dim.Fill(Dim.Height(machine)), Visible = false,
+            ViewportSettings = ViewportSettingsFlags.HasHorizontalScrollBar | ViewportSettingsFlags.HasVerticalScrollBar
+        };
         var lines = new ListView { Y = Pos.Bottom(logsButton), Width = Dim.Fill(), Height = Dim.Fill(Dim.Height(machine)) };
         var entries = new ListView { Y = Pos.Bottom(logsButton), Width = Dim.Fill(), Height = Dim.Fill(Dim.Height(machine)) };
         var system = new ListView { Y = Pos.Bottom(services), Width = Dim.Fill(), Height = Dim.Fill(Dim.Height(machine)), Visible = false };
         window.Add(services, startButton, stopButton, statusMark, status, charts, inferenceLabel, promptGraph, outputGraph,
-            logsButton, presetsButton, lines, entries, system, machine);
+            logsButton, presetsButton, resourcesButton, lines, entries, resources, system, machine);
         if (useColor)
         {
             Paint(window, Palette.Text, Palette.Base);
@@ -220,20 +237,28 @@ internal static class DashboardCli
             Paint(inferenceLabel, Palette.Muted, Palette.Surface);
             Paint(entries, Palette.Text, Palette.Surface);
             Paint(lines, Palette.Text, Palette.Surface);
+            Paint(resources, Palette.Text, Palette.Surface);
             Paint(system, Palette.Text, Palette.Surface);
         }
         var index = targets.Count == 0 ? targets.Count : 0;
         var showLogsPanel = true;
-        SelectPanel(showLogs: true);
+        var showResources = false;
+        string? shownResources = null;
         logsButton.Accepted += (_, _) => SelectPanel(showLogs: true);
         presetsButton.Accepted += (_, _) => SelectPanel(showLogs: false);
+        resourcesButton.Accepted += (_, _) => SelectPanel(showLogs: false, resourcePanel: true);
 
-        var samplingIndex = 0;
-        var probe = Task.Run(HardwareProbe.InspectAdapters);
+        var selectionEpoch = 0;
+        var probe = adapters is null ? Task.Run(HardwareProbe.InspectAdapters) : Task.FromResult(adapters);
         HardwareProbe.AdapterEvidence? evidence = null;
         HardwareSnapshot? lastHardware = null;
+        TimeSpan? hardwareCadence = null;
+        string? hardwareProblem = null;
         Task<HardwareSnapshot>? machineSample = null;
-        Task<ServicePanel>? serviceSample = null;
+        var machineClock = new Stopwatch();
+        var lastPhaseObservation = 0L;
+        var serviceSamples = new Dictionary<int, (int Epoch, Task<ServicePanel> Task)>();
+        var serviceCaptures = new Dictionary<int, Stopwatch>();
         Task<string?>? operation = null;
         ServiceSnapshot? selectedSnapshot = null;
         string? shownPresets = null, shownLogs = null, shownSystem = null;
@@ -242,6 +267,7 @@ internal static class DashboardCli
         string? inferenceEntry = null, preferredEntry = null;
         IReadOnlyList<EntrySnapshot> lastEntries = [];
         bool refreshingEntries = false;
+        SelectPanel(showLogs: true);
         Select();
         entries.ValueChanged += (_, _) =>
         {
@@ -256,7 +282,7 @@ internal static class DashboardCli
             serviceButtons[i].Accepted += (_, _) => SelectService(selection);
         }
 
-        app.AddTimeout(TimeSpan.FromMilliseconds(500), () =>
+        app.AddTimeout(TimeSpan.FromSeconds(1), () =>
         {
             if (operation is { IsCompleted: true } completed)
             {
@@ -269,22 +295,42 @@ internal static class DashboardCli
             if (evidence is null && probe.IsCompletedSuccessfully) evidence = probe.Result;
             if (machineSample is null || machineSample.IsCompleted)
             {
-                if (machineSample is { IsCompletedSuccessfully: true }) ShowHardware(machineSample.Result);
+                var captured = machineSample is { IsCompletedSuccessfully: true };
+                if (captured)
+                {
+                    if (lastHardware is not null) hardwareCadence = machineSample!.Result.StartedAt - lastHardware.StartedAt;
+                    lastHardware = machineSample!.Result;
+                    hardwareProblem = null;
+                }
                 else if (machineSample is { IsFaulted: true })
                 {
-                    _ = machineSample.Exception;
-                    ShowHardware(null);
+                    hardwareProblem = machineSample.Exception!.GetBaseException().Message;
                 }
-                machineSample = Task.Run(() => hardware.CaptureAsync(stop.Token));
-            }
-            if (operation is null && index < targets.Count && (serviceSample is null || serviceSample.IsCompleted))
-            {
-                if (serviceSample is { IsCompletedSuccessfully: true } && samplingIndex == index)
-                    Show(serviceSample.Result);
-                else if (serviceSample is { IsFaulted: true })
+                machineSample = null;
+                if (!machineClock.IsRunning || machineClock.Elapsed >= CaptureInterval)
                 {
-                    var message = serviceSample.Exception!.GetBaseException().Message;
-                    if (samplingIndex == index)
+                    machineSample = Task.Run(() =>
+                    {
+                        machineClock.Restart();
+                        return hardware.CaptureAsync(stop.Token);
+                    });
+                }
+                ShowHardware(lastHardware, captured);
+            }
+            else ShowHardware(lastHardware, false);
+            phaseGraph.SetNeedsDraw();
+            promptGraph.SetNeedsDraw();
+            outputGraph.SetNeedsDraw();
+            foreach (var (targetIndex, pending) in serviceSamples.Where(item => item.Value.Task.IsCompleted).ToArray())
+            {
+                serviceSamples.Remove(targetIndex);
+                var selected = operation is null && targetIndex == index && pending.Epoch == selectionEpoch;
+                if (pending.Task.IsCompletedSuccessfully && selected)
+                    Show(pending.Task.Result);
+                else if (pending.Task.IsFaulted)
+                {
+                    var message = pending.Task.Exception!.GetBaseException().Message;
+                    if (selected)
                     {
                         selectedSnapshot = null;
                         startButton.Enabled = stopButton.Enabled = false;
@@ -294,21 +340,33 @@ internal static class DashboardCli
                         ShowInference([]);
                     }
                 }
-                samplingIndex = index;
-                var target = targets[index];
-                serviceSample = Task.Run(() => CaptureAsync(target, stop.Token));
             }
+            if (operation is null && index < targets.Count && serviceSamples.Count < 4 && !serviceSamples.ContainsKey(index) &&
+                (!serviceCaptures.TryGetValue(index, out var lastCapture) || lastCapture.Elapsed >= CaptureInterval))
+            {
+                var target = targets[index];
+                var clock = new Stopwatch();
+                serviceCaptures[index] = clock;
+                serviceSamples.Add(index, (selectionEpoch, Task.Run(() =>
+                {
+                    clock.Start();
+                    return CaptureAsync(target, stop.Token);
+                })));
+            }
+            if (showResources && index < targets.Count) ShowResourceDetails();
             return true;
         });
         try { app.Run(window); }
         finally
         {
             stop.Cancel();
-            foreach (var sample in new Task?[] { machineSample, serviceSample, operation })
-            {
-                try { sample?.GetAwaiter().GetResult(); }
-                catch (Exception e) when (ServiceObservation.ObservationError(e)) { }
-            }
+            var observations = Task.WhenAll(serviceSamples.Values.Select(value => (Task)value.Task)
+                .Concat(machineSample is null ? [] : new Task[] { machineSample }));
+            _ = observations.ContinueWith(task => { _ = task.Exception; }, TaskContinuationOptions.OnlyOnFaulted);
+            try { observations.WaitAsync(TimeSpan.FromSeconds(5)).GetAwaiter().GetResult(); }
+            catch (Exception e) when (ServiceObservation.ObservationError(e) || e is TimeoutException) { }
+            try { operation?.GetAwaiter().GetResult(); }
+            catch (Exception e) when (ServiceObservation.ObservationError(e)) { }
         }
         return 0;
 
@@ -316,7 +374,7 @@ internal static class DashboardCli
         {
             if (index == selected) return;
             index = selected;
-            samplingIndex = -1;
+            selectionEpoch++;
             Select();
         }
 
@@ -333,7 +391,7 @@ internal static class DashboardCli
 
             startButton.Enabled = stopButton.Enabled = false;
             status.Text = $"{verb} · {target.Service.Name}…";
-            samplingIndex = -1;
+            selectionEpoch++;
             operation = Task.Run(async () =>
             {
                 using var diagnostics = new StringWriter();
@@ -373,115 +431,152 @@ internal static class DashboardCli
             return value;
         }
 
-        void SelectPanel(bool showLogs)
+        void SelectPanel(bool showLogs, bool resourcePanel = false)
         {
             showLogsPanel = showLogs;
+            showResources = resourcePanel;
             logsButton.Text = showLogs ? "▸ Logs" : "  Logs";
-            presetsButton.Text = showLogs ? "  Presets" : "▸ Presets";
+            presetsButton.Text = showLogs || resourcePanel ? "  Presets" : "▸ Presets";
+            resourcesButton.Text = resourcePanel ? "▸ Recursos" : "  Recursos";
             if (useColor)
             {
                 Paint(logsButton, showLogs ? Palette.Accent : Palette.Text, Palette.Card);
-                Paint(presetsButton, showLogs ? Palette.Text : Palette.Accent, Palette.Card);
+                Paint(presetsButton, showLogs || resourcePanel ? Palette.Text : Palette.Accent, Palette.Card);
+                Paint(resourcesButton, resourcePanel ? Palette.Accent : Palette.Text, Palette.Card);
             }
             lines.Visible = index < targets.Count && showLogs;
-            entries.Visible = index < targets.Count && !showLogs;
+            entries.Visible = index < targets.Count && !showLogs && !resourcePanel;
+            resources.Visible = index < targets.Count && resourcePanel;
         }
 
-        void ShowHardware(HardwareSnapshot? sample)
+        void ShowHardware(HardwareSnapshot? sample, bool captured)
         {
-            if (sample is not null) lastHardware = sample;
-            var cpu = Metric(sample?.Samples, "cpu.utilization");
-            var ram = Metric(sample?.Samples, "ram.used");
-            var ramTotal = Metric(sample?.Samples, "ram.total");
-            cpuGraph.AddSample(Percent(cpu), cpu, 100);
-            var (ramUsed, ramSuffix) = MemoryPair(ram, ramTotal);
-            ramGraph.AddSample(ramUsed, ram, ramTotal, ramSuffix);
-            UpdateHardwareValue(cpuValue, $"{Percent(cpu),6}", cpu / 100);
-            UpdateHardwareValue(ramValue, StatsMemory(ram).PadLeft(memoryStatsWidth), Fraction(ram, ramTotal));
+            var now = DateTimeOffset.UtcNow;
+            var columnEnd = DateTimeOffset.FromUnixTimeSeconds(now.ToUnixTimeSeconds() / 2 * 2).ToLocalTime();
+            axis.Text = $"← 2 s/col · {columnEnd:HH:mm:ss} → · P prompt · G generación · ? incierta · · sin muestra";
+            ShowUsage(cpuGraph, cpuValue, sample?.Samples, "cpu.utilization");
+            ShowUsage(ramGraph, ramValue, sample?.Samples, "ram.used", "ram.total");
 
-            if (sample is null)
+            foreach (var device in sample?.Devices ?? [])
             {
-                foreach (var device in deviceCharts.Values)
-                {
-                    device.Gpu.AddSample("—", null, 100);
-                    device.Vram.AddSample("—", null, null);
-                    UpdateHardwareValue(device.Load, $"{Percent(null),6}", null);
-                    UpdateHardwareValue(device.Memory, StatsMemory(null).PadLeft(memoryStatsWidth), null);
-                }
-                return;
+                if (ComputeLabel(device.Id) is null || deviceCharts.ContainsKey(device.Id)) continue;
+                var number = deviceCharts.Count;
+                var gpuCaption = $"  GPU{number} ";
+                var vramCaption = $"  VRAM{number} ";
+                var width = gpuCaption.Length + 6 + vramCaption.Length + memoryStatsWidth;
+                var stats = new View { Width = width, Height = 1 };
+                var loadValue = AddHardwareField(stats, gpuCaption, 0, 6);
+                var memoryValue = AddHardwareField(stats, vramCaption, Pos.Right(loadValue), memoryStatsWidth);
+                var gpu = new UsageChart($"GPU{number}", useColor) { Width = Dim.Percent(50) };
+                var vram = new UsageChart($"VRAM{number}", useColor) { X = Pos.Right(gpu), Width = Dim.Percent(50) };
+                var name = new Label { Width = Dim.Fill(), Text = $"GPU{number} · {device.Name} · {ComputeLabel(device.Id)}" };
+                deviceCharts.Add(device.Id, (number, name, gpu, vram, stats, loadValue, memoryValue, width));
+                charts.Add(name, gpu, vram);
+                machine.Add(stats);
             }
 
-            var ids = sample.Devices.Select(device => device.Id).ToHashSet();
-            foreach (var id in deviceCharts.Keys.Where(id => !ids.Contains(id)).ToArray())
-            {
-                var removed = deviceCharts[id];
-                charts.Remove(removed.Name);
-                charts.Remove(removed.Gpu);
-                charts.Remove(removed.Vram);
-                removed.Name.Dispose();
-                removed.Gpu.Dispose();
-                removed.Vram.Dispose();
-                machine.Remove(removed.Stats);
-                removed.Stats.Dispose();
-                deviceCharts.Remove(id);
-            }
-            var row = 2;
+            var row = 4;
             var statsRow = 0;
             var statsX = hostStatsWidth;
-            foreach (var device in sample.Devices)
-                if (!deviceNumbers.ContainsKey(device.Id)) deviceNumbers.Add(device.Id, deviceNumbers.Count);
-            foreach (var device in sample.Devices.OrderBy(device => deviceNumbers[device.Id]))
+            foreach (var (id, views) in deviceCharts)
             {
-                if (!deviceCharts.TryGetValue(device.Id, out var views))
+                if (statsX > 0 && statsX + views.StatsWidth > window.Viewport.Width)
                 {
-                    var number = deviceNumbers[device.Id];
-                    var gpuCaption = $"  GPU{number} ";
-                    var vramCaption = $"  VRAM{number} ";
-                    var width = gpuCaption.Length + 6 + vramCaption.Length + memoryStatsWidth;
-                    var stats = new View { Width = width, Height = 1 };
-                    var loadValue = AddHardwareField(stats, gpuCaption, 0, 6);
-                    var memoryValue = AddHardwareField(stats, vramCaption, Pos.Right(loadValue), memoryStatsWidth);
-                    views = (new Label { Width = Dim.Fill() },
-                        new UsageChart($"GPU{number}", useColor) { Width = Dim.Percent(50) }, new UsageChart($"VRAM{number}", useColor),
-                        stats, loadValue, memoryValue, width);
-                    views.Vram.X = Pos.Right(views.Gpu);
-                    deviceCharts.Add(device.Id, views);
-                    charts.Add(views.Name, views.Gpu, views.Vram);
-                    machine.Add(stats);
+                    statsRow++;
+                    statsX = 0;
                 }
-                var confirmed = ComputeLabel(device.Id) is not null;
-                views.Stats.Visible = confirmed;
-                if (confirmed)
-                {
-                    if (statsX > 0 && statsX + views.StatsWidth > window.Viewport.Width)
-                    {
-                        statsRow++;
-                        statsX = 0;
-                    }
-                    views.Stats.X = statsX;
-                    views.Stats.Y = statsRow;
-                    statsX += views.StatsWidth;
-                }
-                views.Name.Visible = views.Gpu.Visible = views.Vram.Visible = confirmed;
-                views.Name.Text = $"GPU{deviceNumbers[device.Id]} · {device.Name}";
+                views.Stats.X = statsX;
+                views.Stats.Y = statsRow;
+                statsX += views.StatsWidth;
                 views.Name.Y = row;
-                views.Gpu.Y = row + 1;
-                views.Vram.Y = row + 1;
-                var load = Metric(device.Samples, "gpu.utilization");
-                var used = Metric(device.Samples, "vram.used");
-                var total = Metric(device.Samples, "vram.total");
-                views.Gpu.AddSample(Percent(load), load, 100);
-                var (vramUsed, vramSuffix) = MemoryPair(used, total);
-                views.Vram.AddSample(vramUsed, used, total, vramSuffix);
-                UpdateHardwareValue(views.Load, $"{Percent(load),6}", load / 100);
-                UpdateHardwareValue(views.Memory, StatsMemory(used).PadLeft(memoryStatsWidth), Fraction(used, total));
-                if (confirmed) row += 3;
+                views.Gpu.Y = views.Vram.Y = row + 1;
+                var device = sample?.Devices.FirstOrDefault(device => StringComparer.OrdinalIgnoreCase.Equals(device.Id, id));
+                ShowUsage(views.Gpu, views.Load, device?.Samples, "gpu.utilization");
+                ShowUsage(views.Vram, views.Memory, device?.Samples, "vram.used", "vram.total");
+                row += 3;
             }
             visibleChartRows = row;
             if (machine.Frame.Height != statsRow + 1) machine.Height = statsRow + 1;
             if (charts.GetContentSize().Height != row || charts.GetContentSize().Width != window.Viewport.Width)
                 charts.SetContentSize(new System.Drawing.Size(window.Viewport.Width, row));
             if (index == targets.Count) ShowSystem(sample);
+
+            void ShowUsage(UsageChart chart, Label field, IReadOnlyList<MetricSample>? samples, string name,
+                string? capacityName = null)
+            {
+                var metric = samples?.FirstOrDefault(item => item.Name == name);
+                var capacity = capacityName is null ? null : samples?.FirstOrDefault(item => item.Name == capacityName);
+                var fresh = metric?.IsFresh(now, MetricLifetime) == true;
+                var used = fresh ? metric?.Value : null;
+                var total = capacityName is null ? 100 : capacity?.IsFresh(now, MetricLifetime) == true ? capacity.Value : null;
+                var (display, suffix) = capacityName is null ? (Percent(metric?.Value), "") : MemoryPair(metric?.Value, capacity?.Value);
+                var status = metric?.Value is null ? "n/d" : fresh ? null : "ant.";
+                var ratio = Fraction(used, total);
+                chart.ShowResource(metric?.Value is null ? "n/d" : display, ratio,
+                    suffix + (status == "ant." ? " ant." : "") + (metric is null ? "" : $" · {metric.ObservedAt.ToLocalTime():HH:mm:ss}"),
+                    captured ? metric?.ObservedAt ?? sample?.StartedAt ?? now : null,
+                    Fraction(metric?.Value, capacityName is null ? 100 : capacity?.Value));
+                var compact = status ?? (capacityName is null ? display : StatsMemory(used));
+                UpdateHardwareValue(field, compact.PadLeft(capacityName is null ? 6 : memoryStatsWidth), ratio);
+            }
+        }
+
+        void ShowResourceDetails()
+        {
+            var now = DateTimeOffset.UtcNow;
+            var rows = new List<string>
+            {
+                "2 s mín. entre capturas por fuente · refresco 1 s · ant. > 4 s",
+                "Escala 0–100% · memoria respecto de la capacidad observada",
+                "Histórico de sesión · hasta 24 columnas de 2 s · · sin lectura",
+                "Coincidencia temporal · hardware compartido · fase de la tarea enfocada",
+                $"Máquina · {lastHardware?.Environment ?? "n/d"}"
+            };
+            if (hardwareProblem is not null) rows.Add("Captura no disponible · " + hardwareProblem);
+            if (lastHardware is { } sample)
+            {
+                rows.Add($"Captura {sample.StartedAt.ToLocalTime():HH:mm:ss} · {(sample.CompletedAt - sample.StartedAt).TotalMilliseconds:0} ms");
+                rows.Add("Intervalo efectivo entre inicios · " +
+                    (hardwareCadence is { } cadence ? $"{cadence.TotalSeconds:0.###} s" : "n/d · primera captura"));
+                rows.AddRange(sample.Samples.Select(metric => FormatMetric(metric, now)));
+                foreach (var (id, views) in deviceCharts)
+                {
+                    rows.Add(views.Name.Text);
+                    var device = sample.Devices.FirstOrDefault(device => StringComparer.OrdinalIgnoreCase.Equals(device.Id, id));
+                    if (device is null) rows.Add("  n/d · dispositivo sin lectura en la última captura");
+                    else rows.AddRange(device.Samples.Select(metric => FormatMetric(metric, now)));
+                }
+                rows.AddRange(sample.Diagnostics);
+            }
+            rows.Add("Servicio seleccionado · instancia y procesos verificados");
+            if (selectedSnapshot is { InstanceId: not null } snapshot && snapshot.Metrics.Count > 0)
+                rows.AddRange(snapshot.Metrics.Select(metric => FormatMetric(metric, now)));
+            else rows.Add("n/d · sin muestras atribuibles");
+            var selected = resources.SelectedItem;
+            var text = string.Join('\n', rows);
+            SetRows(resources, ref shownResources, text);
+            var detailRows = text.Split('\n');
+            if (selected is >= 0 && selected < detailRows.Length) resources.SelectedItem = selected;
+            resources.SetContentSize(new System.Drawing.Size(detailRows.Max(row => row.Length), detailRows.Length));
+        }
+
+        static string FormatMetric(MetricSample metric, DateTimeOffset now)
+        {
+            var name = metric.Name switch
+            {
+                "ram.private-commit" => "RAM privada comprometida",
+                "ram.working-set" => "RAM residente por proceso",
+                "gpu.shared" => "RAM compartida GPU",
+                "vram.used" => "VRAM dedicada usada",
+                "vram.total" => "VRAM dedicada total",
+                _ => metric.Name
+            };
+            var value = metric.Value is null ? $"n/d · {metric.UnavailableReason ?? "lectura sin valor"}" :
+                (metric.Unit == "bytes" ? Memory(metric.Value) : metric.Value.Value.ToString("0.##", CultureInfo.CurrentCulture) + " " + metric.Unit) +
+                (metric.IsFresh(now, MetricLifetime) ? "" : " · ant.");
+            var time = metric.ObservedAt.ToLocalTime().ToString("HH:mm:ss.fff", CultureInfo.InvariantCulture);
+            var window = metric.Window is { } span ? $"ventana {span.TotalMilliseconds:0} ms" : "sin ventana informada";
+            return $"{name} {value}\n  {metric.Scope}\n  {time} · {window}\n  {metric.Source}";
         }
 
         string? ComputeLabel(string id)
@@ -509,12 +604,11 @@ internal static class DashboardCli
             rows.Add("Adaptadores con telemetría");
             if (sample is not null)
             {
-                foreach (var device in sample.Devices.OrderBy(device => deviceNumbers[device.Id]))
+                foreach (var device in sample.Devices)
                 {
-                    var number = deviceNumbers[device.Id];
-                    var (used, suffix) = MemoryPair(Metric(device.Samples, "vram.used"), Metric(device.Samples, "vram.total"));
-                    rows.Add($"  GPU{number} · {device.Name} · {ComputeLabel(device.Id) ?? "Cómputo sin confirmar"}");
-                    rows.Add($"    VRAM{number} {used}{suffix}");
+                    var confirmed = deviceCharts.TryGetValue(device.Id, out var views);
+                    var name = confirmed ? $"GPU{views.Number} · {device.Name}" : device.Name;
+                    rows.Add($"  {name} · {ComputeLabel(device.Id) ?? "Cómputo sin confirmar"}");
                 }
                 rows.AddRange(sample.Diagnostics);
             }
@@ -543,13 +637,17 @@ internal static class DashboardCli
             system.Visible = systemSelected;
             statusMark.Visible = status.Visible = startButton.Visible = stopButton.Visible = charts.Visible =
                 inferenceLabel.Visible = promptGraph.Visible = outputGraph.Visible =
-                logsButton.Visible = presetsButton.Visible = !systemSelected;
+                logsButton.Visible = presetsButton.Visible = resourcesButton.Visible = !systemSelected;
             selectedSnapshot = null;
             startButton.Enabled = stopButton.Enabled = false;
             startButton.Text = "Iniciar";
             lines.Visible = !systemSelected && showLogsPanel;
-            entries.Visible = !systemSelected && !showLogsPanel;
+            entries.Visible = !systemSelected && !showLogsPanel && !showResources;
+            resources.Visible = !systemSelected && showResources;
+            phaseGraph.Clear();
+            lastPhaseObservation = 0;
             inference.Suspend();
+            if (resources.Visible) ShowResourceDetails();
             if (systemSelected)
             {
                 ShowSystem(lastHardware);
@@ -618,6 +716,11 @@ internal static class DashboardCli
             if (display?.Identity != graphTask)
             {
                 graphTask = display?.Identity;
+                if (focused is not null)
+                {
+                    phaseGraph.Clear();
+                    lastPhaseObservation = 0;
+                }
                 promptGraph.Clear();
                 outputGraph.Clear();
             }
@@ -635,8 +738,20 @@ internal static class DashboardCli
             else if (latest is not null)
                 phase += $" · último observado: {latest.Last.Prompt} tk P / {latest.Last.Decoded} tk G";
             inferenceLabel.Text = $"/slots · {inferenceEntry ?? "—"} · {phase}";
-            promptGraph.AddRate(focused?.PromptRate, display?.PromptMean, display?.PromptPeak, display?.PromptSeconds ?? 0);
-            outputGraph.AddRate(focused?.OutputRate, display?.OutputMean, display?.OutputPeak, display?.OutputSeconds ?? 0);
+            DateTimeOffset? observedAt = focused is null ? null :
+                DateTimeOffset.UtcNow - Stopwatch.GetElapsedTime(focused.ObservedAt);
+            if (focused is not null && focused.ObservedAt != lastPhaseObservation)
+            {
+                lastPhaseObservation = focused.ObservedAt;
+                phaseGraph.AddTimedSample(observedAt!.Value, focused.Phase switch
+                {
+                    InferenceTaskPhase.Prompt => 1,
+                    InferenceTaskPhase.Generation => 2,
+                    _ => 0
+                });
+            }
+            promptGraph.AddRate(focused?.PromptRate, display?.PromptMean, display?.PromptPeak, display?.PromptSeconds ?? 0, observedAt);
+            outputGraph.AddRate(focused?.OutputRate, display?.OutputMean, display?.OutputPeak, display?.OutputSeconds ?? 0, observedAt);
         }
 
         void SetStatusColor(Color color, ColorName16 fallback)
@@ -734,9 +849,6 @@ internal static class DashboardCli
         string Rate(string suffix) => entry.Metrics.FirstOrDefault(sample => sample.Name.EndsWith(suffix, StringComparison.Ordinal))?.Value
             is double rate ? rate.ToString("0.#", CultureInfo.InvariantCulture) + " tk/s" : "—";
     }
-
-    private static double? Metric(IReadOnlyList<MetricSample>? samples, string name) =>
-        samples?.FirstOrDefault(item => item.Name == name)?.Value;
 
     private static double? Fraction(double? used, double? total) => total is > 0 ? used / total : null;
 

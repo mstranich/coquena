@@ -6,6 +6,10 @@ namespace Coquena.Observation;
 // process, WMI, vendor utility or managed performance-counter package is used.
 public sealed partial class WindowsSystemMetrics : ISystemMetrics
 {
+    internal static double? BusiestEngine(IReadOnlyList<double> engines) =>
+        engines.Count == 0 || engines.Any(value => !double.IsFinite(value) || value is < 0 or > 100)
+            ? null : engines.Max();
+
     public async Task<HardwareSnapshot> CaptureAsync(CancellationToken cancellation = default)
     {
         if (!OperatingSystem.IsWindows()) throw new PlatformNotSupportedException();
@@ -89,8 +93,10 @@ public sealed partial class WindowsSystemMetrics : ISystemMetrics
             foreach (var (id, samples) in devices)
             {
                 var busy = engines.Where(e => e.Key.Device == id).Select(e => e.Value).ToArray();
-                samples.Add(new("gpu.utilization", busy.Length == 0 ? null : busy.Max(), "%", "PDH GPU Engine; busiest engine", "device:" + id,
-                    now, window, busy.Length == 0 ? "Contador de actividad no disponible." : null));
+                var utilization = BusiestEngine(busy);
+                samples.Add(new("gpu.utilization", utilization, "%", "PDH GPU Engine; busiest engine", "device:" + id,
+                    now, window, busy.Length == 0 ? "Contador de actividad no disponible." :
+                        utilization is null ? "Agregación PDH fuera del rango 0–100 %; utilización no confirmada." : null));
                 foreach (var metric in new[] { "vram.used", "gpu.shared", "vram.total" })
                     if (!samples.Any(s => s.Name == metric)) samples.Add(new(metric, null, "bytes", "PDH GPU Adapter Memory", "device:" + id,
                         now, UnavailableReason: "Contador no expuesto; no se deduce capacidad de uso o presupuesto."));
