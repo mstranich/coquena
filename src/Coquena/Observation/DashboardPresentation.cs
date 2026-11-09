@@ -110,7 +110,7 @@ internal static class DashboardPresentation
         if (Value("requests_processing") is { } active) parts.Add("activas " + N(active));
         if (Value("requests_deferred") is { } queue) parts.Add("cola " + N(queue));
         if (Value("prompt_tokens_total") is { } prompt && Value("prompt_tokens_cached_total") is { } cached && prompt > 0)
-            parts.Add("caché " + (cached / prompt * 100).ToString("0", CultureInfo.CurrentCulture) + "%");
+            parts.Add("caché " + (cached / (prompt + cached) * 100).ToString("0", CultureInfo.CurrentCulture) + "%");
         if (Value("n_busy_slots_per_decode") is { } busy) parts.Add("slots/decode " + N(busy));
         return parts.Count == 0 ? null : string.Join(" · ", parts);
     }

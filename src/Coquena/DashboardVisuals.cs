@@ -20,6 +20,7 @@ internal static partial class DashboardCli
         public static Color Text => Ansi16 ? new(ColorName16.White) : new("#EAEBED");
         public static Color Muted => Ansi16 ? new(ColorName16.Gray) : new("#88929A");
         public static Color Primary => Ansi16 ? new(ColorName16.Red) : new("#C85A32");
+        public static Color SelectionText => Ansi16 ? new(ColorName16.BrightRed) : new("#D57958");
         public static Color Accent => Ansi16 ? new(ColorName16.BrightCyan) : new("#2EC4B6");
         public static Color Gold => Ansi16 ? new(ColorName16.BrightYellow) : new("#DDA15E");
         public static Color Success => Ansi16 ? new(ColorName16.BrightGreen) : new("#8FBF6A");

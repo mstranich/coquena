@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.Globalization;
+using System.Text.RegularExpressions;
 using Coquena.Backends;
 using Coquena.Configuration;
 using Coquena.Models;
@@ -25,10 +26,40 @@ internal static partial class DashboardCli
     internal sealed record Target(ScopeStore Store, ServiceIdentity? Service, bool IsDefault,
         RecipeSelection? Recipe = null, string? ProjectName = null, bool DeclaresService = false, string? Destination = null, string? RecipeProblem = null)
     {
+        public string Name => (IsDefault ? "★ " : "") + (ProjectName ?? Service?.Name);
         public string Label => (Store.Context.IsGlobal ? "◎ " : "◇ ") + (IsDefault ? "★ " : "") + (ProjectName ?? Service?.Name);
     }
 
     private sealed record ServicePanel(ServiceSnapshot Snapshot);
+
+    private sealed record Notice(DateTimeOffset At, string Glyph, string Class, string Text, int Target);
+
+    private sealed record Device(int Number, string Name, Gauge Use, Gauge Memory, Gauge Shared);
+
+    // One hardware value: a 2 s timeline for the bar, five minutes for the hardware view.
+    private sealed class Gauge
+    {
+        public ObservationTimeline Bar { get; } = new();
+        public HardwareHistory History { get; } = new();
+        public double? Ratio { get; private set; }
+        public double? Value { get; private set; }
+        public double? Peak { get; private set; }
+        public double? First { get; private set; }
+        public double? Total { get; set; }
+        public string? Text { get; private set; }
+        public DateTimeOffset? FirstRise { get; private set; }
+
+        public void Add(DateTimeOffset at, double? ratio, double? value, string? text)
+        {
+            Bar.Add(at, ratio);
+            History.Add(at, ratio);
+            (Ratio, Value, Text) = (ratio, value, text);
+            if (value is not { } current) return;
+            First ??= current;
+            Peak = Math.Max(Peak ?? current, current);
+            if (FirstRise is null && current - First > 64d * 1024 * 1024) FirstRise = at;
+        }
+    }
 
     public static int Run(string[] args, TextWriter output, TextWriter error)
     {
@@ -51,13 +82,14 @@ internal static partial class DashboardCli
         }
     }
 
-    // Zones: tabs (row 0), navigation (left), page content (right), service log (bottom of En vivo)
-    // and the hardware bar (last two rows). Each zone is positioned by Arrange(); visibility never
-    // leaves gaps because rows are assigned explicitly.
+    // Zones of the preview (docs/propuestas/tui-rediseno): tabs (row 0), a 23-column tree, the
+    // page on the right, the service log under En vivo and the hardware bar (last two rows).
+    // En vivo, Hardware, Log histórico and Notificaciones are drawn as markup rows; Definiciones
+    // and Configuración keep their own widgets.
     internal static int RunDashboard(ISystemMetrics? metrics = null, HardwareProbe.AdapterEvidence? adapters = null)
     {
-        const int NavigationWidth = 24;
-        const int Live = 0, Definitions = 1, Settings = 2, Hardware = 3;
+        const int Left = LivePresentation.TreeWidth, Right = Left + 1;
+        const int Live = 0, Definitions = 1, Settings = 2, Hardware = 3, History = 4, Notices = 5;
         var targets = Discover(out var diagnostic);
         var preferences = new ConfigurationManager(Home.Resolve());
         var hardware = metrics ?? SystemMetrics.Create();
@@ -67,125 +99,58 @@ internal static partial class DashboardCli
         Palette.Ansi16 = app.Driver?.Force16Colors == true;
         using var window = new Window { BorderStyle = LineStyle.None };
 
-        // Tabs.
-        var tabs = new View { Width = Dim.Fill(), Height = 1 };
-        var tabButtons = new List<Button>();
-        foreach (var caption in new[] { " ● En vivo ", " ◇ Definiciones ", " ≡ Configuración " })
-        {
-            var button = new Button { Text = caption, X = tabButtons.Count == 0 ? 0 : Pos.Right(tabButtons[^1]),
-                NoDecorations = true, ShadowStyle = ShadowStyles.None };
-            tabButtons.Add(button);
-            tabs.Add(button);
-        }
-        var indicators = new Label { X = Pos.AnchorEnd(10), Width = 10, Text = "⇣ —  ▲ — " };
-        tabs.Add(indicators);
+        var tabs = new Canvas(useColor) { Height = 1, ZoneName = "z1", Interactive = true };
+        var leftTitle = new Canvas(useColor) { Y = 1, Width = Left, Height = 1, ZoneName = "hd" };
+        var rightTitle = new Canvas(useColor) { X = Right, Y = 1, Height = 1, ZoneName = "hd" };
+        var tree = new Lines(useColor) { Y = 2, Width = Left, ZoneName = "z1" };
+        var detail = new Canvas(useColor) { X = Right, Y = 2, Interactive = true };
+        var tasks = new Lines(useColor) { X = Right, ShowSelectionWithoutFocus = false };
+        var logTitle = new Canvas(useColor) { Height = 1, ZoneName = "hd", Interactive = true };
+        var logLines = new Lines(useColor) { Selectable = false };
+        var bar = new Canvas(useColor) { Y = Pos.AnchorEnd(2), Height = 2, ZoneName = "bar", Interactive = true, DefaultAction = "hardware" };
+        var hardwareDetail = new Canvas(useColor) { X = Right, Y = 2 };
+        var historyTitle = new Canvas(useColor) { Y = 1, Height = 1, ZoneName = "hd", Interactive = true };
+        var historyControls = new Canvas(useColor) { Y = 2, Height = 2, ZoneName = "z1", Interactive = true };
+        var regex = new TextField { X = 53, Y = 2, Width = Dim.Fill(1) };
+        var historyLines = new Lines(useColor) { Y = 4, Selectable = false };
+        var historyFooter = new Canvas(useColor) { Height = 1, ZoneName = "z1" };
+        var noticeTitle = new Canvas(useColor) { Y = 1, Height = 1, ZoneName = "hd", Interactive = true };
+        var noticeList = new Lines(useColor) { Y = 2, ShowSelectionWithoutFocus = false };
 
-        // Navigation.
-        var navigation = new View { Y = 1, Width = NavigationWidth };
-        var navigationList = new ListView { Width = Dim.Fill(), Height = Dim.Fill() };
-        navigation.Add(navigationList);
-
-        // En vivo: service row, recipe row, entry detail.
-        var live = new View { X = NavigationWidth, Y = 1, Width = Dim.Fill() };
-        var serviceName = new Label { Height = 1 };
-        var serviceState = new Label { X = Pos.Right(serviceName) + 1, Height = 1 };
-        var serviceProcess = new Label { X = Pos.Right(serviceState) + 1, Width = Dim.Fill(), Height = 1 };
-        var serviceRow = new View { Width = Dim.Fill(), Height = 1 };
-        serviceRow.Add(serviceName, serviceState, serviceProcess);
-        var controls = new View { Width = Dim.Fill(), Height = 1 };
-        var startButton = Action(" Iniciar ");
-        var stopButton = Action(" Detener ");
-        stopButton.X = Pos.Right(startButton) + 1;
-        var controlNote = new Label { X = Pos.Right(stopButton) + 2, Width = Dim.Fill(), Height = 1 };
-        controls.Add(startButton, stopButton, controlNote);
-        var recipeRow = new View { Width = Dim.Fill(), Height = 1 };
-        var upButton = Action(" Up ");
-        var downButton = Action(" Down ");
+        // Definiciones and Configuración: consultation page and publication controls.
+        var pageView = new View { X = Right, Y = 1, Width = Dim.Fill() };
+        var pageTitle = new Label { Width = Dim.Fill(), Height = 1 };
+        var recipeRow = new View { Y = 1, Width = Dim.Fill(), Height = 1 };
+        var upButton = Action(" ▲ Up ");
+        var downButton = Action(" ▼ Down ");
         downButton.X = Pos.Right(upButton) + 1;
         var privatePreparation = new CheckBox { X = Pos.Right(downButton) + 2, Text = "Preparación privada" };
         var recipeTarget = new Label { X = Pos.Right(privatePreparation) + 2, Width = Dim.Fill(), Height = 1 };
         recipeRow.Add(upButton, downButton, privatePreparation, recipeTarget);
-        var entryHeader = new Label { Width = Dim.Fill(), Height = 1 };
-        var promptLine = new RateLine("prompt", useColor, Palette.Information);
-        var outputLine = new RateLine("gen", useColor, Palette.Gold);
-        var entryFacts = new Label { Width = Dim.Fill(), Height = 1 };
-        var entryMeans = new Label { Width = Dim.Fill(), Height = 1 };
-        var signal = new Label { Width = Dim.Fill(), Height = 1 };
-        var tasksTitle = new Label { Width = Dim.Fill(), Height = 1, Text = " Tareas" };
-        var taskRows = new ListView { Width = Dim.Fill() };
-        live.Add(serviceRow, controls, recipeRow, entryHeader, promptLine, outputLine, entryFacts, entryMeans, signal, tasksTitle, taskRows);
-
-        // Other pages share one content zone.
-        var pageView = new View { X = NavigationWidth, Y = 1, Width = Dim.Fill() };
-        var pageTitle = new Label { Width = Dim.Fill(), Height = 1 };
         var pageList = new ListView { Y = 1, Width = Dim.Fill(), Height = Dim.Fill(),
-            ViewportSettings = ViewportSettingsFlags.HasVerticalScrollBar | ViewportSettingsFlags.HasHorizontalScrollBar };
+            ViewportSettings = ViewportSettingsFlags.HasVerticalScrollBar };
         var filterLogs = new CheckBox
         {
             X = 1, Y = 2, Text = "Filtrar logging de monitoreo",
             Value = preferences.FilterMonitoringLogs() ? CheckState.Checked : CheckState.UnChecked
         };
         var preferenceError = new Label { X = 1, Y = 3, Width = Dim.Fill() };
-        var hardwareCharts = new View { Y = 1, Width = Dim.Fill(), Height = 0 };
-        pageView.Add(pageTitle, hardwareCharts, pageList, filterLogs, preferenceError);
+        pageView.Add(pageTitle, recipeRow, pageList, filterLogs, preferenceError);
 
-        // Service log.
-        var log = new View { Width = Dim.Fill() };
-        var logHeader = new View { Width = Dim.Fill(), Height = 1 };
-        var logHistory = Action(" Histórico ");
-        logHistory.X = Pos.AnchorEnd(11);
-        var logFollow = Action(" ⤓ Seguir ");
-        logFollow.X = Pos.AnchorEnd(22);
-        var logPause = Action(" ❚❚ Pausar ");
-        logPause.X = Pos.AnchorEnd(34);
-        var logTitle = new Label { Width = Dim.Fill(35), Height = 1 };
-        logHeader.Add(logTitle, logPause, logFollow, logHistory);
-        var lines = new ListView { Y = 1, Width = Dim.Fill(), Height = Dim.Fill() };
-        log.Add(logHeader, lines);
-
-        // Hardware bar: two rows, always visible; click or Enter opens the hardware detail.
-        var bar = new View { Y = Pos.AnchorEnd(2), Width = Dim.Fill(), Height = 2, CanFocus = true };
-        var cpuMeter = new Meter("CPU ", useColor, 6, 10);
-        var ramMeter = new Meter("RAM ", useColor, 14, 10) { X = Pos.Right(cpuMeter) + 3 };
-        var gpuNone = new Label { Y = 1, Width = Dim.Fill(), Text = "GPU · esperando lecturas" };
-        bar.Add(cpuMeter, ramMeter, gpuNone);
-
-        window.Add(tabs, navigation, live, pageView, log, bar);
-
+        window.Add(tabs, leftTitle, rightTitle, tree, detail, tasks, logTitle, logLines, hardwareDetail,
+            historyTitle, historyControls, regex, historyLines, historyFooter, noticeTitle, noticeList, pageView, bar);
         if (useColor)
         {
             Paint(window, Palette.Text, Palette.Base);
-            Paint(tabs, Palette.Muted, Palette.Surface);
-            Paint(indicators, Palette.Muted, Palette.Surface);
-            Paint(navigation, Palette.Text, Palette.Surface);
-            Paint(navigationList, Palette.Text, Palette.Surface);
-            Paint(live, Palette.Text, Palette.Base);
-            Paint(serviceRow, Palette.Text, Palette.Card);
-            Paint(serviceName, Palette.Text, Palette.Card);
-            Paint(serviceProcess, Palette.Muted, Palette.Card);
-            Paint(controls, Palette.Muted, Palette.Base);
-            Paint(controlNote, Palette.Muted, Palette.Base);
+            Paint(pageView, Palette.Text, Palette.Base);
+            Paint(pageTitle, Palette.Text, Palette.Card);
             Paint(recipeRow, Palette.Muted, Palette.Base);
             Paint(privatePreparation, Palette.Text, Palette.Base);
             Paint(recipeTarget, Palette.Muted, Palette.Base);
-            Paint(entryHeader, Palette.Text, Palette.Base);
-            Paint(entryFacts, Palette.Muted, Palette.Base);
-            Paint(entryMeans, Palette.Muted, Palette.Base);
-            Paint(signal, Palette.Muted, Palette.Base);
-            Paint(tasksTitle, Palette.Muted, Palette.Card);
-            Paint(taskRows, Palette.Text, Palette.Base);
-            Paint(pageView, Palette.Text, Palette.Base);
-            Paint(pageTitle, Palette.Text, Palette.Card);
             Paint(pageList, Palette.Text, Palette.Base);
-            Paint(hardwareCharts, Palette.Muted, Palette.Surface);
             Paint(filterLogs, Palette.Text, Palette.Base);
             Paint(preferenceError, Palette.Danger, Palette.Base);
-            Paint(log, Palette.Text, Palette.Surface);
-            Paint(logHeader, Palette.Text, Palette.Card);
-            Paint(logTitle, Palette.Text, Palette.Card);
-            Paint(lines, Palette.Text, Palette.Surface);
-            Paint(bar, Palette.Muted, Palette.Surface);
-            Paint(gpuNone, Palette.Muted, Palette.Surface);
+            Paint(regex, Palette.Accent, Palette.Card);
         }
 
         // State.
@@ -194,20 +159,21 @@ internal static partial class DashboardCli
         var hardwareSelection = 0;
         var index = Math.Max(0, targets.FindIndex(target => target.Recipe is not null));
         var catalogues = new Dictionary<int, IReadOnlyList<EntrySnapshot>>();
-        IReadOnlyList<DashboardPresentation.Node> navigationNodes = [];
-        var updatingNavigation = false;
+        var snapshots = new Dictionary<int, ServiceSnapshot>();
+        IReadOnlyList<LivePresentation.TreeRow> treeRows = [];
         var logSessions = new Dictionary<int, ServiceLogSession>();
         var retiredLogs = new List<Task>();
         var projectClock = Stopwatch.StartNew();
         var layoutSize = (-1, -1);
-        bool logHeld = false, paintingLog = false;
-        string? lastLogText = null, shownTasks = null, shownPage = null, shownNavigation = null;
+        var upperRows = 11;
+        var logHeld = false;
+        long logDiscarded = 0;
+        string[] logRows = [];
+        string? shownPage = null, serviceNote = null;
         var selectionEpoch = 0;
         var probe = adapters is null ? Task.Run(HardwareProbe.InspectAdapters) : Task.FromResult(adapters);
         HardwareProbe.AdapterEvidence? evidence = null;
         HardwareSnapshot? lastHardware = null;
-        TimeSpan? hardwareCadence = null;
-        string? hardwareProblem = null;
         Task<HardwareSnapshot>? machineSample = null;
         var machineClock = new Stopwatch();
         var serviceSamples = new Dictionary<int, (int Epoch, Task<ServicePanel> Task)>();
@@ -218,88 +184,139 @@ internal static partial class DashboardCli
         string? preferredEntry = null, inferenceEntry = null;
         IReadOnlyList<InferenceTask> visibleTasks = [];
         InferenceTaskIdentity? preferredTask = null;
-        var refreshingTasks = false;
-        var showRates = false;
-        // Hardware series: one curve per metric, drawn in the bar and in the detail.
-        var devices = new Dictionary<string, (int Number, Meter Bar, Meter Use, Meter Dedicated, Meter Shared)>(StringComparer.OrdinalIgnoreCase);
-        var cpuDetail = new Meter("cpu ", useColor, 22);
-        var ramDetail = new Meter("ram ", useColor, 22) { Y = 1 };
-        hardwareCharts.Add(cpuDetail, ramDetail);
+        // Hardware: a 2 s timeline for the bar and five minutes for the hardware view.
+        var cpuGauge = new Gauge();
+        var ramGauge = new Gauge();
+        var devices = new Dictionary<string, Device>(StringComparer.OrdinalIgnoreCase);
+        // Log histórico.
+        ServiceLog? historyFile = null;
+        var historyLevel = 0;
+        var historyMatch = -1;
+        int[] historyMatches = [];
+        string[] historyRows = [];
+        string? historyProblem = null;
+        // Notificaciones: what this session observed; nothing is persisted.
+        var notices = new List<Notice>();
+        var unread = 0;
+        var lastStates = new Dictionary<int, string>();
+        // Last slots seen with context per entry: they stay visible until the next generation.
+        // Prompt processing time reported by the backend log, per slot and task.
+        var promptTimes = new Dictionary<(int Slot, int Task), double>();
+        var lastContext = new Dictionary<string, InferenceSnapshot>(StringComparer.Ordinal);
 
         // Events.
-        for (var i = 0; i < tabButtons.Count; i++)
+        tabs.Pressed += action =>
         {
-            var selection = i;
-            tabButtons[i].Accepted += (_, _) => Open(selection);
-        }
-        bar.MouseEvent += (_, mouse) =>
+            switch (action)
+            {
+                case "tab0": Open(Live); break;
+                case "tab1": Open(Definitions); break;
+                case "tab2": Open(Settings); break;
+                case "notices": Open(Notices); break;
+                case "downloads": break;
+            }
+        };
+        bar.Pressed += action =>
         {
-            if (!mouse.Flags.HasFlag(MouseFlags.LeftButtonClicked)) return;
-            mouse.Handled = true;
+            var gpus = devices.Count;
+            hardwareSelection = action switch
+            {
+                "cpu" => gpus,
+                "ram" => gpus + 1,
+                _ when action.StartsWith("gpu", StringComparison.Ordinal) => int.Parse(action[3..], CultureInfo.InvariantCulture),
+                _ => hardwareSelection
+            };
             Open(Hardware);
         };
-        bar.KeyDown += (_, key) => { if (key == Key.Enter) { key.Handled = true; Open(Hardware); } };
-        navigationList.ValueChanged += (_, _) =>
+        tree.SelectionChanged += row =>
         {
-            if (updatingNavigation || navigationList.SelectedItem is not int row) return;
             switch (page)
             {
-                case Settings: settingsCategory = row; ShowPage(); return;
-                case Hardware: hardwareSelection = row; ShowHardwareDetail(); return;
+                case Settings: settingsCategory = row; Render(); return;
+                case Hardware: hardwareSelection = row; Render(); return;
             }
-            if (row < 0 || row >= navigationNodes.Count) return;
-            var node = navigationNodes[row];
+            if (row < 0 || row >= treeRows.Count) return;
+            var node = treeRows[row];
             preferredEntry = node.Entry;
             preferredTask = null;
             if (index != node.Target) { index = node.Target; selectionEpoch++; Select(); }
-            else if (selectedSnapshot is not null) ShowInference(selectedSnapshot.Entries);
-            ShowPage();
+            Render();
         };
-        navigationList.KeyDown += (_, key) =>
+        tree.Chosen += row =>
         {
-            if (key != Key.Enter || page != Live || navigationList.SelectedItem is not int row || row >= navigationNodes.Count) return;
-            if (navigationNodes[row].Entry is not { } name || selectedSnapshot?.Entries.FirstOrDefault(entry => entry.Name == name) is not { } entry) return;
-            key.Handled = true;
+            if (page != Live || row >= treeRows.Count || treeRows[row].Entry is not { } name ||
+                selectedSnapshot?.Entries.FirstOrDefault(entry => entry.Name == name) is not { } entry) return;
             ShowDetail("Entrada · " + entry.Name, EntryDetail(entry));
         };
-        taskRows.ValueChanged += (_, _) =>
+        tasks.SelectionChanged += row =>
         {
-            if (refreshingTasks || taskRows.SelectedItem is not int row || row < 0 || row >= visibleTasks.Count) return;
+            if (row < 0 || row >= visibleTasks.Count) return;
             preferredTask = visibleTasks[row].Identity;
-            if (selectedSnapshot is not null) ShowInference(selectedSnapshot.Entries);
+            Render();
         };
-        taskRows.KeyDown += (_, key) =>
+        tasks.Chosen += row =>
         {
-            if (key != Key.Enter || taskRows.SelectedItem is not int row || row < 0 || row >= visibleTasks.Count) return;
-            key.Handled = true;
+            if (row < 0 || row >= visibleTasks.Count) return;
             ShowDetail("Tarea · último valor observado", InferencePresentation.Detail(visibleTasks[row]));
         };
-        startButton.Accepted += (_, _) => BeginServiceAction(stopService: false);
-        stopButton.Accepted += (_, _) => BeginServiceAction(stopService: true);
+        detail.Pressed += action =>
+        {
+            if (action == "stop") BeginServiceAction(stopService: true);
+            else if (action is "start" or "restart") BeginServiceAction(stopService: false);
+        };
+        logTitle.Pressed += action =>
+        {
+            switch (action)
+            {
+                case "pause": logHeld = !logHeld; break;
+                case "follow":
+                    if (logSessions.TryGetValue(index, out var session)) session.Current();
+                    logHeld = false; logLines.ScrollToEnd(); break;
+                case "history": OpenHistory(); return;
+            }
+            ReadLog(force: true);
+        };
+        logLines.Scrolled += _ => { if (!logLines.AtEnd && !logHeld) { logHeld = true; Render(); } };
+        historyTitle.Pressed += action => { if (action == "back") CloseHistory(); };
+        historyControls.Pressed += action =>
+        {
+            switch (action)
+            {
+                case "instance":
+                    if (!logSessions.TryGetValue(index, out var session)) return;
+                    var files = session.Files;
+                    var choice = Choose(app, "Instancia · " + targets[index].Label, files.Length == 0 ? ["Sin archivos registrados."]
+                        : files.Select((file, i) => $"i{i + 1} · {file.StartedAt}{(file.Active ? " → ahora" : "")}").ToArray(),
+                        files.Length > 0 ? "Abrir" : null);
+                    if (choice is int row && row < files.Length) ShowHistoryFile(files[row]);
+                    return;
+                case "level": historyLevel = (historyLevel + 1) % 3; historyMatch = -1; break;
+                case "previous": MoveMatch(-1); break;
+                case "next": MoveMatch(1); break;
+            }
+            RenderHistory();
+        };
+        regex.TextChanged += (_, _) => { historyMatch = -1; RenderHistory(); };
+        regex.KeyDown += (_, key) => { if (key == Key.Enter) { key.Handled = true; MoveMatch(1); RenderHistory(); } };
+        noticeTitle.Pressed += action =>
+        {
+            if (action == "read") unread = 0;
+            else if (action == "back") Open(Live);
+            Render();
+        };
+        noticeList.Pressed += action =>
+        {
+            if (!action.StartsWith('n') || !int.TryParse(action[1..], CultureInfo.InvariantCulture, out var row) || row >= notices.Count) return;
+            OpenNotice(notices[notices.Count - 1 - row]);
+        };
+        noticeList.Chosen += row => { if (row < notices.Count) OpenNotice(notices[notices.Count - 1 - row]); };
         upButton.Accepted += (_, _) => BeginPublication("up");
         downButton.Accepted += (_, _) => BeginPublication("down");
-        logPause.Accepted += (_, _) => { logHeld = !logHeld; if (!logHeld) lastLogText = null; ShowLogHeader(); };
-        logFollow.Accepted += (_, _) =>
+        window.KeyDown += (_, key) =>
         {
-            if (logSessions.TryGetValue(index, out var session)) session.Current();
-            logHeld = false; lastLogText = null; ShowLogHeader();
-        };
-        lines.ViewportChanged += (_, _) =>
-        {
-            if (!paintingLog && lines.HasFocus && lines.Viewport.Y < lines.GetContentSize().Height - lines.Viewport.Height)
-            { logHeld = true; ShowLogHeader(); }
-        };
-        logHistory.Accepted += (_, action) =>
-        {
-            action.Handled = true;
-            if (!logSessions.TryGetValue(index, out var session)) return;
-            var files = session.Files.Reverse().ToArray();
-            var choice = Choose(app, "Log histórico · " + targets[index].Label, files.Length == 0
-                ? ["Sin archivos registrados disponibles."]
-                : files.Select(file => $"{file.StartedAt} · {file.Id} · {Path.GetFileName(file.Path)}{(file.Active ? " · activo" : "")}").ToArray(),
-                files.Length > 0 ? "Abrir" : null);
-            if (choice is int row && row < files.Length)
-            { session.SelectHistory(files[row].Id); logHeld = false; lastLogText = null; ShowLogHeader(); }
+            if (key != Key.Esc || page is Live or Definitions or Settings) return;
+            key.Handled = true;
+            if (page == History) CloseHistory(); else Open(Live);
         };
         filterLogs.ValueChanging += (_, change) =>
         {
@@ -307,7 +324,6 @@ internal static partial class DashboardCli
             {
                 preferences.SetFilterMonitoringLogs(change.NewValue == CheckState.Checked);
                 preferenceError.Text = "";
-                lastLogText = null;
             }
             catch (Exception e) when (ServiceObservation.ObservationError(e))
             {
@@ -346,11 +362,13 @@ internal static partial class DashboardCli
 
         void Open(int selected)
         {
+            if (page == History && selected != History) LeaveHistory();
+            if (selected == Notices) unread = 0;
             page = selected;
             shownPage = null;
-            RebuildNavigation();
             Arrange();
-            ShowPage();
+            Render();
+            (page switch { Hardware or Settings or Live or Definitions => tree, Notices => noticeList, _ => (View)historyLines }).SetFocus();
         }
 
         void Tick()
@@ -359,10 +377,15 @@ internal static partial class DashboardCli
             {
                 operation = null;
                 selectedSnapshot = null;
+                serviceNote = null;
                 RefreshProject();
                 Select();
                 var problem = completed.IsCompletedSuccessfully ? completed.Result : completed.Exception?.GetBaseException().Message;
-                if (!string.IsNullOrWhiteSpace(problem)) Query(app, "Resultado de la operación", problem, "Aceptar");
+                if (!string.IsNullOrWhiteSpace(problem))
+                {
+                    Notify("✗", "err", targets.ElementAtOrDefault(index)?.Label + ": " + problem.Split('\n')[0], index);
+                    Query(app, "Resultado de la operación", problem, "Aceptar");
+                }
             }
             if (operation is null && projectClock.Elapsed >= CaptureInterval)
             {
@@ -381,10 +404,9 @@ internal static partial class DashboardCli
                 else if (pending.Task.IsFaulted)
                 {
                     selectedSnapshot = null;
-                    startButton.Enabled = stopButton.Enabled = false;
-                    ShowState("Observación no disponible · " + pending.Task.Exception!.GetBaseException().Message, Palette.Warning);
+                    snapshots.Remove(index);
+                    serviceNote = "observación no disponible · " + pending.Task.Exception!.GetBaseException().Message;
                     inference.Suspend();
-                    ShowInference([]);
                 }
             }
             if (operation is null && index < targets.Count && targets[index].Service is not null && serviceSamples.Count < 4 &&
@@ -397,88 +419,45 @@ internal static partial class DashboardCli
                 serviceSamples.Add(index, (selectionEpoch, Task.Run(() => { clock.Start(); return CaptureAsync(target, stop.Token); })));
             }
             if ((window.Viewport.Width, window.Viewport.Height) != layoutSize) Arrange();
-            if (page != Live) ShowPage();
             ReadLog();
+            Render();
         }
 
-        // Explicit rows per zone; the minimum is 80×24 and extra height goes to tasks and log.
+        // Rows per zone. 80×24 is the minimum; extra height is split between the upper zone
+        // (tasks) and the log, extra width goes to the right column.
         void Arrange()
         {
             layoutSize = (window.Viewport.Width, window.Viewport.Height);
             var height = window.Viewport.Height;
-            var content = Math.Max(4, height - 3);
-            var showLog = page == Live;
-            var logHeight = showLog ? Math.Max(5, height < 30 ? 6 : content * 2 / 5) : 0;
-            var top = content - logHeight;
-            navigation.Height = top;
-            live.Height = pageView.Height = top;
-            live.Visible = page == Live;
-            pageView.Visible = page != Live;
-            log.Visible = showLog;
-            log.Y = 1 + top;
-            log.Height = logHeight;
-            for (var i = 0; i < tabButtons.Count; i++)
-                if (useColor) Paint(tabButtons[i], page == i ? Palette.Text : Palette.Muted, page == i ? Palette.Primary : Palette.Surface);
+            var content = Math.Max(6, height - 3);
+            var upper = upperRows = Math.Min(content - 3, 11 + Math.Max(0, height - 24) / 2);
+            bool live = page == Live, hardwareView = page == Hardware, history = page == History, notice = page == Notices;
+            var legacy = page is Definitions or Settings;
 
-            var target = targets.ElementAtOrDefault(index);
-            var y = 0;
-            serviceRow.Y = y++;
-            controls.Visible = target is not null && (target.Service is not null || target.DeclaresService);
-            if (controls.Visible) controls.Y = y++;
-            recipeRow.Visible = target?.Recipe is not null;
-            if (recipeRow.Visible) recipeRow.Y = y++;
-            entryHeader.Visible = target?.Service is not null;
-            if (entryHeader.Visible) entryHeader.Y = y++;
-            promptLine.Visible = outputLine.Visible = entryHeader.Visible && showRates;
-            if (promptLine.Visible) { promptLine.Y = y++; outputLine.Y = y++; }
-            entryFacts.Visible = entryHeader.Visible && entryFacts.Text.Length > 0;
-            if (entryFacts.Visible) entryFacts.Y = y++;
-            entryMeans.Visible = entryHeader.Visible && entryMeans.Text.Length > 0;
-            if (entryMeans.Visible) entryMeans.Y = y++;
-            signal.Visible = entryHeader.Visible && signal.Text.Length > 0;
-            if (signal.Visible) signal.Y = y++;
-            tasksTitle.Visible = taskRows.Visible = entryHeader.Visible;
-            if (tasksTitle.Visible) { tasksTitle.Y = y++; taskRows.Y = y; taskRows.Height = Math.Max(1, top - y); }
-
-            var detailRows = page == Hardware ? (hardwareSelection == 0 ? 2 : 3) : 0;
-            hardwareCharts.Visible = page == Hardware;
-            hardwareCharts.Height = detailRows;
-            pageList.Y = 1 + detailRows + (page == Hardware ? 1 : 0);
+            leftTitle.Visible = rightTitle.Visible = live || hardwareView;
+            tree.Visible = live || hardwareView || legacy;
+            tree.Y = legacy ? 1 : 2;
+            tree.Height = live ? upper - 1 : content - (legacy ? 0 : 1);
+            detail.Visible = tasks.Visible = logTitle.Visible = logLines.Visible = live;
+            detail.Height = upper - 1;
+            tasks.Height = 0;
+            logTitle.Y = 1 + upper;
+            logLines.Y = 2 + upper;
+            logLines.Height = content - upper - 1;
+            hardwareDetail.Visible = hardwareView;
+            hardwareDetail.Height = content - 1;
+            historyTitle.Visible = historyControls.Visible = regex.Visible = historyLines.Visible = historyFooter.Visible = history;
+            historyLines.Height = content - 4;
+            historyFooter.Y = content;
+            noticeTitle.Visible = noticeList.Visible = notice;
+            noticeList.Height = content - 1;
+            pageView.Visible = legacy;
+            pageView.Height = content;
+            recipeRow.Visible = page == Definitions && targets.ElementAtOrDefault(index)?.Recipe is not null;
+            pageList.Y = recipeRow.Visible ? 2 : 1;
             filterLogs.Visible = preferenceError.Visible = page == Settings && settingsCategory == 0;
             pageList.Visible = !(page == Settings && settingsCategory == 0);
-            // Moving a view does not repaint the rows it leaves; repaint every zone.
-            foreach (var zone in new View[] { navigation, live, pageView, log, bar })
-            {
-                zone.SetNeedsLayout();
-                zone.SetNeedsDraw();
-                foreach (var child in zone.SubViews) child.SetNeedsDraw();
-            }
-        }
-
-        void RebuildNavigation()
-        {
-            updatingNavigation = true;
-            string[] rows;
-            if (page == Settings) rows = ["TUI", "Sistema"];
-            else if (page == Hardware) rows = ["CPU / RAM", .. devices.Values.OrderBy(device => device.Number).Select(device => "GPU" + device.Number)];
-            else
-            {
-                navigationNodes = DashboardPresentation.Tree(targets, catalogues, NavigationWidth - 1);
-                rows = navigationNodes.Count == 0 ? [diagnostic] : navigationNodes.Select(node => node.Text).ToArray();
-            }
-            var text = string.Join('\n', rows);
-            if (text != shownNavigation)
-            {
-                shownNavigation = text;
-                navigationList.SetSource(new ObservableCollection<string>(rows));
-            }
-            if (page is Live or Definitions)
-            {
-                var row = navigationNodes.ToList().FindIndex(node => node.Target == index && node.Entry == preferredEntry);
-                if (row >= 0) navigationList.SelectedItem = row;
-            }
-            else navigationList.SelectedItem = page == Settings ? settingsCategory : hardwareSelection;
-            updatingNavigation = false;
+            foreach (var view in window.SubViews) { view.SetNeedsLayout(); view.SetNeedsDraw(); }
         }
 
         void Select()
@@ -486,47 +465,20 @@ internal static partial class DashboardCli
             var target = targets.ElementAtOrDefault(index);
             if (target?.Service is { } service && !logSessions.ContainsKey(index))
                 logSessions[index] = new ServiceLogSession(new ServiceLogReader(target.Store, service.ServiceId), stop.Token);
-            logHeld = false; lastLogText = null;
+            logHeld = false;
+            logRows = [];
             selectedSnapshot = null;
             inference.Suspend();
             preferredTask = null;
             inferenceEntry = null;
-            promptLine.Clear(); outputLine.Clear();
-            startButton.Enabled = stopButton.Enabled = false;
-            startButton.Text = " Iniciar ";
+            serviceNote = target is null ? null : target.Service is null
+                ? target.DeclaresService ? "○ sin iniciar" : "sin servicio propio" : "consultando…";
+            if (target?.Recipe is not null)
+                recipeTarget.Text = target.RecipeProblem is { } problem ? "receta no disponible: " + problem : "→ " + target.Destination;
             upButton.Enabled = downButton.Enabled = operation is null;
-            controlNote.Text = "";
-            if (target is null)
-            {
-                serviceName.Text = " " + diagnostic;
-                ShowState("", Palette.Muted);
-                serviceProcess.Text = "";
-            }
-            else
-            {
-                serviceName.Text = " " + target.Label;
-                serviceProcess.Text = "";
-                if (target.Recipe is not null)
-                    recipeTarget.Text = target.RecipeProblem is { } problem ? "receta no disponible: " + problem : "→ " + target.Destination;
-                if (target.Service is null)
-                {
-                    startButton.Enabled = target.DeclaresService && operation is null;
-                    ShowState(target.DeclaresService ? "○ sin iniciar" : "sin servicio propio", Palette.Muted);
-                }
-                else ShowState("consultando…", Palette.Information);
-            }
-            ShowInference([]);
-            SetRows(lines, ref lastLogText, target?.Service is null ? "Sin servicio que registre logs." : "Consultando últimas líneas…");
-            lastLogText = null;
-            ShowLogHeader();
-            RebuildNavigation();
+            ReadLog(force: true);
             Arrange();
-        }
-
-        void ShowState(string text, Color color)
-        {
-            serviceState.Text = text;
-            if (useColor) Paint(serviceState, Palette.Ansi16 ? color : color, Palette.Card);
+            Render();
         }
 
         void Show(ServiceSnapshot snapshot)
@@ -534,43 +486,80 @@ internal static partial class DashboardCli
             snapshot = snapshot with { Entries = snapshot.Entries.OrderByDescending(entry => entry.Inference?.Active.Count > 0)
                 .ThenByDescending(entry => entry.State == "loaded").ThenBy(entry => entry.Name, StringComparer.Ordinal).ToArray() };
             selectedSnapshot = snapshot;
-            var running = snapshot.ProcessState == "alive" && snapshot.InstanceId is not null;
-            startButton.Text = running ? " ⟳ Reiniciar " : " Iniciar ";
-            startButton.Enabled = running || snapshot.ProcessState == "stopped";
-            stopButton.Enabled = running;
-            var port = DashboardPresentation.Port(snapshot);
-            serviceName.Text = " " + targets[index].Label + (port.Length > 0 ? " " + port : "");
-            var healthy = snapshot.ApiState == "available" && snapshot.Health.StartsWith("HTTP 2", StringComparison.Ordinal);
-            var (glyph, color) = snapshot.ProcessState == "stopped" ? ("○", Palette.Muted)
-                : snapshot.Health.StartsWith("HTTP 5", StringComparison.Ordinal) ? ("✕", Palette.Danger)
-                : healthy ? ("●", Palette.Success) : ("▲", Palette.Warning);
-            var state = glyph + " " + DashboardPresentation.ProcessState(snapshot.ProcessState);
-            if (!healthy && snapshot.ProcessState != "stopped") state += " · API " + snapshot.ApiState + " · " + snapshot.Health;
-            ShowState(state, color);
-            serviceProcess.Text = DashboardPresentation.Process(snapshot, DateTimeOffset.UtcNow);
-            controlNote.Text = snapshot.CompositionCurrent ? "" : "≠ receta";
+            snapshots[index] = snapshot;
+            serviceNote = null;
+            var (glyph, @class, state) = LivePresentation.ServiceState(snapshot);
+            if (lastStates.TryGetValue(index, out var previous) && previous != @class)
+                Notify(glyph, @class, $"{targets[index].Label}: {state}", index);
+            lastStates[index] = @class;
             inference.Observe(snapshot);
             catalogues[index] = snapshot.Entries;
-            RebuildNavigation();
-            ShowInference(snapshot.Entries);
-            if (page == Definitions) ShowPage();
         }
 
-        void ShowInference(IReadOnlyList<EntrySnapshot> observed)
+        void Notify(string glyph, string @class, string text, int target)
         {
+            notices.Add(new(DateTimeOffset.Now, glyph, @class, text, target));
+            if (notices.Count > 100) notices.RemoveAt(0);
+            if (page != Notices) unread++;
+        }
+
+        void OpenNotice(Notice notice)
+        {
+            if (notice.Target != index && notice.Target < targets.Count) { index = notice.Target; preferredEntry = null; selectionEpoch++; Select(); }
+            Open(Live);
+        }
+
+        void Render()
+        {
+            var now = DateTimeOffset.UtcNow;
+            tabs.Rows = [LivePresentation.Tabs(page is Definitions ? 1 : page is Settings ? 2 : 0, 0, unread)];
+            RenderBar(now);
+            switch (page)
+            {
+                case Live: RenderLive(now); break;
+                case Hardware: RenderHardware(now); break;
+                case History: RenderHistory(); break;
+                case Notices: RenderNotices(); break;
+                default: RenderNavigation(); ShowPage(); break;
+            }
+        }
+
+        void RenderNavigation()
+        {
+            if (page == Settings)
+            {
+                string[] rows = [" TUI", " Sistema"];
+                tree.Show(rows.Length, (row, selected) => selected ? Markup.Style("focb", rows[row].PadRight(Left)) : Markup.Escape(rows[row]), settingsCategory);
+                return;
+            }
+            treeRows = LivePresentation.Tree(targets, catalogues, snapshots);
+            var current = treeRows.ToList().FindIndex(node => node.Target == index && node.Entry == preferredEntry);
+            if (current < 0) current = treeRows.ToList().FindIndex(node => node.Target == index && node.Entry is null);
+            if (treeRows.Count == 0) tree.Show(1, (_, _) => " " + Markup.Escape(diagnostic));
+            else tree.Show(treeRows.Count, (row, selected) => selected ? treeRows[row].Selected : treeRows[row].Normal, Math.Max(0, current));
+        }
+
+        void RenderLive(DateTimeOffset now)
+        {
+            RenderNavigation();
             var target = targets.ElementAtOrDefault(index);
+            var width = Math.Max(20, window.Viewport.Width - Right);
+            leftTitle.Rows = [""];
+            rightTitle.Rows = [" " + LivePresentation.ServiceHeader(target is null ? diagnostic : target.Name, selectedSnapshot,
+                operation is not null ? serviceNote : selectedSnapshot is null ? serviceNote : null, now)];
+
+            var rows = new List<string>();
+            var running = selectedSnapshot is { ProcessState: "alive", InstanceId: not null };
+            var stopped = selectedSnapshot?.ProcessState == "stopped" || target is { Service: null, DeclaresService: true };
+            var controls = LivePresentation.Controls(running, stopped, operation is null && target is not null);
+            if (controls.Length > 0) rows.Add(controls);
+
+            // Entry and task in focus.
             visibleTasks = target?.Service is { } service ? InferencePresentation.Rows(inference,
                 target.Store.Context.IsGlobal ? "global" : target.Store.Context.Base, service.ServiceId)
                 .Where(task => preferredEntry is null || task.Identity.Entry == preferredEntry).ToArray() : [];
-            var width = Math.Max(20, live.Viewport.Width);
-            refreshingTasks = true;
-            SetRows(taskRows, ref shownTasks, visibleTasks.Count == 0 ? " Sin tareas observadas" :
-                string.Join('\n', visibleTasks.Select(task => " " + DashboardPresentation.Fit(InferencePresentation.Row(task, width), width - 1))));
-            var selectedTask = visibleTasks.FirstOrDefault(task => task.Identity == preferredTask)
-                ?? (preferredEntry is null ? null : visibleTasks.FirstOrDefault(task => task.Identity.Entry == preferredEntry));
-            if (selectedTask is not null) taskRows.SelectedItem = visibleTasks.ToList().IndexOf(selectedTask);
-            refreshingTasks = false;
-
+            var observed = selectedSnapshot?.Entries ?? [];
+            var selectedTask = visibleTasks.FirstOrDefault(task => task.Identity == preferredTask);
             var entry = observed.FirstOrDefault(item => item.Name == selectedTask?.Identity.Entry)
                 ?? observed.FirstOrDefault(item => item.Name == preferredEntry)
                 ?? observed.FirstOrDefault(item => item.Inference?.Active.Count > 0)
@@ -578,80 +567,187 @@ internal static partial class DashboardCli
                 ?? observed.FirstOrDefault(item => item.Inference is not null)
                 ?? observed.FirstOrDefault();
             inferenceEntry = selectedTask?.Identity.Entry ?? entry?.Name ?? inferenceEntry;
-            var active = inference.Active.Where(task => task.Identity.Entry == inferenceEntry).ToArray();
-            var latest = selectedSnapshot is { } current ? inference.History.LastOrDefault(task =>
-                task.Identity.Scope == current.Scope && task.Identity.Service == current.ServiceId &&
-                task.Identity.Entry == inferenceEntry) : null;
-            var display = selectedTask ?? active.FirstOrDefault() ?? latest;
-            var focused = display?.End is null ? display : null;
-
-            entryHeader.Text = selectedSnapshot is null ? "" : " " + DashboardPresentation.Fit(DashboardPresentation.EntryHeader(entry, entry?.Inference?.Model ?? display?.Model), width - 1);
-            entryFacts.Text = DashboardPresentation.EntryFacts(entry) is { } facts ? " " + DashboardPresentation.Fit(facts, width - 1) : "";
-            var hadMeans = entryMeans.Text.Length > 0;
-            entryMeans.Text = DashboardPresentation.EntryMeans(entry) is { } means ? " " + DashboardPresentation.Fit(means, width - 1) : "";
-            var hadRates = showRates;
-            showRates = display is not null;
-            promptLine.Clear(); outputLine.Clear();
-            if (display is not null)
+            var display = selectedTask
+                ?? inference.Active.FirstOrDefault(task => task.Identity.Entry == inferenceEntry)
+                ?? visibleTasks.FirstOrDefault(task => task.Identity.Entry == inferenceEntry);
+            var differs = selectedSnapshot is { CompositionCurrent: false };
+            if (selectedSnapshot is not null)
             {
-                foreach (var point in display.Points)
+                var header = LivePresentation.EntryHeader(entry, entry?.Inference?.Model ?? display?.Model, differs);
+                if (header.Length > 0) rows.Add(header);
+                if (display is not null)
                 {
-                    promptLine.Add(point.At, point.Prompt, display.PromptPeak);
-                    outputLine.Add(point.At, point.Output, display.OutputPeak);
+                    var current = display.End is null;
+                    var spark = Math.Max(8, Math.Min(ObservationTimeline.Capacity, width - 30));
+                    rows.Add(LivePresentation.Rate("prompt", "pr", display.Points.Select(point => point.Prompt).ToArray(),
+                        current ? display.PromptRate : null, display.PromptPeak, spark, current ? null : Ended(display)));
+                    rows.Add(LivePresentation.Rate("gen", "gen", display.Points.Select(point => point.Output).ToArray(),
+                        current ? display.OutputRate : null, display.OutputPeak, spark, current ? null : Ended(display)));
                 }
-                promptLine.Show(DashboardPresentation.Rate(focused?.PromptRate, display.PromptMean, display.PromptPeak));
-                outputLine.Show(DashboardPresentation.Rate(focused?.OutputRate, display.OutputMean, display.OutputPeak));
+                if (LivePresentation.Facts(entry) is { } facts) rows.Add(facts);
+                if (entry?.Inference is { } slots && slots.Active.Any(slot => slot.Context is > 0)) lastContext[index + "/" + entry.Name] = slots;
+                if (LivePresentation.Context(entry is null ? null : lastContext.GetValueOrDefault(index + "/" + entry.Name), width - 1) is { } context) rows.Add(context);
+                if (entry is null) rows.Add(" " + Markup.Style("mut", "Sin entradas publicadas"));
+                else if (entry.Inference is null) rows.Add(" " + Markup.Style("mut", "Sin señal /slots" +
+                    (entry.InferenceDiagnostic is { } reason ? " · " + DashboardPresentation.Fit(reason, width - 20) : "")));
+                if (visibleTasks.Count > 0) rows.Add(LivePresentation.TaskHeader);
             }
-            signal.Text = entry is null ? (selectedSnapshot is null ? "" : " Sin entradas publicadas")
-                : entry.Inference is null ? " Sin señal /slots" + (entry.InferenceDiagnostic is { } reason ? " · " + DashboardPresentation.Fit(reason, width - 20) : "")
-                : display is null ? " Sin tarea observada en esta entrada" : "";
-            if (hadRates != showRates || hadMeans != entryMeans.Text.Length > 0 || entryFacts.Visible != entryFacts.Text.Length > 0 || signal.Visible != signal.Text.Length > 0) Arrange();
+            var available = Math.Max(1, upperRows - 1);
+            var detailRows = Math.Min(rows.Count, available);
+            detail.Height = detailRows;
+            detail.Rows = rows.Take(detailRows).ToArray();
+            tasks.Y = 2 + detailRows;
+            tasks.Height = Math.Max(0, available - detailRows);
+            var focus = visibleTasks.ToList().FindIndex(task => task.Identity == preferredTask);
+            tasks.Show(visibleTasks.Count, (row, selected) => LivePresentation.Task(visibleTasks[row], selected,
+                promptTimes.TryGetValue((visibleTasks[row].Identity.Slot, visibleTasks[row].Identity.Task), out var ttft) ? ttft : null,
+                visibleTasks[row].End is null ? null : Ended(visibleTasks[row])), focus < 0 ? null : focus);
+
+            RenderLog();
         }
 
-        void ReadLog()
+        void ReadLog(bool force = false)
+        {
+            if (!logSessions.TryGetValue(index, out var session))
+            {
+                logRows = [targets.ElementAtOrDefault(index)?.Service is null ? "Sin servicio que registre logs." : "Consultando últimas líneas…"];
+                logDiscarded = 0;
+                return;
+            }
+            if (logHeld && !force) return;
+            var frame = session.Read(filterLogs.Value == CheckState.Checked);
+            logDiscarded = frame.Discarded;
+            foreach (var row in frame.Rows)
+                if (LivePresentation.PromptTiming(row) is { } timing) promptTimes[(timing.Slot, timing.Task)] = timing.Milliseconds;
+            if (promptTimes.Count > 2000) promptTimes.Clear();
+            logRows = frame.Rows.Length == 0 || frame.Rows is [""] ? ["Sin líneas visibles."] : frame.Rows;
+        }
+
+        void RenderLog()
+        {
+            var session = logSessions.GetValueOrDefault(index);
+            var mode = session is null ? LivePresentation.LogMode.None : logHeld ? LivePresentation.LogMode.Paused
+                : session.Historical ? LivePresentation.LogMode.Historical : LivePresentation.LogMode.Following;
+            logTitle.Rows = [LivePresentation.LogHeader(targets.ElementAtOrDefault(index)?.Service?.Name ?? "", mode, logDiscarded, logHeld)];
+            var rows = logRows;
+            logLines.Show(rows.Length, (row, _) => LivePresentation.LogRow(rows[row]));
+            if (!logHeld) logLines.ScrollToEnd();
+        }
+
+        void OpenHistory()
         {
             if (!logSessions.TryGetValue(index, out var session)) return;
-            var frame = session.Read(filterLogs.Value == CheckState.Checked);
-            ShowLogHeader(session, frame.Discarded);
-            if (logHeld) return;
-            var text = string.Join('\n', frame.Rows);
-            if (text.Length == 0) text = "Sin líneas visibles.";
-            if (text == lastLogText) return;
-            paintingLog = true;
-            SetRows(lines, ref lastLogText, text);
-            var rows = text.Split('\n');
-            lines.SetContentSize(new System.Drawing.Size(rows.Max(row => row.Length), rows.Length));
-            lines.SelectedItem = session.Historical ? 0 : rows.Length - 1;
-            lines.ScrollVertical((session.Historical ? 0 : Math.Max(0, rows.Length - lines.Viewport.Height)) - lines.Viewport.Y);
-            paintingLog = false;
+            historyFile = session.Files.LastOrDefault(file => file.Active) ?? session.Files.LastOrDefault();
+            historyMatch = -1;
+            Open(History);
+            regex.SetFocus();
         }
 
-        void ShowLogHeader(ServiceLogSession? session = null, long discarded = 0)
+        void ShowHistoryFile(ServiceLog file)
         {
-            session ??= logSessions.GetValueOrDefault(index);
+            if (!logSessions.TryGetValue(index, out var session)) return;
+            historyFile = file;
+            historyMatch = -1;
+            if (file.Active) session.Current(); else session.SelectHistory(file.Id);
+        }
+
+        void LeaveHistory()
+        {
+            if (logSessions.TryGetValue(index, out var session)) session.Current();
+            historyFile = null;
+            logHeld = false;
+        }
+
+        void CloseHistory() { LeaveHistory(); Open(Live); }
+
+        void MoveMatch(int step)
+        {
+            if (historyMatches.Length == 0) return;
+            historyMatch = historyMatch < 0 ? (step > 0 ? 0 : historyMatches.Length - 1)
+                : (historyMatch + step + historyMatches.Length) % historyMatches.Length;
+            historyLines.ScrollTo(historyMatches[historyMatch]);
+        }
+
+        void RenderHistory()
+        {
+            if (page != History) return;
+            var session = logSessions.GetValueOrDefault(index);
+            if (session is not null) historyRows = session.Read(filterLogs.Value == CheckState.Checked).Rows;
+            var files = session?.Files ?? [];
             var name = targets.ElementAtOrDefault(index)?.Service?.Name ?? "";
-            var state = session is null ? "" : logHeld ? "❚❚ en pausa" : session.Historical ? "histórico" : "● siguiendo";
-            var text = $" Log {name}  {state}" + (discarded > 0 ? $" · {discarded} descartadas" : "");
-            logTitle.Text = DashboardPresentation.Fit(text, Math.Max(10, logTitle.Viewport.Width));
-            logPause.Text = logHeld ? " ▸ Reanudar " : " ❚❚ Pausar ";
-            logPause.Enabled = logFollow.Enabled = logHistory.Enabled = session is not null;
+            historyTitle.Rows = [" " + Markup.Escape("Log " + name + " · histórico") + "{pad}" + Markup.Style("btn", " Volver ", "back") + " "];
+            var number = historyFile is null ? 0 : Array.FindIndex(files, file => file.Id == historyFile.Id) + 1;
+            var instance = historyFile is null ? " sin archivos ▾ "
+                : $" i{number} · {historyFile.StartedAt}{(historyFile.Active ? " → ahora" : "")} ▾ ";
+            Regex? pattern = null;
+            historyProblem = null;
+            if (regex.Text.Length > 0)
+            {
+                try { pattern = new Regex(regex.Text, RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(50)); }
+                catch (ArgumentException) { historyProblem = "regex inválida"; }
+            }
+            var rows = historyRows.Where(row => LivePresentation.Severity(row) >= historyLevel).ToArray();
+            try { historyMatches = pattern is null ? [] : rows.Select((row, i) => (row, i)).Where(item => pattern.IsMatch(item.row)).Select(item => item.i).ToArray(); }
+            catch (RegexMatchTimeoutException) { historyMatches = []; historyProblem = "regex demasiado costosa"; }
+            if (historyMatch >= historyMatches.Length) historyMatch = -1;
+            var level = historyLevel switch { 1 => "▲ y ✗", 2 => "✗", _ => "todos" };
+            var count = historyProblem ?? (pattern is null ? "" : historyMatches.Length + " coincidencias");
+            historyControls.Rows =
+            [
+                Markup.Fit(" " + Markup.Style("mut", "instancia") + " " + Markup.Style("focb", DashboardPresentation.Fit(instance, 40), "instance"), 47) + Markup.Style("mut", "regex "),
+                " " + Markup.Style("mut", "nivel") + " " + Markup.Style("nav", level + " ▾", "level") + "   " + Markup.Style(historyProblem is null ? "mut" : "warn", count) +
+                    "{pad}" + Markup.Style("btn", " ◂ Anterior ", "previous") + " " + Markup.Style("btn", " Siguiente ▸ ", "next") + " "
+            ];
+            var current = historyMatch >= 0 ? historyMatches[historyMatch] : -1;
+            historyLines.RowZone = y => historyLines.Top + y == current ? "chg" : null;
+            historyLines.Show(rows.Length, (row, _) => Highlight(rows[row], pattern));
+            historyFooter.Rows = [" " + Markup.Style("mut", "instancias") + "  " + string.Join("  ", files.Select((file, i) =>
+                file.Id == historyFile?.Id ? Markup.Style("sel", $" i{i + 1} {file.StartedAt}{(file.Active ? " → " : "")} ")
+                    : Markup.Escape($"i{i + 1} {file.StartedAt}")))];
+        }
+
+        static string Highlight(string row, Regex? pattern)
+        {
+            if (pattern is null) return LivePresentation.LogRow(row);
+            var text = " ";
+            var at = 0;
+            try
+            {
+                foreach (Match match in pattern.Matches(row))
+                {
+                    if (match.Length == 0) continue;
+                    text += Markup.Escape(row[at..match.Index]) + Markup.Style("sel", match.Value);
+                    at = match.Index + match.Length;
+                }
+            }
+            catch (RegexMatchTimeoutException) { return LivePresentation.LogRow(row); }
+            return at == 0 ? LivePresentation.LogRow(row) : text + Markup.Escape(row[at..]);
+        }
+
+        void RenderNotices()
+        {
+            noticeTitle.Rows = [" Notificaciones{pad}" + Markup.Style("btn", " Marcar leídas ", "read") + "  " + Markup.Style("btn", " Volver ", "back") + " "];
+            noticeList.RowZone = y => noticeList.HasFocus && noticeList.Top + y == noticeList.Selected ? "chg" : null;
+            if (notices.Count == 0) { noticeList.Show(1, (_, _) => " " + Markup.Style("mut", "Sin avisos en esta sesión.")); return; }
+            noticeList.Show(notices.Count, (row, selected) =>
+            {
+                var notice = notices[notices.Count - 1 - row];
+                var text = " " + Markup.Style(notice.Class, notice.Glyph) + " " + Markup.Style("mut", notice.At.ToString("HH:mm", CultureInfo.InvariantCulture)) +
+                    " " + Markup.Escape(notice.Text) + "{pad}" + Markup.Style("btn", " Ver log ", "n" + row) + " ";
+                return text;
+            });
         }
 
         void ShowPage()
         {
-            if (page == Live) return;
+            leftTitle.Rows = [""];
             var rows = new List<string>();
             string title;
             if (page == Definitions)
             {
                 var target = targets.ElementAtOrDefault(index);
                 title = " " + (target?.Label ?? diagnostic) + " · consulta";
-                if (target?.Recipe is not null)
-                {
-                    rows.Add("Destino de publicación  " + target.Destination);
-                    if (target.RecipeProblem is not null) rows.Add("Receta no disponible  " + target.RecipeProblem);
-                    rows.Add("");
-                }
+                if (target?.Recipe is not null && target.RecipeProblem is not null) rows.Add("Receta no disponible  " + target.RecipeProblem);
                 if (catalogues.TryGetValue(index, out var catalogue))
                 {
                     rows.Add($"Catálogo observado · {catalogue.Count} entradas");
@@ -664,143 +760,149 @@ internal static partial class DashboardCli
                 }
                 else rows.Add("Sin catálogo observado.");
             }
-            else if (page == Settings)
+            else
             {
                 title = settingsCategory == 0 ? " TUI" : " Sistema";
                 if (settingsCategory == 1) rows.AddRange(SystemRows(lastHardware));
             }
-            else
-            {
-                title = hardwareSelection == 0 ? " CPU / RAM · máquina" : " GPU" + (hardwareSelection - 1) + " · uso · vram · compartida";
-                rows.AddRange(HardwareRows());
-            }
             pageTitle.Text = title;
+            if (filterLogs.Visible != (page == Settings && settingsCategory == 0)) Arrange();
             var text = string.Join('\n', rows);
             if (text == shownPage) return;
-            var selected = pageList.SelectedItem;
             SetRows(pageList, ref shownPage, text);
-            pageList.SetContentSize(new System.Drawing.Size(Math.Max(1, rows.DefaultIfEmpty("").Max(row => row.Length)), rows.Count));
-            if (selected is >= 0 && selected < rows.Count) pageList.SelectedItem = selected;
-        }
-
-        void ShowHardwareDetail()
-        {
-            foreach (var device in devices.Values)
-                device.Use.Visible = device.Dedicated.Visible = device.Shared.Visible = hardwareSelection == device.Number + 1;
-            cpuDetail.Visible = ramDetail.Visible = hardwareSelection == 0;
-            Arrange();
-            ShowPage();
         }
 
         void SampleHardware()
         {
             if (machineSample is not null && !machineSample.IsCompleted) return;
-            var captured = machineSample is { IsCompletedSuccessfully: true };
-            if (captured)
+            if (machineSample is { IsCompletedSuccessfully: true })
             {
-                if (lastHardware is not null) hardwareCadence = machineSample!.Result.StartedAt - lastHardware.StartedAt;
-                lastHardware = machineSample!.Result;
-                hardwareProblem = null;
+                lastHardware = machineSample.Result;
+                Record(lastHardware);
             }
-            else if (machineSample is { IsFaulted: true }) hardwareProblem = machineSample.Exception!.GetBaseException().Message;
             machineSample = null;
             if (!machineClock.IsRunning || machineClock.Elapsed >= CaptureInterval)
                 machineSample = Task.Run(() => { machineClock.Restart(); return hardware.CaptureAsync(stop.Token); });
-            ShowHardware(lastHardware, captured);
         }
 
-        void ShowHardware(HardwareSnapshot? sample, bool captured)
+        void Record(HardwareSnapshot sample)
         {
             var now = DateTimeOffset.UtcNow;
-            var samples = sample?.Samples ?? [];
-            var cpu = Fresh(samples, "cpu.utilization");
-            var ramUsed = Fresh(samples, "ram.used");
-            var ramTotal = Fresh(samples, "ram.total");
-            Feed([cpuMeter, cpuDetail], sample, samples, "cpu.utilization", cpu / 100,
-                cpu is null ? "—" : Percent(cpu), cpu is null ? null : $"{Percent(cpu)}");
-            var ram = Fraction(ramUsed, ramTotal);
-            var ramText = ramUsed is null ? "—" : $"{DashboardPresentation.Compact(ramUsed.Value)}/{(ramTotal is null ? "—" : DashboardPresentation.Compact(ramTotal.Value))}";
-            Feed([ramMeter, ramDetail], sample, samples, "ram.used", ram, ramText, ramText);
-
-            var added = false;
-            foreach (var device in sample?.Devices ?? [])
+            var cpu = Fresh(sample.Samples, "cpu.utilization", now);
+            var ramUsed = Fresh(sample.Samples, "ram.used", now);
+            var ramTotal = Fresh(sample.Samples, "ram.total", now);
+            cpuGauge.Add(sample.StartedAt, cpu / 100, cpu, cpu is null ? null : Number(cpu.Value, "0") + "%");
+            ramGauge.Add(sample.StartedAt, Fraction(ramUsed, ramTotal), ramUsed, ramUsed is null ? null :
+                DashboardPresentation.Compact(ramUsed.Value) + "/" + (ramTotal is null ? "—" : DashboardPresentation.Compact(ramTotal.Value)));
+            ramGauge.Total = ramTotal;
+            foreach (var device in sample.Devices)
             {
-                if (ComputeLabel(device.Id) is null || devices.ContainsKey(device.Id)) continue;
-                var number = devices.Count;
-                var barMeter = new Meter($"GPU{number} ", useColor, 22, 6) { Y = 1 };
-                barMeter.X = number == 0 ? 0 : Pos.Right(devices.Values.Single(other => other.Number == number - 1).Bar) + 2;
-                var use = new Meter("uso  ", useColor, 22) { Visible = false };
-                var dedicated = new Meter("vram ", useColor, 22) { Y = 1, Visible = false };
-                var shared = new Meter("+ram ", useColor, 22) { Y = 2, Visible = false };
-                devices.Add(device.Id, (number, barMeter, use, dedicated, shared));
-                bar.Add(barMeter);
-                hardwareCharts.Add(use, dedicated, shared);
-                added = true;
-            }
-            gpuNone.Visible = devices.Count == 0;
-            if (devices.Count == 0) gpuNone.Text = evidence is null ? "GPU · esperando lecturas" : "GPU · sin cómputo confirmado";
-            foreach (var (id, views) in devices)
-            {
-                var device = sample?.Devices.FirstOrDefault(item => StringComparer.OrdinalIgnoreCase.Equals(item.Id, id));
-                var deviceSamples = device?.Samples ?? [];
-                var usage = Fresh(deviceSamples, "gpu.utilization");
-                var used = Fresh(deviceSamples, "vram.used");
-                var total = Fresh(deviceSamples, "vram.total");
-                var sharedUsed = Fresh(deviceSamples, "gpu.shared");
-                var memory = used is null ? "—" : $"{DashboardPresentation.Compact(used.Value)}/{(total is null ? "—" : DashboardPresentation.Compact(total.Value))}";
-                var summary = $"{(usage is null ? "—" : usage.Value.ToString("0", CultureInfo.CurrentCulture) + "%")} {memory}" +
-                    (sharedUsed is null ? "" : " +" + DashboardPresentation.Compact(sharedUsed.Value));
-                Feed([views.Bar, views.Use], sample, deviceSamples, "gpu.utilization", usage / 100, summary,
-                    usage is null ? "—" : Percent(usage));
-                Feed([views.Dedicated], sample, deviceSamples, "vram.used", Fraction(used, total), memory, memory);
-                Feed([views.Shared], sample, deviceSamples, "gpu.shared", sharedUsed is null || ramTotal is null ? null : sharedUsed / ramTotal,
-                    "", sharedUsed is null ? "—" : DashboardPresentation.Compact(sharedUsed.Value));
-            }
-            if (added) { ShowHardwareDetail(); if (page == Hardware) RebuildNavigation(); }
-
-            double? Fresh(IReadOnlyList<MetricSample> list, string name) =>
-                list.FirstOrDefault(metric => metric.Name == name) is { Value: { } value } metric && metric.IsFresh(now, MetricLifetime) ? value : null;
-
-            void Feed(Meter[] meters, HardwareSnapshot? source, IReadOnlyList<MetricSample> list, string name, double? ratio, string barText, string? detailText)
-            {
-                var metric = list.FirstOrDefault(item => item.Name == name);
-                var color = UsageColor(ratio, Palette.Ansi16);
-                for (var i = 0; i < meters.Length; i++)
-                {
-                    if (captured) meters[i].Graph.AddTimedSample(metric?.ObservedAt ?? source?.StartedAt ?? now, ratio);
-                    meters[i].Show(i == 0 ? barText : detailText ?? barText, ratio is null ? Palette.Muted : color);
-                }
+                if (ComputeLabel(device.Id) is null) continue;
+                if (!devices.TryGetValue(device.Id, out var known))
+                    devices[device.Id] = known = new Device(devices.Count, device.Name, new(), new(), new());
+                var usage = Fresh(device.Samples, "gpu.utilization", now);
+                var used = Fresh(device.Samples, "vram.used", now);
+                var total = Fresh(device.Samples, "vram.total", now);
+                var shared = Fresh(device.Samples, "gpu.shared", now);
+                known.Use.Add(sample.StartedAt, usage / 100, usage, usage is null ? null : Number(usage.Value, "0") + "%");
+                known.Memory.Add(sample.StartedAt, Fraction(used, total), used, used is null ? null :
+                    DashboardPresentation.Compact(used.Value) + "/" + (total is null ? "—" : DashboardPresentation.Compact(total.Value)));
+                known.Memory.Total = total;
+                known.Shared.Add(sample.StartedAt, shared is null || ramTotal is null ? null : shared / ramTotal, shared,
+                    shared is null ? null : "+" + DashboardPresentation.Compact(shared.Value));
             }
         }
 
-        IEnumerable<string> HardwareRows()
+        void RenderBar(DateTimeOffset now)
         {
-            var now = DateTimeOffset.UtcNow;
+            var gpus = devices.Values.OrderBy(device => device.Number).Select(device => new LivePresentation.Gauge("GPU" + device.Number,
+                device.Use.Bar.Read(now, 5), device.Use.Ratio, device.Memory.Text, device.Shared.Text, device.Memory.Ratio)).ToArray();
+            var (first, second) = LivePresentation.HardwareBar(
+                new("CPU", cpuGauge.Bar.Read(now, 16), cpuGauge.Ratio, cpuGauge.Text, null, null),
+                new("RAM", ramGauge.Bar.Read(now, 16), ramGauge.Ratio, ramGauge.Text, null, null), gpus, evidence is null);
+            bar.Rows = [first, second];
+        }
+
+        void RenderHardware(DateTimeOffset now)
+        {
+            var ordered = devices.Values.OrderBy(device => device.Number).ToArray();
+            var names = ordered.Select(device => ("GPU" + device.Number, device.Use.Text ?? "—")).Append(("CPU", cpuGauge.Text ?? "—"))
+                .Append(("RAM", ramGauge.Text ?? "—")).ToArray();
+            hardwareSelection = Math.Clamp(hardwareSelection, 0, names.Length - 1);
+            tree.Show(names.Length, (row, selected) =>
+            {
+                var text = " " + names[row].Item1.PadRight(Left - 2 - names[row].Item2.Length) + names[row].Item2 + " ";
+                return selected ? Markup.Style("focb", text) : Markup.Escape(text);
+            }, hardwareSelection);
+            leftTitle.Rows = [" Hardware · " + (int)HardwareHistory.Span.TotalMinutes + " min"];
+            var width = Math.Max(10, window.Viewport.Width - Right - 7);
             var rows = new List<string>();
-            if (hardwareProblem is not null) rows.Add("Captura no disponible · " + hardwareProblem);
-            if (lastHardware is not { } sample) { rows.Add("Esperando la primera captura."); return rows; }
-            rows.Add($"Captura {sample.StartedAt.ToLocalTime():HH:mm:ss} · {(sample.CompletedAt - sample.StartedAt).TotalMilliseconds:0} ms · " +
-                (hardwareCadence is { } cadence ? $"cada {cadence.TotalSeconds:0.#} s" : "primera captura") + " · curvas 2 s/col");
-            if (hardwareSelection == 0)
+            if (hardwareSelection < ordered.Length)
             {
-                rows.Add(sample.Environment ?? "");
-                rows.AddRange(sample.Samples.SelectMany(metric => FormatMetric(metric, now).Split('\n')));
+                var device = ordered[hardwareSelection];
+                rightTitle.Rows = [" " + names[hardwareSelection].Item1 + "  " + Markup.Style("mut", "uso · vram · compartida")];
+                rows.Add(Curve(device.Use, "uso", width));
+                rows.Add(Curve(device.Memory, "vram", width));
+                rows.Add(Curve(device.Shared, "+ram", width, "pr"));
                 rows.Add("");
-                rows.Add("Servicio seleccionado · instancia y procesos verificados");
-                if (selectedSnapshot is { InstanceId: not null } snapshot && snapshot.Metrics.Count > 0)
-                    rows.AddRange(snapshot.Metrics.SelectMany(metric => FormatMetric(metric, now).Split('\n')));
-                else rows.Add("  sin muestras atribuibles");
+                rows.Add(Summary("uso", device.Use, value => Number(value, "0") + "%"));
+                if (device.Memory.Value is { } used)
+                {
+                    rows.Add(" " + Markup.Style("mut", "vram") + " " + DashboardPresentation.Compact(used) +
+                        (device.Memory.Total is { } total ? " / " + DashboardPresentation.Compact(total) : "") +
+                        " " + Markup.Style("mut", "· pico") + " " + DashboardPresentation.Compact(device.Memory.Peak ?? used));
+                }
+                if (device.Shared.Value is { } shared)
+                {
+                    var rise = device.Shared.Peak is { } top && device.Shared.First is { } start && top - start > 64d * 1024 * 1024 ? device.Shared.FirstRise : null;
+                    rows.Add(rise is { } at
+                        ? " " + Markup.Style("warn", "▲ compartida") + " " + DashboardPresentation.Compact(device.Shared.First!.Value) + " → " +
+                          DashboardPresentation.Compact(shared) + " " + Markup.Style("mut", "desde " + at.ToLocalTime().ToString("HH:mm", CultureInfo.InvariantCulture) +
+                          (device.Memory.Ratio is > 0.9 ? ", VRAM en pico" : ""))
+                        : " " + Markup.Style("mut", "compartida") + " " + DashboardPresentation.Compact(shared));
+                }
+                rows.Add("");
+                rows.Add(" " + Markup.Style("mut", "adaptador") + " " + Markup.Escape(device.Name + " · " + ComputeName(device)));
             }
-            else if (devices.FirstOrDefault(pair => pair.Value.Number == hardwareSelection - 1) is { Key: not null } selected)
+            else
             {
-                var device = sample.Devices.FirstOrDefault(item => StringComparer.OrdinalIgnoreCase.Equals(item.Id, selected.Key));
-                rows.Add($"{device?.Name ?? selected.Key} · {ComputeLabel(selected.Key)}");
-                if (device is null) rows.Add("Sin lectura en la última captura.");
-                else rows.AddRange(device.Samples.SelectMany(metric => FormatMetric(metric, now).Split('\n')));
+                var gauge = hardwareSelection == ordered.Length ? cpuGauge : ramGauge;
+                rightTitle.Rows = [" " + names[hardwareSelection].Item1 + "  " + Markup.Style("mut", "uso")];
+                rows.Add(Curve(gauge, "uso", width));
+                rows.Add("");
+                rows.Add(gauge == cpuGauge ? Summary("uso", gauge, value => Number(value, "0") + "%")
+                    : " " + Markup.Style("mut", "ram") + " " + (gauge.Text ?? "—") + " " + Markup.Style("mut", "· pico") + " " +
+                      (gauge.Peak is { } peak ? DashboardPresentation.Compact(peak) : "—"));
+                if (lastHardware?.Environment is { Length: > 0 } environment) { rows.Add(""); rows.Add(" " + Markup.Style("mut", Markup.Escape(environment))); }
             }
-            rows.AddRange(sample.Diagnostics);
-            return rows;
+            hardwareDetail.Rows = rows;
+
+            string Curve(Gauge gauge, string caption, int columns, string? tone = null)
+            {
+                var values = gauge.History.Columns(now, columns);
+                var peak = values.Max();
+                return " " + Markup.Style(tone ?? LivePresentation.UsageClass(peak), LivePresentation.Spark(values)) + " " + Markup.Style("mut", caption);
+            }
+
+            string Summary(string caption, Gauge gauge, Func<double, string> format)
+            {
+                var values = gauge.History.Values.ToArray();
+                if (gauge.Value is not { } value) return " " + Markup.Style("mut", caption) + " —";
+                return " " + Markup.Style("mut", caption) + " " + format(value) +
+                    (values.Length > 0 ? " " + Markup.Style("mut", "· media") + " " + format(values.Average() * 100) +
+                        " " + Markup.Style("mut", "· pico") + " " + format(values.Max() * 100) : "");
+            }
         }
+
+        static DateTimeOffset Ended(InferenceTask task) => DateTimeOffset.UtcNow - Stopwatch.GetElapsedTime(task.ObservedAt);
+
+        static double? Fresh(IReadOnlyList<MetricSample> list, string name, DateTimeOffset now) =>
+            list.FirstOrDefault(metric => metric.Name == name) is { Value: { } value } metric && metric.IsFresh(now, MetricLifetime) ? value : null;
+
+        static string Number(double value, string format) => LivePresentation.Number(value, format);
+
+        string ComputeName(Device device) =>
+            devices.FirstOrDefault(pair => pair.Value == device).Key is { } id ? ComputeLabel(id) ?? "" : "";
 
         IEnumerable<string> SystemRows(HardwareSnapshot? sample)
         {
@@ -821,7 +923,7 @@ internal static partial class DashboardCli
             {
                 foreach (var device in sample.Devices)
                 {
-                    var name = devices.TryGetValue(device.Id, out var views) ? $"GPU{views.Number} · {device.Name}" : device.Name;
+                    var name = devices.TryGetValue(device.Id, out var known) ? $"GPU{known.Number} · {device.Name}" : device.Name;
                     rows.Add($"  {name} · {ComputeLabel(device.Id) ?? "cómputo sin confirmar"}");
                 }
                 rows.AddRange(sample.Diagnostics);
@@ -844,15 +946,15 @@ internal static partial class DashboardCli
             var source = entry.Inference;
             var rows = new List<string>
             {
-                $"{entry.Name} · {entry.State} · modelo {source?.Model ?? "n/d"}",
-                $"Instancia {selectedSnapshot?.InstanceId ?? "n/d"} · hijo {source?.Pid.ToString() ?? "n/d"}/{source?.Creation.ToString() ?? "n/d"}",
-                source is null ? entry.InferenceDiagnostic ?? "Tareas /slots: hijo/build/endpoint sin verificar" : "Tareas /slots: hijo y build verificados",
+                $"{entry.Name} · {entry.State}" + (source?.Model is { } model ? " · modelo " + model : ""),
+                selectedSnapshot?.InstanceId is { } instance ? "Instancia " + instance + (source is null ? "" : $" · hijo {source.Pid}/{source.Creation}") : "",
+                source is null ? entry.InferenceDiagnostic ?? "Tareas /slots: hijo/build/endpoint sin verificar" : "Tareas /slots: hijo verificado",
                 entry.Diagnostic ?? "Métricas disponibles según la fuente",
                 "Acumulados y medias del backend: período no informado; cada hijo abre otro período.",
                 ""
             };
             rows.AddRange(entry.Metrics.SelectMany(metric => FormatMetric(metric, DateTimeOffset.UtcNow).Split('\n')));
-            return string.Join('\n', rows);
+            return string.Join('\n', rows.Where(row => row.Length > 0 || rows.IndexOf(row) == 5));
         }
 
         static string FormatMetric(MetricSample metric, DateTimeOffset now)
@@ -866,7 +968,7 @@ internal static partial class DashboardCli
                 "vram.total" => "VRAM dedicada total",
                 _ => metric.Name
             };
-            var value = metric.Value is null ? $"n/d · {metric.UnavailableReason ?? "lectura sin valor"}" :
+            var value = metric.Value is null ? $"sin valor · {metric.UnavailableReason ?? "lectura sin valor"}" :
                 (metric.Unit == "bytes" ? Memory(metric.Value) : metric.Value.Value.ToString("0.##", CultureInfo.CurrentCulture) + " " + metric.Unit) +
                 (metric.IsFresh(now, MetricLifetime) ? "" : " · ant.");
             var time = metric.ObservedAt.ToLocalTime().ToString("HH:mm:ss", CultureInfo.InvariantCulture);
@@ -889,8 +991,8 @@ internal static partial class DashboardCli
                     $"{verb} «{target.Service!.Name}» ({(target.Store.Context.IsGlobal ? "global" : "proyecto")}) puede interrumpir peticiones activas.",
                     "Cancelar", verb) != 1) return;
 
-            startButton.Enabled = stopButton.Enabled = upButton.Enabled = downButton.Enabled = false;
-            ShowState($"{verb.ToLowerInvariant()}…", Palette.Information);
+            upButton.Enabled = downButton.Enabled = false;
+            serviceNote = $"{verb.ToLowerInvariant()}…";
             selectionEpoch++;
             operation = Task.Run(async () =>
             {
@@ -962,8 +1064,8 @@ internal static partial class DashboardCli
             if (operation is not null || index >= targets.Count || targets[index].Recipe is not { } selection) return;
             var label = targets[index].Label;
             var usePrivateResources = privatePreparation.Value == CheckState.Checked;
-            startButton.Enabled = stopButton.Enabled = upButton.Enabled = downButton.Enabled = false;
-            ShowState($"{action}…", Palette.Information);
+            upButton.Enabled = downButton.Enabled = false;
+            serviceNote = $"{action}…";
             selectionEpoch++;
             operation = Task.Run<string?>(() =>
             {
