@@ -1,6 +1,6 @@
 @startsalt
 {
-  {/ <b>● En vivo | ◇ Definiciones | ⚙ Configuración | . | ⇣ 1 · 68% | ⚠ 2 }
+  {/ <b>● En vivo | ◇ Definiciones | ≡ Configuración | . | ⇣ 1 · 68% | ▲ 2 }
   { <b>Notificaciones | [Marcar leídas] | [Volver] }
   {#
     ▲ | 12:09 | principal se reinició tras una caída (1/3) | [Ver log]
@@ -9,6 +9,6 @@
     ✓ | 11:40 | código: 2 actualizaciones disponibles | [Actualizaciones]
   }
   { CPU ▂▃▅▆▅ 42% | RAM ▅▅▆▆ 18,2/32G }
-  { GPU0 ▅▆▇▇ 91% ded 20,1/24G comp 0,4G | GPU1 ▂▃▂▁ 12% ded 0,1/0,5G comp 1,1G }
+  { GPU0 ▅▆▇▇ 91% 20,1/24G +0,4G | GPU1 ▂▃▂▁ 12% 0,1/0,5G +1,1G }
 }
 @endsalt

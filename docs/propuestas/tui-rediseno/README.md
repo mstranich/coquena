@@ -3,6 +3,12 @@
 Borrador para evaluación. No es documentación canónica ni reemplaza los wireframes
 de `docs/design/` hasta que se apruebe.
 
+La navegación, jerarquía de las pantallas existentes, paleta y barra de hardware
+se incorporaron a [interfaces visuales](../../design/interfaces-visuales.md) y
+[pantalla de servicios](../../design/ui-servicio.md). Esos documentos son la
+fuente vigente para esas reglas; las vistas adicionales de esta propuesta
+conservan su condición de borrador.
+
 - Vista previa a color en 80×24: [vista-previa.html](vista-previa.html).
   «Navegar» muestra una pantalla por vez; pestañas, nodos del árbol, botones y la
   barra de hardware llevan a la pantalla correspondiente.
@@ -18,7 +24,7 @@ de `docs/design/` hasta que se apruebe.
 | S | Modal Agregar modelo local (`model add`) | + Agregar local… |
 | O | Definiciones › Backends | nodo Backends |
 | D | Hardware | barra inferior |
-| E–G | Configuración › Coquena, TUI, Sistema | pestaña ⚙ Configuración |
+| E–G | Configuración › Coquena, TUI, Sistema | pestaña ≡ Configuración |
 | H | Editor YAML, una pestaña por archivo de la combinación | Editar, + Agregar override, Clonar… |
 | I | Log histórico (RegEx) | Histórico en el log del servicio |
 | J | Carpeta sin receta | nodo Receta sin `coquena.yaml` (Inicializar) |
@@ -32,7 +38,7 @@ de `docs/design/` hasta que se apruebe.
 | V | Modal Nueva combinación: YAML en orden y archivos .env | + Nueva combinación… |
 | X | Modal Aceptar/Cancelar: Up con destino ocupado | ▲ Up |
 | Y | Modal Sí/No/Cancelar: guardar con cambios externos | Guardar en el Editor |
-| Z | Notificaciones | indicador ⚠ |
+| Z | Notificaciones | indicador ▲ |
 
 Las combinaciones conocidas salen del registro de `.coquena`, que suma una combinación
 cada vez que se usa `-f`. Desde la TUI, una combinación nueva se registra al usarla en
@@ -50,7 +56,7 @@ Tres pestañas, sin marca ni fila de atajos:
 |---|---|
 | ● En vivo | Árbol servicio → proyecto → preset; detalle del servicio (puerto, estado, CPU y RAM del proceso, cola) y de la entrada (tasas, caché, especulación, contexto por slot, tareas); log del servicio. |
 | ◇ Definiciones | Árbol por ámbito (Global y cada proyecto del índice; sólo el enfocado expandido) con Recetas o Servicios, Presets, Servicio, Modelos, Backends, Parámetros, Descargas, Actualizaciones y Mantenimiento. |
-| ⚙ Configuración | Categorías Coquena (lo mismo que `coquena config`), TUI (filtro del log, recursos de la barra inferior) y Sistema (`system probe`). |
+| ≡ Configuración | Categorías Coquena (lo mismo que `coquena config`), TUI (filtro del log, recursos de la barra inferior) y Sistema (`system probe`). |
 
 Las dos últimas filas son hardware medido por dispositivo: CPU, RAM, y por GPU uso,
 memoria dedicada y compartida. Hardware ampliado (D) se abre desde esa barra.

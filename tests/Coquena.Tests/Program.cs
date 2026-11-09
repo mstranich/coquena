@@ -38,6 +38,7 @@ if (args is ["--dashboard-tests"])
         Coquena.Tests.ObservationTimelineTests.Run(Check);
         Coquena.Tests.InferenceTaskTests.Run(Check);
         Coquena.Tests.InferencePresentationTests.Run(Check);
+        Coquena.Tests.DashboardPresentationTests.Run(Check);
         await Coquena.Tests.InferenceObservationTests.Run(Check);
         await Coquena.Tests.DashboardProjectTests.Run(Check);
         Console.WriteLine($"Dashboard checks: {checks}.");

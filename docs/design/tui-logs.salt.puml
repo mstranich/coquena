@@ -1,17 +1,20 @@
 @startsalt
 {
-  { CPU 42% | GPU0 91% | RAM 18/32 GiB | VRAM0 20/24 GiB }
-  { Espacio: proyecto código | [Cambiar espacio] }
-  {/ Global: principal | Global: laboratorio | Proyecto: código | Presets | Buscar modelos | Configuración }
-  { <b>Global: principal | En línea }
-  {/ Monitor | <b>Logs }
-  { Siguiendo instancia i2 | [Pausar] | [Volver al final] | [Histórico] }
+  {/ <b>● En vivo | ◇ Definiciones | ≡ Configuración }
+  { <b>Log del servicio principal · histórico | [Pausar] | [Actual / seguir] | [Históricos] }
+  { instancia | i2 · 09/11 11:58 | archivo registrado }
   {S
-    Cambio de instancia / nuevo archivo
-    server: listening
-    slot 0: generación en curso
-    .
-    .
+    11:58:10 server: listening on 127.0.0.1:9931
+    12:01:03 slot 0: prompt 812 tk
+    12:04:33 slot 1: generación en curso
   }
+  { <b>Seleccionar histórico }
+  {S
+    i1 · 09/11 09:12 · archivo de instancia anterior
+    i2 · 09/11 11:58 · archivo activo
+  }
+  { [Abrir] | [Cancelar] }
+  { CPU 42% | RAM 18,2G | [Hardware] }
+  { GPU0 91% 20,1/24G +0,4G }
 }
 @endsalt

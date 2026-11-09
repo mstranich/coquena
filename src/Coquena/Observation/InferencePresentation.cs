@@ -32,8 +32,8 @@ internal static class InferencePresentation
         var id = task.Identity;
         var rate = task.Phase == InferenceTaskPhase.Generation ? task.OutputRate : task.PromptRate;
         var tokens = task.Phase == InferenceTaskPhase.Generation ? $"G {task.Last.Decoded}" : $"P {task.Last.Prompt}";
-        var text = $"{id.Entry} · {Phase(task)} · {tokens} tk";
-        if (width >= 75) text += $" · s{id.Slot}/t{id.Task} · {Number(rate)} tk/s";
+        var text = $"{id.Entry} · s{id.Slot}/t{id.Task} · {Phase(task)} · {tokens} tk";
+        if (width >= 75) text += $" · {Number(rate)} tk/s";
         if (width >= 115) text += $" · caché {task.Last.Cached} · hijo {id.Pid}";
         return text;
     }

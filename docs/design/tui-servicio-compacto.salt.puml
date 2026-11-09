@@ -1,15 +1,34 @@
 @startsalt
 {
-  { CPU 42% | GPU0 91% | RAM 18/32 GiB | VRAM0 20/24 GiB }
-  { Espacio: proyecto código | [Cambiar espacio] }
-  {/ Global: principal | Global: laboratorio | Proyecto: código | Presets | Buscar modelos | Configuración }
-  { <b>Global: principal | En línea }
-  {/ <b>Monitor | Logs }
-  {#
-    Entrada | Fase | Avance | Serie
-    asistente | GENERANDO | 128 tk | ▂▅▆ 20 tk/s G
-    resumen | PROMPT | 2048 tk · 68% | ▂▃▅ 55 tk/s P
+  {/ <b>● En vivo | ◇ Definiciones | ≡ Configuración }
+  {
+    { <b>Servicios
+      {T
+        + principal
+        ++ código
+        +++ <b>asistente
+        + resumen
+        + laboratorio
+      }
+    } | {
+      <b>principal · :9931 · en línea
+      API disponible · HTTP 200
+      CPU 21% · RAM privada 3,1G
+      { [Detener] | [Reiniciar] }
+      <b>código/asistente · generación
+      Medias backend · P 80 / G 20 tk/s
+      Acumulados · P 5012 · caché 2048 · G 128 tk
+      Activas 1 · cola 2 · slots/decode 1,6
+      Prompt ▂▃▅▆▇ · media 80 · pico 96 tk/s
+      Generación ▂▅▆▆ · media 20 · pico 24 tk/s
+      {S
+        Tareas · Enter: detalle
+        slot 0 / tarea 41 · GENERACIÓN · 128 tk
+      }
+      { [Logs] | [Ampliar log] | [Pausar] | [Entrada] }
+    }
   }
-  { Cola: 2 | Hardware compartido: CPU 42% · RAM 18 / 32 GiB }
+  { CPU 42% | RAM 18,2G | [Hardware] }
+  { GPU0 91% 20,1/24G +0,4G }
 }
 @endsalt

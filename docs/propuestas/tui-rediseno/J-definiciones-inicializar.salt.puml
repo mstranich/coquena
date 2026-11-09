@@ -1,9 +1,8 @@
 @startsalt
 {
-  {/ ● En vivo | <b>◇ Definiciones | ⚙ Configuración | . | ⇣ 1 · 68% | ⚠ 2 }
+  {/ ● En vivo | <b>◇ Definiciones | ≡ Configuración | . | ⇣ 1 · 68% | ▲ 2 }
   {
     {
-      <b>Definiciones
       {T
         + Global
         ++ Servicios
@@ -21,6 +20,6 @@
     }
   }
   { CPU ▂▃▅▆▅ 42% | RAM ▅▅▆▆ 18,2/32G }
-  { GPU0 ▅▆▇▇ 91% ded 20,1/24G comp 0,4G | GPU1 ▂▃▂▁ 12% ded 0,1/0,5G comp 1,1G }
+  { GPU0 ▅▆▇▇ 91% 20,1/24G +0,4G | GPU1 ▂▃▂▁ 12% 0,1/0,5G +1,1G }
 }
 @endsalt

@@ -4,7 +4,7 @@
 version: 1
 features:
   - id: terminal-service-dashboard
-    intent: Operar la receta de la pestaña local y observar hardware compartido, presets y logs del servicio enfocado en la terminal.
+    intent: Operar la receta local en En vivo, consultar definiciones y observar hardware compartido, entradas y logs del servicio enfocado en la terminal.
     keywords: [tui, dashboard, Terminal.Gui, project, recipe, up, down, services, hardware, logs]
     entrypoints:
       - src/Coquena/Cli.cs
@@ -15,6 +15,8 @@ features:
       - src/Coquena/Observation/InferenceSeries.cs
       - src/Coquena/Observation/InferenceTasks.cs
       - src/Coquena/Observation/InferencePresentation.cs
+      - src/Coquena/Observation/DashboardPresentation.cs
+      - src/Coquena/DashboardVisuals.cs
       - src/Coquena/Observation/SystemMetrics.cs
       - src/Coquena/Observation/ObservationTimeline.cs
       - src/Coquena/Observation/WindowsSystemMetrics.cs
@@ -25,6 +27,7 @@ features:
     tests:
       - tests/Coquena.Tests/InferenceTaskTests.cs
       - tests/Coquena.Tests/InferencePresentationTests.cs
+      - tests/Coquena.Tests/DashboardPresentationTests.cs
       - tests/Coquena.Tests/InferenceObservationTests.cs
       - tests/Coquena.Tests/ObservationTimelineTests.cs
       - tests/Coquena.Tests/DashboardFixture.cs

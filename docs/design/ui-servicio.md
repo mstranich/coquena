@@ -1,19 +1,30 @@
 # Pantalla Servicios de la TUI
 
-La TUI muestra una pestaña por servidor global conocido y, después, la pestaña
-del proyecto de la receta local. La pestaña del proyecto existe antes del primer
-inicio o publicación y también si sólo consume un servicio global. Su identidad
-y acciones siguen [interfaces visuales](interfaces-visuales.md#panel-del-proyecto).
-Cuando tiene servicio propio, conserva su monitor, controles y logs.
-Cada pestaña identifica ámbito, servicio cuando existe y estado.
-Las herramientas del proyecto y las preferencias se ubican al final.
+En vivo muestra un árbol lateral con los servicios globales conocidos y la
+receta local. El proyecto aparece antes de su primer inicio o publicación,
+también si sólo consume un servicio global. Su identidad y acciones siguen
+[interfaces visuales](interfaces-visuales.md#panel-del-proyecto).
+Cada servicio conserva su identidad, controles y logs. Sus entradas observadas
+se agrupan por prefijo de nombre publicado; un prefijo no identifica al cliente
+que envió una petición. Una entrada externa sin prefijo permanece visible.
 
-## Distribución vertical
+## Distribución
 
-1. Actividad y rendimiento del servidor seleccionado: entradas activas, fases,
-   avance disponible y series de prompt y generación con alcance y unidad.
-2. Series de hardware compartido por dispositivo, como detalle de la barra de estado común.
-3. Logs del servidor seleccionado, en el espacio restante.
+El contenido del servicio enfocado se organiza en estas zonas:
+
+1. Cabecera: nombre, puerto, estado, salud y CPU/RAM privada del proceso
+   verificado, con controles de ciclo. La receta local conserva un bloque
+   separado con Up/Down, destino y Preparación privada.
+2. Entrada enfocada: estado y fase, acumulados y medias del backend separados
+   de las curvas y tasas observadas por tarea. La lista conserva tareas activas
+   y recientes y permite consultar su detalle.
+3. Log del servicio, con Pausar, Seguir e Histórico. En terminal baja se amplía
+   como vista hermana del monitor; volver al monitor conserva la captura.
+
+El hardware es compartido por la máquina. Sus curvas y fuentes se consultan en
+Hardware desde la barra inferior, separadas del consumo del proceso del servicio.
+Los [wireframes](tui-servicio.salt.puml) y la
+[distribución compacta](tui-servicio-compacto.salt.puml) ilustran esta jerarquía.
 
 Las entradas activas tienen prioridad visual. La fase, la cola y la vigencia de
 las muestras permiten distinguir avance, espera y falta de observación. Al
@@ -105,8 +116,8 @@ La pestaña de servidor determina el alcance de actividad y logs. El encabezado
 identifica el servicio y su alias default cuando corresponde. El log sigue al
 servicio entre reinicios y cambios de archivo, con una indicación de transición.
 
-La pestaña Configuración, después de Sistema, ofrece «Filtrar logging de
-monitoreo». La preferencia global se guarda al cambiar la casilla y viene
+Configuración › TUI ofrece «Filtrar logging de monitoreo». Sistema es otra
+categoría de Configuración e identifica también la versión del ejecutable. La preferencia global se guarda al cambiar la casilla y viene
 activada por defecto. Oculta en la vista de logs los avisos de reenvío del
 router antes de seleccionar las líneas recientes. Esos avisos también pueden
 corresponder a inferencias, porque el mensaje no identifica la ruta HTTP.

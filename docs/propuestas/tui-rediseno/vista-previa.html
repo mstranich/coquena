@@ -39,8 +39,8 @@ const vis=s=>[...s.replace(/\{\w+\|([^}]*)\}/g,"$1")].length;
 const fill=(s,n)=>s+" ".repeat(Math.max(0,n-vis(s)));
 const sep="{mut|"+"─".repeat(W)+"}";
 // Hardware: sólo lo que el código mide por dispositivo (PDH + DXGI). Sin atribución a servicios.
-const TABS=k=>{k=k===true?0:k===false?1:k;const n=["● En vivo","◇ Definiciones","⚙ Configuración"];
- return [["z1",80,n.map((x,i)=>i===k?"{sel| "+x+" }":" {nav|"+x+"} ").join(" ")+"{pad}{nav|⇣ 1 · 68%}  {warn|⚠ 2} "]];};
+const TABS=k=>{k=k===true?0:k===false?1:k;const n=["● En vivo","◇ Definiciones","≡ Configuración"];
+ return [["z1",80,n.map((x,i)=>i===k?"{sel| "+x+" }":" {nav|"+x+"} ").join(" ")+"{pad}{nav|⇣ 1 · 68%}  {warn|▲ 2} "]];};
 const CT=(sel,i)=>{const t=[" Coquena"," TUI"," Sistema"];const x=t[i]??"";return x.trim()===sel?"{focb|"+fill(x,23)+"}":(x?" {nav|"+x.trim()+"}":x);};
 const TOPF=(t1,w,t2)=>[["hd",w-1," "+t1],["z0",1,""],["hd",80-w," "+t2]];
 const ROW=(l,w,r)=>[["z1",w-1,l],["z0",1,""],["z0",80-w,r]];
@@ -48,7 +48,7 @@ const MIDF=t=>[["hd",80," "+t]];
 const ROW1=s=>[["z0",80,s]];
 const BOTF=()=>null;
 const HW1="{bar| CPU }{gen|▂▃▅▆▅▃▄▅▆▅▄▃▅▆▅▄}{bar| 42%        RAM }{gen|▅▅▆▆▆▆▆▅▆▆▆▆▆▆▆▆}{bar| 18,2/32G}";
-const HW2="{bar| GPU0 }{warn|▅▆▇▇▇}{bar| 91% ded }{warn|20,1/24G}{bar| comp 0,4G   GPU1 }{pr|▂▃▂▁▂}{bar| 12% ded 0,1/0,5G comp 1,1G}";
+const HW2="{bar| GPU0 }{warn|▅▆▇▇▇}{bar| 91% }{warn|20,1/24G}{bar| +0,4G   GPU1 }{pr|▂▃▂▁▂}{bar| 12% 0,1/0,5G +1,1G}";
 // Árbol de Definiciones compartido: cada ámbito ofrece las mismas vistas.
 const GSET=["Servicios","Modelos","Backends","Modelos inventario","Descargas 1","Parámetros","Presets globales","Actualizaciones globales","Mantenimiento global"];
 const TREE=(sel,sc)=>{sc=sc||(GSET.includes(sel)?"G":"L");
@@ -61,7 +61,7 @@ const T=(sel,i,sc)=>TREE(sel,sc)[i]??"";
 const screens=[
 ["A · ● En vivo — el servicio es la unidad del log y del proceso; la entrada, de métricas y tareas",[
 TABS(true),
-TOPF("Servicios",24,"principal  {mut|:9931}  {ok|● en línea}  {mut|CPU} 21% {mut|RAM} 3,1G {mut|cola} 2"),
+TOPF("",24,"principal  {mut|:9931}  {ok|● en línea}  {mut|CPU} 21% {mut|RAM} 3,1G {mut|cola} 2"),
 ROW(" {ok|▾●} {hi|principal}",24," {btn| ■ Detener }  {btn| ⟳ Reiniciar }"),
 ROW("   ▾ código",24," {hi|código/asistente}  {mut|gemma-4-12B Q4_0}  {warn|≠ receta}"),
 ROW("{focb|     asistente         }",24," {mut|prompt} {pr|▂▃▅▆▇▆▅▆▇▆▅▆▇▇▆▅▆▇▆▅▆▇} {hi|80} {mut|tk/s pico 96}"),
@@ -85,7 +85,7 @@ HW1,HW2
 ]],
 ["B · ◇ Definiciones › código › Recetas — combinaciones registradas (se suman al usar -f)",[
 TABS(false),
-TOPF("Definiciones",24,"Recetas de código {mut|→} principal {ok|●}"),
+TOPF("",24,"Recetas de código {mut|→} principal {ok|●}"),
 ...[...Array(18)].map((_,i)=>ROW(T("Recetas",i),24,[
 " {mut|  COMBINACIÓN                  ID       ESTADO}",
 "{focb|▸ coquena.yaml + gpu           3f79f6   ● publicada }",
@@ -104,7 +104,7 @@ HW1,HW2
 ]],
 ["P · ◇ Definiciones › código › Presets — ver, clonar y saltar al modelo o al YAML",[
 TABS(false),
-TOPF("Definiciones",24,"Presets de código"),
+TOPF("",24,"Presets de código"),
 ...[...Array(18)].map((_,i)=>ROW(T("Presets",i,"L"),24,[
 " {mut|  PRESET      MODELO               EN VIVO    RECETA}",
 "{focb|  asistente   gemma-4-12B Q4_0     ● cargado  }{warn|modif.}",
@@ -125,7 +125,7 @@ HW1,HW2
 ]],
 ["C · ◇ Definiciones › Global › Modelos — inventario y búsqueda dentro del ámbito",[
 TABS(false),
-TOPF("Definiciones",24,"Modelos de Global  {mut|12 locales}"),
+TOPF("",24,"Modelos de Global  {mut|12 locales}"),
 ...[...Array(18)].map((_,i)=>ROW(T("Modelos",i,"G"),24,[
 " ( ) {nav|inventario}  (•) Hugging Face  {focb| gemma-4 qat       }",
 "",
@@ -135,7 +135,7 @@ TOPF("Definiciones",24,"Modelos de Global  {mut|12 locales}"),
 "",
 " {hi|google/gemma-4-26B-A4B-it-qat-q4_0}",
 " Gemma-4 MoE {mut|·} 25B {mut|·} GGUF",
-" {mut|variante} {focb| Q4_0 · 14,4 GB ▾ }  {mut|ded GPU0} 24G",
+" {mut|variante} {focb| Q4_0 · 14,4 GB ▾ }  {mut|GPU0} 24G",
 " {mut|usado por} —",
 "",
 " Gemma is a family of open models built by",
@@ -144,7 +144,7 @@ TOPF("Definiciones",24,"Modelos de Global  {mut|12 locales}"),
 " {btnf| Descargar }"][i]??"")),
 HW1,HW2
 ]],
-["E · ⚙ Configuración › Coquena — lo mismo que coquena config",[
+["E · ≡ Configuración › Coquena — lo mismo que coquena config",[
 TABS(2),
 TOPF("Categorías",24,"Coquena  {mut|$CoquenaHome\\config.json}"),
 ...[...Array(18)].map((_,i)=>ROW(CT("Coquena",i),24,[
@@ -163,7 +163,7 @@ TOPF("Categorías",24,"Coquena  {mut|$CoquenaHome\\config.json}"),
 " {btn| Guardar }  {btn| Restablecer }  {btn| Recargar }"][i]??"")),
 HW1,HW2
 ]],
-["F · ⚙ Configuración › TUI — preferencias propias de la interfaz",[
+["F · ≡ Configuración › TUI — preferencias propias de la interfaz",[
 TABS(2),
 TOPF("Categorías",24,"TUI"),
 ...[...Array(18)].map((_,i)=>ROW(CT("TUI",i),24,[
@@ -177,7 +177,7 @@ TOPF("Categorías",24,"TUI"),
 ""][i]??"")),
 HW1,HW2
 ]],
-["G · ⚙ Configuración › Sistema — system probe",[
+["G · ≡ Configuración › Sistema — system probe",[
 TABS(2),
 TOPF("Categorías",24,"Sistema  {mut|sondeo local · 12:01}"),
 ...[...Array(18)].map((_,i)=>ROW(CT("Sistema",i),24,[
@@ -247,7 +247,7 @@ HW1,HW2
 ]],
 ["J · ◇ Definiciones › carpeta sin receta — Inicializar",[
 TABS(1),
-TOPF("Definiciones",24,"$TestRoot\\nuevo  {mut|sin coquena.yaml}"),
+TOPF("",24,"$TestRoot\\nuevo  {mut|sin coquena.yaml}"),
 ...[...Array(18)].map((_,i)=>ROW([" {mut|Global}","  {nav|Servicios}","  {nav|Modelos}","  {nav|Descargas} {foc|1}","  {nav|Actualizaciones}",
 " {mut|nuevo} {mut|· aquí}","{focb|  Receta               }",
 " {mut|▸ código}"," {mut|▸ notas}"," {mut|▸ agentes}"][i]??"",24,[
@@ -259,7 +259,7 @@ HW1,HW2
 ]],
 ["K · ◇ Definiciones › + Backend — modal Seleccionar backend",[
 TABS(1),
-TOPF("Definiciones",24,"código {mut|→} principal {ok|●}"),
+TOPF("",24,"código {mut|→} principal {ok|●}"),
 ...[...Array(18)].map((_,i)=>[["z1",23,T("Recetas",i)],["z0",3,""],["dlg",51,[
 " {hi|Agregar backend a código}",
 "",
@@ -282,7 +282,7 @@ HW1,HW2
 ]],
 ["L · ◇ Definiciones › Importar — modal de selección hacia Global",[
 TABS(1),
-TOPF("Definiciones",24,"código {mut|→} principal {ok|●}"),
+TOPF("",24,"código {mut|→} principal {ok|●}"),
 ...[...Array(18)].map((_,i)=>[["z1",23,T("Recetas",i)],["z0",3,""],["dlg",51,[
 " {hi|Importar código en Global}",
 "",
@@ -305,7 +305,7 @@ HW1,HW2
 ]],
 ["M · ◇ Definiciones › Global › Servicios — gestionar servicios del ámbito",[
 TABS(1),
-TOPF("Definiciones",24,"Servicios de Global{pad}{btn| + Agregar }"),
+TOPF("",24,"Servicios de Global{pad}{btn| + Agregar }"),
 ...[...Array(18)].map((_,i)=>ROW(T("Servicios",i,"G"),24,[
 " {mut|  SERVICIO      BACKEND          PUERTO  ESTADO}",
 "{focb| ★ principal    cuda@13 · b6120   9931    ● en línea }",
@@ -322,7 +322,7 @@ HW1,HW2
 ]],
 ["N · ◇ Definiciones › Global › Descargas — progreso y control",[
 TABS(1),
-TOPF("Definiciones",24,"Descargas de Global{pad}{mut|2 activas · 1 pausada}"),
+TOPF("",24,"Descargas de Global{pad}{mut|2 activas · 1 pausada}"),
 ...[...Array(18)].map((_,i)=>ROW(T("Descargas 1",i,"G"),24,[
 "{focb| gemma-4-12B-it-qat Q4_0                   modelo }",
 " {foc|██████████████████▒░░░░░░░░} 68%  7,1/10,4G",
@@ -343,7 +343,7 @@ HW1,HW2
 ]],
 ["Q · ◇ Definiciones › Global › Parámetros — catálogo del backend",[
 TABS(false),
-TOPF("Definiciones",24,"Parámetros de Global  {mut|llama.cpp b6120}"),
+TOPF("",24,"Parámetros de Global  {mut|llama.cpp b6120}"),
 ...[...Array(18)].map((_,i)=>ROW(T("Parámetros",i,"G"),24,[
 " {mut|filtro} {focb| ctx              }  {mut|412 parámetros}",
 "",
@@ -362,7 +362,7 @@ HW1,HW2
 ]],
 ["U · ◇ Definiciones › código › Actualizaciones — Comprobar (update) y Actualizar (upgrade)",[
 TABS(false),
-TOPF("Definiciones",24,"Actualizaciones de código  {mut|plan 09/11 11:40} {ok|✓ vigente}"),
+TOPF("",24,"Actualizaciones de código  {mut|plan 09/11 11:40} {ok|✓ vigente}"),
 ...[...Array(18)].map((_,i)=>ROW(T("Actualizaciones 2↑",i,"L"),24,[
 " {mut|    RECURSO              ACTUAL      PROPUESTA  ESTADO}",
 "{focb| [x] backend llama.cpp    b6120       b6188      ↑ nueva}",
@@ -379,7 +379,7 @@ HW1,HW2
 ]],
 ["R · ◇ Definiciones › código › Mantenimiento — verificar y limpiar",[
 TABS(false),
-TOPF("Definiciones",24,"Mantenimiento de código"),
+TOPF("",24,"Mantenimiento de código"),
 ...[...Array(18)].map((_,i)=>ROW(T("Mantenimiento",i,"L"),24,[
 " {btn| Verificar }  {mut|09/11 12:10}  {ok|✓ 6 íntegros}  {warn|▲ 1}",
 "   {warn|▲} mmproj-F16: archivo modificado fuera de Coquena",
@@ -395,7 +395,7 @@ HW1,HW2
 ]],
 ["V · Modal Nueva combinación — archivos YAML en orden y archivos .env",[
 TABS(false),
-TOPF("Definiciones",24,"Recetas de código {mut|→} principal {ok|●}"),
+TOPF("",24,"Recetas de código {mut|→} principal {ok|●}"),
 ...[...Array(18)].map((_,i)=>[["z1",23,T("Recetas",i)],["z0",3,""],["dlg",51,[
 " {hi|Nueva combinación}",
 "",
@@ -415,7 +415,7 @@ HW1,HW2
 ]],
 ["W · ◇ Definiciones › Global › Modelos — inventario local y alta de archivos",[
 TABS(false),
-TOPF("Definiciones",24,"Modelos de Global{pad}{btn| + Agregar local… }"),
+TOPF("",24,"Modelos de Global{pad}{btn| + Agregar local… }"),
 ...[...Array(18)].map((_,i)=>ROW(T("Modelos inventario",i),24,[
 " (•) inventario  ( ) {nav|Hugging Face}  {focb| filtro          }",
 "",
@@ -425,7 +425,7 @@ TOPF("Definiciones",24,"Modelos de Global{pad}{btn| + Agregar local… }"),
 "  mmproj-F16 {mut|companion}    gestionado  0,9G    1",
 "  mi-modelo.gguf           {warn|externo}     4,2G    —",
 "",
-" {hi|gemma-4-12B-it-qat Q4_0}  {mut|🔒 protegido}",
+" {hi|gemma-4-12B-it-qat Q4_0}  {mut|■ protegido}",
 " google/gemma-4-12B-it-qat-GGUF {mut|· rev a1f3}",
 " {mut|usado por} código/asistente, notas/tagger",
 "",
@@ -434,7 +434,7 @@ HW1,HW2
 ]],
 ["S · Modal Agregar modelo local — model add",[
 TABS(false),
-TOPF("Definiciones",24,"Modelos de Global"),
+TOPF("",24,"Modelos de Global"),
 ...[...Array(18)].map((_,i)=>[["z1",23,T("Modelos inventario",i)],["z0",3,""],["dlg",51,[
 " {hi|Agregar modelo local}",
 "",
@@ -454,7 +454,7 @@ HW1,HW2
 ]],
 ["O · ◇ Definiciones › Global › Backends — instalaciones del ámbito",[
 TABS(false),
-TOPF("Definiciones",24,"Backends de Global{pad}{btn| + Backend }"),
+TOPF("",24,"Backends de Global{pad}{btn| + Backend }"),
 ...[...Array(18)].map((_,i)=>ROW(T("Backends",i),24,[
 " {mut|  VARIANTE   VERSIÓN  ORIGEN    TAMAÑO  USO}",
 "{focb| cuda@13    b6120    oficial   415M    principal }",
@@ -463,7 +463,7 @@ TOPF("Definiciones",24,"Backends de Global{pad}{btn| + Backend }"),
 "  cpu        b6044    oficial   41M     —",
 "  mi-fork    —        {warn|externo}   —       —",
 "",
-" {hi|cuda@13 b6120}  {mut|🔒 protegido}",
+" {hi|cuda@13 b6120}  {mut|■ protegido}",
 " {mut|ruta} $CoquenaHome\\backends\\cuda13-b6120",
 " {mut|compatibilidad} ✓ driver 13.0 · RTX 4090",
 "",
@@ -472,7 +472,7 @@ HW1,HW2
 ]],
 ["X · Modal Aceptar/Cancelar — Up con el destino ocupado",[
 TABS(false),
-TOPF("Definiciones",24,"Recetas de código {mut|→} principal {ok|●}"),
+TOPF("",24,"Recetas de código {mut|→} principal {ok|●}"),
 ...[...Array(18)].map((_,i)=>[["z1",23,T("Recetas",i)],["z0",3,""],["dlg",51,["","",
 " {hi|Publicar en principal}",
 "",
@@ -501,7 +501,7 @@ TABS(false),
 "{pad}{btn| Sí }  {btn| No }  {btnf| Cancelar }"][i]??""],["z0",12,""]]),
 HW1,HW2
 ]],
-["Z · Notificaciones (⚠ en la barra superior) — acciones sobre cada aviso",[
+["Z · Notificaciones (▲ en la barra superior) — acciones sobre cada aviso",[
 TABS(0),
 [["hd",80," Notificaciones{pad}{btn| Marcar leídas }  {btn| Volver }"]],
 ROW1(" {warn|▲} {mut|12:09} principal se reinició tras una caída {mut|(1/3)}{pad}{btn| Ver log }"),
@@ -513,14 +513,14 @@ HW1,HW2
 ]],
 ["D · Hardware (clic en la barra inferior) — ¿saturó o desbordó la memoria?",[
 TABS(true),
-TOPF("Hardware · 5 min",24,"GPU0  {mut|uso · ded · comp}"),
+TOPF("Hardware · 5 min",24,"GPU0  {mut|uso · vram · compartida}"),
 ROW(" {focb|GPU0           91%   }",24," {warn|▃▅▆▇▇▇▇▆▇▇▇▇▆▇▇▇▆▇▇▇▇▆▇▇▇▇▆▇▇▇▇▆▇▇▇▇▆▇▇▇▇▆▇▇} {mut|uso}"),
-ROW("  GPU1           12%",24," {warn|▅▅▅▆▆▆▆▆▆▆▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇} {mut|ded}"),
-ROW("  CPU            42%",24," {pr|▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▂▂▂▂▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃} {mut|comp}"),
+ROW("  GPU1           12%",24," {warn|▅▅▅▆▆▆▆▆▆▆▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇} {mut|vram}"),
+ROW("  CPU            42%",24," {pr|▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▂▂▂▂▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃} {mut|+ram}"),
 ROW("  RAM       18,2/32G",24,""),
 ROW("",24," {mut|uso} 91% {mut|· media} 84% {mut|· pico} 99%"),
-ROW("",24," {mut|ded} 20,1 / 24,0G {mut|· pico} 23,6G"),
-ROW("",24," {warn|▲ comp} 0,0 → 0,4G {mut|desde 12:03, con ded en pico}"),
+ROW("",24," {mut|vram} 20,1 / 24,0G {mut|· pico} 23,6G"),
+ROW("",24," {warn|▲ compartida} 0,0 → 0,4G {mut|desde 12:03, VRAM en pico}"),
 ROW("",24,""),
 ROW("",24,""),
 ROW("",24," {mut|motor más ocupado} 3D/compute"),
@@ -557,10 +557,10 @@ for(const [title,raw] of screens){const lines=align(raw);
 }
 
 // Navegación simulada: los controles con destino llevan a otra pantalla.
-const LINKS={"● En vivo":"A","◇ Definiciones":"B","⚙ Configuración":"E","Receta":"B","Modelos":"W",
+const LINKS={"● En vivo":"A","◇ Definiciones":"B","≡ Configuración":"E","Receta":"B","Modelos":"W",
 "Coquena":"E","TUI":"F","Sistema":"G","Editar YAML":"H","Cerrar":"B","Ver en vivo":"A","Histórico":"I",
 "Volver":"A","+ Backend":"K","Importar":"L","Cancelar":"B","Agregar":"B","Inicializar":"B","Actualizar":"B",
-"Servicios":"M","Backends":"O","inventario":"W","Hugging Face":"C","+ Agregar local…":"S","Descargar versión…":"K","Recetas":"B","Presets":"P","Parámetros":"Q","Mantenimiento":"R","Actualizaciones":"U","Actualizaciones 2↑":"U","Editar":"H","+ Nueva combinación…":"V","Aceptar":"B","+ Archivo nuevo…":"H","Clonar…":"H","gemma-4-12B-it-qat Q4_0":"W","▲ Up":"X","Publicar igual":"B","⚠ 2":"Z","⇣ 1 · 68%":"N","Ver log":"I","Marcar leídas":"Z","Guardar":"Y","Sí":"H","No":"H","Servicio":"M","Descargas":"N","Descargas 1":"N",
+"Servicios":"M","Backends":"O","inventario":"W","Hugging Face":"C","+ Agregar local…":"S","Descargar versión…":"K","Recetas":"B","Presets":"P","Parámetros":"Q","Mantenimiento":"R","Actualizaciones":"U","Actualizaciones 2↑":"U","Editar":"H","+ Nueva combinación…":"V","Aceptar":"B","+ Archivo nuevo…":"H","Clonar…":"H","gemma-4-12B-it-qat Q4_0":"W","▲ Up":"X","Publicar igual":"B","▲ 2":"Z","⇣ 1 · 68%":"N","Ver log":"I","Marcar leídas":"Z","Guardar":"Y","Sí":"H","No":"H","Servicio":"M","Descargas":"N","Descargas 1":"N",
 "+ Agregar":"M","Reanudar":"N","Ver descargas":"N"};
 const terms=[...document.querySelectorAll(".term")],heads=[...document.querySelectorAll("#screens h2")];
 const ids=heads.map(h=>h.textContent.trim()[0]);

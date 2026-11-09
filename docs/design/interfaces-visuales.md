@@ -8,10 +8,10 @@ incluidas copias traídas de otro gestor. No requieren descargar de nuevo ni man
 una biblioteca global paralela. Las preferencias de Coquena se distinguen de la
 configuración del servidor y usan el ámbito global de config.
 Abiertas en una carpeta muestran ese proyecto, su servicio destino y composición publicada.
-Una carpeta con `coquena.yaml` ofrece su pestaña local aunque todavía no exista
+Una carpeta con `coquena.yaml` ofrece su nodo local aunque todavía no exista
 estado en `.coquena/`. El glifo local distingue el proyecto de los servicios
 globales; la etiqueta usa `name` de la receta o, si falta, el nombre de la carpeta.
-La pestaña existe también para una receta consumidora sin servicio propio.
+El nodo existe también para una receta consumidora sin servicio propio.
 Abrirla no prepara recursos, inicia procesos ni publica presets.
 
 Dentro del proyecto, Up publica los presets de la receta en su destino y Down
@@ -52,7 +52,7 @@ inventario, definiciones e identidad. Una ruta que ya no se puede resolver
 se muestra como inaccesible.
 
 Cambiar de espacio cambia el catálogo editable, sus transferencias y las
-pestañas de servicios propios que se ofrecen. Los servidores globales siguen
+nodos de servicios propios que se ofrecen. Los servidores globales siguen
 disponibles. La cabecera distingue espacio activo, servidor enfocado y
 destino de publicación de la receta. Cambiar de espacio conserva las
 transferencias y pruebas en curso, respeta el borrador de cada receta y
@@ -65,27 +65,33 @@ publicar en el global compartido o usar el servidor propio con su backend.
 
 ## Barra de estado de la máquina
 
-La TUI mantiene una barra visible en el borde inferior en todos los espacios y
-pestañas, incluido el selector de espacios. Resume CPU, GPU, RAM y VRAM de la
-máquina. Cambiar de catálogo o servidor conserva la misma serie de muestras.
-Con varias GPU, identifica el dispositivo resumido y señala si hay otros;
-el monitor muestra el detalle por dispositivo. Los datos ausentes o vencidos
-se identifican como tales.
+La TUI mantiene dos filas de hardware en el borde inferior en todos los
+espacios y pestañas. La primera resume CPU y RAM de la máquina; la segunda
+identifica cada GPU y muestra uso, memoria dedicada usada/capacidad y memoria
+compartida. Cambiar de catálogo o servidor conserva la misma serie de muestras.
+Los datos ausentes o vencidos se identifican como tales. El detalle Hardware
+se abre por teclado o clic desde la barra y permite consultar cada dispositivo,
+sus gráficas y las fuentes de las mediciones. Cuando falta ancho se compactan
+las unidades; el detalle conserva los valores, unidades y motivos completos.
+La memoria abreviada con G expresa GiB, conforme al [glosario](glosario.md).
 
-Con espacio y una fuente disponible, puede incluir actividad de una unidad de
-almacenamiento identificada y un resumen del servidor observado. El resumen
-identifica el servidor y muestra su actividad agregada, por ejemplo cuántas
-entradas están activas y cuántas peticiones esperan. Si falta ancho se retiran
-primero esos campos opcionales y se compactan las etiquetas de hardware.
-La barra indica el consumo de la máquina; el monitor conserva las series y
-las fases por entrada o tarea.
+La barra indica consumo de máquina; no atribuye GPU ni memoria compartida a
+un servicio o modelo. El monitor conserva fases y tasas por entrada o tarea.
 
 ## Dashboards de observación
 
-La TUI ordena sus pestañas por servidores globales, proyecto local y
-herramientas. La [vista por servidor](ui-servicio.md) muestra inferencia en
+La TUI organiza la navegación en ● En vivo, ◇ Definiciones y ≡ Configuración,
+sin marca ni fila de atajos. En vivo agrupa servicios y la receta local en un
+árbol lateral; Definiciones consulta la información de definiciones disponible
+sin acciones de modificación. Configuración separa preferencias de TUI del
+inventario y sondeo de Sistema. La [consulta de definiciones](tui-definiciones.salt.puml)
+conserva el catálogo observado. La [vista por servidor](ui-servicio.md) muestra inferencia en
 curso, rendimiento, recursos compartidos y logs. El log queda accesible dentro
 del servidor aunque el espacio vertical obligue a separarlo del monitor.
+
+Un indicador sin fuente disponible muestra «—» y no ofrece una acción ni
+presenta un recuento inferido. El [detalle de hardware](tui-hardware.salt.puml)
+conserva el alcance y las fuentes de los dispositivos medidos.
 
 Las pestañas descubren servicios mediante el registro local. Los fallos de
 una instancia se aíslan de las demás. Los gráficos conservan unidades,
@@ -93,7 +99,7 @@ distinguen muestras ausentes o desactualizadas y se adaptan a la terminal.
 El historial visual es de sesión. Las frecuencias de captura y de refresco
 siguen [observabilidad](observabilidad.md).
 
-Las herramientas aparecen al final:
+Las herramientas de autoría y configuración conservan estas responsabilidades:
 
 - [Presets](tui-presets.salt.puml) lista la contribución del proyecto y abre el
   editor con comparación entre guardado, activo y borrador.
@@ -104,8 +110,21 @@ Las herramientas aparecen al final:
   Los argumentos del backend se editan como parte de la definición del proyecto.
 
 La navegación de terminal distingue pestaña activa y foco de teclado. Usa la
-[paleta de Coquena](../../docs-site/assets/coquena.css), con terracota para selección,
-turquesa como acento y etiquetas legibles aun sin color. Los wireframes muestran
+[paleta de Coquena](../../docs-site/assets/coquena.css): terracota para selección,
+turquesa exclusivamente para foco y verde salvia para éxito. Prompt usa azul;
+generación y recursos usan oro. Advertencia y error conservan ámbar y rojo,
+acompañados de texto. Las zonas se distinguen por fondo (base para contenido,
+superficie para navegación y hardware, tarjeta para títulos), sin bordes ni
+líneas. Los botones se distinguen por fondo y texto, con turquesa al enfocar.
+En 16 colores se usan rojo para selección, cian para foco, verde para éxito,
+azul para prompt y amarillo para generación; los estados conservan etiquetas.
+`NO_COLOR` conserva toda la jerarquía textual y las mismas acciones.
+
+El mínimo de diseño es 80×24. Al aumentar la terminal, el espacio adicional va
+a contenido, gráficas, tablas y logs; la cabecera y las dos filas de hardware
+mantienen su altura. Las zonas desplazables permiten consultar el contenido
+sin superponer controles. Los modales presentan título, contenido y acciones
+explícitas por fondo, con Aceptar/Cancelar o las opciones de la operación. Los wireframes muestran
 la jerarquía y los recorridos con datos ilustrativos.
 
 ## Acciones compartidas con la CLI
