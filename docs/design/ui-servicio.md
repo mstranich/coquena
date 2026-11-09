@@ -1,7 +1,11 @@
 # Pantalla Servicios de la TUI
 
-La TUI muestra una pestaña por servidor conocido, con los globales primero y
-los del proyecto después. Cada pestaña identifica ámbito, servicio y estado.
+La TUI muestra una pestaña por servidor global conocido y, después, la pestaña
+del proyecto de la receta local. La pestaña del proyecto existe antes del primer
+inicio o publicación y también si sólo consume un servicio global. Su identidad
+y acciones siguen [interfaces visuales](interfaces-visuales.md#panel-del-proyecto).
+Cuando tiene servicio propio, conserva su monitor, controles y logs.
+Cada pestaña identifica ámbito, servicio cuando existe y estado.
 Las herramientas del proyecto y las preferencias se ubican al final.
 
 ## Distribución vertical

@@ -16,10 +16,14 @@ public interface IPublicationInteraction
     bool Available { get; }
     bool Confirm(string diagnostic);
     bool StartService();
+    bool StartService(string diagnostic) => StartService();
 }
 
 public static class PublicationCli
 {
+    internal sealed record Frontend(IModelSelectionInteraction Models,
+        Func<string[], TextWriter, TextWriter, Task<int>> StartService, CancellationToken Cancellation);
+
     private sealed class ConsoleInteraction(TextWriter output) : IPublicationInteraction
     {
         public bool Available => !Console.IsInputRedirected;
@@ -36,8 +40,11 @@ public static class PublicationCli
     }
 
     public static int Run(string[] args, TextWriter output, TextWriter error, IPublicationInteraction? interaction = null)
+        => Execute(args, output, error, interaction ?? new ConsoleInteraction(output));
+
+    internal static int Execute(string[] args, TextWriter output, TextWriter error, IPublicationInteraction interaction, Frontend? frontend = null)
     {
-        try { return RunAsync(args, output, error, interaction ?? new ConsoleInteraction(output)).GetAwaiter().GetResult(); }
+        try { return RunAsync(args, output, error, interaction, frontend: frontend).GetAwaiter().GetResult(); }
         catch (Exception e) when (e is StorageException or RecipeException or BackendException or DownloadException or
             ModelSourceException or ContractException or ConfigurationException or System.ComponentModel.Win32Exception or
             ArgumentException or IOException or UnauthorizedAccessException or HttpRequestException or OperationCanceledException)
@@ -60,8 +67,10 @@ public static class PublicationCli
         }
     }
 
-    private static async Task<int> RunAsync(string[] args, TextWriter output, TextWriter error, IPublicationInteraction interaction, JsonObject? recordedTarget = null, bool continueAfterRecovery = true)
+    private static async Task<int> RunAsync(string[] args, TextWriter output, TextWriter error, IPublicationInteraction interaction, JsonObject? recordedTarget = null, bool continueAfterRecovery = true, Frontend? frontend = null)
     {
+        var cancellation = frontend?.Cancellation ?? CancellationToken.None;
+        cancellation.ThrowIfCancellationRequested();
         var files = new List<string>(); var env = new List<string>(); var positional = new List<string>();
         var seen = new HashSet<string>(); string? basePath = null, selector = null; bool start = false, isPrivate = false, end = false;
         for (var i = 0; i < args.Length; i++)
@@ -135,7 +144,7 @@ public static class PublicationCli
                 var exit = 0;
                 foreach (var previous in remaining)
                 {
-                    var previousResult = await RunAsync(args, output, error, interaction, previous!.DeepClone().AsObject());
+                    var previousResult = await RunAsync(args, output, error, interaction, previous!.DeepClone().AsObject(), frontend: frontend);
                     if (previousResult == 9) exit = 9; else if (exit == 0) exit = previousResult;
                 }
                 return exit;
@@ -200,13 +209,13 @@ public static class PublicationCli
             if (action != "up") throw new StorageException("service-stopped", "El destino está detenido; iniciar el servicio explícitamente o usar up.");
             if (!start)
             {
-                if (!interaction.StartService())
+                if (!interaction.StartService($"Iniciar «{service.Name}» ({(targetContext.IsGlobal ? "global" : "proyecto")}) para publicar los presets."))
                     throw new StorageException("service-stopped", "No se autorizó iniciar el destino.");
             }
             var startArgs = new List<string> { "--service", targetContext.IsGlobal ? service.Name : "self", "start", "-d" };
             if (PresetPublication.Service(targetStore.Read(), service.ServiceId)["publication-operation"] is not null)
             {
-                var recovered = await manager.ReconcileAsync(identity.RecipeId, null, stopped: true);
+                var recovered = await manager.ReconcileAsync(identity.RecipeId, null, stopped: true, cancellation: cancellation);
                 if (!recovered.Confirmed)
                     throw new StorageException("publication-pending", "No se pudo recuperar la publicación anterior; el servicio sigue detenido.");
                 output.WriteLine("Se recuperó la publicación anterior. Iniciando el servicio.");
@@ -219,7 +228,8 @@ public static class PublicationCli
                 foreach (var f in selection.EnvFiles) startArgs.AddRange(["--env-file", f]);
                 if (isPrivate) startArgs.Add("--private");
             }
-            var exit = ScopedServiceCli.Run(startArgs.ToArray(), output, error);
+            var exit = frontend is null ? ScopedServiceCli.Run(startArgs.ToArray(), output, error)
+                : await frontend.StartService(startArgs.ToArray(), output, error);
             if (exit != 0) return exit;
             running = lifecycle.Reconcile(service.ServiceId);
             if (!running) throw new StorageException("service-stopped", "El destino terminó después del inicio; no se acredita publicación.");
@@ -233,10 +243,10 @@ public static class PublicationCli
         IPresetRouter? router = running ? new LlamaPresetRouter(http, new UriBuilder("http", host!, active!["endpoint"]!["port"]!.GetValue<int>()).Uri) : null;
         if (PresetPublication.Service(targetStore.Read(), service.ServiceId)["publication-operation"] is not null)
         {
-            var reconciled = await manager.ReconcileAsync(identity.RecipeId, router, !running);
+            var reconciled = await manager.ReconcileAsync(identity.RecipeId, router, !running, cancellation);
             if (reconciled.Confirmed && reconciled.WarmupFailed && router is not null)
             {
-                var restored = reconciled.Restored ? reconciled : await manager.RestoreFailedAsync(identity.RecipeId, router, true, interaction.Confirm);
+                var restored = reconciled.Restored ? reconciled : await manager.RestoreFailedAsync(identity.RecipeId, router, true, interaction.Confirm, cancellation);
                 error.WriteLine("Error: preset-load-failed. Entradas: " + string.Join(", ", reconciled.FailedEntries ?? []));
                 output.WriteLine(restored?.Confirmed == true ? "Entradas afectadas restauradas sin reiniciar." : "Carga fallida; consultar estado de la composición.");
                 return restored?.Confirmed == false ? 9 : 8;
@@ -244,14 +254,14 @@ public static class PublicationCli
             if (reconciled.Confirmed && action == "up" && continueAfterRecovery)
             {
                 output.WriteLine("Se recuperó la publicación anterior. Continuando con up.");
-                return await RunAsync(args, output, error, interaction, continueAfterRecovery: false);
+                return await RunAsync(args, output, error, interaction, continueAfterRecovery: false, frontend: frontend);
             }
             output.WriteLine(reconciled.Confirmed ? "Operación anterior reconciliada; repetir el comando para una nueva publicación." : "Resultado anterior incierto; recursos protegidos.");
             return reconciled.Confirmed ? 0 : 9;
         }
         if (!withdrawing && router is not null)
         {
-            var restoration = await manager.RestoreFailedAsync(identity.RecipeId, router, true, interaction.Confirm);
+            var restoration = await manager.RestoreFailedAsync(identity.RecipeId, router, true, interaction.Confirm, cancellation);
             if (restoration is not null)
             {
                 error.WriteLine("Error: preset-load-failed. Entradas: " + string.Join(", ", restoration.FailedEntries ?? []));
@@ -292,9 +302,9 @@ public static class PublicationCli
                 _ = ArgumentEmission.Ini(recipe, block, name + "/" + block.Key, adapter, _ => "prepared-resource");
             }
             using var transport = new HuggingFaceTransport();
-            using var stopped = new CancellationTokenSource();
+            using var stopped = CancellationTokenSource.CreateLinkedTokenSource(frontend?.Cancellation ?? CancellationToken.None);
             var resources = new ScopedCombinationResources(context, HardwareProbe.Inspect(), new HuggingFaceStore(http), transport,
-                new ConsoleModelSelectionInteraction(), warning: message => error.WriteLine(message),
+                frontend?.Models ?? new ConsoleModelSelectionInteraction(), warning: message => error.WriteLine(message),
                 downloadProgress: operation => DownloadCli.Show(operation, output));
             PreparedCombination prepared;
             ConsoleCancelEventHandler cancel = (_, e) => { e.Cancel = true; stopped.Cancel(); };
@@ -322,7 +332,7 @@ public static class PublicationCli
                     ArgumentEmission.Cli(recipe, block with { Arguments = block.Arguments.Where(p => adapter.Supports(p.Key, "preset", "cli")).ToDictionary(p => p.Key, p => p.Value) }, adapter, Resolve).ToArray(), bindings, recipe.PresetWarmup(block.Key)));
             }
         }
-        var result = await manager.PublishAsync(identity.RecipeId, presets.ToArray(), combination, name, !running, true, interaction.Confirm, router, validate);
+        var result = await manager.PublishAsync(identity.RecipeId, presets.ToArray(), combination, name, !running, true, interaction.Confirm, router, validate, cancellation);
         if (result.WarmupFailed) error.WriteLine("Error: preset-load-failed. Entradas: " + string.Join(", ", result.FailedEntries ?? []));
         if (result.Confirmed && !result.WarmupFailed)
         {

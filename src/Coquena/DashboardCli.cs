@@ -130,9 +130,10 @@ internal static class DashboardCli
         }
     }
 
-    private sealed record Target(ScopeStore Store, ServiceIdentity Service, bool IsDefault)
+    internal sealed record Target(ScopeStore Store, ServiceIdentity? Service, bool IsDefault,
+        RecipeSelection? Recipe = null, string? ProjectName = null, bool DeclaresService = false, string? Destination = null, string? RecipeProblem = null)
     {
-        public string Label => (Store.Context.IsGlobal ? "◎ " : "◇ ") + (IsDefault ? "★ " : "") + Service.Name;
+        public string Label => (Store.Context.IsGlobal ? "◎ " : "◇ ") + (IsDefault ? "★ " : "") + (ProjectName ?? Service?.Name);
     }
 
     private sealed record ServicePanel(ServiceSnapshot Snapshot);
@@ -197,6 +198,12 @@ internal static class DashboardCli
         var stopButton = new Button { X = Pos.Right(startButton), Y = Pos.Top(startButton), Width = 12, Text = "Detener", ShadowStyle = ShadowStyles.None, Enabled = false };
         var statusMark = new Label { X = Pos.Right(stopButton) + 1, Y = Pos.Top(startButton), Text = "●" };
         var status = new Label { X = Pos.Right(statusMark) + 1, Y = Pos.Top(statusMark), Width = Dim.Fill() };
+        var projectActions = new View { Y = Pos.Bottom(status), Width = Dim.Fill(), Height = 0, Visible = false };
+        var upButton = new Button { Text = "Up · publicar", NoDecorations = true, ShadowStyle = ShadowStyles.None };
+        var downButton = new Button { X = Pos.Right(upButton) + 1, Text = "Down · retirar", NoDecorations = true, ShadowStyle = ShadowStyles.None };
+        var projectTarget = new Label { X = Pos.Right(downButton) + 1, Width = Dim.Fill() };
+        var privatePreparation = new CheckBox { Y = 1, Text = "Preparación privada (sólo estado local)" };
+        projectActions.Add(upButton, downButton, projectTarget, privatePreparation);
         var deviceCharts = new Dictionary<string, (int Number, Label Name, UsageChart Gpu, UsageChart Vram, View Stats, Label Load, Label Memory, int StatsWidth)>(StringComparer.OrdinalIgnoreCase);
         var visibleChartRows = 4;
         var charts = new View
@@ -215,7 +222,7 @@ internal static class DashboardCli
         var outputGraph = new UsageChart("Generación", useColor) { Y = Pos.Bottom(promptGraph) };
         var summary = new ListView
         {
-            Y = Pos.Bottom(status), Width = Dim.Fill(), Height = 2,
+            Y = Pos.Bottom(projectActions), Width = Dim.Fill(), Height = 2,
             ViewportSettings = ViewportSettingsFlags.HasHorizontalScrollBar | ViewportSettingsFlags.HasVerticalScrollBar
         };
         var taskRows = new ListView
@@ -265,7 +272,7 @@ internal static class DashboardCli
                 preferenceError.Text = "No se pudo guardar la preferencia: " + e.Message;
             }
         };
-        window.Add(summary, taskRows, services, startButton, stopButton, statusMark, status, charts, inferenceLabel, promptGraph, outputGraph,
+        window.Add(summary, taskRows, services, startButton, stopButton, statusMark, status, projectActions, charts, inferenceLabel, promptGraph, outputGraph,
             logsButton, presetsButton, resourcesButton, logTools, logState, lines, entries, resources, system, filterLogs, preferenceError, machine);
         if (useColor)
         {
@@ -285,7 +292,7 @@ internal static class DashboardCli
             Paint(system, Palette.Text, Palette.Surface);
             Paint(filterLogs, Palette.Text, Palette.Surface);
         }
-        var index = targets.Count == 0 ? targets.Count : 0;
+        var index = Math.Max(0, targets.FindIndex(target => target.Recipe is not null));
         var showLogsPanel = true;
         var showResources = false;
         string? shownResources = null;
@@ -301,6 +308,8 @@ internal static class DashboardCli
         resourcesButton.Accepted += (_, _) => SelectPanel(showLogs: false, resourcePanel: true);
 
         var logSessions = new Dictionary<int, ServiceLogSession>();
+        var retiredLogs = new List<Task>();
+        var projectClock = Stopwatch.StartNew();
         var layoutHeight = -1;
         bool logHeld = false, paintingLog = false;
         string? lastLogText = null;
@@ -426,6 +435,8 @@ internal static class DashboardCli
         };
         startButton.Accepted += (_, _) => BeginServiceAction(stopService: false);
         stopButton.Accepted += (_, _) => BeginServiceAction(stopService: true);
+        upButton.Accepted += (_, _) => BeginPublication("up");
+        downButton.Accepted += (_, _) => BeginPublication("down");
         for (var i = 0; i < serviceButtons.Count; i++)
         {
             var selection = i;
@@ -438,9 +449,17 @@ internal static class DashboardCli
             {
                 operation = null;
                 selectedSnapshot = null;
+                RefreshProject();
+                Select();
                 var problem = completed.IsCompletedSuccessfully ? completed.Result : completed.Exception?.GetBaseException().Message;
                 if (!string.IsNullOrWhiteSpace(problem))
-                    MessageBox.Query(app, "Operación de servicio", problem, "Cerrar");
+                    MessageBox.Query(app, "Resultado de operación", problem, "Cerrar");
+            }
+            if (operation is null && projectClock.Elapsed >= CaptureInterval)
+            {
+                projectClock.Restart();
+                if (RefreshProject()) Select();
+                retiredLogs.RemoveAll(task => task.IsCompletedSuccessfully);
             }
             if (evidence is null && probe.IsCompletedSuccessfully) evidence = probe.Result;
             if (machineSample is null || machineSample.IsCompleted)
@@ -491,7 +510,7 @@ internal static class DashboardCli
                     }
                 }
             }
-            if (operation is null && index < targets.Count && serviceSamples.Count < 4 && !serviceSamples.ContainsKey(index) &&
+            if (operation is null && index < targets.Count && targets[index].Service is not null && serviceSamples.Count < 4 && !serviceSamples.ContainsKey(index) &&
                 (!serviceCaptures.TryGetValue(index, out var lastCapture) || lastCapture.Elapsed >= CaptureInterval))
             {
                 var target = targets[index];
@@ -532,7 +551,7 @@ internal static class DashboardCli
         finally
         {
             stop.Cancel();
-            Task.WhenAll(logSessions.Values.Select(session => session.CloseAsync())).GetAwaiter().GetResult();
+            Task.WhenAll(logSessions.Values.Select(session => session.CloseAsync()).Concat(retiredLogs)).GetAwaiter().GetResult();
             var observations = Task.WhenAll(serviceSamples.Values.Select(value => (Task)value.Task)
                 .Concat(machineSample is null ? [] : new Task[] { machineSample }));
             _ = observations.ContinueWith(task => { _ = task.Exception; }, TaskContinuationOptions.OnlyOnFaulted);
@@ -553,17 +572,22 @@ internal static class DashboardCli
 
         void BeginServiceAction(bool stopService)
         {
-            if (operation is not null || index >= targets.Count || selectedSnapshot is not { } snapshot) return;
-            var running = snapshot.ProcessState == "alive" && snapshot.InstanceId is not null;
-            if (!running && (stopService || snapshot.ProcessState != "stopped")) return;
+            if (operation is not null || index >= targets.Count) return;
             var target = targets[index];
+            var snapshot = selectedSnapshot;
+            if (target.Service is not null && snapshot is null) return;
+            var running = snapshot?.ProcessState == "alive" && snapshot.InstanceId is not null;
+            if (!running && (stopService || snapshot is not null && snapshot.ProcessState != "stopped")) return;
+            if (target.Service is null && !target.DeclaresService) return;
             var verb = stopService ? "Detener" : running ? "Reiniciar" : "Iniciar";
+            var usePrivateResources = privatePreparation.Value == CheckState.Checked;
             if (running && MessageBox.Query(app, verb + " servicio",
-                    $"{verb} «{target.Service.Name}» ({(target.Store.Context.IsGlobal ? "global" : "proyecto")}) puede interrumpir peticiones activas.",
+                    $"{verb} «{target.Service!.Name}» ({(target.Store.Context.IsGlobal ? "global" : "proyecto")}) puede interrumpir peticiones activas.",
                     verb, "Cancelar") != 0) return;
 
             startButton.Enabled = stopButton.Enabled = false;
-            status.Text = $"{verb} · {target.Service.Name}…";
+            upButton.Enabled = downButton.Enabled = false;
+            status.Text = $"{verb} · {target.Service?.Name ?? target.ProjectName}…";
             selectionEpoch++;
             operation = Task.Run(async () =>
             {
@@ -571,20 +595,22 @@ internal static class DashboardCli
                 var lifecycle = new ScopedServiceProcess(target.Store, TextWriter.Null, diagnostics);
                 try
                 {
+                    var service = target.Service ?? new RecipeRegistry(target.Store).EnsureProjectService(
+                        target.Recipe!.Files, RecipeReader.Read(target.Recipe).Root.Get("name")?.Text);
                     if (stopService)
                     {
-                        lifecycle.Stop(target.Service.ServiceId, expectedInstanceId: snapshot.InstanceId);
+                        lifecycle.Stop(service.ServiceId, expectedInstanceId: snapshot!.InstanceId);
                         return null;
                     }
                     var context = target.Store.Context;
                     var selection = context.IsGlobal
-                        ? new RecipeImporter(context).ServiceSelection(target.Service.ServiceId)
-                        : new RecipeSelection(context.Base, new RecipeRegistry(target.Store).Get(target.Service.RecipeId).Files, context.Base);
-                    var instance = await ScopedServiceCli.RunCandidateAsync(lifecycle, new(context, selection, target.Service),
-                        running, detached: true, privateResources: false, TextWriter.Null, diagnostics,
+                        ? new RecipeImporter(context).ServiceSelection(service.ServiceId)
+                        : target.Recipe ?? new RecipeSelection(context.Base, new RecipeRegistry(target.Store).Get(service.RecipeId).Files, context.Base);
+                    var instance = await ScopedServiceCli.RunCandidateAsync(lifecycle, new(context, selection, service),
+                        running, detached: true, privateResources: usePrivateResources, TextWriter.Null, diagnostics,
                         new DashboardModelSelection(app, diagnostics), stop.Token,
-                        expectedInstanceId: running ? snapshot.InstanceId : null);
-                    if (running && instance == snapshot.InstanceId)
+                        expectedInstanceId: running ? snapshot!.InstanceId : null);
+                    if (running && instance == snapshot!.InstanceId)
                         return "El reinicio conservó la instancia anterior. " + diagnostics.ToString().Trim();
                     return null;
                 }
@@ -593,6 +619,69 @@ internal static class DashboardCli
                 {
                     return error.Message;
                 }
+            });
+        }
+
+        bool RefreshProject()
+        {
+            var changed = false;
+            for (var i = 0; i < targets.Count; i++)
+            {
+                var target = targets[i];
+                if (target.Recipe is null) continue;
+                try
+                {
+                    var recipe = RecipeReader.Read(target.Recipe);
+                    ServiceIdentity? service = null;
+                    try { service = new RecipeRegistry(target.Store).FindProjectService(target.Recipe.Files); }
+                    catch (StorageException error) when (error.Code == "unknown-service") { }
+                    var next = target with { Service = service, ProjectName = recipe.Name,
+                        DeclaresService = recipe.Root.Get("service") is not null, Destination = recipe.Target, RecipeProblem = null };
+                    if (next != target)
+                    {
+                        targets[i] = next;
+                        changed = true;
+                        if (service?.ServiceId != target.Service?.ServiceId && logSessions.Remove(i, out var previous))
+                            retiredLogs.Add(previous.CloseAsync());
+                    }
+                }
+                catch (Exception error) when (ServiceObservation.ObservationError(error))
+                {
+                    if (target.RecipeProblem != error.Message)
+                    { targets[i] = target with { RecipeProblem = error.Message }; changed = true; }
+                }
+            }
+            if (changed) selectionEpoch++;
+            return changed;
+        }
+
+        void BeginPublication(string action)
+        {
+            if (operation is not null || index >= targets.Count || targets[index].Recipe is not { } selection) return;
+            var label = targets[index].Label;
+            var usePrivateResources = privatePreparation.Value == CheckState.Checked;
+            startButton.Enabled = stopButton.Enabled = upButton.Enabled = downButton.Enabled = false;
+            status.Text = $"{action} · {label}…";
+            selectionEpoch++;
+            operation = Task.Run<string?>(() =>
+            {
+                using var output = new StringWriter();
+                using var error = new StringWriter();
+                var models = new DashboardModelSelection(app, error);
+                var frontend = new PublicationCli.Frontend(models, async (args, stdout, stderr) =>
+                {
+                    var target = ScopedServiceCli.Resolve(ServiceCommand.Parse(args), Home.Resolve());
+                    var lifecycle = new ScopedServiceProcess(new ScopeStore(target.Context), stdout, stderr);
+                    await ScopedServiceCli.RunCandidateAsync(lifecycle, target, false, true, args.Contains("--private"),
+                        stdout, stderr, models, stop.Token);
+                    return 0;
+                }, stop.Token);
+                var args = new List<string> { action, "--project-directory", selection.Base };
+                if (usePrivateResources) args.Add("--private");
+                foreach (var file in selection.Files) args.AddRange(["--file", file]);
+                var result = PublicationCli.Execute(args.ToArray(), output, error,
+                    new DashboardPublicationInteraction(app, label, stop.Token), frontend);
+                return $"{action} · {label} · código {result}\n{output}\n{error}".Trim();
             });
         }
 
@@ -618,15 +707,16 @@ internal static class DashboardCli
                 Paint(presetsButton, showLogs || resourcePanel ? Palette.Text : Palette.Accent, Palette.Card);
                 Paint(resourcesButton, resourcePanel ? Palette.Accent : Palette.Text, Palette.Card);
             }
-            lines.Visible = logTools.Visible = logState.Visible = index < targets.Count && showLogs && (!low || expandedLogs);
+            var hasService = index < targets.Count && targets[index].Service is not null;
+            lines.Visible = logTools.Visible = logState.Visible = hasService && showLogs && (!low || expandedLogs);
             entries.Visible = index < targets.Count && !showLogs && !resourcePanel;
             resources.Visible = index < targets.Count && resourcePanel;
             if (!showLogs) expandedLogs = false;
             expandButton.Text = expandedLogs ? "Monitor" : "Ampliar";
             summary.Visible = taskRows.Visible = inferenceLabel.Visible = promptGraph.Visible = outputGraph.Visible =
                 charts.Visible = index < targets.Count && !expandedLogs;
-            logsButton.Y = expandedLogs || low ? Pos.Bottom(status) : Pos.Bottom(charts);
-            summary.Y = low ? Pos.Bottom(logsButton) : Pos.Bottom(status);
+            logsButton.Y = expandedLogs || low ? Pos.Bottom(projectActions) : Pos.Bottom(charts);
+            summary.Y = low ? Pos.Bottom(logsButton) : Pos.Bottom(projectActions);
             expandButton.Text = low ? expandedLogs ? "Monitor" : "▸ Monitor" : expandedLogs ? "Monitor" : "Ampliar";
             // Compact Monitor keeps task phase/progress; Logs is a sibling page.
             if (low && !expandedLogs) charts.Height = 2;
@@ -820,8 +910,8 @@ internal static class DashboardCli
                 services.SetContentSize(new System.Drawing.Size(serviceButtons.Sum(button => button.Text.Length + 3), 1));
             var systemSelected = index == targets.Count;
             var serviceSelected = index < targets.Count;
-            if (serviceSelected && !logSessions.ContainsKey(index))
-                logSessions[index] = new ServiceLogSession(new ServiceLogReader(targets[index].Store, targets[index].Service.ServiceId), stop.Token);
+            if (serviceSelected && targets[index].Service is { } service && !logSessions.ContainsKey(index))
+                logSessions[index] = new ServiceLogSession(new ServiceLogReader(targets[index].Store, service.ServiceId), stop.Token);
             logHeld = false; lastLogText = null; logPause.Text = "Pausar log";
             system.Visible = systemSelected;
             filterLogs.Visible = preferenceError.Visible = index == targets.Count + 1;
@@ -832,6 +922,12 @@ internal static class DashboardCli
             selectedSnapshot = null;
             startButton.Enabled = stopButton.Enabled = false;
             startButton.Text = "Iniciar";
+            var project = serviceSelected && targets[index].Recipe is not null;
+            projectActions.Visible = project;
+            projectActions.Height = project ? 2 : 0;
+            upButton.Enabled = downButton.Enabled = operation is null;
+            if (project) projectTarget.Text = targets[index].RecipeProblem is { } problem
+                ? "Receta no disponible: " + problem : "Destino: " + targets[index].Destination;
             lines.Visible = serviceSelected && showLogsPanel;
             entries.Visible = serviceSelected && !showLogsPanel && !showResources;
             resources.Visible = serviceSelected && showResources;
@@ -855,6 +951,21 @@ internal static class DashboardCli
             ShowInference([]);
             SetRows(entries, ref shownPresets, targets.Count == 0 ? "Los presets del servicio seleccionado aparecerán aquí." : "Esperando catálogo…");
             SetRows(lines, ref shownLogs, targets.Count == 0 ? "Los logs del servicio seleccionado aparecerán aquí." : "Consultando últimas líneas…");
+            if (targets[index].Service is null)
+            {
+                startButton.Visible = stopButton.Visible = targets[index].DeclaresService;
+                statusMark.X = targets[index].DeclaresService ? Pos.Right(stopButton) + 1 : 0;
+                startButton.Enabled = targets[index].DeclaresService && operation is null;
+                logsButton.Enabled = expandButton.Enabled = false;
+                status.Text = targets[index].DeclaresService ? "Servicio propio sin iniciar" : "Proyecto sin servicio propio";
+                SetRows(summary, ref shownSummary, "Publicar o retirar los presets de la receta con Up / Down.");
+                SetRows(entries, ref shownPresets, "Sin catálogo de servicio propio. Destino: " + targets[index].Destination);
+            }
+            else
+            {
+                statusMark.X = Pos.Right(stopButton) + 1;
+                logsButton.Enabled = expandButton.Enabled = true;
+            }
         }
 
         void Show(ServicePanel panel)
@@ -899,9 +1010,9 @@ internal static class DashboardCli
         void ShowInference(IReadOnlyList<EntrySnapshot> observed)
         {
             if (paused) return;
-            visibleTasks = index < targets.Count ? InferencePresentation.Rows(inference,
+            visibleTasks = index < targets.Count && targets[index].Service is { } service ? InferencePresentation.Rows(inference,
                 targets[index].Store.Context.IsGlobal ? "global" : targets[index].Store.Context.Base,
-                targets[index].Service.ServiceId) : [];
+                service.ServiceId) : [];
             refreshingTasks = true;
             SetRows(taskRows, ref shownTasks, visibleTasks.Count == 0 ? "Sin tareas observables · Enter en Presets: fuentes y métricas" :
                 string.Join('\n', visibleTasks.Select(task => InferencePresentation.Row(task, window.Viewport.Width))));
@@ -1013,14 +1124,12 @@ internal static class DashboardCli
                     list.SelectedItem = 0;
                     var accept = new Button { Text = "Elegir", IsDefault = true };
                     var cancel = new Button { Text = "Cancelar" };
-                    int? selected = null;
-                    accept.Accepted += (_, _) => { selected = list.SelectedItem; app.RequestStop(dialog); };
-                    cancel.Accepted += (_, _) => app.RequestStop(dialog);
                     dialog.Add(list);
                     dialog.AddButton(accept);
                     dialog.AddButton(cancel);
+                    accept.IsDefault = true; cancel.IsDefault = false;
                     app.Run(dialog);
-                    choice.TrySetResult(selected);
+                    choice.TrySetResult(dialog.Result == 0 ? list.SelectedItem : null);
                 }
                 catch (Exception error) { choice.TrySetException(error); }
             });
@@ -1028,7 +1137,28 @@ internal static class DashboardCli
         }
     }
 
-    private static List<Target> Discover(out string diagnostic)
+    private sealed class DashboardPublicationInteraction(IApplication app, string project, CancellationToken cancellation) : IPublicationInteraction
+    {
+        public bool Available => !cancellation.IsCancellationRequested;
+        public bool Confirm(string diagnostic) => Ask("Publicar / retirar · " + project, diagnostic, "Continuar");
+        public bool StartService() => Ask("Destino detenido · " + project,
+            "La publicación requiere iniciar el servicio destino. ¿Iniciar ahora?", "Iniciar");
+        public bool StartService(string diagnostic) => Ask("Destino detenido · " + project, diagnostic, "Iniciar");
+
+        private bool Ask(string title, string text, string accept)
+        {
+            var answer = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+            app.Invoke(() =>
+            {
+                if (cancellation.IsCancellationRequested) { answer.TrySetCanceled(cancellation); return; }
+                try { answer.TrySetResult(MessageBox.Query(app, title, text, "Cancelar", accept) == 1); }
+                catch (Exception error) { answer.TrySetException(error); }
+            });
+            return answer.Task.WaitAsync(cancellation).GetAwaiter().GetResult();
+        }
+    }
+
+    internal static List<Target> Discover(out string diagnostic, string? directory = null, Home? selectedHome = null)
     {
         var targets = new List<Target>();
         diagnostic = "Sin servicios registrados en el ámbito global o en este proyecto.";
@@ -1038,9 +1168,34 @@ internal static class DashboardCli
             return targets;
         }
         var errors = new List<string>();
-        var home = Home.Resolve();
+        var home = selectedHome ?? Home.Resolve();
+        directory ??= Environment.CurrentDirectory;
         if (Directory.Exists(Path.Combine(home.Root, "global"))) Add(() => ScopeContext.Global(home));
-        if (Directory.Exists(".coquena")) Add(() => ScopeContext.Project("coquena.yaml"));
+        var file = Path.Combine(directory, "coquena.yaml");
+        if (File.Exists(file))
+        {
+            try
+            {
+                var selection = new RecipeSelection(directory);
+                var store = new ScopeStore(ScopeContext.Project(file));
+                ServiceIdentity? service = null;
+                try { service = new RecipeRegistry(store).FindProjectService(selection.Files); }
+                catch (StorageException error) when (error.Code == "unknown-service") { }
+                try
+                {
+                    var recipe = RecipeReader.Read(selection);
+                    targets.Add(new(store, service, false, selection, recipe.Name,
+                        recipe.Root.Get("service") is not null, recipe.Target));
+                }
+                catch (RecipeException error)
+                {
+                    targets.Add(new(store, service, false, selection, service?.Name ?? Path.GetFileName(directory),
+                        RecipeProblem: error.Message));
+                }
+            }
+            catch (Exception error) when (ServiceObservation.ObservationError(error)) { errors.Add(error.Message); }
+        }
+        else if (Directory.Exists(Path.Combine(directory, ".coquena"))) Add(() => ScopeContext.Project(file));
         if (targets.Count == 0 && errors.Count != 0) diagnostic = string.Join(" · ", errors);
         return targets;
 
@@ -1059,7 +1214,7 @@ internal static class DashboardCli
 
     private static async Task<ServicePanel> CaptureAsync(Target target, CancellationToken cancellation)
     {
-        var snapshot = await new ServiceObservation(target.Store).CaptureAsync(target.Service, cancellation: cancellation, observeInference: true);
+        var snapshot = await new ServiceObservation(target.Store).CaptureAsync(target.Service!, cancellation: cancellation, observeInference: true);
         cancellation.ThrowIfCancellationRequested();
         return new(snapshot);
     }

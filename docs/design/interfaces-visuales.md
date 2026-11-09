@@ -8,6 +8,22 @@ incluidas copias traídas de otro gestor. No requieren descargar de nuevo ni man
 una biblioteca global paralela. Las preferencias de Coquena se distinguen de la
 configuración del servidor y usan el ámbito global de config.
 Abiertas en una carpeta muestran ese proyecto, su servicio destino y composición publicada.
+Una carpeta con `coquena.yaml` ofrece su pestaña local aunque todavía no exista
+estado en `.coquena/`. El glifo local distingue el proyecto de los servicios
+globales; la etiqueta usa `name` de la receta o, si falta, el nombre de la carpeta.
+La pestaña existe también para una receta consumidora sin servicio propio.
+Abrirla no prepara recursos, inicia procesos ni publica presets.
+
+Dentro del proyecto, Up publica los presets de la receta en su destino y Down
+retira sus publicaciones registradas, con las mismas reglas que la CLI. El
+destino se muestra separado del servicio propio: declarar un servicio no cambia
+el target de publicación. Si la receta declara servicio, se ofrecen sus controles
+de ciclo y sus logs. Los controles de publicación se distinguen de la carga o
+descarga de un modelo en memoria y de la transferencia de archivos.
+La opción «Preparación privada» equivale a `--private`: mantiene la preparación
+en el estado local y permite las referencias privadas bajo las reglas de
+[persistencia](persistencia-proyectos.md). Se elige explícitamente para las
+acciones de inicio y Up de esa sesión; no modifica la receta.
 Navegar a otros proyectos conocidos de la misma máquina es posible sin introducir
 procesos por consumidor ni gestión multi-host implícita.
 
@@ -19,9 +35,10 @@ todas en cualquier vista.
 Abrir no inicia automáticamente; cerrar no detiene. Las acciones de ciclo del servicio usan
 modo daemon: primero recuperación automática cuando corresponda, luego notificación
 accionable. El panel no intercepta fallback para exigir decisión interactiva.
-Las publicaciones de presets son acciones interactivas independientes: muestran
-ocupación conocida o desconocida y permiten continuar aceptando el riesgo o cancelar,
-según [servidores](servidores.md#plazos-y-control). Que el servicio esté desacoplado
+Las publicaciones de presets son acciones interactivas independientes: comprueban
+la actividad y, si hay peticiones activas o en cola, permiten continuar aceptando
+el riesgo o cancelar. Si no puede comprobarse la actividad, la publicación se
+detiene, según [servidores](servidores.md#plazos-y-control). Que el servicio esté desacoplado
 no acepta automáticamente ese riesgo.
 Observación en [observabilidad](observabilidad.md).
 
@@ -65,7 +82,7 @@ las fases por entrada o tarea.
 
 ## Dashboards de observación
 
-La TUI ordena sus pestañas por servidores globales, servidores del proyecto y
+La TUI ordena sus pestañas por servidores globales, proyecto local y
 herramientas. La [vista por servidor](ui-servicio.md) muestra inferencia en
 curso, rendimiento, recursos compartidos y logs. El log queda accesible dentro
 del servidor aunque el espacio vertical obligue a separarlo del monitor.

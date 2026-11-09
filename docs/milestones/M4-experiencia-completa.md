@@ -58,8 +58,10 @@ monitor, logs y herramientas, y que se compacta con el ancho de la terminal.
 
 ## Dashboard Servicios
 
-El recorrido empieza en las pestañas por servidor, con los globales antes que
-los del proyecto. En cada servidor se sigue el avance de varias entradas con
+El recorrido empieza con los servicios globales y la pestaña de la receta local,
+incluido un proyecto todavía sin estado preparado o sin servicio propio.
+La pestaña local ofrece Up/Down y, cuando declara servicio, sus controles y logs.
+La 070 integra ese recorrido con la observación. En cada servidor se sigue el avance de varias entradas con
 gráficos arriba y logs abajo, o desde Logs dentro del servidor si falta altura.
 La 066 evalúa Terminal.Gui v2 en Native AOT antes de fijar la dependencia.
 
@@ -82,7 +84,7 @@ La secuencia comienza por 066. Los IDs y directorios históricos no fijan orden.
 | 3 | [067](../../specs/067-m3-tui-hardware-graficos/README.md) | Ampliar hardware por dispositivo y legibilidad de gráficas | 042, 063, 066 |
 | 4 | [068](../../specs/068-m3-tui-prompts-tokens/README.md) | Ampliar detalle, concurrencia e histórico de inferencias | 065, 066 |
 | 5 | [069](../../specs/069-m3-tui-logs/README.md) | Completar históricos y endurecer continuidad/navegación de logs | 062, 066 |
-| 6 | [070](../../specs/070-m3-dashboard-integrado/README.md) | Contrastar dashboard ampliado, escenarios compartidos y UX | 055, 067, 068, 069 |
+| 6 | [070](../../specs/070-m3-dashboard-integrado/README.md) | Integrar pestaña de receta local, controles de ciclo/publicación y dashboard ampliado | 055, 067, 068, 069 |
 
 Las dependencias de ejecución de la tabla incluyen la reorganización acordada.
 El adaptador local rechaza `leanspec rel add`: las nuevas relaciones 066→062/063/064

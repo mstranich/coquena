@@ -14,6 +14,11 @@ static async Task CheckedRun(Func<Task> run)
         Environment.ExitCode = 1;
     }
 }
+if (args is ["--dashboard-project-setup", var projectRoot, var projectBackend, var projectModel])
+{
+    await CheckedRun(() => { Coquena.Tests.DashboardProjectTests.PrepareFixture(projectRoot, projectBackend, projectModel); return Task.CompletedTask; });
+    return;
+}
 if (args is ["--dashboard-fixture", var dashboardRoot, var dashboardHardware])
 {
     if (dashboardHardware is not ("real" or "synthetic")) throw new ArgumentException("Use real or synthetic.");
@@ -34,6 +39,7 @@ if (args is ["--dashboard-tests"])
         Coquena.Tests.InferenceTaskTests.Run(Check);
         Coquena.Tests.InferencePresentationTests.Run(Check);
         await Coquena.Tests.InferenceObservationTests.Run(Check);
+        await Coquena.Tests.DashboardProjectTests.Run(Check);
         Console.WriteLine($"Dashboard checks: {checks}.");
     });
     return;
