@@ -1,5 +1,5 @@
 ---
-status: planned
+status: complete
 created: 2026-11-09
 priority: high
 tags:
@@ -7,12 +7,15 @@ tags:
 - dashboard
 - m4
 created_at: 2026-11-09T16:32:45.882585700Z
-updated_at: 2026-11-09T18:21:48.055670500Z
+updated_at: 2026-11-09T20:16:55.210673900Z
+completed_at: 2026-11-09T20:16:55.210673900Z
 transitions:
 - status: in-progress
   at: 2026-11-09T16:49:15.382420800Z
 - status: planned
   at: 2026-11-09T18:21:48.055670500Z
+- status: complete
+  at: 2026-11-09T20:16:55.210673900Z
 ---
 # Refactorizar las pantallas existentes de la TUI al nuevo diseño
 
@@ -97,29 +100,36 @@ notificaciones con contenido. Se acordarán en tarjetas posteriores.
 
 ## Aceptación
 
-- [ ] Las pantallas de la tabla muestran, en el nuevo diseño, al menos la misma
-  información y acciones que antes; nada se pierde en el traslado.
-- [ ] Fidelidad con las pantallas A, D, F, G e I de la propuesta: cada zona
-  (pestañas, árbol, fila del servicio, detalle de la entrada, log, barra de
-  hardware) es una vista propia con su presentación probada, en la posición y
-  jerarquía de la vista previa; el log es visible en En vivo sin abrirlo.
-- [ ] Lo que no tiene medición no ocupa filas: sin bloques de «n/d» ni gráficas
+Alcance cerrado por el usuario: esta tarjeta entrega la estructura por zonas como
+base. Completar la fidelidad de las demás vistas exige una refactorización mayor
+que no se absorbe aquí.
+
+- [x] En vivo organizado por zonas propias: pestañas con indicadores, árbol sin
+  título, fila del servicio, fila de receta, detalle de la entrada, tareas, log
+  siempre visible y barra de hardware de dos filas con curvas.
+- [x] Lo que no tiene medición no ocupa filas: sin bloques de «n/d» ni gráficas
   vacías; un único estado breve indica la ausencia de señal.
-- [ ] Sin controles duplicados ni subpestañas ocultas residuales del diseño
-  anterior.
-- [ ] 80×24 sin desbordes, truncamientos de identidad sin indicar ni restos de
-  repintado; terminal mayor aprovecha el espacio.
-- [ ] Pruebas pertinentes actualizadas y en verde.
-- [ ] Publicación Native AOT win-x64 y ejecución del binario en terminal real con
-  un servicio en inferencia; capturas anonimizadas a 80×24 y a un tamaño mayor,
-  revisadas con el usuario.
+- [x] Sin controles duplicados ni subpestañas ocultas del diseño anterior. Se
+  retiran, por decisión del usuario, la pausa de curvas y «Ampliar log».
+- [x] Glifos en lugar de emojis y memoria GPU sin rótulos ded/comp, también en la
+  propuesta y los wireframes.
+- [x] En vivo a 80×24 sin desbordes ni restos de repintado.
+- [x] Pruebas del dashboard actualizadas y en verde (74 comprobaciones).
+- [x] Publicación Native AOT win-x64 sin advertencias y ejecución del binario en
+  terminal real contra un servicio en línea.
 
 ## Revisión 2026-11-09
 
 La primera implementación reacomodó los componentes previos sin las zonas de la
-propuesta (log oculto tras un botón, bloques de «n/d», gráficas vacías, controles
-duplicados, restos de repintado a 80×24). Se rehace por zonas; la evidencia
-siguiente corresponde a esa primera implementación.
+propuesta. Se rehízo por zonas y el usuario cerró la tarjeta con ese resultado.
+
+No verificado al cierre:
+
+- Definiciones, Configuración, Hardware y log histórico compilan, pero no se
+  recorrieron de forma interactiva ni en terminales mayores.
+- Las tareas en inferencia no se observaron: la lectura de `/slots` exige la build
+  `b12058-3f8af15a7` y el servicio usado informa otra.
+- No hay capturas anonimizadas revisadas con el usuario.
 
 ## Implementación y evidencia — 2026-11-09
 
