@@ -220,8 +220,7 @@ public sealed class ServiceObservation(ScopeStore store, HttpClient? client = nu
 
         var query = "?model=" + Uri.EscapeDataString(entry) + "&autoload=false";
         var props = JsonNode.Parse(await Fetch(http, new(router, "/props" + query), cancellation));
-        // Only this slot schema and counter semantics have been checked against a controlled stream.
-        if (props?["build_info"]?.GetValue<string>() != "b12058-3f8af15a7") return null;
+        // Validate the slot contract below independently of the backend build identifier.
         var slots = JsonNode.Parse(await Fetch(http, new(router, "/slots" + query), cancellation))?.AsArray();
         var time = System.Diagnostics.Stopwatch.GetTimestamp();
         if (slots is null || slots.Count > 128 || instance.ObserveListener(endpoint.Host, endpoint.Port) != child) return null;

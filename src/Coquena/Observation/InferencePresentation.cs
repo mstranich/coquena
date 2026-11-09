@@ -52,7 +52,7 @@ internal static class InferencePresentation
             $"Límite de predicción {task.Last.PredictLimit?.ToString() ?? "n/d"} · no predice longitud final\n" +
             $"Prompt: {Number(task.PromptRate)} tk/s · media {Number(task.PromptMean)} · pico observado {Number(task.PromptPeak)} · {task.PromptSeconds:0.###} s\n" +
             $"Generación: {Number(task.OutputRate)} tk/s · media {Number(task.OutputMean)} · pico observado {Number(task.OutputPeak)} · {task.OutputSeconds:0.###} s\n" +
-            "Fuente /slots?model&autoload=false · build b12058-3f8af15a7\n" +
+            "Fuente /slots?model&autoload=false\n" +
             "Tasa: delta de tokens / segundos entre lecturas continuas (hasta 3 s).\n" +
             "Media: suma de deltas / tiempo de los intervalos medibles de cada fase.\n" +
             "Pico observado: máximo de esas tasas; excluye huecos y transiciones.\n" +

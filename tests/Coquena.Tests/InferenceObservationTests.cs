@@ -36,6 +36,17 @@ internal static class InferenceObservationTests
             "entry aggregates identify the verified child generation");
         check(entry.Inference is { Model: "fixture.gguf" } && entry.Inference.Active.Single() is { Context: 128, Speculative: false, PredictLimit: 100 },
             "slot metadata preserves the observed context, speculation flag and prediction limit");
+        foreach (var build in new string?[] { "b12057-other", "b12059-new", "custom-fork", null })
+        {
+            handler.Build = build;
+            sample = await observer.CaptureAsync(service, observeInference: true);
+            check(sample.Entries.Single().Inference?.Active.Count == 1,
+                "compatible slots are observed regardless of build identifier: " + (build ?? "absent"));
+        }
+        handler.InvalidSlots = true;
+        sample = await observer.CaptureAsync(service, observeInference: true);
+        check(sample.Entries.Single().Inference is null, "incompatible slot fields remain unavailable");
+        handler.InvalidSlots = false;
         handler.ReplaceDuringMetrics = true;
         sample = await observer.CaptureAsync(service, observeInference: true);
         entry = sample.Entries.Single();
@@ -57,6 +68,8 @@ internal static class InferenceObservationTests
 
     private sealed class Handler(Probe probe) : HttpMessageHandler
     {
+        public string? Build = "b12058-3f8af15a7";
+        public bool InvalidSlots;
         public bool ReplaceDuringMetrics;
         public bool ReadOnly = true;
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
@@ -67,7 +80,8 @@ internal static class InferenceObservationTests
             var body = uri.AbsolutePath switch
             {
                 "/models" => "{\"data\":[{\"id\":\"a\",\"status\":{\"value\":\"loaded\",\"args\":[\"--host\",\"127.0.0.1\",\"--port\",\"9001\"]}}]}",
-                "/props" => "{\"build_info\":\"b12058-3f8af15a7\",\"model_path\":\"fixture.gguf\"}",
+                "/props" => new JsonObject { ["build_info"] = Build, ["model_path"] = "fixture.gguf" }.ToJsonString(),
+                "/slots" when InvalidSlots => "[{\"id\":0,\"is_processing\":true}]",
                 "/slots" => "[{\"id\":0,\"is_processing\":true,\"id_task\":1,\"n_prompt_tokens_processed\":10,\"n_prompt_tokens_cache\":2,\"next_token\":[{\"n_decoded\":3}],\"n_ctx\":128,\"speculative\":false,\"params\":{\"n_predict\":100}}]",
                 "/metrics" => "llamacpp:tokens_predicted_total 100\n",
                 _ => "{}"
