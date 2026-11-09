@@ -1,13 +1,8 @@
-# Propuesta de rediseño de la TUI
+# Pantallas de la TUI
 
-Borrador para evaluación. No es documentación canónica ni reemplaza los wireframes
-de `docs/design/` hasta que se apruebe.
-
-La navegación, jerarquía de las pantallas existentes, paleta y barra de hardware
-se incorporaron a [interfaces visuales](../../design/interfaces-visuales.md) y
-[pantalla de servicios](../../design/ui-servicio.md). Esos documentos son la
-fuente vigente para esas reglas; las vistas adicionales de esta propuesta
-conservan su condición de borrador.
+Navegación, pantallas y estilo de la TUI a 80×24. Las reglas de comportamiento
+están en [interfaces visuales](../interfaces-visuales.md) y
+[pantalla de servicios](../ui-servicio.md); este documento muestra cómo se ven.
 
 - Vista previa a color en 80×24: [vista-previa.html](vista-previa.html).
   «Navegar» muestra una pantalla por vez; pestañas, nodos del árbol, botones y la

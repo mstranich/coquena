@@ -87,6 +87,7 @@ aceptación del riesgo de interrupción se definen en
 | [Privacidad y datos compartibles](privacidad.md) | Información local, anonimización, evidencia pública y autoría |
 | [Interfaces visuales](interfaces-visuales.md) | Panel, borradores y comparación |
 | [Pantalla Servicios](ui-servicio.md) | Hardware, actividad, histórico visual y logs de la TUI |
+| [Pantallas de la TUI](tui/README.md) | Wireframes, vista previa a 80×24 y paleta |
 | [Benchmarking](benchmarking.md) | Rendimiento y consumo de recursos |
 | [Comandos](comandos.md) | Responsabilidades y superficie CLI |
 | [Glosario](glosario.md) | Vocabulario y unidades de tamaño y memoria |

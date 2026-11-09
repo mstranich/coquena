@@ -20,7 +20,7 @@ transitions:
 ## Objetivo
 
 Que la pestaña ● En vivo y las pantallas que cuelgan de ella se vean y se comporten
-como en la [vista previa](../../docs/propuestas/tui-rediseno/vista-previa.html) a
+como en la [vista previa](../../docs/design/tui/vista-previa.html) a
 80×24, con una refactorización de fondo si hace falta. La entrega se juzga
 comparando lado a lado la TUI con la vista previa, no por la cantidad de datos
 mostrados. Entrega de [M4](../../docs/milestones/M4-experiencia-completa.md).
@@ -54,11 +54,11 @@ receta (Up, Down, preparación privada) no aparecen en A y salen de En vivo.
 
 ## Fuentes
 
-- Propuesta: [README](../../docs/propuestas/tui-rediseno/README.md), wireframes
-  [A](../../docs/propuestas/tui-rediseno/A-en-vivo.salt.puml),
-  [I](../../docs/propuestas/tui-rediseno/I-log-historico.salt.puml),
-  [D](../../docs/propuestas/tui-rediseno/D-hardware.salt.puml),
-  [Z](../../docs/propuestas/tui-rediseno/Z-notificaciones.salt.puml).
+- Propuesta: [README](../../docs/design/tui/README.md), wireframes
+  [A](../../docs/design/tui/A-en-vivo.salt.puml),
+  [I](../../docs/design/tui/I-log-historico.salt.puml),
+  [D](../../docs/design/tui/D-hardware.salt.puml),
+  [Z](../../docs/design/tui/Z-notificaciones.salt.puml).
 - Reglas vigentes: [interfaces-visuales](../../docs/design/interfaces-visuales.md),
   [ui-servicio](../../docs/design/ui-servicio.md),
   [observabilidad](../../docs/design/observabilidad.md),

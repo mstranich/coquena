@@ -37,7 +37,7 @@ features:
       - tests/Coquena.Tests/InferenceRouterTests.cs
     references:
       - docs/design/ui-servicio.md
-      - docs/design/tui-servicio.salt.puml
+      - docs/design/tui/A-en-vivo.salt.puml
   - id: continuous-service-observation
     intent: Seguir servicios por identidad con snapshots reconciliados y eventos acotados sin controlar el backend.
     keywords: [ps, watch, SSE, reconnect, cancellation, observer-retry]

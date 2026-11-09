@@ -23,7 +23,7 @@ El contenido del servicio enfocado se organiza en estas zonas:
 
 El hardware es compartido por la máquina. Sus curvas y fuentes se consultan en
 Hardware desde la barra inferior, separadas del consumo del proceso del servicio.
-Los [wireframes](tui-servicio.salt.puml) y la
+Los [wireframes](tui/A-en-vivo.salt.puml) y la
 [distribución compacta](tui-servicio-compacto.salt.puml) ilustran esta jerarquía.
 
 Las entradas activas tienen prioridad visual. La fase, la cola y la vigencia de
@@ -106,7 +106,7 @@ instancias aunque sus tareas tengan el mismo número.
 
 ## Disposición
 
-[Monitor con log](tui-servicio.salt.puml) ·
+[Monitor con log](tui/A-en-vivo.salt.puml) ·
 [Monitor compacto](tui-servicio-compacto.salt.puml) ·
 [Logs en terminal baja](tui-logs.salt.puml).
 

@@ -29,8 +29,8 @@ tarjetas posteriores, una por vista o sección. Entrega de
 
 ## Fuentes
 
-- Propuesta: [docs/propuestas/tui-rediseno](../../docs/propuestas/tui-rediseno/README.md)
-  y su [vista previa](../../docs/propuestas/tui-rediseno/vista-previa.html).
+- Propuesta: [docs/propuestas/tui-rediseno](../../docs/design/tui/README.md)
+  y su [vista previa](../../docs/design/tui/vista-previa.html).
   Es un borrador; sólo pasa a regla al promoverse a `docs/design/`.
 - Reglas vigentes: [interfaces-visuales](../../docs/design/interfaces-visuales.md),
   [ui-servicio](../../docs/design/ui-servicio.md),

@@ -84,13 +84,13 @@ La TUI organiza la navegación en ● En vivo, ◇ Definiciones y ≡ Configurac
 sin marca ni fila de atajos. En vivo agrupa servicios y la receta local en un
 árbol lateral; Definiciones consulta la información de definiciones disponible
 sin acciones de modificación. Configuración separa preferencias de TUI del
-inventario y sondeo de Sistema. La [consulta de definiciones](tui-definiciones.salt.puml)
+inventario y sondeo de Sistema. La [consulta de definiciones](tui/B-definiciones-recetas.salt.puml)
 conserva el catálogo observado. La [vista por servidor](ui-servicio.md) muestra inferencia en
 curso, rendimiento, recursos compartidos y logs. El log queda accesible dentro
 del servidor aunque el espacio vertical obligue a separarlo del monitor.
 
 Un indicador sin fuente disponible muestra «—» y no ofrece una acción ni
-presenta un recuento inferido. El [detalle de hardware](tui-hardware.salt.puml)
+presenta un recuento inferido. El [detalle de hardware](tui/D-hardware.salt.puml)
 conserva el alcance y las fuentes de los dispositivos medidos.
 
 Las pestañas descubren servicios mediante el registro local. Los fallos de
@@ -101,12 +101,12 @@ siguen [observabilidad](observabilidad.md).
 
 Las herramientas de autoría y configuración conservan estas responsabilidades:
 
-- [Presets](tui-presets.salt.puml) lista la contribución del proyecto y abre el
+- [Presets](tui/P-definiciones-presets.salt.puml) lista la contribución del proyecto y abre el
   editor con comparación entre guardado, activo y borrador.
-- Buscar modelos reúne [inventario local](tui-modelos.listado.salt.puml) y
-  [búsqueda y descarga](tui-modelos.descarga.salt.puml). Permite consultar el
+- Buscar modelos reúne [inventario local](tui/W-definiciones-modelos-inventario.salt.puml) y
+  [búsqueda y descarga](tui/C-definiciones-modelos.salt.puml). Permite consultar el
   README, elegir variante y preparar un modelo para un preset.
-- [Configuración](tui-configuracion.salt.puml) agrupa preferencias de Coquena.
+- [Configuración](tui/E-configuracion-coquena.salt.puml) agrupa preferencias de Coquena.
   Los argumentos del backend se editan como parte de la definición del proyecto.
 
 La navegación de terminal distingue pestaña activa y foco de teclado. Usa la
@@ -125,7 +125,8 @@ a contenido, gráficas, tablas y logs; la cabecera y las dos filas de hardware
 mantienen su altura. Las zonas desplazables permiten consultar el contenido
 sin superponer controles. Los modales presentan título, contenido y acciones
 explícitas por fondo, con Aceptar/Cancelar o las opciones de la operación. Los wireframes muestran
-la jerarquía y los recorridos con datos ilustrativos.
+la jerarquía y los recorridos con datos ilustrativos; el conjunto está en
+[pantallas de la TUI](tui/README.md).
 
 ## Acciones compartidas con la CLI
 

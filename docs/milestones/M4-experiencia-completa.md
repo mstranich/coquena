@@ -91,6 +91,21 @@ La secuencia comienza por 066. Los IDs y directorios históricos no fijan orden.
 | 5 | [069](../../specs/069-m3-tui-logs/README.md) | Completar históricos y endurecer continuidad/navegación de logs | 062, 066 |
 | 6 | [070](../../specs/070-m3-dashboard-integrado/README.md) | Integrar pestaña de receta local, controles de ciclo/publicación y dashboard ampliado | 055, 067, 068, 069 |
 | 7 | [079](../../specs/079-m4-tui-refactor-diseno/README.md) | Refactorizar los elementos existentes de la TUI al nuevo diseño, sin funciones nuevas | Base entregada 066–070 |
+| 8 | [080](../../specs/080-m4-tui-en-vivo/README.md) | Llevar En vivo y sus pantallas al aspecto de la vista previa | 079 |
+
+### Vistas de la TUI trabajadas
+
+Avance sobre las [pantallas de la TUI](../design/tui/README.md):
+
+| Vista | Estado | Tarjeta |
+| --- | --- | --- |
+| A En vivo | ✔ como la vista previa (estados distintos de servicio en línea sin verificar) | 080 |
+| I Log histórico | ✔ implementada; sin recorrido con clics | 080 |
+| D Hardware | ✔ implementada; sin recorrido con clics | 080 |
+| Z Notificaciones | ✔ implementada, sólo avisos de la sesión; sin recorrido con clics | 080 |
+| Barras superior e inferior | ✔ como la vista previa (⇣ sin fuente de descargas) | 080 |
+| Pestañas ◇ Definiciones y ≡ Configuración | ◐ reorganizadas por zonas, sin llegar a la vista previa | 079 |
+| B, C, E–H, J–S, U–Y | ☐ sin trabajar | — |
 
 Las dependencias de ejecución de la tabla incluyen la reorganización acordada.
 El adaptador local rechaza `leanspec rel add`: las nuevas relaciones 066→062/063/064
