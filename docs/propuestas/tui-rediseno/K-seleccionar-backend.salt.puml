@@ -1,0 +1,43 @@
+@startsalt
+{
+  {/ ● En vivo | <b>◇ Definiciones | ⚙ Configuración | . | ⇣ 1 · 68% | ⚠ 2 }
+  {
+    {
+      <b>Definiciones
+    {T
+      + Global
+      + código · aquí
+      ++ <b>Recetas
+      ++ Presets
+      ++ Servicio
+      ++ Modelos
+      ++ Backends
+      ++ Parámetros
+      ++ Descargas
+      ++ Actualizaciones 2↑
+      ++ Mantenimiento
+      + notas
+      + agentes
+      + pruebas
+      + ✗ cli-project
+    }
+    } | {+
+      <b>Agregar backend a código
+      { origen | (X) oficial | ( ) ejecutable externo }
+      {#
+        Variante | Compatibilidad (system probe)
+        (X) cuda@13 | ✓ driver 13.0 · RTX 4090
+        ( ) cuda@12 | ✓
+        ( ) vulkan | ✓ RTX 4090, Radeon
+        ( ) cpu | ✓
+      }
+      { versión | ^latest^ | b6188 · publicado 08/11 }
+      { archivo | (X) coquena.yaml | ( ) coquena."server   ".yaml }
+      [X] descargar ahora
+      { [Cancelar] | [Agregar] }
+    }
+  }
+  { CPU ▂▃▅▆▅ 42% | RAM ▅▅▆▆ 18,2/32G }
+  { GPU0 ▅▆▇▇ 91% ded 20,1/24G comp 0,4G | GPU1 ▂▃▂▁ 12% ded 0,1/0,5G comp 1,1G }
+}
+@endsalt

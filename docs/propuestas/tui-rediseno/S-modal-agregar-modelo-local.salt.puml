@@ -1,0 +1,39 @@
+@startsalt
+{
+  {/ ● En vivo | <b>◇ Definiciones | ⚙ Configuración | . | ⇣ 1 · 68% | ⚠ 2 }
+  {
+    {
+      <b>Definiciones
+    {T
+      + Global
+      ++ Servicios
+      ++ Presets
+      ++ <b>Modelos
+      ++ Backends
+      ++ Parámetros
+      ++ Descargas 1
+      ++ Actualizaciones
+      ++ Mantenimiento
+      + código · aquí
+      + notas
+      + agentes
+      + pruebas
+      + ✗ cli-project
+    }
+    } | {+
+      <b>Agregar modelo local
+      { archivos | "$TestRoot\pesos\mi-modelo.gguf" | [...] }
+      { . | [+ Shard] }
+      { nombre | "mi-modelo      " }
+      { tipo | (X) modelo | ( ) mmproj | ( ) mtp }
+      { alta | (X) registrar en el inventario }
+      { . | ( ) declarar en | ^recipe.yaml^ }
+      [X] buscar correspondencia en Hugging Face
+      { repositorio | "unsloth/…-GGUF" }
+      { [Cancelar] | [Agregar] }
+    }
+  }
+  { CPU ▂▃▅▆▅ 42% | RAM ▅▅▆▆ 18,2/32G }
+  { GPU0 ▅▆▇▇ 91% ded 20,1/24G comp 0,4G | GPU1 ▂▃▂▁ 12% ded 0,1/0,5G comp 1,1G }
+}
+@endsalt

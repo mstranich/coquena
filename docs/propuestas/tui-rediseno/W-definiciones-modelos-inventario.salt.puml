@@ -1,0 +1,42 @@
+@startsalt
+{
+  {/ ● En vivo | <b>◇ Definiciones | ⚙ Configuración | . | ⇣ 1 · 68% | ⚠ 2 }
+  {
+    {
+      <b>Definiciones
+    {T
+      + Global
+      ++ Servicios
+      ++ Presets
+      ++ <b>Modelos
+      ++ Backends
+      ++ Parámetros
+      ++ Descargas 1
+      ++ Actualizaciones
+      ++ Mantenimiento
+      + código · aquí
+      + notas
+      + agentes
+      + pruebas
+      + ✗ cli-project
+    }
+    } | {
+      { <b>Modelos de Global | [+ Agregar local…] }
+      { (X) inventario | ( ) Hugging Face | "filtro        " }
+      {#
+        Modelo | Origen | Tamaño | Uso
+        <b>gemma-4-12B-it-qat Q4_0 | gestionado | 7,1G | 2
+        qwen3-8B Q5_K_M | gestionado | 5,8G | 1
+        mmproj-F16 (companion) | gestionado | 0,9G | 1
+        mi-modelo.gguf | externo | 4,2G | —
+      }
+      { <b>gemma-4-12B-it-qat Q4_0 | 🔒 protegido }
+      google/gemma-4-12B-it-qat-GGUF · rev a1f3
+      usado por código/asistente, notas/tagger
+      { [Quitar protección] | [Verificar] | [Eliminar] }
+    }
+  }
+  { CPU ▂▃▅▆▅ 42% | RAM ▅▅▆▆ 18,2/32G }
+  { GPU0 ▅▆▇▇ 91% ded 20,1/24G comp 0,4G | GPU1 ▂▃▂▁ 12% ded 0,1/0,5G comp 1,1G }
+}
+@endsalt

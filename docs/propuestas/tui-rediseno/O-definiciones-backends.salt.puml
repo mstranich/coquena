@@ -1,0 +1,42 @@
+@startsalt
+{
+  {/ ● En vivo | <b>◇ Definiciones | ⚙ Configuración | . | ⇣ 1 · 68% | ⚠ 2 }
+  {
+    {
+      <b>Definiciones
+    {T
+      + Global
+      ++ Servicios
+      ++ Presets
+      ++ Modelos
+      ++ <b>Backends
+      ++ Parámetros
+      ++ Descargas 1
+      ++ Actualizaciones
+      ++ Mantenimiento
+      + código · aquí
+      + notas
+      + agentes
+      + pruebas
+      + ✗ cli-project
+    }
+    } | {
+      { <b>Backends de Global | [+ Backend] }
+      {#
+        Variante | Versión | Origen | Tamaño | Uso
+        <b>cuda@13 | b6120 | oficial | 415M | principal
+        cuda@13 | b6188 | oficial | 415M | preparado
+        vulkan | b6120 | oficial | 96M | laboratorio
+        cpu | b6044 | oficial | 41M | —
+        mi-fork | — | externo | — | —
+      }
+      { <b>cuda@13 b6120 | 🔒 protegido }
+      { ruta | $CoquenaHome\backends\cuda13-b6120 }
+      { compatibilidad | ✓ driver 13.0 · RTX 4090 }
+      { [Quitar protección] | [Eliminar] | [Descargar versión…] }
+    }
+  }
+  { CPU ▂▃▅▆▅ 42% | RAM ▅▅▆▆ 18,2/32G }
+  { GPU0 ▅▆▇▇ 91% ded 20,1/24G comp 0,4G | GPU1 ▂▃▂▁ 12% ded 0,1/0,5G comp 1,1G }
+}
+@endsalt

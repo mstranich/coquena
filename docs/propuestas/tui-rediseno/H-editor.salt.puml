@@ -1,0 +1,22 @@
+@startsalt
+{
+  {/ ● En vivo | <b>◇ Definiciones | ⚙ Configuración | . | ⇣ 1 · 68% | ⚠ 2 }
+  {/ <b>coquena.yaml ● | coquena.gpu.yaml | .env | . | 13:17 }
+  { [Guardar] | [Validar] | [▲ Up] | [▼ Down] | [Copiar] | [Cortar] | [Pegar] | [Cerrar] }
+  {SI
+     1 presets:
+     2   asistente:
+     3     args:
+     4       model: google/gemma-4-12B-it-qat-GGUF:Q4_0
+     5 ▎     ctx-size: 16384
+     6       n-gpu-layers: 99
+    12       model: Qwen/Qwen3-8B-GGUF:Q5_K_M
+    13 ▎     ctx-size: 8k
+    14       parallel: 2
+  }
+  <b>Validación
+  ✗ línea 13 · ctx-size: se esperaba un entero
+  { CPU ▂▃▅▆▅ 42% | RAM ▅▅▆▆ 18,2/32G }
+  { GPU0 ▅▆▇▇ 91% ded 20,1/24G comp 0,4G | GPU1 ▂▃▂▁ 12% ded 0,1/0,5G comp 1,1G }
+}
+@endsalt

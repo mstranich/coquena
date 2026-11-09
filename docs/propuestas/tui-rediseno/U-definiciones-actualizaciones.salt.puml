@@ -1,0 +1,42 @@
+@startsalt
+{
+  {/ ● En vivo | <b>◇ Definiciones | ⚙ Configuración | . | ⇣ 1 · 68% | ⚠ 2 }
+  {
+    {
+      <b>Definiciones
+    {T
+      + Global
+      + código · aquí
+      ++ Recetas
+      ++ Presets
+      ++ Servicio
+      ++ Modelos
+      ++ Backends
+      ++ Parámetros
+      ++ Descargas
+      ++ <b>Actualizaciones 2↑
+      ++ Mantenimiento
+      + notas
+      + agentes
+      + pruebas
+      + ✗ cli-project
+    }
+    } | {
+      { <b>Actualizaciones de código | plan 09/11 11:40 | ✓ vigente }
+      {#
+        . | Recurso | Actual | Propuesta | Estado
+        [X] | backend llama.cpp | b6120 | b6188 | ↑ nueva
+        [X] | gemma-4-12B | rev a1f3 | rev c07b | ↑ nueva
+        [ ] | qwen3-8B | Q5_K_M | — | fijado
+        [ ] | mmproj | F16 | ? | ▲ falló
+      }
+      { [Comprobar] | [Actualizar 2] }
+      <b>Impacto en ejecución
+      ● principal usa b6120 hasta reiniciar
+      ● asistente usa rev a1f3 hasta recargar
+    }
+  }
+  { CPU ▂▃▅▆▅ 42% | RAM ▅▅▆▆ 18,2/32G }
+  { GPU0 ▅▆▇▇ 91% ded 20,1/24G comp 0,4G | GPU1 ▂▃▂▁ 12% ded 0,1/0,5G comp 1,1G }
+}
+@endsalt

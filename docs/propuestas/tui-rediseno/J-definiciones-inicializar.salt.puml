@@ -1,0 +1,26 @@
+@startsalt
+{
+  {/ ● En vivo | <b>◇ Definiciones | ⚙ Configuración | . | ⇣ 1 · 68% | ⚠ 2 }
+  {
+    {
+      <b>Definiciones
+      {T
+        + Global
+        ++ Servicios
+        ++ Modelos
+      ++ Backends
+        + nuevo · aquí
+        ++ <b>Receta
+        + código
+        + notas
+      }
+    } | {
+      { <b>$TestRoot\nuevo | sin coquena.yaml }
+      [Inicializar]
+      crea coquena.yaml con name: nuevo y target: global
+    }
+  }
+  { CPU ▂▃▅▆▅ 42% | RAM ▅▅▆▆ 18,2/32G }
+  { GPU0 ▅▆▇▇ 91% ded 20,1/24G comp 0,4G | GPU1 ▂▃▂▁ 12% ded 0,1/0,5G comp 1,1G }
+}
+@endsalt

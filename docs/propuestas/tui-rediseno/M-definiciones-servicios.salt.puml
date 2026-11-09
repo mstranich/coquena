@@ -1,0 +1,43 @@
+@startsalt
+{
+  {/ ● En vivo | <b>◇ Definiciones | ⚙ Configuración | . | ⇣ 1 · 68% | ⚠ 2 }
+  {
+    {
+      <b>Definiciones
+    {T
+      + Global
+      ++ <b>Servicios
+      ++ Presets
+      ++ Modelos
+      ++ Backends
+      ++ Parámetros
+      ++ Descargas 1
+      ++ Actualizaciones
+      ++ Mantenimiento
+      + código · aquí
+      + notas
+      + agentes
+      + pruebas
+      + ✗ cli-project
+    }
+    } | {
+      { <b>Servicios de Global | [+ Agregar] }
+      {#
+        . | Servicio | Backend | Puerto | Estado
+        ★ | principal | cuda@13 · b6120 | 9931 | ● en línea
+        . | laboratorio | vulkan · b6120 | 9940 | ○ detenido
+      }
+      {#
+        <b>principal | predeterminado
+        archivo | $CoquenaHome\global\recipe.yaml
+        args | host 127.0.0.1 · models-max 1
+        consumidores | código (2), notas (1)
+      }
+      { [★ Predeterminado] | [Eliminar] }
+      { [Editar YAML] | [Ver en vivo] }
+    }
+  }
+  { CPU ▂▃▅▆▅ 42% | RAM ▅▅▆▆ 18,2/32G }
+  { GPU0 ▅▆▇▇ 91% ded 20,1/24G comp 0,4G | GPU1 ▂▃▂▁ 12% ded 0,1/0,5G comp 1,1G }
+}
+@endsalt

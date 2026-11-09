@@ -1,0 +1,30 @@
+@startsalt
+{
+  {/ ● En vivo | ◇ Definiciones | <b>⚙ Configuración | . | ⇣ 1 · 68% | ⚠ 2 }
+  {
+    {
+      <b>Categorías
+    {
+      Coquena
+      TUI
+      <b>Sistema
+    }
+    } | {
+      { <b>Sistema | sondeo local · 12:01 }
+      {#
+        Coquena | 0.3.0
+        Plataforma | win-x64
+        CPU | AMD Ryzen 9 7950X
+        RAM | 32 GiB
+        GPU0 | NVIDIA GeForce RTX 4090
+        GPU1 | AMD Radeon Graphics
+        CUDA | ✓ compatible · driver 13.0 · RTX 4090 SM 8.9
+        Vulkan | ✓ compatible · 1.2 · compute · fp16
+      }
+      [Sondear de nuevo]
+    }
+  }
+  { CPU ▂▃▅▆▅ 42% | RAM ▅▅▆▆ 18,2/32G }
+  { GPU0 ▅▆▇▇ 91% ded 20,1/24G comp 0,4G | GPU1 ▂▃▂▁ 12% ded 0,1/0,5G comp 1,1G }
+}
+@endsalt

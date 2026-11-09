@@ -1,0 +1,19 @@
+@startsalt
+{
+  {/ <b>● En vivo | ◇ Definiciones | ⚙ Configuración | . | ⇣ 1 · 68% | ⚠ 2 }
+  { <b>Log principal · histórico | . | [Volver] }
+  { instancia | ^i2 · 09/11 11:58 → ahora^ | regex | "slot [01]: prompt   " }
+  { nivel | ^todos^ | 12 coincidencias | [◂ Anterior] | [Siguiente ▸] }
+  {SI
+    11:58:10 server: listening on 127.0.0.1:9931
+    12:01:03 <b>slot 0: prompt</b> 812 tk 100%
+    12:04:30 <b>slot 1: prompt</b> 2048 tk 68%
+    12:04:33 ▲ slot 1: contexto 92%
+    12:06:10 <b>slot 0: prompt</b> 4880 tk 100%
+    12:09:44 ✗ slot 1: petición cancelada por el cliente
+  }
+  { instancias | i1 09/11 09:12–11:57 | <b>i2 09/11 11:58 → | 2 archivos rotados }
+  { CPU ▂▃▅▆▅ 42% | RAM ▅▅▆▆ 18,2/32G }
+  { GPU0 ▅▆▇▇ 91% ded 20,1/24G comp 0,4G | GPU1 ▂▃▂▁ 12% ded 0,1/0,5G comp 1,1G }
+}
+@endsalt

@@ -1,0 +1,36 @@
+@startsalt
+{
+  {/ ● En vivo | <b>◇ Definiciones | ⚙ Configuración | . | ⇣ 1 · 68% | ⚠ 2 }
+  {
+    {
+      <b>Definiciones
+    {T
+      + Global
+      + código · aquí
+      ++ <b>Recetas
+      ++ Presets
+      ++ Servicio
+      ++ Modelos
+      ++ Backends
+      ++ Parámetros
+      ++ Descargas
+      ++ Actualizaciones 2↑
+      ++ Mantenimiento
+      + notas
+      + agentes
+      + pruebas
+      + ✗ cli-project
+    }
+    } | {+
+      <b>Publicar en principal
+      coquena.yaml + coquena.gpu.yaml
+      asistente · contexto 8192 → 16384
+      ▲ 1 petición activa · 2 en cola
+      pueden fallar al publicar
+      { [Cancelar] | [Publicar igual] }
+    }
+  }
+  { CPU ▂▃▅▆▅ 42% | RAM ▅▅▆▆ 18,2/32G }
+  { GPU0 ▅▆▇▇ 91% ded 20,1/24G comp 0,4G | GPU1 ▂▃▂▁ 12% ded 0,1/0,5G comp 1,1G }
+}
+@endsalt

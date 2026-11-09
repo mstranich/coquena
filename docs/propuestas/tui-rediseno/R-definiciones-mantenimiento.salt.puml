@@ -1,0 +1,42 @@
+@startsalt
+{
+  {/ ● En vivo | <b>◇ Definiciones | ⚙ Configuración | . | ⇣ 1 · 68% | ⚠ 2 }
+  {
+    {
+      <b>Definiciones
+    {T
+      + Global
+      + código · aquí
+      ++ Recetas
+      ++ Presets
+      ++ Servicio
+      ++ Modelos
+      ++ Backends
+      ++ Parámetros
+      ++ Descargas
+      ++ Actualizaciones 2↑
+      ++ <b>Mantenimiento
+      + notas
+      + agentes
+      + pruebas
+      + ✗ cli-project
+    }
+    } | {
+      <b>Mantenimiento de código
+      { [Verificar] | 09/11 12:10 | ✓ 6 íntegros | ▲ 1 }
+      ▲ mmproj-F16: archivo modificado fuera de Coquena
+      { [Limpiar…] | recursos sin referencias }
+      {#
+        . | Recurso | Tamaño
+        [X] | backend b6044 | 412M
+        [X] | gemma-3-12B Q4_0 (auto) | 7,3G
+        — | Ornith-35B Q4_K_M | protegido
+      }
+      liberaría 7,7G
+      { Última limpieza | 02/11 · 3 recursos · 11,2G }
+    }
+  }
+  { CPU ▂▃▅▆▅ 42% | RAM ▅▅▆▆ 18,2/32G }
+  { GPU0 ▅▆▇▇ 91% ded 20,1/24G comp 0,4G | GPU1 ▂▃▂▁ 12% ded 0,1/0,5G comp 1,1G }
+}
+@endsalt

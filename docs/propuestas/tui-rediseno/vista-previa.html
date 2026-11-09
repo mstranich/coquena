@@ -1,0 +1,586 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>TUI En vivo</title>
+<style>
+:root{
+  --bg:#14171A; --surface:#1E2328; --card:#252B32; --border:#3E4651;
+  --text:#EAEBED; --muted:#88929A;
+  --sel:#C85A32; --sel-text:#D57958; --focus:#2EC4B6;
+  --metric-gen:#DDA15E; --metric-prompt:#457B9D;
+  --ok:#8FBF6A; --warn:#E09F3E; --err:#E63946;
+}
+body{background:#0d0f11;color:var(--text);font:14px system-ui,sans-serif;margin:0;padding:24px 16px}
+h1{font-size:20px;margin:0 0 4px} h2{font-size:15px;margin:28px 0 8px;color:var(--sel-text)}
+p{color:var(--muted);max-width:80ch;margin:4px 0}
+.term{display:inline-block;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:10px 12px;overflow-x:auto;max-width:100%}
+pre{margin:0;line-height:1.25;font:13px/1.3 "Cascadia Mono",Consolas,monospace;white-space:pre}
+.sel{background:var(--sel);color:var(--text);font-weight:600}
+.selt{color:var(--sel-text);font-weight:600}
+.foc{color:var(--focus)} .focb{background:var(--card);color:var(--focus)}
+.mut{color:var(--muted)} .hi{font-weight:700}
+.gen{color:var(--metric-gen)} .pr{color:var(--metric-prompt)}
+.ok{color:var(--ok)} .warn{color:var(--warn)} .err{color:var(--err)}
+.bar{background:var(--surface)} .dlg{background:var(--card)}
+.bad{outline:1px solid var(--err)} .dlg{background:var(--card)} .nav{} .lnk{cursor:pointer;text-decoration:underline dotted;text-underline-offset:3px} .lnk:hover{outline:1px solid var(--focus)} #toolbar{margin:8px 0 12px} #toolbar button{background:var(--card);color:var(--text);border:1px solid var(--border);padding:4px 10px;margin-right:6px;border-radius:4px;cursor:pointer} #toolbar button.on{background:var(--sel)} .chg{background:var(--card)} .errl{background:#2a1c20} .btn{background:var(--border);color:var(--text)} .btnf{background:var(--focus);color:var(--bg);font-weight:700} .z1{background:var(--surface)} pre span{padding:.13em 0} .hd{background:var(--card);color:var(--text);font-weight:700} .gold{color:var(--text);font-weight:700}
+table{border-collapse:collapse;margin-top:8px;font-size:13px}
+td{padding:3px 10px;border-bottom:1px solid var(--border)}
+.sw{display:inline-block;width:12px;height:12px;border-radius:2px;vertical-align:middle;margin-right:6px}
+</style>
+</head>
+<body>
+<div id="toolbar"></div>
+<div id="screens"></div>
+<script>
+const W=80,H=24;
+const vis=s=>[...s.replace(/\{\w+\|([^}]*)\}/g,"$1")].length;
+const fill=(s,n)=>s+" ".repeat(Math.max(0,n-vis(s)));
+const sep="{mut|"+"─".repeat(W)+"}";
+// Hardware: sólo lo que el código mide por dispositivo (PDH + DXGI). Sin atribución a servicios.
+const TABS=k=>{k=k===true?0:k===false?1:k;const n=["● En vivo","◇ Definiciones","⚙ Configuración"];
+ return [["z1",80,n.map((x,i)=>i===k?"{sel| "+x+" }":" {nav|"+x+"} ").join(" ")+"{pad}{nav|⇣ 1 · 68%}  {warn|⚠ 2} "]];};
+const CT=(sel,i)=>{const t=[" Coquena"," TUI"," Sistema"];const x=t[i]??"";return x.trim()===sel?"{focb|"+fill(x,23)+"}":(x?" {nav|"+x.trim()+"}":x);};
+const TOPF=(t1,w,t2)=>[["hd",w-1," "+t1],["z0",1,""],["hd",80-w," "+t2]];
+const ROW=(l,w,r)=>[["z1",w-1,l],["z0",1,""],["z0",80-w,r]];
+const MIDF=t=>[["hd",80," "+t]];
+const ROW1=s=>[["z0",80,s]];
+const BOTF=()=>null;
+const HW1="{bar| CPU }{gen|▂▃▅▆▅▃▄▅▆▅▄▃▅▆▅▄}{bar| 42%        RAM }{gen|▅▅▆▆▆▆▆▅▆▆▆▆▆▆▆▆}{bar| 18,2/32G}";
+const HW2="{bar| GPU0 }{warn|▅▆▇▇▇}{bar| 91% ded }{warn|20,1/24G}{bar| comp 0,4G   GPU1 }{pr|▂▃▂▁▂}{bar| 12% ded 0,1/0,5G comp 1,1G}";
+// Árbol de Definiciones compartido: cada ámbito ofrece las mismas vistas.
+const GSET=["Servicios","Modelos","Backends","Modelos inventario","Descargas 1","Parámetros","Presets globales","Actualizaciones globales","Mantenimiento global"];
+const TREE=(sel,sc)=>{sc=sc||(GSET.includes(sel)?"G":"L");
+ const g=sc==="G"?[" {mut|▾ Global}","  Servicios","  Presets","  Modelos","  Backends","  Parámetros","  Descargas 1","  Actualizaciones","  Mantenimiento"]:[" {mut|▸ Global}"];
+ const l=sc==="L"?[" {mut|▾ código} {mut|· aquí}","  Recetas","  Presets","  Servicio","  Modelos","  Backends","  Parámetros","  Descargas","  Actualizaciones 2↑","  Mantenimiento"]:[" {mut|▸ código} {mut|· aquí}"];
+ const t=[...g,...l," {mut|▸ notas}"," {mut|▸ agentes}"," {mut|▸ pruebas}"," {mut|✗ cli-project}"];
+ const key=sel.replace(" globales","").replace(" global","").replace(" inventario","");
+ return t.map(x=>x.trim()===key?"{focb|"+fill(x.replace(/\{\w+\|([^}]*)\}/g,"$1"),23)+"}":(x.includes("{")?x:x.replace(/^(\s*)(.+)$/,"$1{nav|$2}")));};
+const T=(sel,i,sc)=>TREE(sel,sc)[i]??"";
+const screens=[
+["A · ● En vivo — el servicio es la unidad del log y del proceso; la entrada, de métricas y tareas",[
+TABS(true),
+TOPF("Servicios",24,"principal  {mut|:9931}  {ok|● en línea}  {mut|CPU} 21% {mut|RAM} 3,1G {mut|cola} 2"),
+ROW(" {ok|▾●} {hi|principal}",24," {btn| ■ Detener }  {btn| ⟳ Reiniciar }"),
+ROW("   ▾ código",24," {hi|código/asistente}  {mut|gemma-4-12B Q4_0}  {warn|≠ receta}"),
+ROW("{focb|     asistente         }",24," {mut|prompt} {pr|▂▃▅▆▇▆▅▆▇▆▅▆▇▇▆▅▆▇▆▅▆▇} {hi|80} {mut|tk/s pico 96}"),
+ROW("      resumen",24," {mut|gen   } {gen|▂▅▆▆▆▅▆▆▇▆▆▅▆▆▇▆▆▅▆▆▅▆} {hi|20} {mut|tk/s pico 24}"),
+ROW("      {mut|○ editor}",24," {mut|caché} {ok|62%}   {mut|aceptación} {ok|68%}   {mut|slots/decode} 1,6"),
+ROW("   ▾ notas",24," {mut|ctx s0} {foc|██████▒░░░} 5,1k/8k   {mut|s1} {foc|█▒░░░░░░░░} 0,9k/8k"),
+ROW("      tagger",24," {mut|TAREA     FASE        PROMPT       SALIDA}"),
+ROW(" {ok|▾●} {hi|notas}",24," s0 t41    {gen|GENERANDO}   5 012        128 / 512"),
+ROW("      embed",24," s1 t42    {pr|PROMPT}      2 048 · 68%  —"),
+ROW(" {mut|▸○ laboratorio}",24," s0 t40    {ok|✓ fin}       4 880        438"),
+[["hd",80," Log principal  {ok|● siguiendo}{pad}{btn| ❚❚ Pausar } {btn| ⤓ Seguir } {btn| Histórico }"]],
+ROW1(" {mut|12:04:31} slot 0: generación en curso"),
+ROW1(" {mut|12:04:32} slot 1: prompt 2048 tk 68%"),
+ROW1(" {mut|12:04:33} {warn|▲ slot 1: contexto 92%}"),
+ROW1(" {mut|12:04:35} slot 0: 128 tk · 20,4 tk/s"),
+ROW1(" {mut|12:04:36} slot 1: prompt 2048 tk 100%"),
+ROW1(" {mut|12:04:37} slot 1: generación en curso"),
+ROW1(" {mut|12:04:39} slot 0: 256 tk · 20,6 tk/s"),
+ROW1(" {mut|12:04:41} slot 1: 64 tk · 18,9 tk/s"),
+HW1,HW2
+]],
+["B · ◇ Definiciones › código › Recetas — combinaciones registradas (se suman al usar -f)",[
+TABS(false),
+TOPF("Definiciones",24,"Recetas de código {mut|→} principal {ok|●}"),
+...[...Array(18)].map((_,i)=>ROW(T("Recetas",i),24,[
+" {mut|  COMBINACIÓN                  ID       ESTADO}",
+"{focb|▸ coquena.yaml + gpu           3f79f6   ● publicada }",
+"  coquena.yaml                 a1c2e0   {mut|conocida}",
+"  coquena.yaml + server        9b7d11   {mut|conocida}",
+"  coquena.yaml + gpu + .env    5e0a42   {warn|privada}",
+"",
+" {btn| + Nueva combinación… }  {btn| Editar }  {btn| Olvidar }",
+"",
+" {mut|archivos} coquena.yaml {mut|→} coquena.gpu.yaml",
+" {mut|backend}  usa el de principal   {btn| + Backend }",
+" [ ] preparación privada",
+"",
+" {btnf| ▲ Up }  {btn| ▼ Down }  {btn| Importar }  {btn| Ver en vivo }"][i]??"")),
+HW1,HW2
+]],
+["P · ◇ Definiciones › código › Presets — ver, clonar y saltar al modelo o al YAML",[
+TABS(false),
+TOPF("Definiciones",24,"Presets de código"),
+...[...Array(18)].map((_,i)=>ROW(T("Presets",i,"L"),24,[
+" {mut|  PRESET      MODELO               EN VIVO    RECETA}",
+"{focb|  asistente   gemma-4-12B Q4_0     ● cargado  }{warn|modif.}",
+"  resumen     qwen3-8B Q5_K_M      {ok|● cargado}  —",
+"  editor      gemma-4-E4B Q4_0     {mut|○ no publ.} —",
+"",
+" {hi|asistente}  {mut|en} coquena.yaml",
+"   {mut|modelo}     {nav|gemma-4-12B-it-qat Q4_0}",
+"   {mut|companion}  mmproj-F16",
+"",
+"   {mut|           EN VIVO   RECETA}",
+"   contexto    8192      {warn|16384}",
+"   -ngl        99        99",
+"   -dev        CUDA0     CUDA0",
+"",
+" {btn| Clonar… }  {btn| Editar YAML }  {btn| Eliminar }  {btn| Ver en vivo }"][i]??"")),
+HW1,HW2
+]],
+["C · ◇ Definiciones › Global › Modelos — inventario y búsqueda dentro del ámbito",[
+TABS(false),
+TOPF("Definiciones",24,"Modelos de Global  {mut|12 locales}"),
+...[...Array(18)].map((_,i)=>ROW(T("Modelos",i,"G"),24,[
+" ( ) {nav|inventario}  (•) Hugging Face  {focb| gemma-4 qat       }",
+"",
+"{focb| google/gemma-4-26B-A4B-it-qat-q4_0          }",
+" unsloth/gemma-4-12B-it-qat-GGUF       {ok|✓ local}",
+" unsloth/gemma-4-E4B-it-qat-GGUF       {ok|✓ local}",
+"",
+" {hi|google/gemma-4-26B-A4B-it-qat-q4_0}",
+" Gemma-4 MoE {mut|·} 25B {mut|·} GGUF",
+" {mut|variante} {focb| Q4_0 · 14,4 GB ▾ }  {mut|ded GPU0} 24G",
+" {mut|usado por} —",
+"",
+" Gemma is a family of open models built by",
+" Google DeepMind…",
+"",
+" {btnf| Descargar }"][i]??"")),
+HW1,HW2
+]],
+["E · ⚙ Configuración › Coquena — lo mismo que coquena config",[
+TABS(2),
+TOPF("Categorías",24,"Coquena  {mut|$CoquenaHome\\config.json}"),
+...[...Array(18)].map((_,i)=>ROW(CT("Coquena",i),24,[
+" {mut|DIRECTORIOS}",
+"  Modelos     {focb| $CoquenaHome\\models      }  {mut|predet.}",
+"  Backends    {focb| $CoquenaHome\\backends    }  {mut|predet.}",
+" {mut|OBSERVACIÓN}",
+"  Reconexión inicial   {focb| 1    } s       {mut|predet.}",
+"  Reconexión máxima    {focb| 30   } s       {mut|predet.}",
+"  Histórico de tareas  {focb| 100  }         {mut|predet.}",
+" {mut|LOGS}",
+"  Retención            {focb| 100 MiB }      {mut|predet.}",
+" {mut|PARÁMETROS}",
+"  Catálogo global      {btn| Simular reset }  {btn| Restablecer }",
+"",
+" {btn| Guardar }  {btn| Restablecer }  {btn| Recargar }"][i]??"")),
+HW1,HW2
+]],
+["F · ⚙ Configuración › TUI — preferencias propias de la interfaz",[
+TABS(2),
+TOPF("Categorías",24,"TUI"),
+...[...Array(18)].map((_,i)=>ROW(CT("TUI",i),24,[
+" {mut|LOG}",
+"  [x] Ocultar las peticiones de monitoreo de Coquena",
+"",
+" {mut|BARRA INFERIOR}",
+"  [x] CPU        [x] RAM",
+"  [x] GPU0 uso   [x] GPU0 dedicada   [x] GPU0 compartida",
+"  [x] GPU1 uso   [ ] GPU1 dedicada   [x] GPU1 compartida",
+""][i]??"")),
+HW1,HW2
+]],
+["G · ⚙ Configuración › Sistema — system probe",[
+TABS(2),
+TOPF("Categorías",24,"Sistema  {mut|sondeo local · 12:01}"),
+...[...Array(18)].map((_,i)=>ROW(CT("Sistema",i),24,[
+" {mut|Coquena}     0.3.0",
+" {mut|Plataforma}  win-x64",
+" {mut|CPU}         AMD Ryzen 9 7950X",
+" {mut|RAM}         32 GiB",
+"",
+" {mut|ADAPTADORES}",
+"  GPU0  NVIDIA GeForce RTX 4090",
+"  GPU1  AMD Radeon Graphics",
+"",
+" {mut|ACELERACIÓN}",
+"  CUDA    {ok|✓ compatible}  driver 13.0",
+"          RTX 4090 · SM 8.9",
+"  Vulkan  {ok|✓ compatible}  1.2 · compute · fp16",
+"          RTX 4090, Radeon Graphics",
+"",
+" {btn| Sondear de nuevo }"][i]??"")),
+HW1,HW2
+]],
+["H · ◇ Definiciones › Editor — YAML con acciones básicas (desde Editar YAML)",[
+TABS(1),
+[["hd",80," {sel| coquena.yaml ● } {nav|coquena.gpu.yaml}  {nav|.env}{pad}{mut|13:17}"]],
+[["z1",80," {btnf| Guardar } {btn| Validar } {btn| ▲ Up } {btn| ▼ Down }   {btn| Copiar } {btn| Cortar } {btn| Pegar }{pad}{btn| Cerrar }"]],
+[["z1",4,"{mut|  1 }"],["z0",1," "],["z0",75," presets:"]],
+[["z1",4,"{mut|  2 }"],["z0",1," "],["z0",75,"   asistente:"]],
+[["z1",4,"{mut|  3 }"],["z0",1," "],["z0",75,"     args:"]],
+[["z1",4,"{mut|  4 }"],["z0",1," "],["z0",75,"       model: {pr|google/gemma-4-12B-it-qat-GGUF:Q4_0}"]],
+[["z1",4,"{mut|  5 }"],["chg",1,"{warn|▎}"],["chg",75,"       ctx-size: {pr|16384}"]],
+[["z1",4,"{mut|  6 }"],["z0",1," "],["z0",75,"       n-gpu-layers: {pr|99}"]],
+[["z1",4,"{mut|  7 }"],["z0",1," "],["z0",75,"       flash-attn: {pr|on}"]],
+[["z1",4,"{mut|  8 }"],["z0",1," "],["z0",75,"       temperature: {pr|0.7}"]],
+[["z1",4,"{mut|  9 }"],["z0",1," "],["z0",75," "]],
+[["z1",4,"{mut| 10 }"],["z0",1," "],["z0",75,"   resumen:"]],
+[["z1",4,"{mut| 11 }"],["z0",1," "],["z0",75,"     args:"]],
+[["z1",4,"{mut| 12 }"],["z0",1," "],["z0",75,"       model: {pr|Qwen/Qwen3-8B-GGUF:Q5_K_M}"]],
+[["z1",4,"{mut| 13 }"],["errl",1,"{err|▎}"],["errl",75,"       ctx-size: {err|8k}"]],
+[["z1",4,"{mut| 14 }"],["z0",1," "],["z0",75,"       parallel: {pr|2}"]],
+[["z1",4,"{mut| 15 }"],["z0",1," "],["z0",75," "]],
+[["z1",4,"{mut| 16 }"],["z0",1," "],["z0",75,"   editor:"]],
+[["z1",4,"{mut| 17 }"],["z0",1," "],["z0",75,"     args:"]],
+[["hd",80," Validación"]],
+[["z0",80," {err|✗} línea 13 · ctx-size: se esperaba un entero"]],
+HW1,HW2
+]],
+["I · ● En vivo › Log histórico — exploración por instancia con búsqueda RegEx",[
+TABS(0),
+[["hd",80," Log principal · histórico{pad}{btn| Volver }"]],
+[["z1",80," {mut|instancia} {focb| i2 · 09/11 11:58 → ahora ▾ }  {mut|regex} {focb| slot [01]: prompt      }"]],
+[["z1",80," {mut|nivel} todos ▾   {mut|12 coincidencias}{pad}{btn| ◂ Anterior } {btn| Siguiente ▸ }"]],
+ROW1(" {mut|11:58:10} server: listening on 127.0.0.1:9931"),
+ROW1(" {mut|11:58:12} router: 3 modelos registrados"),
+ROW1(" {mut|12:01:03} {sel|slot 0: prompt} 812 tk 100%"),
+ROW1(" {mut|12:01:05} slot 0: generación en curso"),
+[["chg",80," {mut|12:04:30} {sel|slot 1: prompt} 2048 tk 68%"]],
+ROW1(" {mut|12:04:31} slot 0: generación en curso"),
+ROW1(" {mut|12:04:32} {sel|slot 1: prompt} 2048 tk 100%"),
+ROW1(" {mut|12:04:33} {warn|▲ slot 1: contexto 92%}"),
+ROW1(" {mut|12:04:35} slot 0: 128 tk · 20,4 tk/s"),
+ROW1(" {mut|12:06:10} {sel|slot 0: prompt} 4880 tk 100%"),
+ROW1(" {mut|12:06:12} slot 0: generación en curso"),
+ROW1(" {mut|12:09:44} {err|✗ slot 1: petición cancelada por el cliente}"),
+ROW1(""),ROW1(""),ROW1(""),
+[["z1",80," {mut|instancias}  i1 09/11 09:12–11:57  {sel| i2 09/11 11:58 → } {mut|·} 2 archivos rotados"]],
+HW1,HW2
+]],
+["J · ◇ Definiciones › carpeta sin receta — Inicializar",[
+TABS(1),
+TOPF("Definiciones",24,"$TestRoot\\nuevo  {mut|sin coquena.yaml}"),
+...[...Array(18)].map((_,i)=>ROW([" {mut|Global}","  {nav|Servicios}","  {nav|Modelos}","  {nav|Descargas} {foc|1}","  {nav|Actualizaciones}",
+" {mut|nuevo} {mut|· aquí}","{focb|  Receta               }",
+" {mut|▸ código}"," {mut|▸ notas}"," {mut|▸ agentes}"][i]??"",24,[
+"",
+" {btnf| Inicializar }",
+"",
+" {mut|crea coquena.yaml con name: nuevo y target: global}"][i]??"")),
+HW1,HW2
+]],
+["K · ◇ Definiciones › + Backend — modal Seleccionar backend",[
+TABS(1),
+TOPF("Definiciones",24,"código {mut|→} principal {ok|●}"),
+...[...Array(18)].map((_,i)=>[["z1",23,T("Recetas",i)],["z0",3,""],["dlg",51,[
+" {hi|Agregar backend a código}",
+"",
+" {mut|origen}   (•) oficial    ( ) ejecutable externo",
+"",
+" {mut|variante}           {mut|compatibilidad (system probe)}",
+"{focb|  (•) cuda@13        ✓ driver 13.0 · RTX 4090   }",
+"  ( ) cuda@12        {ok|✓}",
+"  ( ) vulkan         {ok|✓} RTX 4090, Radeon",
+"  ( ) cpu            {ok|✓}",
+"",
+" {mut|versión}  {focb| latest ▾ }  {mut|b6188 · publicado 08/11}",
+"",
+" {mut|archivo}  (•) coquena.yaml",
+"          ( ) coquena.{focb|server         }.yaml",
+" [x] descargar ahora",
+"",
+"{pad}{btn| Cancelar }  {btnf| Agregar }"][i]??""],["z0",3,""]]),
+HW1,HW2
+]],
+["L · ◇ Definiciones › Importar — modal de selección hacia Global",[
+TABS(1),
+TOPF("Definiciones",24,"código {mut|→} principal {ok|●}"),
+...[...Array(18)].map((_,i)=>[["z1",23,T("Recetas",i)],["z0",3,""],["dlg",51,[
+" {hi|Importar código en Global}",
+"",
+" {mut|categoría}  {mut|elementos}",
+"{focb| [x] presets  asistente, resumen, editor          }",
+" [x] model    gemma-4-12B Q4_0, qwen3-8B Q5_K_M",
+" [ ] params   ctx-size, n-gpu-layers",
+" {mut|[ ] service  sin servicio propio}",
+"",
+" {mut|conflictos}",
+" {warn|▲} preset resumen ya existe en Global",
+"     (•) conservar   ( ) reemplazar",
+"",
+" [ ] usar como servicio predeterminado",
+"",
+"",
+"",
+"{pad}{btn| Cancelar }  {btnf| Importar }"][i]??""],["z0",3,""]]),
+HW1,HW2
+]],
+["M · ◇ Definiciones › Global › Servicios — gestionar servicios del ámbito",[
+TABS(1),
+TOPF("Definiciones",24,"Servicios de Global{pad}{btn| + Agregar }"),
+...[...Array(18)].map((_,i)=>ROW(T("Servicios",i,"G"),24,[
+" {mut|  SERVICIO      BACKEND          PUERTO  ESTADO}",
+"{focb| ★ principal    cuda@13 · b6120   9931    ● en línea }",
+"   laboratorio  vulkan · b6120    9940    {mut|○ detenido}",
+"",
+" {hi|principal} {mut|· predeterminado}",
+"   {mut|archivo}     $CoquenaHome\\global\\recipe.yaml",
+"   {mut|args}        host 127.0.0.1 · models-max 1",
+"   {mut|consumidores} código (2), notas (1)",
+"",
+" {btn| ★ Predeterminado }  {btn| Eliminar }",
+" {btn| Editar YAML }  {btn| Ver en vivo }"][i]??"")),
+HW1,HW2
+]],
+["N · ◇ Definiciones › Global › Descargas — progreso y control",[
+TABS(1),
+TOPF("Definiciones",24,"Descargas de Global{pad}{mut|2 activas · 1 pausada}"),
+...[...Array(18)].map((_,i)=>ROW(T("Descargas 1",i,"G"),24,[
+"{focb| gemma-4-12B-it-qat Q4_0                   modelo }",
+" {foc|██████████████████▒░░░░░░░░} 68%  7,1/10,4G",
+" 42 MB/s · {mut|faltan} 1 min 18 s   {btn| ❚❚ Pausar } {btn| Cancelar }",
+"",
+" backend cuda@13 b6188                     {mut|backend}",
+" {foc|██████████████████████████▒} 97%  402/415M",
+" 38 MB/s · {mut|verificando integridad}",
+"",
+" mmproj-F16                              {mut|companion}",
+" {mut|░░░░░░▒░░░░░░░░░░░░░░░░░░░░} 25%  210/850M",
+" {warn|❚❚ pausada} 12:01                {btn| Reanudar } {btn| Cancelar }",
+"",
+" {mut|TERMINADAS}",
+" qwen3-8B Q5_K_M   {ok|✓} 5,8G · 11:42",
+" Ornith-35B Q4_K_M {err|✗} conexión reiniciada {btn| Reintentar }"][i]??"")),
+HW1,HW2
+]],
+["Q · ◇ Definiciones › Global › Parámetros — catálogo del backend",[
+TABS(false),
+TOPF("Definiciones",24,"Parámetros de Global  {mut|llama.cpp b6120}"),
+...[...Array(18)].map((_,i)=>ROW(T("Parámetros",i,"G"),24,[
+" {mut|filtro} {focb| ctx              }  {mut|412 parámetros}",
+"",
+" {mut| PARÁMETRO        TIPO     APLICA    PREDET.  ORIGEN}",
+"{focb| ctx-size         entero   modelo    4096     schema }",
+"  ctx-checkpoints  entero   modelo    8        schema",
+"  ctx-shift        flag     modelo    —        schema",
+"  ctx-max          entero   servidor  —        {warn|definido}",
+"",
+" {hi|ctx-size}  {mut|alias} -c",
+" Size of the prompt context (0 = from model)",
+" {mut|usado por} código/asistente, código/resumen",
+"",
+" {btn| Definir… }  {btn| Editar }  {btn| Quitar definición }"][i]??"")),
+HW1,HW2
+]],
+["U · ◇ Definiciones › código › Actualizaciones — Comprobar (update) y Actualizar (upgrade)",[
+TABS(false),
+TOPF("Definiciones",24,"Actualizaciones de código  {mut|plan 09/11 11:40} {ok|✓ vigente}"),
+...[...Array(18)].map((_,i)=>ROW(T("Actualizaciones 2↑",i,"L"),24,[
+" {mut|    RECURSO              ACTUAL      PROPUESTA  ESTADO}",
+"{focb| [x] backend llama.cpp    b6120       b6188      ↑ nueva}",
+" [x] gemma-4-12B          rev a1f3    rev c07b   {ok|↑ nueva}",
+" [ ] qwen3-8B             Q5_K_M      —          {mut|fijado}",
+" [ ] mmproj               F16         ?          {warn|▲ falló}",
+"",
+" {btn| Comprobar }  {btnf| Actualizar 2 }",
+"",
+" {mut|IMPACTO EN EJECUCIÓN}",
+"  {ok|●} principal usa b6120 hasta reiniciar",
+"  {ok|●} asistente usa rev a1f3 hasta recargar"][i]??"")),
+HW1,HW2
+]],
+["R · ◇ Definiciones › código › Mantenimiento — verificar y limpiar",[
+TABS(false),
+TOPF("Definiciones",24,"Mantenimiento de código"),
+...[...Array(18)].map((_,i)=>ROW(T("Mantenimiento",i,"L"),24,[
+" {btn| Verificar }  {mut|09/11 12:10}  {ok|✓ 6 íntegros}  {warn|▲ 1}",
+"   {warn|▲} mmproj-F16: archivo modificado fuera de Coquena",
+"",
+" {btn| Limpiar… }  {mut|recursos sin referencias}",
+"   [x] backend b6044              412M",
+"   [x] gemma-3-12B Q4_0  {mut|auto}     7,3G",
+"   {mut|—   Ornith-35B Q4_K_M  protegido}",
+"   {mut|liberaría} 7,7G",
+"",
+" {mut|ÚLTIMA LIMPIEZA} 02/11 · 3 recursos · 11,2G"][i]??"")),
+HW1,HW2
+]],
+["V · Modal Nueva combinación — archivos YAML en orden y archivos .env",[
+TABS(false),
+TOPF("Definiciones",24,"Recetas de código {mut|→} principal {ok|●}"),
+...[...Array(18)].map((_,i)=>[["z1",23,T("Recetas",i)],["z0",3,""],["dlg",51,[
+" {hi|Nueva combinación}",
+"",
+" {mut|YAML (en orden)}",
+"{focb|  [x] 1  coquena.yaml           base               }",
+"  [x] 2  coquena.server.yaml   {btn| ↑ }{btn| ↓ }",
+"  [ ] —  coquena.gpu.yaml",
+"  {btn| + Archivo nuevo… }",
+"",
+" {mut|.env}",
+"  [ ] .env            {warn|hace privada la combinación}",
+"",
+" {mut|se registra al usarla en Up o Iniciar}",
+"",
+"{pad}{btn| Cancelar }  {btnf| Aceptar }"][i]??""],["z0",3,""]]),
+HW1,HW2
+]],
+["W · ◇ Definiciones › Global › Modelos — inventario local y alta de archivos",[
+TABS(false),
+TOPF("Definiciones",24,"Modelos de Global{pad}{btn| + Agregar local… }"),
+...[...Array(18)].map((_,i)=>ROW(T("Modelos inventario",i),24,[
+" (•) inventario  ( ) {nav|Hugging Face}  {focb| filtro          }",
+"",
+" {mut|  MODELO                   ORIGEN      TAMAÑO  USO}",
+"{focb| gemma-4-12B-it-qat Q4_0  gestionado  7,1G    2 }",
+"  qwen3-8B Q5_K_M          gestionado  5,8G    1",
+"  mmproj-F16 {mut|companion}    gestionado  0,9G    1",
+"  mi-modelo.gguf           {warn|externo}     4,2G    —",
+"",
+" {hi|gemma-4-12B-it-qat Q4_0}  {mut|🔒 protegido}",
+" google/gemma-4-12B-it-qat-GGUF {mut|· rev a1f3}",
+" {mut|usado por} código/asistente, notas/tagger",
+"",
+" {btn| Quitar protección }  {btn| Verificar }  {btn| Eliminar }"][i]??"")),
+HW1,HW2
+]],
+["S · Modal Agregar modelo local — model add",[
+TABS(false),
+TOPF("Definiciones",24,"Modelos de Global"),
+...[...Array(18)].map((_,i)=>[["z1",23,T("Modelos inventario",i)],["z0",3,""],["dlg",51,[
+" {hi|Agregar modelo local}",
+"",
+" {mut|archivos} {focb| $TestRoot\\pesos\\mi-modelo.gguf  }{btn| … }",
+"          {btn| + Shard }",
+" {mut|nombre}   {focb| mi-modelo           }",
+" {mut|tipo}     (•) modelo  ( ) mmproj  ( ) mtp",
+"",
+" {mut|alta}     (•) registrar en el inventario",
+"          ( ) declarar en {focb| recipe.yaml ▾ } ",
+"",
+" [x] buscar correspondencia en Hugging Face",
+"     {mut|repositorio} {focb| unsloth/…-GGUF      }",
+"",
+"{pad}{btn| Cancelar }  {btnf| Agregar }"][i]??""],["z0",3,""]]),
+HW1,HW2
+]],
+["O · ◇ Definiciones › Global › Backends — instalaciones del ámbito",[
+TABS(false),
+TOPF("Definiciones",24,"Backends de Global{pad}{btn| + Backend }"),
+...[...Array(18)].map((_,i)=>ROW(T("Backends",i),24,[
+" {mut|  VARIANTE   VERSIÓN  ORIGEN    TAMAÑO  USO}",
+"{focb| cuda@13    b6120    oficial   415M    principal }",
+"  cuda@13    b6188    oficial   415M    {mut|preparado}",
+"  vulkan     b6120    oficial   96M     laboratorio",
+"  cpu        b6044    oficial   41M     —",
+"  mi-fork    —        {warn|externo}   —       —",
+"",
+" {hi|cuda@13 b6120}  {mut|🔒 protegido}",
+" {mut|ruta} $CoquenaHome\\backends\\cuda13-b6120",
+" {mut|compatibilidad} ✓ driver 13.0 · RTX 4090",
+"",
+" {btn| Quitar protección }  {btn| Eliminar }  {btn| Descargar versión… }"][i]??"")),
+HW1,HW2
+]],
+["X · Modal Aceptar/Cancelar — Up con el destino ocupado",[
+TABS(false),
+TOPF("Definiciones",24,"Recetas de código {mut|→} principal {ok|●}"),
+...[...Array(18)].map((_,i)=>[["z1",23,T("Recetas",i)],["z0",3,""],["dlg",51,["","",
+" {hi|Publicar en principal}",
+"",
+" coquena.yaml + coquena.gpu.yaml",
+" asistente   contexto 8192 → 16384",
+"",
+" {warn|▲ 1 petición activa · 2 en cola}",
+"   pueden fallar al publicar",
+"",
+"{pad}{btnf| Cancelar }  {btn| Publicar igual }"][i]??""],["z0",3,""]]),
+HW1,HW2
+]],
+["Y · Modal Sí/No/Cancelar — guardar con cambios externos",[
+TABS(false),
+[["hd",80," {sel| coquena.yaml ● } {nav|coquena.gpu.yaml}  {nav|.env}{pad}{mut|13:17}"]],
+...[...Array(18)].map((_,i)=>[["z0",12,""],["dlg",56,["","","",
+" {hi|coquena.yaml cambió en disco}",
+"",
+" Se modificó después de abrirlo en el editor (12:14).",
+" ¿Sobrescribir con tu versión?",
+"",
+"  Sí        guarda tu versión sobre la del disco",
+"  No        recarga el disco y descarta tu borrador",
+"  Cancelar  vuelve al editor sin guardar",
+"",
+"{pad}{btn| Sí }  {btn| No }  {btnf| Cancelar }"][i]??""],["z0",12,""]]),
+HW1,HW2
+]],
+["Z · Notificaciones (⚠ en la barra superior) — acciones sobre cada aviso",[
+TABS(0),
+[["hd",80," Notificaciones{pad}{btn| Marcar leídas }  {btn| Volver }"]],
+ROW1(" {warn|▲} {mut|12:09} principal se reinició tras una caída {mut|(1/3)}{pad}{btn| Ver log }"),
+ROW1(" {err|✗} {mut|12:05} Ornith-35B Q4_K_M: conexión reiniciada{pad}{btn| Reintentar }"),
+ROW1(" {ok|✓} {mut|11:42} qwen3-8B Q5_K_M descargado"),
+ROW1(" {ok|✓} {mut|11:40} código: 2 actualizaciones disponibles{pad}{btn| Actualizaciones }"),
+ROW1(""),ROW1(""),ROW1(""),ROW1(""),ROW1(""),ROW1(""),ROW1(""),ROW1(""),ROW1(""),ROW1(""),ROW1(""),ROW1(""),ROW1(""),ROW1(""),ROW1(""),
+HW1,HW2
+]],
+["D · Hardware (clic en la barra inferior) — ¿saturó o desbordó la memoria?",[
+TABS(true),
+TOPF("Hardware · 5 min",24,"GPU0  {mut|uso · ded · comp}"),
+ROW(" {focb|GPU0           91%   }",24," {warn|▃▅▆▇▇▇▇▆▇▇▇▇▆▇▇▇▆▇▇▇▇▆▇▇▇▇▆▇▇▇▇▆▇▇▇▇▆▇▇▇▇▆▇▇} {mut|uso}"),
+ROW("  GPU1           12%",24," {warn|▅▅▅▆▆▆▆▆▆▆▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇} {mut|ded}"),
+ROW("  CPU            42%",24," {pr|▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▂▂▂▂▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃} {mut|comp}"),
+ROW("  RAM       18,2/32G",24,""),
+ROW("",24," {mut|uso} 91% {mut|· media} 84% {mut|· pico} 99%"),
+ROW("",24," {mut|ded} 20,1 / 24,0G {mut|· pico} 23,6G"),
+ROW("",24," {warn|▲ comp} 0,0 → 0,4G {mut|desde 12:03, con ded en pico}"),
+ROW("",24,""),
+ROW("",24,""),
+ROW("",24," {mut|motor más ocupado} 3D/compute"),
+ROW("",24,""),
+ROW("",24,""),ROW("",24,""),ROW("",24,""),ROW("",24,""),ROW("",24,""),ROW("",24,""),ROW("",24,""),
+HW1,HW2
+]],
+];
+function render(line){
+  if(line.includes("{pad}")){const [a,b]=line.split("{pad}");const w=s=>[...s.replace(/\{\w+\|([^}]*)\}/g,"$1")].length;
+    line=a+" ".repeat(Math.max(1,W-1-w(a)-w(b)))+b;}
+  let out="",len=0;const re=/\{(\w+)\|([^}]*)\}|([^{]+)/g;let m;
+  const esc=s=>s.replace(/&/g,"&amp;").replace(/</g,"&lt;");
+  while((m=re.exec(line))){const t=m[2]??m[3];len+=[...t].length;
+    out+=m[1]?`<span class="${m[1]}">${esc(t)}</span>`:esc(t);}
+  return {out,len};
+}
+const root=document.getElementById("screens");
+// Alinea el primer separador «│» de cada línea a la columna más frecuente de la pantalla.
+function align(lines){const M="{mut|│}";const cols={};
+  lines.forEach(l=>{const i=l.indexOf(M);if(i>=0){const c=vis(l.slice(0,i));cols[c]=(cols[c]||0)+1;}});
+  const target=+Object.entries(cols).sort((a,b)=>b[1]-a[1])[0]?.[0];
+  return lines.map(l=>{const i=l.indexOf(M);if(i<0)return l;let a=l.slice(0,i),b=l.slice(i);let d=target-vis(a);
+    while(d<0&&/ (\})?$/.test(a)){a=a.replace(/ (\})?$/,"$1");d++;}
+    return a+" ".repeat(Math.max(0,d))+b;});}
+for(const [title,raw] of screens){const lines=align(raw);
+  const h=document.createElement("h2");h.textContent=title;root.appendChild(h);
+  const rows=lines.filter(x=>x!==null).slice(0,H);while(rows.length<H)rows.splice(rows.length-3,0,"");
+  const html=rows.map((l,i)=>{if(Array.isArray(l)){let out="",len=0;for(const [c,w,m] of l){const pw=w;const r=render(m.includes("{pad}")?m.replace("{pad}","{pad}"):m);let o=r.out,n=r.len;if(m.includes("{pad}")){const [x,y]=m.split("{pad}");const r2=render(x+" ".repeat(Math.max(1,pw-1-vis(x)-vis(y)))+y);o=r2.out;n=r2.len;}out+=`<span class="${c}">${o}${" ".repeat(Math.max(0,pw-n))}</span>`;len+=Math.max(pw,n);}return len>W?`<span class="bad">${out}</span>`:out;}const r=render(l);const pad=" ".repeat(Math.max(0,W-r.len));
+    const cls=(i===H-2||i===H-1)?"bar":"";
+    return r.len>W?`<span class="bad">${r.out}</span>`:`<span class="${cls}">${r.out}${pad}</span>`}).join("\n");
+  const d=document.createElement("div");d.className="term";d.innerHTML=`<pre>${html}</pre>`;root.appendChild(d);
+  if(lines.length>H)console.warn(title,"excede",H,"filas");
+}
+
+// Navegación simulada: los controles con destino llevan a otra pantalla.
+const LINKS={"● En vivo":"A","◇ Definiciones":"B","⚙ Configuración":"E","Receta":"B","Modelos":"W",
+"Coquena":"E","TUI":"F","Sistema":"G","Editar YAML":"H","Cerrar":"B","Ver en vivo":"A","Histórico":"I",
+"Volver":"A","+ Backend":"K","Importar":"L","Cancelar":"B","Agregar":"B","Inicializar":"B","Actualizar":"B",
+"Servicios":"M","Backends":"O","inventario":"W","Hugging Face":"C","+ Agregar local…":"S","Descargar versión…":"K","Recetas":"B","Presets":"P","Parámetros":"Q","Mantenimiento":"R","Actualizaciones":"U","Actualizaciones 2↑":"U","Editar":"H","+ Nueva combinación…":"V","Aceptar":"B","+ Archivo nuevo…":"H","Clonar…":"H","gemma-4-12B-it-qat Q4_0":"W","▲ Up":"X","Publicar igual":"B","⚠ 2":"Z","⇣ 1 · 68%":"N","Ver log":"I","Marcar leídas":"Z","Guardar":"Y","Sí":"H","No":"H","Servicio":"M","Descargas":"N","Descargas 1":"N",
+"+ Agregar":"M","Reanudar":"N","Ver descargas":"N"};
+const terms=[...document.querySelectorAll(".term")],heads=[...document.querySelectorAll("#screens h2")];
+const ids=heads.map(h=>h.textContent.trim()[0]);
+terms.forEach((t,i)=>{t.id="s"+ids[i];heads[i].id="h"+ids[i];
+  t.querySelectorAll("span").forEach(sp=>{const k=sp.textContent.trim();
+    const to=({Y:{Cancelar:"H",Sí:"P",No:"H"},X:{Cancelar:"B"},S:{Cancelar:"W",Agregar:"W"},O:{"+ Backend":"K"},V:{Cancelar:"B"}}[ids[i]]||{})[k]||LINKS[k];
+    if(to&&!sp.querySelector("span")){sp.classList.add("lnk");sp.title="→ "+to;sp.onclick=()=>go(to);}});
+  const pre=t.querySelector("pre");const rows=pre.innerHTML.split("\n");
+  rows.slice(-2).forEach(()=>{});});
+document.querySelectorAll(".term pre").forEach(pre=>{const spans=[...pre.querySelectorAll("span.bar")];
+  spans.forEach(sp=>{sp.classList.add("lnk");sp.title="→ D";sp.onclick=()=>go("D");});});
+let single=true;
+function show(){terms.forEach((t,i)=>{const on=!single||t.dataset.cur==="1";t.style.display=on?"":"none";heads[i].style.display=on?"":"none";});
+  document.getElementById("bAll").classList.toggle("on",!single);document.getElementById("bNav").classList.toggle("on",single);}
+function go(id){terms.forEach(t=>t.dataset.cur=t.id==="s"+id?"1":"0");if(!single)document.getElementById("h"+id).scrollIntoView({behavior:"smooth"});show();
+  try{history.replaceState(null,"","#"+id)}catch(e){}}
+const tb=document.getElementById("toolbar");
+tb.innerHTML='<button id="bNav">Navegar</button><button id="bAll">Ver todas</button> '+ids.map(i=>`<button data-i="${i}">${i}</button>`).join("");
+tb.onclick=e=>{const b=e.target.closest("button");if(!b)return;if(b.id==="bNav"){single=true;show();}else if(b.id==="bAll"){single=false;show();}else{single=true;go(b.dataset.i);}};
+go((location.hash||"#A").slice(1)||"A");
+</script>
+</body>
+</html>

@@ -1,0 +1,42 @@
+@startsalt
+{
+  {/ ● En vivo | <b>◇ Definiciones | ⚙ Configuración | . | ⇣ 1 · 68% | ⚠ 2 }
+  {
+    {
+      <b>Definiciones
+    {T
+      + Global
+      ++ Servicios
+      ++ Presets
+      ++ <b>Modelos
+      ++ Backends
+      ++ Parámetros
+      ++ Descargas 1
+      ++ Actualizaciones
+      ++ Mantenimiento
+      + código · aquí
+      + notas
+      + agentes
+      + pruebas
+      + ✗ cli-project
+    }
+    } | {
+      { <b>Modelos de Global | 12 locales }
+      { ( ) inventario | (X) Hugging Face | "gemma-4 qat     " }
+      {SI
+        <b>google/gemma-4-26B-A4B-it-qat-q4_0
+        unsloth/gemma-4-12B-it-qat-GGUF ✓ local
+        unsloth/gemma-4-E4B-it-qat-GGUF ✓ local
+      }
+      <b>google/gemma-4-26B-A4B-it-qat-q4_0
+      Gemma-4 MoE · 25B · GGUF
+      { variante | ^Q4_0 · 14,4 GB^ | ded GPU0 24G }
+      usado por —
+      Gemma is a family of open models built by Google DeepMind…
+      [Descargar]
+    }
+  }
+  { CPU ▂▃▅▆▅ 42% | RAM ▅▅▆▆ 18,2/32G }
+  { GPU0 ▅▆▇▇ 91% ded 20,1/24G comp 0,4G | GPU1 ▂▃▂▁ 12% ded 0,1/0,5G comp 1,1G }
+}
+@endsalt

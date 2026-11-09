@@ -1,0 +1,47 @@
+@startsalt
+{
+  {/ ● En vivo | <b>◇ Definiciones | ⚙ Configuración | . | ⇣ 1 · 68% | ⚠ 2 }
+  {
+    {
+      <b>Definiciones
+    {T
+      + Global
+      + código · aquí
+      ++ Recetas
+      ++ <b>Presets
+      ++ Servicio
+      ++ Modelos
+      ++ Backends
+      ++ Parámetros
+      ++ Descargas
+      ++ Actualizaciones 2↑
+      ++ Mantenimiento
+      + notas
+      + agentes
+      + pruebas
+      + ✗ cli-project
+    }
+    } | {
+      <b>Presets de código
+      {#
+        Preset | Modelo | En vivo | Receta
+        <b>asistente | gemma-4-12B Q4_0 | ● cargado | modif.
+        resumen | qwen3-8B Q5_K_M | ● cargado | —
+        editor | gemma-4-E4B Q4_0 | ○ no publ. | —
+      }
+      { <b>asistente | en coquena.yaml }
+      { modelo | <u>gemma-4-12B-it-qat Q4_0</u> }
+      { companion | mmproj-F16 }
+      {#
+        . | En vivo | Receta
+        contexto | 8192 | 16384
+        -ngl | 99 | 99
+        -dev | CUDA0 | CUDA0
+      }
+      { [Clonar…] | [Editar YAML] | [Eliminar] | [Ver en vivo] }
+    }
+  }
+  { CPU ▂▃▅▆▅ 42% | RAM ▅▅▆▆ 18,2/32G }
+  { GPU0 ▅▆▇▇ 91% ded 20,1/24G comp 0,4G | GPU1 ▂▃▂▁ 12% ded 0,1/0,5G comp 1,1G }
+}
+@endsalt

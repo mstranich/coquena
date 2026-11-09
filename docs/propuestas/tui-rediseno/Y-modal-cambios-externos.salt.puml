@@ -1,0 +1,19 @@
+@startsalt
+{
+  {/ ● En vivo | <b>◇ Definiciones | ⚙ Configuración | . | ⇣ 1 · 68% | ⚠ 2 }
+  {/ <b>coquena.yaml ● | coquena.gpu.yaml | .env | . | 13:17 }
+  {+
+    <b>coquena.yaml cambió en disco
+    Se modificó después de abrirlo en el editor (12:14).
+    ¿Sobrescribir con tu versión?
+    {#
+      Sí | guarda tu versión sobre la del disco
+      No | recarga el disco y descarta tu borrador
+      Cancelar | vuelve al editor sin guardar
+    }
+    { [Sí] | [No] | [Cancelar] }
+  }
+  { CPU ▂▃▅▆▅ 42% | RAM ▅▅▆▆ 18,2/32G }
+  { GPU0 ▅▆▇▇ 91% ded 20,1/24G comp 0,4G | GPU1 ▂▃▂▁ 12% ded 0,1/0,5G comp 1,1G }
+}
+@endsalt

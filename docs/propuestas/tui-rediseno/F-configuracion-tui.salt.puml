@@ -1,0 +1,25 @@
+@startsalt
+{
+  {/ ● En vivo | ◇ Definiciones | <b>⚙ Configuración | . | ⇣ 1 · 68% | ⚠ 2 }
+  {
+    {
+      <b>Categorías
+    {
+      Coquena
+      <b>TUI
+      Sistema
+    }
+    } | {
+      <b>TUI
+      <b>Log
+      [X] Ocultar las peticiones de monitoreo de Coquena
+      <b>Barra inferior
+      { [X] CPU | [X] RAM | . }
+      { [X] GPU0 uso | [X] GPU0 dedicada | [X] GPU0 compartida }
+      { [X] GPU1 uso | [ ] GPU1 dedicada | [X] GPU1 compartida }
+    }
+  }
+  { CPU ▂▃▅▆▅ 42% | RAM ▅▅▆▆ 18,2/32G }
+  { GPU0 ▅▆▇▇ 91% ded 20,1/24G comp 0,4G | GPU1 ▂▃▂▁ 12% ded 0,1/0,5G comp 1,1G }
+}
+@endsalt
