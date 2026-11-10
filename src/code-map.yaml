@@ -4,7 +4,7 @@
 version: 1
 features:
   - id: terminal-service-dashboard
-    intent: Gestionar servicios, preparar backends, controlar descargas y publicar combinaciones desde Definiciones; observar hardware compartido, entradas y logs en En vivo.
+    intent: Gestionar servicios, inicializar y editar recetas, preparar backends, controlar descargas y publicar combinaciones desde Definiciones; observar hardware compartido, entradas y logs en En vivo.
     keywords: [tui, dashboard, Terminal.Gui, project, recipe, up, down, services, hardware, logs]
     entrypoints:
       - src/Coquena/Cli.cs
@@ -20,6 +20,8 @@ features:
       - src/Coquena/Observation/DefinitionsPresentation.cs
       - src/Coquena/DashboardDefinitions.cs
       - src/Coquena/DashboardManagement.cs
+      - src/Coquena/DashboardEditor.cs
+      - src/Coquena/Recipes/RecipeDrafts.cs
       - src/Coquena/Observation/ManagementPresentation.cs
       - src/Coquena/Observation/SettingsPresentation.cs
       - src/Coquena/DashboardSettings.cs
@@ -38,6 +40,7 @@ features:
       - tests/Coquena.Tests/DashboardPresentationTests.cs
       - tests/Coquena.Tests/LivePresentationTests.cs
       - tests/Coquena.Tests/DefinitionsPresentationTests.cs
+      - tests/Coquena.Tests/RecipeEditorTests.cs
       - tests/Coquena.Tests/ManagementTests.cs
       - tests/Coquena.Tests/SettingsPresentationTests.cs
       - tests/Coquena.Tests/InferenceObservationTests.cs

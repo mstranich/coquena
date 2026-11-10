@@ -209,7 +209,7 @@ internal static class DefinitionsPresentation
 
     public static Page NoRecipe(string folder) =>
         new(Escape(folder) + "  " + Style("mut", "sin coquena.yaml"),
-            ["", " " + Off("Inicializar"), "", " " + Style("mut", "crea coquena.yaml con name: " + folder)]);
+            ["", " " + Style("btnf", " Inicializar ", "init"), "", " " + Style("mut", "crea coquena.yaml como coquena init; la receta toma el nombre " + folder)]);
 
     public static Page Inaccessible(string name) =>
         new(Escape(name), ["", " " + Style("err", "✗") + " " + Style("mut", "La ruta del proyecto ya no se puede resolver.")]);

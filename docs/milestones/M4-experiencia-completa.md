@@ -96,6 +96,7 @@ La secuencia comienza por 066. Los IDs y directorios históricos no fijan orden.
 | 10 | [082](../../specs/082-m4-tui-configuracion/README.md) | Llevar Configuración a la vista previa con sus acciones | 081 |
 | 11 | [083](../../specs/083-m4-tui-gestion-servicios/README.md) | Completar Servicios, alta, backends, descargas y confirmación de Up (X), sin Editor | Base entregada 080–082; contratos 048 y 053 |
 | 12 | [084](../../specs/084-m4-tui-recursos-mantenimiento/README.md) | Completar O, W, S, C y R: inventario, adquisición y mantenimiento sin autoría YAML ni hallazgos 009–011 | Base entregada 081 y 083; contratos de recursos de M3 |
+| 13 | [085](../../specs/085-m4-tui-recetas-editor/README.md) | Completar B, J, H e Y: recetas, inicialización, Editor YAML y conflictos de guardado, sin V ni L | Base entregada 081 y 083; contratos 045 y 071 |
 
 ### Vistas de la TUI trabajadas
 
@@ -108,12 +109,12 @@ Avance sobre las [pantallas de la TUI](../design/tui/README.md):
 | D Hardware | ✔ implementada | 080 |
 | Z Notificaciones | ✔ implementada, sólo avisos de la sesión | 080 |
 | Barras superior e inferior | ✔ como la vista previa (⇣ sin fuente de descargas) | 080 |
-| J, P, Q, U Definiciones | ✔ sólo lectura, botones deshabilitados | 081 |
+| P, Q, U Definiciones | ✔ sólo lectura, botones deshabilitados | 081 |
 | O Backends, W Inventario, S Modelo local, C Hugging Face y R Mantenimiento | ✔ implementadas y validadas por el usuario | 083, 084 |
-| B Recetas | Consulta y acceso a Up de combinaciones existentes; demás acciones deshabilitadas | 081, 083 |
+| B Recetas, J Inicializar, H Editor e Y Cambios externos | ✔ implementadas y validadas por el usuario (Nueva combinación e Importar deshabilitados) | 081, 083, 085 |
 | M Servicios, N Descargas, K Backends, T Alta de servicio y X Confirmar Up | ✔ implementadas y validadas por el usuario | 083 |
 | E, F, G Configuración | ✔ con sus acciones | 082 |
-| H, L, V, Y | ☐ sin completar | — |
+| L, V | ☐ sin completar | — |
 
 Las dependencias de ejecución de la tabla incluyen la reorganización acordada.
 El adaptador local rechaza `leanspec rel add`: las nuevas relaciones 066→062/063/064

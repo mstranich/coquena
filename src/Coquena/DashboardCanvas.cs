@@ -37,7 +37,7 @@ internal static partial class DashboardCli
     };
 
     // Rows of markup drawn as-is. Spans with an action are buttons: click, or focus + Enter.
-    private class Canvas : View
+    internal class Canvas : View
     {
         private IReadOnlyList<string> rows = [];
         private int focusedAction;

@@ -16,7 +16,7 @@ internal static partial class DashboardCli
     // matching CLI list command; a failed read shows its message and nothing is written.
     internal sealed class DefinitionsSource(Home home, string directory)
     {
-        internal sealed record Place(View.Scope Scope, ScopeContext? Context, RecipeSelection? Recipe);
+        internal sealed record Place(View.Scope Scope, ScopeContext? Context, RecipeSelection? Recipe, string? Folder = null);
 
         // Global, the folder where the TUI was opened and every project of the index.
         public List<Place> Places()
@@ -39,7 +39,7 @@ internal static partial class DashboardCli
             var file = Path.Combine(folder, "coquena.yaml");
             var name = Path.GetFileName(folder);
             if (!Directory.Exists(folder)) return new(new(name, false, here, false, false), null, null);
-            if (!File.Exists(file)) return new(new(name, false, here, true, false), null, null);
+            if (!File.Exists(file)) return new(new(name, false, here, true, false), null, null, folder);
             RecipeSelection? selection = null;
             try
             {

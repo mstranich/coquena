@@ -88,7 +88,7 @@ internal static partial class DashboardCli
     internal static int RunDashboard(ISystemMetrics? metrics = null, HardwareProbe.AdapterEvidence? adapters = null)
     {
         const int Left = LivePresentation.TreeWidth, Right = Left + 1;
-        const int Live = 0, Definitions = 1, Settings = 2, Hardware = 3, History = 4, Notices = 5;
+        const int Live = 0, Definitions = 1, Settings = 2, Hardware = 3, History = 4, Notices = 5, Editing = 6;
         var targets = Discover(out var diagnostic);
         var preferences = new ConfigurationManager(Home.Resolve());
         var hardware = metrics ?? SystemMetrics.Create();
@@ -132,11 +132,13 @@ internal static partial class DashboardCli
         // Configuración: Coquena and TUI are input forms; Sistema is drawn as markup rows.
         var settings = new SettingsForm(app, preferences, Home.Resolve(), useColor);
         var settingsView = new View { X = Right, Y = 2, Width = Dim.Fill(), CanFocus = true };
+        var recipeEditor = new RecipeEditorPage(useColor);
         var systemDetail = new Canvas(useColor) { Interactive = true };
         settingsView.Add(settings.Coquena, settings.Tui, systemDetail);
 
         window.Add(tabs, leftTitle, rightTitle, tree, detail, tasks, logTitle, logLines, hardwareDetail,
             historyTitle, historyControls, regex, historyLines, historyFooter, noticeTitle, noticeList, definitionDetail, pageView, settingsView, bar);
+        window.Add(recipeEditor.Views.ToArray());
         if (useColor)
         {
             Paint(window, Palette.Text, Palette.Base);
@@ -223,6 +225,13 @@ internal static partial class DashboardCli
         string? transferProblem = null;
 
         rightTitle.Pressed += DefinitionAction;
+        recipeEditor.Changed += () => { if (page == Editing) Render(); };
+        recipeEditor.Tabs.Pressed += action =>
+        {
+            if (action.StartsWith("tab:", StringComparison.Ordinal) && int.TryParse(action[4..], CultureInfo.InvariantCulture, out var tab)) recipeEditor.Show(tab);
+            Render();
+        };
+        recipeEditor.Tools.Pressed += EditorAction;
         definitionDetail.Pressed += DefinitionAction;
 
         // Events.
@@ -359,8 +368,10 @@ internal static partial class DashboardCli
         downButton.Accepted += (_, _) => BeginPublication("down");
         window.KeyDown += (_, key) =>
         {
+            if (page == Editing && key == Key.S.WithCtrl) { key.Handled = true; SaveDrafts(); Render(); return; }
             if (key != Key.Esc || page is Live or Definitions or Settings) return;
             key.Handled = true;
+            if (page == Editing) { CloseEditor(); return; }
             if (page == History) CloseHistory(); else Open(Live);
         };
         settings.FilterLogs.ValueChanged += (_, _) => ReadLog(force: true);
@@ -415,6 +426,8 @@ internal static partial class DashboardCli
         void Open(int selected)
         {
             if (page == History && selected != History) LeaveHistory();
+            // Leaving the Editor asks for its drafts like Cerrar does.
+            if (page == Editing && selected != Editing && !ReleaseEditor()) return;
             if (selected == Notices) unread = 0;
             if (selected == Definitions)
             {
@@ -425,6 +438,7 @@ internal static partial class DashboardCli
             page = selected;
             Arrange();
             Render();
+            if (page == Editing) { recipeEditor.Show(recipeEditor.Current); return; }
             (page switch { Hardware or Settings or Live or Definitions => tree, Notices => noticeList, _ => (View)historyLines }).SetFocus();
         }
 
@@ -558,6 +572,11 @@ internal static partial class DashboardCli
             systemDetail.Visible = settingsCategory == 2;
             systemDetail.Width = Dim.Fill();
             systemDetail.Height = Dim.Fill();
+            // H · Editor: file tabs, actions, the text and the last validation over the hardware bar.
+            foreach (var view in recipeEditor.Views) view.Visible = page == Editing;
+            recipeEditor.Host.Height = Math.Max(1, content - 4);
+            recipeEditor.ValidationTitle.Y = content - 1;
+            recipeEditor.Validation.Y = content;
             foreach (var view in window.SubViews) { view.SetNeedsLayout(); view.SetNeedsDraw(); }
         }
 
@@ -616,7 +635,7 @@ internal static partial class DashboardCli
         void Render()
         {
             var now = DateTimeOffset.UtcNow;
-            tabs.Rows = [LivePresentation.Tabs(page is Definitions ? 1 : page is Settings ? 2 : 0, transferCount, unread)];
+            tabs.Rows = [LivePresentation.Tabs(page is Definitions or Editing ? 1 : page is Settings ? 2 : 0, transferCount, unread)];
             RenderBar(now);
             switch (page)
             {
@@ -625,6 +644,7 @@ internal static partial class DashboardCli
                 case History: RenderHistory(); break;
                 case Notices: RenderNotices(); break;
                 case Definitions: RenderDefinitions(); break;
+                case Editing: recipeEditor.Render(window.Viewport.Width); break;
                 default: RenderSettings(); break;
             }
         }
@@ -898,8 +918,17 @@ internal static partial class DashboardCli
                         definitionPage = MaintenancePage(place.Scope.Name, state);
                     }
                     else if (definitionView == "Recetas" && place.Context is not null)
-                        definitionPage = definitionPage with { Rows = definitionPage.Rows.Select(row => row.Replace(DefinitionsPresentation.Off("▲ Up"),
-                            ManagementPresentation.Button("▲ Up", "up"), StringComparison.Ordinal)).ToArray() };
+                    {
+                        var combinations = RecipeCombinations(place);
+                        var key = place.Context.Root + "Recetas";
+                        var selected = managedSelection.GetValueOrDefault(key);
+                        if (!combinations.Any(item => item.Key == selected)) selected = combinations.FirstOrDefault(item => item.Current)?.Key ?? combinations.FirstOrDefault()?.Key;
+                        if (selected is not null) managedSelection[key] = selected;
+                        string? destination = null;
+                        try { destination = place.Recipe is null ? null : RecipeReader.Read(place.Recipe).Target; }
+                        catch (RecipeException) { }
+                        definitionPage = RecipesPage(place.Scope.Name, destination, combinations, selected, Math.Max(20, window.Viewport.Width - Right));
+                    }
                 }
                 catch (Exception error) when (ManagementError(error)) { definitionPage = DefinitionsPresentation.Problem(definitionView ?? "Definiciones", error.Message); }
             }
@@ -949,6 +978,18 @@ internal static partial class DashboardCli
         {
             if (page != Definitions) return;
             var place = places[focusedPlace];
+            if (action == "init" && place.Context is null && place.Folder is { } folder)
+            {
+                using var output = new StringWriter();
+                using var failure = new StringWriter();
+                var code = InitCli.Run([folder], output, failure);
+                Notify(code == 0 ? "✓" : "✗", code == 0 ? "ok" : "err", (code == 0 ? output : failure).ToString().Trim(), -1);
+                places = definitionSource.Places();
+                focusedPlace = Math.Max(0, places.FindIndex(candidate => candidate.Context is not null &&
+                    candidate.Context.Base.Equals(Path.TrimEndingDirectorySeparator(Path.GetFullPath(folder)), StringComparison.OrdinalIgnoreCase)));
+                definitionView = DefinitionsPresentation.Views(places[focusedPlace].Scope).FirstOrDefault();
+                definitionPage = null; Render(); return;
+            }
             if (place.Context is not { } context) return;
             try
             {
@@ -1219,6 +1260,24 @@ internal static partial class DashboardCli
                 }
                 if (action.StartsWith("service:", StringComparison.Ordinal))
                 { managedSelection[context.Root] = action[8..]; definitionPage = null; Render(); return; }
+                if (action.StartsWith("combination:", StringComparison.Ordinal))
+                { managedSelection[context.Root + "Recetas"] = action[12..]; definitionPage = null; Render(); return; }
+                if (action is "recipe-edit" or "recipe-forget")
+                {
+                    var chosen = RecipeCombinations(place).SingleOrDefault(item => item.Key == managedSelection.GetValueOrDefault(context.Root + "Recetas"))
+                        ?? throw new ArgumentException("Seleccioná nuevamente la combinación.");
+                    if (action == "recipe-edit") { OpenEditor(chosen.Selection, place.Scope.Name, chosen.Private); return; }
+                    if (chosen.Id is not { } id) return;
+                    if (Query(app, "Olvidar combinación · " + place.Scope.Name, chosen.Files + " · " + id[..6] +
+                        "\nSe quita del registro de .coquena. Los YAML, los pesos y lo publicado se conservan; una instancia activa sigue igual.",
+                        "Cancelar", "Olvidar") != 1) return;
+                    ManagementJob("forget:" + context.Root + id, () =>
+                    {
+                        new CombinationCleanup(context).Forget(id);
+                        return Task.FromResult("Combinación olvidada en " + place.Scope.Name + ": " + chosen.Files + "; YAML, pesos y publicaciones conservados.");
+                    });
+                    return;
+                }
                 if (action == "create")
                 {
                     // A service only takes a backend already installed in its scope; Backends prepares them.
@@ -1606,6 +1665,116 @@ internal static partial class DashboardCli
             }
             if (changed) selectionEpoch++;
             return changed;
+        }
+
+        void OpenEditor(RecipeSelection selection, string scope, bool isPrivate)
+        {
+            try { recipeEditor.Open(selection, scope, isPrivate); }
+            catch (Exception error) when (ManagementError(error) || error is RecipeException)
+            { recipeEditor.Close(); Query(app, "Editor", "No se pudo abrir la combinación: " + error.Message, "Aceptar"); return; }
+            Open(Editing);
+        }
+
+        // Cerrar, Esc or another tab: the drafts are saved, discarded or kept open.
+        bool ReleaseEditor()
+        {
+            var modified = recipeEditor.Files.Where(file => file.Modified).ToArray();
+            if (modified.Length > 0)
+            {
+                var choice = Query(app, "Cambios sin guardar", string.Join(", ", modified.Select(file => file.Name)) + " tiene cambios sin guardar.",
+                    "Guardar", "Descartar", "Cancelar");
+                if (choice is not (0 or 1)) return false;
+                if (choice == 0 && !SaveDrafts()) return false;
+            }
+            recipeEditor.Close();
+            definitionPage = null;
+            return true;
+        }
+
+        void CloseEditor() => Open(Definitions);
+
+        // Saves every modified file. A file changed or removed on disk asks first (Y).
+        bool SaveDrafts()
+        {
+            var modified = recipeEditor.Files.Where(file => file.Modified).ToArray();
+            if (modified.Length == 0) { recipeEditor.Status = "sin cambios"; return true; }
+            if (recipeEditor.Validate() is { } problem && Query(app, "La combinación no es válida",
+                problem.Message + "\nUp no la publicará hasta corregirla. ¿Guardar igualmente?", "Cancelar", "Guardar igualmente") != 1) return false;
+            foreach (var file in modified)
+            {
+                var draft = RecipeDrafts.Encode(file.View.Text, file.Opened);
+                var result = RecipeDrafts.Save(file.Path, file.Opened, draft, false);
+                if (result is RecipeDrafts.SaveResult.Changed or RecipeDrafts.SaveResult.Missing)
+                {
+                    var missing = result == RecipeDrafts.SaveResult.Missing;
+                    var choice = Query(app, file.Name + (missing ? " ya no está en disco" : " cambió en disco"),
+                        (missing ? "Se borró o se renombró después de abrirlo en el editor.\n¿Crearlo de nuevo con tu versión?"
+                            : "Se modificó después de abrirlo en el editor (" + File.GetLastWriteTime(file.Path).ToString("HH:mm", CultureInfo.InvariantCulture) + ").\n¿Sobrescribir con tu versión?") +
+                        "\n\nSí        guarda tu versión sobre la del disco\n" +
+                        (missing ? "No       cierra el editor sin guardar\n" : "No        recarga el disco y descarta tu borrador\n") +
+                        "Cancelar  vuelve al editor sin guardar", "Sí", "No", "Cancelar");
+                    if (choice == 1)
+                    {
+                        if (missing) { recipeEditor.Close(); Open(Definitions); return false; }
+                        RecipeEditorPage.Load(file, RecipeYaml.ReadBytes(file.Path));
+                        recipeEditor.Status = file.Name + " recargado";
+                        continue;
+                    }
+                    if (choice != 0) return false;
+                    result = RecipeDrafts.Save(file.Path, file.Opened, draft, true);
+                }
+                file.Opened = draft;
+                file.OpenedLines = file.View.Text.Split('\n');
+                file.Changed = null;
+                file.View.Document!.UndoStack.MarkAsOriginalFile();
+                file.View.SetNeedsDraw();
+                Notify("✓", "ok", file.Name + " guardado en " + recipeEditor.Scope + ".", -1);
+            }
+            recipeEditor.Status = "guardado " + DateTime.Now.ToString("HH:mm", CultureInfo.InvariantCulture);
+            return true;
+        }
+
+        void EditorAction(string action)
+        {
+            if (page != Editing || recipeEditor.File is not { } file) return;
+            try
+            {
+                switch (action)
+                {
+                    case "save": SaveDrafts(); break;
+                    case "validate":
+                        recipeEditor.Validate();
+                        if (recipeEditor.Problem is { Line: { } line } problem &&
+                            recipeEditor.Files.FindIndex(item => item.Path.Equals(problem.File, StringComparison.OrdinalIgnoreCase)) is var at and >= 0)
+                        {
+                            recipeEditor.Show(at);
+                            var document = recipeEditor.Files[at].View.Document!;
+                            recipeEditor.Files[at].View.CaretOffset = document.GetLineByNumber(Math.Min(line, document.LineCount)).Offset;
+                        }
+                        break;
+                    case "up" or "down":
+                        // Up and Down use the files on disk: drafts are saved first or the action is cancelled.
+                        if (recipeEditor.Files.Any(item => item.Modified))
+                        {
+                            if (Query(app, (action == "up" ? "Up" : "Down") + " · " + recipeEditor.Scope, "Hay cambios sin guardar; " +
+                                (action == "up" ? "Up" : "Down") + " usa los archivos guardados.", "Cancelar", "Guardar y continuar") != 1 || !SaveDrafts()) break;
+                        }
+                        if (action == "up" && recipeEditor.Validate() is not null) break;
+                        BeginPublication(action, recipeEditor.Selection, recipeEditor.Scope, recipeEditor.Private);
+                        recipeEditor.Status = action + "…";
+                        break;
+                    case "copy": file.View.InvokeCommand(Command.Copy); break;
+                    case "cut": file.View.InvokeCommand(Command.Cut); break;
+                    case "paste": file.View.InvokeCommand(Command.Paste); break;
+                    case "close": CloseEditor(); return;
+                }
+            }
+            catch (Exception error) when (ManagementError(error) || error is RecipeException)
+            {
+                Query(app, "Editor", error.Message, "Aceptar");
+            }
+            if (page == Editing) file.View.SetFocus();
+            Render();
         }
 
         void BeginPublication(string action, RecipeSelection? requested = null, string? requestedLabel = null, bool requestedPrivate = false)

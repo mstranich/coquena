@@ -46,8 +46,10 @@ internal static class DefinitionsPresentationTests
         ];
         check(pages.All(page => page.Rows.Count <= 20), "every page fits the 20 content rows of 80×24");
         check(pages.All(page => page.Rows.All(row => Markup.Width(Markup.Fit(row, Width)) == Width)), "rows fit the right column");
-        check(pages.SelectMany(page => page.Rows.Append(page.Title)).SelectMany(Markup.Parse).All(span => span.Action is null),
+        check(pages.SkipLast(1).SelectMany(page => page.Rows.Append(page.Title)).SelectMany(Markup.Parse).All(span => span.Action is null),
             "no button of the read-only layer has an action");
+        check(pages[^1].Rows.SelectMany(Markup.Parse).Where(span => span.Action is not null).Select(span => span.Action).SequenceEqual(["init"]),
+            "a folder without recipe only enables Inicializar");
         var recipes = string.Join('\n', pages[0].Rows.Select(Markup.Plain));
         check(recipes.Contains("● actual") && recipes.Contains("privada") && recipes.Contains(" ▲ Up ") &&
               pages[0].Rows.SelectMany(Markup.Parse).Where(span => span.Text.Contains("Up")).All(span => span.Class == "off"),
