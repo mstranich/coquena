@@ -269,17 +269,28 @@ internal static class LivePresentation
     public static string UsageClass(double? ratio) => ratio is > 0.9 ? "warn" : "gen";
 
     // Hardware bar: CPU and RAM on the first row, one block per GPU on the second.
-    public static (string First, string Second) HardwareBar(Gauge cpu, Gauge ram, IReadOnlyList<Gauge> gpus, bool waiting)
+    // Hidden keys (Configuración › TUI): cpu, ram, gpuN.use, gpuN.memory, gpuN.shared. A GPU with its
+    // three readings hidden leaves the bar; its name stays while any reading is shown.
+    public static (string First, string Second) HardwareBar(Gauge cpu, Gauge ram, IReadOnlyList<Gauge> gpus, bool waiting,
+        IReadOnlySet<string>? hidden = null)
     {
-        var first = " " + Style("mut@cpu", "CPU") + " " + Style(UsageClass(cpu.Use), Spark(Last(cpu.Ratios, 16))) + " " +
-            (cpu.Use is null ? "—" : Number(cpu.Use.Value * 100, "0") + "%").PadRight(10) +
-            Style("mut@ram", "RAM") + " " + Style(UsageClass(ram.Use), Spark(Last(ram.Ratios, 16))) + " " + (ram.Memory ?? "—");
+        hidden ??= new HashSet<string>();
+        var parts = new List<string>();
+        if (!hidden.Contains("cpu"))
+            parts.Add(Style("mut@cpu", "CPU") + " " + Style(UsageClass(cpu.Use), Spark(Last(cpu.Ratios, 16))) + " " +
+                (cpu.Use is null ? "—" : Number(cpu.Use.Value * 100, "0") + "%").PadRight(hidden.Contains("ram") ? 0 : 10));
+        if (!hidden.Contains("ram"))
+            parts.Add(Style("mut@ram", "RAM") + " " + Style(UsageClass(ram.Use), Spark(Last(ram.Ratios, 16))) + " " + (ram.Memory ?? "—"));
+        var first = " " + string.Concat(parts);
         string second;
+        var shown = gpus.Select((gpu, i) => (gpu, i, key: gpu.Name.ToLowerInvariant()))
+            .Where(item => !(hidden.Contains(item.key + ".use") && hidden.Contains(item.key + ".memory") && hidden.Contains(item.key + ".shared"))).ToArray();
         if (gpus.Count == 0) second = " " + Style("mut@hardware", waiting ? "GPU · esperando lecturas" : "GPU · sin cómputo confirmado");
-        else second = string.Concat(gpus.Select((gpu, i) => (i == 0 ? " " : "   ") + Style("mut@gpu" + i, gpu.Name) + " " +
-            Style(UsageClass(gpu.Use), Spark(Last(gpu.Ratios, 5))) + " " + (gpu.Use is null ? "—" : Number(gpu.Use.Value * 100, "0") + "%") +
-            (gpu.Memory is null ? "" : " " + Style(gpu.MemoryRatio is > 0.9 ? "warn" : "text", gpu.Memory)) +
-            (gpu.Extra is null ? "" : " " + gpu.Extra)));
+        else second = string.Concat(shown.Select((item, n) => (n == 0 ? " " : "   ") + Style("mut@gpu" + item.i, item.gpu.Name) +
+            (hidden.Contains(item.key + ".use") ? "" : " " + Style(UsageClass(item.gpu.Use), Spark(Last(item.gpu.Ratios, 5))) + " " +
+                (item.gpu.Use is null ? "—" : Number(item.gpu.Use.Value * 100, "0") + "%")) +
+            (item.gpu.Memory is null || hidden.Contains(item.key + ".memory") ? "" : " " + Style(item.gpu.MemoryRatio is > 0.9 ? "warn" : "text", item.gpu.Memory)) +
+            (item.gpu.Extra is null || hidden.Contains(item.key + ".shared") ? "" : " " + item.gpu.Extra)));
         return (first, second);
     }
 

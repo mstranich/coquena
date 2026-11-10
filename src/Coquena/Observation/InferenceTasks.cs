@@ -26,6 +26,8 @@ internal sealed record InferencePoint(DateTimeOffset At, double? Prompt, double?
 // Updated from reconciled snapshots. Disappearance does not reveal the request outcome.
 internal sealed class InferenceTasks(int historyLimit)
 {
+    // Settings may change the limit while the TUI is open; it applies from the next finished task.
+    public int HistoryLimit { get; set; } = historyLimit;
     private readonly Dictionary<(string Entry, int Slot), (InferenceTask Task, InferenceSeries Series)> active = [];
     private readonly Queue<InferenceTask> history = new();
     private (string Scope, string Id)? service;
@@ -115,6 +117,6 @@ internal sealed class InferenceTasks(int historyLimit)
         var task = active[key].Task;
         active.Remove(key);
         history.Enqueue(task with { End = reason });
-        while (history.Count > historyLimit) history.Dequeue();
+        while (history.Count > HistoryLimit) history.Dequeue();
     }
 }

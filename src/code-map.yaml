@@ -19,6 +19,8 @@ features:
       - src/Coquena/Observation/LivePresentation.cs
       - src/Coquena/Observation/DefinitionsPresentation.cs
       - src/Coquena/DashboardDefinitions.cs
+      - src/Coquena/Observation/SettingsPresentation.cs
+      - src/Coquena/DashboardSettings.cs
       - src/Coquena/DashboardCanvas.cs
       - src/Coquena/DashboardVisuals.cs
       - src/Coquena/Observation/SystemMetrics.cs
@@ -34,6 +36,7 @@ features:
       - tests/Coquena.Tests/DashboardPresentationTests.cs
       - tests/Coquena.Tests/LivePresentationTests.cs
       - tests/Coquena.Tests/DefinitionsPresentationTests.cs
+      - tests/Coquena.Tests/SettingsPresentationTests.cs
       - tests/Coquena.Tests/InferenceObservationTests.cs
       - tests/Coquena.Tests/ObservationTimelineTests.cs
       - tests/Coquena.Tests/DashboardFixture.cs

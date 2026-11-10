@@ -184,6 +184,10 @@ public static class ContractValidation
                     JsonValueKind.True or JsonValueKind.False, "Parámetro debe ser literal escalar.");
         }
     }
+    // cpu, ram or gpuN.use / gpuN.memory / gpuN.shared, as numbered in the TUI bar.
+    internal static bool BarResource(string? key) => key is "cpu" or "ram" ||
+        key is { Length: > 3 } && key.StartsWith("gpu", StringComparison.Ordinal) && key.IndexOf('.') is > 3 and var dot &&
+        key[3..dot].All(char.IsAsciiDigit) && dot - 3 <= 2 && key[(dot + 1)..] is "use" or "memory" or "shared";
     public static void Config(ConfigDocument value)
     {
         Version(value.SchemaVersion);
@@ -192,6 +196,9 @@ public static class ContractValidation
         if (value.BackendsDirectory is not null) Text(value.BackendsDirectory);
         if (value.ModelsDirectory is not null) Text(value.ModelsDirectory);
         Require(value.LogRetention is null || value.LogRetention.MaxBytes > 0, "Retención de logs inválida.");
+        Require(value.HiddenBarResources is null || value.HiddenBarResources.Length <= 64 &&
+            value.HiddenBarResources.Distinct(StringComparer.Ordinal).Count() == value.HiddenBarResources.Length &&
+            value.HiddenBarResources.All(BarResource), "Recursos ocultos de la barra inválidos.");
         if (value.DefaultServerId.HasValue) Id(value.DefaultServerId.Value);
         Selection(value.DefaultBackend);
         Require(value.BackendRetention is not null && value.BackendRetention.MaxBuilds >= 1, "Retención inválida.");

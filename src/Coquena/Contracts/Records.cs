@@ -76,7 +76,8 @@ public sealed record ConfigDocument(int SchemaVersion, Guid? DefaultServerId,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? ModelsDirectory = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] ObserverPreferences? Observer = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] int? InferenceHistoryLimit = null,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] bool? FilterMonitoringLogs = null);
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] bool? FilterMonitoringLogs = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string[]? HiddenBarResources = null);
 public sealed record ModelsDocument(int SchemaVersion, ModelRecord[] Models);
 public sealed record BackendsDocument(int SchemaVersion, BackendRecord[] Backends);
 public sealed record BackendUpdateCandidate(string Build, RemoteFile[] Artifacts,

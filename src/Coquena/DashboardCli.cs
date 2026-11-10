@@ -117,9 +117,8 @@ internal static partial class DashboardCli
         var noticeList = new Lines(useColor) { Y = 2, ShowSelectionWithoutFocus = false };
         var definitionDetail = new Canvas(useColor) { X = Right, Y = 2 };
 
-        // Definiciones and Configuración: consultation page and publication controls.
-        var pageView = new View { X = Right, Y = 1, Width = Dim.Fill() };
-        var pageTitle = new Label { Width = Dim.Fill(), Height = 1 };
+        // Publication controls kept for the recipe actions; Definiciones shows them disabled.
+        var pageView = new View { X = Right, Y = 1, Width = Dim.Fill(), Visible = false };
         var recipeRow = new View { Y = 1, Width = Dim.Fill(), Height = 1 };
         var upButton = Action(" ▲ Up ");
         var downButton = Action(" ▼ Down ");
@@ -127,29 +126,23 @@ internal static partial class DashboardCli
         var privatePreparation = new CheckBox { X = Pos.Right(downButton) + 2, Text = "Preparación privada" };
         var recipeTarget = new Label { X = Pos.Right(privatePreparation) + 2, Width = Dim.Fill(), Height = 1 };
         recipeRow.Add(upButton, downButton, privatePreparation, recipeTarget);
-        var pageList = new ListView { Y = 1, Width = Dim.Fill(), Height = Dim.Fill(),
-            ViewportSettings = ViewportSettingsFlags.HasVerticalScrollBar };
-        var filterLogs = new CheckBox
-        {
-            X = 1, Y = 2, Text = "Filtrar logging de monitoreo",
-            Value = preferences.FilterMonitoringLogs() ? CheckState.Checked : CheckState.UnChecked
-        };
-        var preferenceError = new Label { X = 1, Y = 3, Width = Dim.Fill() };
-        pageView.Add(pageTitle, recipeRow, pageList, filterLogs, preferenceError);
+        pageView.Add(recipeRow);
+        // Configuración: Coquena and TUI are input forms; Sistema is drawn as markup rows.
+        var settings = new SettingsForm(app, preferences, Home.Resolve(), useColor);
+        var settingsView = new View { X = Right, Y = 2, Width = Dim.Fill(), CanFocus = true };
+        var systemDetail = new Canvas(useColor) { Interactive = true };
+        settingsView.Add(settings.Coquena, settings.Tui, systemDetail);
 
         window.Add(tabs, leftTitle, rightTitle, tree, detail, tasks, logTitle, logLines, hardwareDetail,
-            historyTitle, historyControls, regex, historyLines, historyFooter, noticeTitle, noticeList, definitionDetail, pageView, bar);
+            historyTitle, historyControls, regex, historyLines, historyFooter, noticeTitle, noticeList, definitionDetail, pageView, settingsView, bar);
         if (useColor)
         {
             Paint(window, Palette.Text, Palette.Base);
             Paint(pageView, Palette.Text, Palette.Base);
-            Paint(pageTitle, Palette.Text, Palette.Card);
+            Paint(settingsView, Palette.Text, Palette.Base);
             Paint(recipeRow, Palette.Muted, Palette.Base);
             Paint(privatePreparation, Palette.Text, Palette.Base);
             Paint(recipeTarget, Palette.Muted, Palette.Base);
-            Paint(pageList, Palette.Text, Palette.Base);
-            Paint(filterLogs, Palette.Text, Palette.Base);
-            Paint(preferenceError, Palette.Danger, Palette.Base);
             Paint(regex, Palette.Accent, Palette.Card);
         }
 
@@ -169,10 +162,11 @@ internal static partial class DashboardCli
         var logHeld = false;
         long logDiscarded = 0;
         string[] logRows = [];
-        string? shownPage = null, serviceNote = null;
+        string? serviceNote = null;
         var selectionEpoch = 0;
         var probe = adapters is null ? Task.Run(HardwareProbe.InspectAdapters) : Task.FromResult(adapters);
         HardwareProbe.AdapterEvidence? evidence = null;
+        DateTimeOffset? probedAt = null;
         HardwareSnapshot? lastHardware = null;
         Task<HardwareSnapshot>? machineSample = null;
         var machineClock = new Stopwatch();
@@ -338,18 +332,13 @@ internal static partial class DashboardCli
             key.Handled = true;
             if (page == History) CloseHistory(); else Open(Live);
         };
-        filterLogs.ValueChanging += (_, change) =>
+        settings.FilterLogs.ValueChanged += (_, _) => ReadLog(force: true);
+        settings.Changed += () => { inference.HistoryLimit = settings.HistoryLimit; RenderBar(DateTimeOffset.UtcNow); };
+        systemDetail.Pressed += action =>
         {
-            try
-            {
-                preferences.SetFilterMonitoringLogs(change.NewValue == CheckState.Checked);
-                preferenceError.Text = "";
-            }
-            catch (Exception e) when (ServiceObservation.ObservationError(e))
-            {
-                change.Handled = true;
-                preferenceError.Text = "No se pudo guardar la preferencia: " + e.Message;
-            }
+            if (action != "probe" || !probe.IsCompleted) return;
+            probe = Task.Run(HardwareProbe.InspectAdapters);
+            Render();
         };
 
         Select();
@@ -391,7 +380,6 @@ internal static partial class DashboardCli
                 definitionPage = null;
             }
             page = selected;
-            shownPage = null;
             Arrange();
             Render();
             (page switch { Hardware or Settings or Live or Definitions => tree, Notices => noticeList, _ => (View)historyLines }).SetFocus();
@@ -419,7 +407,7 @@ internal static partial class DashboardCli
                 if (RefreshProject()) Select();
                 retiredLogs.RemoveAll(task => task.IsCompletedSuccessfully);
             }
-            if (evidence is null && probe.IsCompletedSuccessfully) evidence = probe.Result;
+            if (probe.IsCompletedSuccessfully && evidence != probe.Result) { evidence = probe.Result; probedAt = DateTimeOffset.Now; }
             SampleHardware();
             foreach (var (targetIndex, pending) in serviceSamples.Where(item => item.Value.Task.IsCompleted).ToArray())
             {
@@ -458,13 +446,15 @@ internal static partial class DashboardCli
             var content = Math.Max(6, height - 3);
             var upper = upperRows = Math.Min(content - 3, 11 + Math.Max(0, height - 24) / 2);
             bool live = page == Live, hardwareView = page == Hardware, history = page == History, notice = page == Notices;
-            var legacy = page == Settings;
+            var settingsPage = page == Settings;
             var definitions = page == Definitions;
 
-            leftTitle.Visible = rightTitle.Visible = live || hardwareView || definitions;
-            tree.Visible = live || hardwareView || legacy || definitions;
-            tree.Y = legacy ? 1 : 2;
-            tree.Height = live ? upper - 1 : content - (legacy ? 0 : 1);
+            // Configuración has no title over its categories, so the tree starts one row higher.
+            leftTitle.Visible = live || hardwareView || definitions;
+            rightTitle.Visible = live || hardwareView || definitions || settingsPage;
+            tree.Visible = live || hardwareView || settingsPage || definitions;
+            tree.Y = settingsPage ? 1 : 2;
+            tree.Height = live ? upper - 1 : content - (settingsPage ? 0 : 1);
             detail.Visible = tasks.Visible = logTitle.Visible = logLines.Visible = live;
             detail.Height = upper - 1;
             tasks.Height = 0;
@@ -480,12 +470,14 @@ internal static partial class DashboardCli
             historyFooter.Y = content;
             noticeTitle.Visible = noticeList.Visible = notice;
             noticeList.Height = content - 1;
-            pageView.Visible = legacy;
-            pageView.Height = content;
             recipeRow.Visible = false;
-            pageList.Y = recipeRow.Visible ? 2 : 1;
-            filterLogs.Visible = preferenceError.Visible = page == Settings && settingsCategory == 0;
-            pageList.Visible = !(page == Settings && settingsCategory == 0);
+            settingsView.Visible = settingsPage;
+            settingsView.Height = content - 1;
+            settings.Coquena.Visible = settingsCategory == 0;
+            settings.Tui.Visible = settingsCategory == 1;
+            systemDetail.Visible = settingsCategory == 2;
+            systemDetail.Width = Dim.Fill();
+            systemDetail.Height = Dim.Fill();
             foreach (var view in window.SubViews) { view.SetNeedsLayout(); view.SetNeedsDraw(); }
         }
 
@@ -550,18 +542,12 @@ internal static partial class DashboardCli
                 case History: RenderHistory(); break;
                 case Notices: RenderNotices(); break;
                 case Definitions: RenderDefinitions(); break;
-                default: RenderNavigation(); ShowPage(); break;
+                default: RenderSettings(); break;
             }
         }
 
         void RenderNavigation()
         {
-            if (page == Settings)
-            {
-                string[] rows = [" TUI", " Sistema"];
-                tree.Show(rows.Length, (row, selected) => selected ? Markup.Style("focb", rows[row].PadRight(Left)) : Markup.Escape(rows[row]), settingsCategory);
-                return;
-            }
             treeRows = LivePresentation.Tree(targets, catalogues, snapshots);
             var current = treeRows.ToList().FindIndex(node => node.Target == index && node.Entry == preferredEntry);
             if (current < 0) current = treeRows.ToList().FindIndex(node => node.Target == index && node.Entry is null);
@@ -645,7 +631,7 @@ internal static partial class DashboardCli
                 return;
             }
             if (logHeld && !force) return;
-            var frame = session.Read(filterLogs.Value == CheckState.Checked);
+            var frame = session.Read(settings.FilterLogs.Value == CheckState.Checked);
             logDiscarded = frame.Discarded;
             foreach (var row in frame.Rows)
                 if (LivePresentation.PromptTiming(row) is { } timing) promptTimes[(timing.Slot, timing.Task)] = timing.Milliseconds;
@@ -702,7 +688,7 @@ internal static partial class DashboardCli
         {
             if (page != History) return;
             var session = logSessions.GetValueOrDefault(index);
-            if (session is not null) historyRows = session.Read(filterLogs.Value == CheckState.Checked).Rows;
+            if (session is not null) historyRows = session.Read(settings.FilterLogs.Value == CheckState.Checked).Rows;
             var files = session?.Files ?? [];
             var name = targets.ElementAtOrDefault(index)?.Service?.Name ?? "";
             historyTitle.Rows = [" " + Markup.Escape("Log " + name + " · histórico") + "{pad}" + Markup.Style("btn", " Volver ", "back") + " "];
@@ -789,20 +775,34 @@ internal static partial class DashboardCli
             definitionDetail.Rows = definitionPage.Rows;
         }
 
-        void ShowPage()
+        // E, F and G: the category tree, the title with its source and the selected form.
+        void RenderSettings()
         {
-            leftTitle.Rows = [""];
-            var rows = new List<string>();
-            string title;
+            var categories = SettingsPresentation.Categories;
+            tree.Show(categories.Length, (row, selected) =>
+                selected ? Markup.Style("focb", (" " + categories[row]).PadRight(Left)) : Markup.Escape(" " + categories[row]), settingsCategory);
+            rightTitle.Rows = [" " + categories[settingsCategory] + "  " + Markup.Style("mut", settingsCategory switch
             {
-                title = settingsCategory == 0 ? " TUI" : " Sistema";
-                if (settingsCategory == 1) rows.AddRange(SystemRows(lastHardware));
+                0 => Home.Resolve().PathFor("config.json"),
+                1 => "preferencias de esta interfaz",
+                _ => probe.IsCompleted ? "sondeo local" + (probedAt is { } at ? " · " + at.ToString("HH:mm", CultureInfo.InvariantCulture) : "") : "sondeando…"
+            })];
+            if (settings.Coquena.Visible != (settingsCategory == 0) || settings.Tui.Visible != (settingsCategory == 1)) Arrange();
+            if (settingsCategory == 1) settings.ShowResources(devices.Count);
+            if (settingsCategory == 2)
+            {
+                var adapters = new List<string>();
+                var notes = new List<string>();
+                if (lastHardware is not null)
+                {
+                    foreach (var device in lastHardware.Devices)
+                        adapters.Add((devices.TryGetValue(device.Id, out var known) ? $"GPU{known.Number}  " : "      ") +
+                            device.Name + " · " + (ComputeLabel(device.Id) ?? "cómputo sin confirmar"));
+                    notes.AddRange(lastHardware.Diagnostics);
+                }
+                systemDetail.Rows = SettingsPresentation.System(typeof(DashboardCli).Assembly.GetName().Version?.ToString(3) ?? "—",
+                    evidence?.Context, probe.IsFaulted, adapters, notes, Math.Max(20, window.Viewport.Width - Right));
             }
-            pageTitle.Text = title;
-            if (filterLogs.Visible != (page == Settings && settingsCategory == 0)) Arrange();
-            var text = string.Join('\n', rows);
-            if (text == shownPage) return;
-            SetRows(pageList, ref shownPage, text);
         }
 
         void SampleHardware()
@@ -852,7 +852,7 @@ internal static partial class DashboardCli
                 device.Use.Bar.Read(now, 5), device.Use.Ratio, device.Memory.Text, device.Shared.Text, device.Memory.Ratio)).ToArray();
             var (first, second) = LivePresentation.HardwareBar(
                 new("CPU", cpuGauge.Bar.Read(now, 16), cpuGauge.Ratio, cpuGauge.Text, null, null),
-                new("RAM", ramGauge.Bar.Read(now, 16), ramGauge.Ratio, ramGauge.Text, null, null), gpus, evidence is null);
+                new("RAM", ramGauge.Bar.Read(now, 16), ramGauge.Ratio, ramGauge.Text, null, null), gpus, evidence is null, settings.Hidden);
             bar.Rows = [first, second];
         }
 
@@ -936,33 +936,6 @@ internal static partial class DashboardCli
 
         string ComputeName(Device device) =>
             devices.FirstOrDefault(pair => pair.Value == device).Key is { } id ? ComputeLabel(id) ?? "" : "";
-
-        IEnumerable<string> SystemRows(HardwareSnapshot? sample)
-        {
-            var context = evidence?.Context;
-            var rows = new List<string> { "Coquena " + typeof(DashboardCli).Assembly.GetName().Version, "" };
-            if (context is not null)
-            {
-                rows.Add($"{context.Platform} · {context.Cpu} · RAM {Memory(context.MemoryBytes)}");
-                rows.Add($"CUDA · {context.Cuda.State} · {context.Cuda.Diagnostic}");
-                rows.AddRange(context.CudaDevices.Select(device => $"  {device.Name} · capacidad {device.ComputeCapability}"));
-                rows.Add($"Vulkan · {context.Vulkan.State} · {context.Vulkan.Diagnostic}");
-                rows.Add("Adaptadores de pantalla");
-                rows.AddRange(context.DisplayAdapters.Select(name => $"  {name}"));
-            }
-            else rows.Add(probe.IsFaulted ? "Sondeo no disponible." : "Consultando CUDA y Vulkan…");
-            rows.Add("Adaptadores con telemetría");
-            if (sample is not null)
-            {
-                foreach (var device in sample.Devices)
-                {
-                    var name = devices.TryGetValue(device.Id, out var known) ? $"GPU{known.Number} · {device.Name}" : device.Name;
-                    rows.Add($"  {name} · {ComputeLabel(device.Id) ?? "cómputo sin confirmar"}");
-                }
-                rows.AddRange(sample.Diagnostics);
-            }
-            return rows;
-        }
 
         string? ComputeLabel(string id)
         {

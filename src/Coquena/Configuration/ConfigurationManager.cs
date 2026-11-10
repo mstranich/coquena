@@ -143,6 +143,12 @@ public sealed class ConfigurationManager(Home home, LocalStore? storage = null)
     public bool FilterMonitoringLogs() => Config().FilterMonitoringLogs ?? true;
     public void SetFilterMonitoringLogs(bool enabled) => store.Update(DocumentKind.Config, Json.ConfigDocument, ContractValidation.Config,
         old => (old ?? new(1, null, null, new(5))) with { FilterMonitoringLogs = enabled ? null : false });
+    public string[] HiddenBarResources() => Config().HiddenBarResources ?? [];
+    public void SetHiddenBarResources(IEnumerable<string> hidden) => store.Update(DocumentKind.Config, Json.ConfigDocument, ContractValidation.Config,
+        old => (old ?? new(1, null, null, new(5))) with
+        {
+            HiddenBarResources = hidden.Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToArray() is { Length: > 0 } keys ? keys : null
+        });
     public RetentionView Retention() => store.Exclusive(() => LogRetentionPolicy.Resolve(Config().LogRetention));
     public BackendRetention BackendRetention() => Config().BackendRetention;
     public void SetBackendRetention(int? count)
