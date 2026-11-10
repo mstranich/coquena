@@ -16,6 +16,10 @@ features:
       - src/Coquena/Observation/InferenceTasks.cs
       - src/Coquena/Observation/InferencePresentation.cs
       - src/Coquena/Observation/DashboardPresentation.cs
+      - src/Coquena/Observation/LivePresentation.cs
+      - src/Coquena/Observation/DefinitionsPresentation.cs
+      - src/Coquena/DashboardDefinitions.cs
+      - src/Coquena/DashboardCanvas.cs
       - src/Coquena/DashboardVisuals.cs
       - src/Coquena/Observation/SystemMetrics.cs
       - src/Coquena/Observation/ObservationTimeline.cs
@@ -28,6 +32,8 @@ features:
       - tests/Coquena.Tests/InferenceTaskTests.cs
       - tests/Coquena.Tests/InferencePresentationTests.cs
       - tests/Coquena.Tests/DashboardPresentationTests.cs
+      - tests/Coquena.Tests/LivePresentationTests.cs
+      - tests/Coquena.Tests/DefinitionsPresentationTests.cs
       - tests/Coquena.Tests/InferenceObservationTests.cs
       - tests/Coquena.Tests/ObservationTimelineTests.cs
       - tests/Coquena.Tests/DashboardFixture.cs
@@ -37,6 +43,7 @@ features:
       - tests/Coquena.Tests/InferenceRouterTests.cs
     references:
       - docs/design/ui-servicio.md
+      - docs/design/tui/README.md
       - docs/design/tui/A-en-vivo.salt.puml
   - id: continuous-service-observation
     intent: Seguir servicios por identidad con snapshots reconciliados y eventos acotados sin controlar el backend.

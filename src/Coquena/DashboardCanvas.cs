@@ -25,6 +25,7 @@ internal static partial class DashboardCli
         "btn" => (Palette.Text, Palette.Border, false),
         "btnf" => (Palette.Base, Palette.Accent, true),
         "chg" => (Palette.Text, Palette.Card, false),
+        "off" => (Palette.Muted, null, false),
         _ => (Palette.Text, null, false)
     };
 

@@ -73,13 +73,13 @@ receta (Up, Down, preparación privada) no aparecen en A y salen de En vivo.
       Histórico).
 - [x] Zonas por color de fondo, sin bordes ni líneas; foco turquesa y selección
       terracota como define la propuesta.
-- [ ] Cada estado de A listado en Alcance se reproduce con el binario y conserva
+- [x] Cada estado de A listado en Alcance se reproduce con el binario y conserva
       la estructura sin desbordes a 80×24.
 - [x] Con un servicio en inferencia se ven prompt/gen con pico, contexto por slot
       y la tabla de tareas actualizándose.
-- [ ] I, D y Z se abren desde su punto de entrada, se ven como la vista previa y
+- [x] I, D y Z se abren desde su punto de entrada, se ven como la vista previa y
       vuelven a A.
-- [ ] En terminales mayores el espacio extra va a log, gráficos y tablas; barras y
+- [x] En terminales mayores el espacio extra va a log, gráficos y tablas; barras y
       títulos conservan su altura.
 - [x] Pruebas pertinentes en verde y Native AOT publicado y ejecutado contra un
       servicio en línea.
@@ -114,9 +114,7 @@ agregaron: contexto por slot que persiste hasta la siguiente generación, column
 TTFT (`prompt eval time` del log del backend, por slot y tarea) y FIN, «pico · fin»
 en las curvas de una tarea terminada y caché calculada sobre prompt + cacheados.
 
-No verificado al cierre (criterios sin marcar):
+El usuario verificó con el binario los estados de A distintos de servicio en línea,
+el recorrido de I, D y Z y una terminal mayor que 80×24.
 
-- Estados de A distintos de servicio en línea (detenido, entrada vencida, sin entradas).
-- I, D y Z no se recorrieron con clics.
-- Terminal mayor que 80×24.
-- Capturas anonimizadas versionadas.
+No verificado al cierre: capturas anonimizadas versionadas.

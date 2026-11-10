@@ -46,22 +46,16 @@ Observación en [observabilidad](observabilidad.md).
 
 Al abrir la TUI desde una receta local reconocida, el proyecto queda
 disponible para navegación mediante el índice de proyectos de Coquena.
-El selector ofrece el catálogo global y los proyectos conocidos. El índice
-global localiza los catálogos de proyecto; cada catálogo conserva su
-inventario, definiciones e identidad. Una ruta que ya no se puede resolver
-se muestra como inaccesible.
+El árbol de Definiciones lista el ámbito Global y los proyectos conocidos; sólo
+el enfocado se expande. El índice global localiza los catálogos de proyecto;
+cada catálogo conserva su inventario, definiciones e identidad. Una ruta que ya
+no se puede resolver se muestra como inaccesible.
 
-Cambiar de espacio cambia el catálogo editable, sus transferencias y las
-nodos de servicios propios que se ofrecen. Los servidores globales siguen
-disponibles. La cabecera distingue espacio activo, servidor enfocado y
-destino de publicación de la receta. Cambiar de espacio conserva las
-transferencias y pruebas en curso, respeta el borrador de cada receta y
-mantiene los servidores en su estado actual. Iniciar o detener un servidor
-y publicar o retirar una prueba requieren acciones explícitas.
-
-El [selector de espacios](tui-espacios.salt.puml) es accesible desde cualquier
-pestaña. Permite volver a un proyecto y operar sobre sus modelos y presets,
-publicar en el global compartido o usar el servidor propio con su backend.
+Enfocar otro ámbito cambia el catálogo que se consulta, sus transferencias y los
+servicios propios que se ofrecen. Los servidores globales siguen disponibles.
+Cambiar de ámbito conserva las transferencias y pruebas en curso, respeta el
+borrador de cada receta y mantiene los servidores en su estado actual. Iniciar o
+detener un servidor y publicar o retirar una prueba requieren acciones explícitas.
 
 ## Barra de estado de la máquina
 

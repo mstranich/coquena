@@ -82,10 +82,9 @@ internal static partial class DashboardCli
         }
     }
 
-    // Zones of the preview (docs/propuestas/tui-rediseno): tabs (row 0), a 23-column tree, the
-    // page on the right, the service log under En vivo and the hardware bar (last two rows).
-    // En vivo, Hardware, Log histórico and Notificaciones are drawn as markup rows; Definiciones
-    // and Configuración keep their own widgets.
+    // Zones of the preview (docs/design/tui): tabs (row 0), a 23-column tree, the page on the
+    // right, the service log under En vivo and the hardware bar (last two rows). Every page but
+    // Configuración is drawn as markup rows; Definiciones is a read-only layer.
     internal static int RunDashboard(ISystemMetrics? metrics = null, HardwareProbe.AdapterEvidence? adapters = null)
     {
         const int Left = LivePresentation.TreeWidth, Right = Left + 1;
@@ -116,6 +115,7 @@ internal static partial class DashboardCli
         var historyFooter = new Canvas(useColor) { Height = 1, ZoneName = "z1" };
         var noticeTitle = new Canvas(useColor) { Y = 1, Height = 1, ZoneName = "hd", Interactive = true };
         var noticeList = new Lines(useColor) { Y = 2, ShowSelectionWithoutFocus = false };
+        var definitionDetail = new Canvas(useColor) { X = Right, Y = 2 };
 
         // Definiciones and Configuración: consultation page and publication controls.
         var pageView = new View { X = Right, Y = 1, Width = Dim.Fill() };
@@ -138,7 +138,7 @@ internal static partial class DashboardCli
         pageView.Add(pageTitle, recipeRow, pageList, filterLogs, preferenceError);
 
         window.Add(tabs, leftTitle, rightTitle, tree, detail, tasks, logTitle, logLines, hardwareDetail,
-            historyTitle, historyControls, regex, historyLines, historyFooter, noticeTitle, noticeList, pageView, bar);
+            historyTitle, historyControls, regex, historyLines, historyFooter, noticeTitle, noticeList, definitionDetail, pageView, bar);
         if (useColor)
         {
             Paint(window, Palette.Text, Palette.Base);
@@ -203,6 +203,14 @@ internal static partial class DashboardCli
         // Prompt processing time reported by the backend log, per slot and task.
         var promptTimes = new Dictionary<(int Slot, int Task), double>();
         var lastContext = new Dictionary<string, InferenceSnapshot>(StringComparer.Ordinal);
+        // Definiciones: scopes, the focused one and its view; pages are reread every capture interval.
+        var definitionSource = new DefinitionsSource(Home.Resolve(), Environment.CurrentDirectory);
+        var places = definitionSource.Places();
+        var focusedPlace = Math.Max(0, places.FindIndex(place => place.Scope.Here));
+        var definitionView = DefinitionsPresentation.Views(places[focusedPlace].Scope).FirstOrDefault();
+        IReadOnlyList<DefinitionsPresentation.Node> definitionNodes = [];
+        DefinitionsPresentation.Page? definitionPage = null;
+        var definitionClock = new Stopwatch();
 
         // Events.
         tabs.Pressed += action =>
@@ -234,6 +242,18 @@ internal static partial class DashboardCli
             {
                 case Settings: settingsCategory = row; Render(); return;
                 case Hardware: hardwareSelection = row; Render(); return;
+                case Definitions:
+                    if (row < 0 || row >= definitionNodes.Count) return;
+                    var chosen = definitionNodes[row];
+                    if (chosen.Scope != focusedPlace || chosen.View is null)
+                    {
+                        focusedPlace = chosen.Scope;
+                        definitionView = chosen.View ?? DefinitionsPresentation.Views(places[focusedPlace].Scope).FirstOrDefault();
+                    }
+                    else definitionView = chosen.View;
+                    definitionPage = null;
+                    Render();
+                    return;
             }
             if (row < 0 || row >= treeRows.Count) return;
             var node = treeRows[row];
@@ -364,6 +384,12 @@ internal static partial class DashboardCli
         {
             if (page == History && selected != History) LeaveHistory();
             if (selected == Notices) unread = 0;
+            if (selected == Definitions)
+            {
+                places = definitionSource.Places();
+                focusedPlace = Math.Clamp(focusedPlace, 0, places.Count - 1);
+                definitionPage = null;
+            }
             page = selected;
             shownPage = null;
             Arrange();
@@ -432,10 +458,11 @@ internal static partial class DashboardCli
             var content = Math.Max(6, height - 3);
             var upper = upperRows = Math.Min(content - 3, 11 + Math.Max(0, height - 24) / 2);
             bool live = page == Live, hardwareView = page == Hardware, history = page == History, notice = page == Notices;
-            var legacy = page is Definitions or Settings;
+            var legacy = page == Settings;
+            var definitions = page == Definitions;
 
-            leftTitle.Visible = rightTitle.Visible = live || hardwareView;
-            tree.Visible = live || hardwareView || legacy;
+            leftTitle.Visible = rightTitle.Visible = live || hardwareView || definitions;
+            tree.Visible = live || hardwareView || legacy || definitions;
             tree.Y = legacy ? 1 : 2;
             tree.Height = live ? upper - 1 : content - (legacy ? 0 : 1);
             detail.Visible = tasks.Visible = logTitle.Visible = logLines.Visible = live;
@@ -446,6 +473,8 @@ internal static partial class DashboardCli
             logLines.Height = content - upper - 1;
             hardwareDetail.Visible = hardwareView;
             hardwareDetail.Height = content - 1;
+            definitionDetail.Visible = definitions;
+            definitionDetail.Height = content - 1;
             historyTitle.Visible = historyControls.Visible = regex.Visible = historyLines.Visible = historyFooter.Visible = history;
             historyLines.Height = content - 4;
             historyFooter.Y = content;
@@ -453,7 +482,7 @@ internal static partial class DashboardCli
             noticeList.Height = content - 1;
             pageView.Visible = legacy;
             pageView.Height = content;
-            recipeRow.Visible = page == Definitions && targets.ElementAtOrDefault(index)?.Recipe is not null;
+            recipeRow.Visible = false;
             pageList.Y = recipeRow.Visible ? 2 : 1;
             filterLogs.Visible = preferenceError.Visible = page == Settings && settingsCategory == 0;
             pageList.Visible = !(page == Settings && settingsCategory == 0);
@@ -520,6 +549,7 @@ internal static partial class DashboardCli
                 case Hardware: RenderHardware(now); break;
                 case History: RenderHistory(); break;
                 case Notices: RenderNotices(); break;
+                case Definitions: RenderDefinitions(); break;
                 default: RenderNavigation(); ShowPage(); break;
             }
         }
@@ -738,29 +768,32 @@ internal static partial class DashboardCli
             });
         }
 
+        void RenderDefinitions()
+        {
+            definitionNodes = DefinitionsPresentation.Tree(places.Select(place => place.Scope).ToArray(), focusedPlace);
+            var scopes = places.Select(place => place.Scope).ToArray();
+            var current = definitionNodes.ToList().FindIndex(node => node.Scope == focusedPlace && node.View == definitionView);
+            if (current < 0) current = definitionNodes.ToList().FindIndex(node => node.Scope == focusedPlace);
+            tree.Show(definitionNodes.Count, (row, selected) =>
+                DefinitionsPresentation.TreeRow(definitionNodes[row], scopes, focusedPlace, selected), Math.Max(0, current));
+            if (definitionPage is null || definitionClock.Elapsed >= CaptureInterval)
+            {
+                definitionClock.Restart();
+                var place = places[focusedPlace];
+                definitionPage = definitionView is null ? DefinitionsPresentation.Inaccessible(place.Scope.Name)
+                    : definitionSource.Read(place, definitionView, targets, snapshots, definitionDetail.Viewport.Height,
+                        Math.Max(20, window.Viewport.Width - Right));
+            }
+            leftTitle.Rows = [""];
+            rightTitle.Rows = [" " + definitionPage.Title];
+            definitionDetail.Rows = definitionPage.Rows;
+        }
+
         void ShowPage()
         {
             leftTitle.Rows = [""];
             var rows = new List<string>();
             string title;
-            if (page == Definitions)
-            {
-                var target = targets.ElementAtOrDefault(index);
-                title = " " + (target?.Label ?? diagnostic) + " · consulta";
-                if (target?.Recipe is not null && target.RecipeProblem is not null) rows.Add("Receta no disponible  " + target.RecipeProblem);
-                if (catalogues.TryGetValue(index, out var catalogue))
-                {
-                    rows.Add($"Catálogo observado · {catalogue.Count} entradas");
-                    foreach (var entry in catalogue.Where(entry => preferredEntry is null || entry.Name == preferredEntry))
-                    {
-                        rows.Add($"  {DashboardPresentation.StateGlyph(entry.State)} {entry.Name} · {entry.State} · {entry.ObservedAt.ToLocalTime():HH:mm:ss}");
-                        if (DashboardPresentation.EntryFacts(entry) is { } facts) rows.Add("    " + facts);
-                        if (DashboardPresentation.EntryMeans(entry) is { } means) rows.Add("    " + means);
-                    }
-                }
-                else rows.Add("Sin catálogo observado.");
-            }
-            else
             {
                 title = settingsCategory == 0 ? " TUI" : " Sistema";
                 if (settingsCategory == 1) rows.AddRange(SystemRows(lastHardware));
