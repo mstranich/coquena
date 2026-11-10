@@ -95,6 +95,7 @@ La secuencia comienza por 066. Los IDs y directorios históricos no fijan orden.
 | 9 | [081](../../specs/081-m4-tui-definiciones-lectura/README.md) | Llevar Definiciones a la vista previa como capa de sólo lectura | 080 |
 | 10 | [082](../../specs/082-m4-tui-configuracion/README.md) | Llevar Configuración a la vista previa con sus acciones | 081 |
 | 11 | [083](../../specs/083-m4-tui-gestion-servicios/README.md) | Completar Servicios, alta, backends, descargas y confirmación de Up (X), sin Editor | Base entregada 080–082; contratos 048 y 053 |
+| 12 | [084](../../specs/084-m4-tui-recursos-mantenimiento/README.md) | Completar O, W, S, C y R: inventario, adquisición y mantenimiento sin autoría YAML ni hallazgos 009–011 | Base entregada 081 y 083; contratos de recursos de M3 |
 
 ### Vistas de la TUI trabajadas
 
@@ -107,11 +108,12 @@ Avance sobre las [pantallas de la TUI](../design/tui/README.md):
 | D Hardware | ✔ implementada | 080 |
 | Z Notificaciones | ✔ implementada, sólo avisos de la sesión | 080 |
 | Barras superior e inferior | ✔ como la vista previa (⇣ sin fuente de descargas) | 080 |
-| J, O, P, Q, U, W Definiciones | ✔ sólo lectura, botones deshabilitados (O permite acceder a K en 083) | 081, 083 |
+| J, P, Q, U Definiciones | ✔ sólo lectura, botones deshabilitados | 081 |
+| O Backends, W Inventario, S Modelo local, C Hugging Face y R Mantenimiento | ✔ implementadas y validadas por el usuario | 083, 084 |
 | B Recetas | Consulta y acceso a Up de combinaciones existentes; demás acciones deshabilitadas | 081, 083 |
 | M Servicios, N Descargas, K Backends, T Alta de servicio y X Confirmar Up | ✔ implementadas y validadas por el usuario | 083 |
 | E, F, G Configuración | ✔ con sus acciones | 082 |
-| C, H, L, R, S, V, Y | ☐ sin completar (R tiene una página con acciones deshabilitadas) | — |
+| H, L, V, Y | ☐ sin completar | — |
 
 Las dependencias de ejecución de la tabla incluyen la reorganización acordada.
 El adaptador local rechaza `leanspec rel add`: las nuevas relaciones 066→062/063/064

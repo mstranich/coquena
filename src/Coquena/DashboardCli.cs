@@ -210,6 +210,12 @@ internal static partial class DashboardCli
         DefinitionsPresentation.Page? definitionPage = null;
         var definitionClock = new Stopwatch();
         var managedSelection = new Dictionary<string, string>();
+        var resourceFilters = new Dictionary<string, string>();
+        var resourceReads = new Dictionary<string, Task<InventoryRow[]>>();
+        var resourceCache = new Dictionary<string, InventoryRow[]>();
+        var resourceProblems = new Dictionary<string, string>();
+        var hubViews = new Dictionary<string, HubView>();
+        var maintenanceViews = new Dictionary<string, MaintenanceView>();
         var managementJobs = new Dictionary<string, Task<string>>();
         var transferClock = new Stopwatch();
         var knownTransfers = new List<(DefinitionsSource.Place Place, Coquena.Contracts.OperationDocument Operation)>();
@@ -367,6 +373,13 @@ internal static partial class DashboardCli
         };
 
         Select();
+        // The status spinner of a Hub query animates only while it is visible.
+        app.AddTimeout(TimeSpan.FromMilliseconds(120), () =>
+        {
+            if (page == Definitions && definitionView == "Modelos" && managementJobs.Keys.Any(key => key.StartsWith("hf:", StringComparison.Ordinal)))
+            { definitionPage = null; Render(); }
+            return true;
+        });
         app.AddTimeout(TimeSpan.FromSeconds(1), () =>
         {
             Tick();
@@ -417,14 +430,24 @@ internal static partial class DashboardCli
 
         void Tick()
         {
+            foreach (var read in resourceReads.Where(read => read.Value.IsCompleted).ToArray())
+            {
+                resourceReads.Remove(read.Key);
+                if (read.Value.IsCompletedSuccessfully) { resourceCache[read.Key] = read.Value.Result; resourceProblems.Remove(read.Key); }
+                else resourceProblems[read.Key] = read.Value.Exception?.GetBaseException().Message ?? "Consulta cancelada.";
+                definitionPage = null;
+            }
             foreach (var job in managementJobs.Where(job => job.Value.IsCompleted).ToArray())
             {
                 managementJobs.Remove(job.Key);
+                resourceCache.Clear(); resourceProblems.Clear();
                 definitionPage = null;
                 transferClock.Reset();
                 if (job.Key.StartsWith("service:", StringComparison.Ordinal)) RefreshTargets();
                 var message = job.Value.IsCompletedSuccessfully ? job.Value.Result : job.Value.Exception?.GetBaseException().Message ?? "Operación cancelada.";
-                Notify(job.Value.IsCompletedSuccessfully ? "✓" : "✗", job.Value.IsCompletedSuccessfully ? "ok" : "err", message, -1);
+                // Hub queries are navigation: their result is the page itself, only failures are notices.
+                if (!(job.Key.StartsWith("hf:", StringComparison.Ordinal) && job.Value.IsCompletedSuccessfully))
+                    Notify(job.Value.IsCompletedSuccessfully ? "✓" : "✗", job.Value.IsCompletedSuccessfully ? "ok" : "err", message, -1);
                 Render();
             }
             if (!transferClock.IsRunning || transferClock.Elapsed >= CaptureInterval)
@@ -844,9 +867,36 @@ internal static partial class DashboardCli
                         definitionPage = ManagementPresentation.Downloads(place.Scope.Name,
                             TransferList(place.Context).Select(operation => (operation.Id, TransferRow(operation))).ToArray(),
                             Math.Max(20, window.Viewport.Width - Right));
-                    else if (definitionView == "Backends")
-                        definitionPage = definitionPage with { Title = definitionPage.Title.Replace(DefinitionsPresentation.Off("+ Backend"),
-                            ManagementPresentation.Button("+ Backend", "backend"), StringComparison.Ordinal) };
+                    else if (definitionView is "Backends" or "Modelos" && place.Context is not null)
+                    {
+                        var backend = definitionView == "Backends";
+                        var key = place.Context.Root + definitionView;
+                        // Read once per invalidation; finished jobs clear the cache.
+                        if (!resourceReads.ContainsKey(key) && !resourceCache.ContainsKey(key) && !resourceProblems.ContainsKey(key))
+                        {
+                            var captured = place.Context;
+                            resourceReads[key] = Task.Run(() => Inventory(captured, backend), stop.Token);
+                        }
+                        var items = resourceCache.GetValueOrDefault(key) ?? [];
+                        var filter = resourceFilters.GetValueOrDefault(key) ?? "";
+                        items = items.Where(item => item.Label.Contains(filter, StringComparison.OrdinalIgnoreCase)).ToArray();
+                        var selected = managedSelection.GetValueOrDefault(key);
+                        if (!items.Any(item => item.Id == selected)) selected = items.FirstOrDefault()?.Id;
+                        if (selected is not null) managedSelection[key] = selected;
+                        definitionPage = ResourcePage(place.Scope.Name, backend, items, selected, filter, Math.Max(20, window.Viewport.Width - Right), definitionDetail.Viewport.Height, evidence?.Context);
+                        if (resourceProblems.TryGetValue(key, out var problem))
+                            definitionPage = DefinitionsPresentation.Problem((backend ? "Backends" : "Modelos") + " de " + place.Scope.Name, problem);
+                        else if (!resourceCache.ContainsKey(key))
+                            definitionPage = definitionPage with { Rows = [" " + Markup.Style("mut", "Consultando inventario…")] };
+                        if (!backend && hubViews.TryGetValue(place.Context.Root, out var hub) && hub.Active)
+                            definitionPage = HubPage(place.Scope.Name, hub, Math.Max(20, window.Viewport.Width - Right),
+                                managementJobs.ContainsKey("hf:" + place.Context.Root));
+                    }
+                    else if (definitionView == "Mantenimiento" && place.Context is not null)
+                    {
+                        if (!maintenanceViews.TryGetValue(place.Context.Root, out var state)) maintenanceViews[place.Context.Root] = state = new();
+                        definitionPage = MaintenancePage(place.Scope.Name, state);
+                    }
                     else if (definitionView == "Recetas" && place.Context is not null)
                         definitionPage = definitionPage with { Rows = definitionPage.Rows.Select(row => row.Replace(DefinitionsPresentation.Off("▲ Up"),
                             ManagementPresentation.Button("▲ Up", "up"), StringComparison.Ordinal)).ToArray() };
@@ -902,6 +952,271 @@ internal static partial class DashboardCli
             if (place.Context is not { } context) return;
             try
             {
+                if (action == "downloads") { definitionView = "Descargas"; definitionPage = null; Render(); return; }
+                if (action.StartsWith("maintenance-", StringComparison.Ordinal))
+                {
+                    if (!maintenanceViews.TryGetValue(context.Root, out var state)) maintenanceViews[context.Root] = state = new();
+                    if (action == "maintenance-preview")
+                        ManagementJob("maintenance:" + context.Root, () =>
+                        {
+                            var plan = new ResourceCleanup(context, Home.Resolve()).Preview();
+                            app.Invoke(() => { state.Plan = plan; definitionPage = null; Render(); });
+                            return Task.FromResult("Plan de limpieza de " + place.Scope.Name + ": " + ByteSize.Format(plan.Bytes) + " recuperables.");
+                        });
+                    else if (action == "maintenance-clean" && state.Plan is { } plan)
+                    {
+                        if (managementJobs.ContainsKey("maintenance:" + context.Root)) return;
+                        if (Query(app, "Limpiar · " + place.Scope.Name, "Eliminar el conjunto completo mostrado: " + plan.Items.Count + " instalaciones.\nRecuperable: " + ByteSize.Format(plan.Bytes) +
+                            ".\nSe revalidan referencias y protecciones antes de borrar.", "Cancelar", "Eliminar conjunto") != 1) return;
+                        ManagementJob("maintenance:" + context.Root, () =>
+                        {
+                            var result = new ResourceCleanup(context, Home.Resolve()).Apply(plan);
+                            var text = "Última limpieza de esta sesión · " + DateTimeOffset.Now.ToString("dd/MM HH:mm") + "\n" + CleanupText(result);
+                            app.Invoke(() => { state.Plan = null; state.Cleanup = text; definitionPage = null; Render(); });
+                            if (result.Diagnostics.Count > 0) throw new IOException(text);
+                            return Task.FromResult(text);
+                        });
+                    }
+                    else if (action == "maintenance-verify")
+                    {
+                        var mode = Query(app, "Verificar · " + place.Scope.Name, "Auditar definición y recursos; no descarga ni repara.", "Cancelar", "Auditoría rápida", "SHA-256");
+                        if (mode <= 0) return;
+                        var args = new List<string>();
+                        if (context.IsGlobal)
+                        {
+                            args.Add("--global");
+                            var include = Query(app, "Alcance de verificación", "Incluir instalaciones del inventario que no están referenciadas?", "Cancelar", "Sólo referencias", "Todo el inventario");
+                            if (include <= 0) return;
+                            if (include == 2) args.Add("--include-unused");
+                        }
+                        else
+                        {
+                            var combinations = new CombinationPreparation(context).List().ToArray();
+                            var selections = combinations.Select(item => new RecipeSelection(context.Base,
+                                item.Value!["files"]!.AsArray().Select(file => file!.GetValue<string>()), context.Base,
+                                item.Value["env-files"]!.AsArray().Select(file => file!.GetValue<string>()))).ToList();
+                            if (place.Recipe is not null) selections.Insert(0, place.Recipe);
+                            var choice = Choose(app, "Combinación a verificar", selections.Select(selection => string.Join(" + ", selection.Files.Select(Path.GetFileName))).ToArray(), "Verificar");
+                            if (choice is not int row) return;
+                            var selection = selections[row];
+                            args.AddRange(["--project-directory", context.Base]);
+                            foreach (var file in selection.Files) args.AddRange(["-f", file]);
+                            foreach (var file in selection.EnvFiles) args.AddRange(["--env-file", file]);
+                            var combinationIndex = row - (place.Recipe is null ? 0 : 1);
+                            if (combinationIndex >= 0 && combinations[combinationIndex].Value?["private"]?.GetValue<bool>() == true) args.Add("--private");
+                        }
+                        var filters = ResourceForm(app, "Filtrar verificación · " + place.Scope.Name, [("referencias", "")], "Verificar todo / filtro");
+                        if (filters is null) return;
+                        foreach (var selector in filters[0].Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries))
+                        { _ = ResourceSelector.Parse(selector); args.AddRange(["--select", selector]); }
+                        if (mode == 2) args.Add("--checksum");
+                        ManagementJob("maintenance:" + context.Root, async () =>
+                        {
+                            var output = new StringWriter();
+                            var code = await VerifyCli.RunAsync(args.ToArray(), output, stop.Token);
+                            var text = DateTimeOffset.Now.ToString("dd/MM HH:mm") + " · " + (code == 0 ? "✓" : "▲") + "\n" + output.ToString().Trim();
+                            app.Invoke(() => { state.Verification = text; definitionPage = null; Render(); });
+                            if (code != 0) throw new IOException(text);
+                            return text;
+                        });
+                    }
+                    return;
+                }
+                if (action == "inventory" || action == "hf" || action.StartsWith("hf-", StringComparison.Ordinal))
+                {
+                    // Network actions are disabled while a query runs; the status line says which one.
+                    if (managementJobs.ContainsKey("hf:" + context.Root) && (action is "hf-search" or "hf-more-results" or
+                        "hf-repository" or "hf-revision" || action.StartsWith("hf-result:", StringComparison.Ordinal))) return;
+                    if (!hubViews.TryGetValue(context.Root, out var hub)) hubViews[context.Root] = hub = new();
+                    hub.Active = action != "inventory";
+                    if (action is "inventory" or "hf") { definitionPage = null; Render(); return; }
+                    // One continuous list: › past the loaded results asks the Hub for the next page and appends it.
+                    void SearchHub(Uri? start)
+                    {
+                        var query = hub.Query;
+                        hub.Status = start is null ? "Buscando «" + (query.Length == 0 ? "GGUF" : query) + "»…" : "Cargando más resultados…";
+                        ManagementJob("hf:" + context.Root, async () =>
+                        {
+                            using var client = HuggingFaceStore.CreateClient();
+                            var result = await new HuggingFaceStore(client).SearchAsync(query, start, stop.Token);
+                            app.Invoke(() =>
+                            {
+                                if (start is null) { hub.Results.Clear(); hub.ResultOffset = 0; }
+                                else if (result.Repositories.Length > 0) hub.ResultOffset = hub.Results.Count;
+                                hub.Results.AddRange(result.Repositories.Where(repository => !hub.Results.Contains(repository)));
+                                hub.Next = result.Next; hub.Searched = true;
+                                definitionPage = null; Render();
+                            });
+                            return "Búsqueda HF: " + result.Repositories.Length + " resultados en la página.";
+                        });
+                    }
+                    void ReadRepository(string repository, string revision)
+                    {
+                        hub.Status = "Consultando " + repository + " @ " + revision + "…";
+                        ManagementJob("hf:" + context.Root, async () =>
+                        {
+                            using var client = HuggingFaceStore.CreateClient();
+                            var source = new HuggingFaceStore(client);
+                            var resolved = await source.ResolveAsync(repository, revision, stop.Token);
+                            var inventory = await source.InventoryAsync(resolved, stop.Token);
+                            using var inspector = new RemoteGgufInspector();
+                            var diagnostics = new List<string>();
+                            var candidates = await new ModelResolver(inspector).DiscoverAsync(inventory, diagnostics.Add, stop.Token);
+                            string? readme = null;
+                            try { readme = await source.ReadmeAsync(resolved, stop.Token); }
+                            catch (ModelSourceException error) { diagnostics.Add("README: " + error.Message); }
+                            app.Invoke(() =>
+                            {
+                                hub.Repository = repository; hub.Revision = revision; hub.Resolved = resolved; hub.Selected = 0;
+                                hub.Variants = candidates.Variants; hub.Readme = readme;
+                                hub.Diagnostics = diagnostics.Concat(candidates.Diagnostics).ToArray(); definitionPage = null; Render();
+                            });
+                            return "Repositorio HF consultado: " + repository + "; " + candidates.Variants.Length + " unidades seleccionables.";
+                        });
+                    }
+                    if (action == "hf-search")
+                    {
+                        var fields = ResourceForm(app, "Buscar en Hugging Face · GGUF", [("buscar", hub.Query)], "Buscar");
+                        if (fields is not null) { hub.Query = fields[0]; SearchHub(null); }
+                    }
+                    else if (action == "hf-previous-results") hub.ResultOffset = Math.Max(0, hub.ResultOffset - HubStep);
+                    else if (action == "hf-more-results")
+                    {
+                        if (hub.ResultOffset + HubStep < hub.Results.Count) hub.ResultOffset += HubStep;
+                        else if (hub.Next is { } next) SearchHub(next);
+                    }
+                    else if (action is "hf-repository" or "hf-revision")
+                    {
+                        var fields = ResourceForm(app, "Consultar repositorio GGUF", [("repositorio", hub.Repository ?? ""), ("revisión", hub.Revision)], "Consultar");
+                        if (fields is not null) { HuggingFaceStore.ValidateRepository(fields[0]); ReadRepository(fields[0], fields[1]); }
+                    }
+                    else if (action.StartsWith("hf-result:", StringComparison.Ordinal) && int.TryParse(action[10..], out var result) && result >= 0 && result < hub.Results.Count)
+                        ReadRepository(hub.Results[result], "main");
+                    else if (action == "hf-readme") Choose(app, "README · " + hub.Repository, (hub.Readme ?? "README no disponible.").Split('\n'), null);
+                    else if (action == "hf-files" && hub.Variants.ElementAtOrDefault(hub.Selected) is { } fileVariant)
+                        Choose(app, "Archivos de " + fileVariant.Label, fileVariant.Files.Select(file => file.Path + " · " + ByteSize.Format(file.Size)).ToArray(), null);
+                    else if (action == "hf-variant")
+                    {
+                        var variantChoice = Choose(app, "Unidad GGUF · modelos y companions explícitos", hub.Variants.Select(variant => variant.Label + " · " + (variant.CompanionType ?? "modelo")).ToArray(), "Elegir");
+                        if (variantChoice is int row) hub.Selected = row;
+                    }
+                    else if (action == "hf-download" && hub.Resolved is { } resolved && hub.Variants.ElementAtOrDefault(hub.Selected) is { } variant)
+                    {
+                        var models = new ScopedModels(context);
+                        var name = variant.Name(resolved.Repository);
+                        var external = models.List(variant.CompanionType is not null).Any(resource => resource!["logical-key"]!.GetValue<string>().Equals(name, StringComparison.OrdinalIgnoreCase) && resource["ownership"]?.GetValue<string>() == "external");
+                        if (Query(app, "Descargar en " + place.Scope.Name, name + "\n" + string.Join("\n", variant.Files.Select(file => file.Path)) +
+                            (external ? "\nReemplazar registro externo al publicar; conservar sus archivos." : "\nPreparar inventario sin modificar YAML."), "Cancelar", "Descargar") != 1) return;
+                        ManagementJob("model-download:" + context.Root + name, async () =>
+                        {
+                            using var inspector = new RemoteGgufInspector();
+                            var diagnostics = new List<string>();
+                            var evidence = await new ModelResolver(inspector).ValidateAsync(resolved, new(variant.Files), diagnostics.Add, stop.Token);
+                            var checkedVariant = ModelSelection.Variant(new(variant.Files), evidence);
+                            if (checkedVariant is null || checkedVariant.Quantization != variant.Quantization || checkedVariant.CompanionType != variant.CompanionType)
+                                throw new ModelSourceException("selection-conflict", "La selección no pudo validarse.");
+                            var selected = new SelectedModel(name, variant.CompanionType, new(resolved.Repository, resolved.RequestedRevision, resolved.Commit, variant.Files.Select(file => file.ToRemoteFile()).ToArray()));
+                            using var transport = new HuggingFaceTransport();
+                            await models.AcquireAsync(selected, transport, progress: _ => { }, cancellation: stop.Token, replaceExternal: external);
+                            return "Descarga publicada en " + place.Scope.Name + ": " + name;
+                        });
+                    }
+                    definitionPage = null; Render(); return;
+                }
+                if (action.StartsWith("resource:", StringComparison.Ordinal))
+                { managedSelection[context.Root + definitionView] = action[9..]; definitionPage = null; Render(); return; }
+                if (action == "model-filter")
+                {
+                    var values = ResourceForm(app, "Filtrar inventario", [("nombre", resourceFilters.GetValueOrDefault(context.Root + definitionView) ?? "")], "Aplicar");
+                    if (values is not null) resourceFilters[context.Root + definitionView] = values[0];
+                    definitionPage = null; Render(); return;
+                }
+                if (action == "model-add")
+                {
+                    var form = AddLocalModelForm(app, place.Scope.Name);
+                    if (form is null) return;
+                    ManagementJob("model-add:" + context.Root, async () =>
+                    {
+                        var models = new ScopedModels(context);
+                        var added = models.AddExternal(form.Path, form.Name, form.Type is not null, type: form.Type,
+                            projectName: place.Scope.Global ? null : place.Scope.Name);
+                        var output = new StringWriter();
+                        output.WriteLine("Registrado en " + place.Scope.Name + ": " + form.Name + "; archivos externos conservados.");
+                        if (form.Match)
+                        {
+                            using var client = HuggingFaceStore.CreateClient();
+                            try { await models.TryMatchAsync(added, new(client), new DashboardModelSelection(app, output), stop.Token); }
+                            catch (Exception error) when (ManagementError(error) || error is HttpRequestException or OperationCanceledException)
+                            { output.WriteLine("▲ Matching sin confirmar; alta conservada. " + error.Message); }
+                        }
+                        return output.ToString();
+                    });
+                    return;
+                }
+                if (action.StartsWith("resource-", StringComparison.Ordinal))
+                {
+                    var backend = definitionView == "Backends";
+                    var cached = resourceCache.GetValueOrDefault(context.Root + definitionView) ?? [];
+                    var item = cached.SingleOrDefault(item => item.Id == managedSelection.GetValueOrDefault(context.Root + definitionView))
+                        ?? throw new ArgumentException("Seleccioná nuevamente el recurso.");
+                    if (action is "resource-prev" or "resource-next")
+                    {
+                        var filter = resourceFilters.GetValueOrDefault(context.Root + definitionView) ?? "";
+                        var items = cached.Where(row => row.Label.Contains(filter, StringComparison.OrdinalIgnoreCase)).ToArray();
+                        var position = Array.FindIndex(items, row => row.Id == item.Id);
+                        var step = Math.Max(1, Math.Min(5, definitionDetail.Viewport.Height - 12));
+                        managedSelection[context.Root + definitionView] = items[Math.Clamp(position + (action == "resource-next" ? step : -step), 0, items.Length - 1)].Id;
+                        definitionPage = null; Render(); return;
+                    }
+                    if (action == "resource-detail")
+                    {
+                        Choose(app, item.Label + " · " + place.Scope.Name, ResourceDetails(item, context), null);
+                        return;
+                    }
+                    if (action == "resource-protect")
+                    {
+                        ManagementJob("protect:" + context.Root + item.Id, () =>
+                        {
+                            if (backend) new ScopedBackends(context).Protect(item.Id, !item.Protected);
+                            else new ScopedModels(context).Protect(item.Id, !item.Protected);
+                            return Task.FromResult(item.Label + (item.Protected ? ": protección explícita retirada; otras referencias se conservan." : ": protegido."));
+                        });
+                        return;
+                    }
+                    if (action == "resource-verify")
+                    {
+                        var mode = Query(app, "Verificar · " + place.Scope.Name, item.Label, "Cancelar", "Auditoría rápida", "SHA-256");
+                        if (mode > 0) ManagementJob("verify:" + context.Root + item.Id, async () =>
+                        {
+                            var report = await new ResourceVerification(context).VerifyAsync([new(item.Name, item.Kind, item.ResourceId, item.Id)], checksum: mode == 2, cancellation: stop.Token);
+                            if (!report.Verified) throw new IOException(VerificationText(report));
+                            return VerificationText(report);
+                        });
+                        return;
+                    }
+                    if (action == "resource-remove")
+                    {
+                        if (backend)
+                        {
+                            var cleanup = new ResourceCleanup(context, Home.Resolve());
+                            var plan = cleanup.Preview(Guid.Parse(item.Id));
+                            if (plan.Items.Count == 0) throw new ArgumentException("El backend no es eliminable: protegido, externo, referenciado o con uso incierto.");
+                            if (Query(app, "Eliminar · " + place.Scope.Name, item.Label + "\nRecuperable: " + ByteSize.Format(plan.Bytes), "Cancelar", "Eliminar") == 1)
+                                ManagementJob("remove:" + context.Root + item.Id, () => Task.FromResult(CleanupText(cleanup.Apply(plan))));
+                        }
+                        else if (Query(app, "Eliminar · " + place.Scope.Name, item.Label + "\nSe retira el registro y sus instalaciones. Las referencias guardadas pueden quedar rotas. Los archivos externos se conservan.", "Cancelar", "Eliminar") == 1)
+                            ManagementJob("remove:" + context.Root + item.Id, () =>
+                            {
+                                var current = Inventory(context, false).SingleOrDefault(row => row.Id == item.Id);
+                                if (current is null || !System.Text.Json.Nodes.JsonNode.DeepEquals(current.Resource, item.Resource))
+                                    throw new IOException("Cambió el recurso; revisá sus instalaciones y repetí la eliminación.");
+                                var result = new ScopedModels(context).Remove(item.ResourceId, item.Kind == "companion");
+                                if (!result.Complete) throw new IOException("Retirada pendiente: " + string.Join(", ", result.Pending));
+                                return Task.FromResult("Recurso retirado; liberado " + ByteSize.Format(result.FreedBytes));
+                            });
+                        return;
+                    }
+                }
                 if (action.StartsWith("service:", StringComparison.Ordinal))
                 { managedSelection[context.Root] = action[8..]; definitionPage = null; Render(); return; }
                 if (action == "create")

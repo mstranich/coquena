@@ -76,8 +76,8 @@ un servicio o modelo. El monitor conserva fases y tasas por entrada o tarea.
 
 La TUI organiza la navegación en ● En vivo, ◇ Definiciones y ≡ Configuración,
 sin marca ni fila de atajos. En vivo agrupa servicios y la receta local en un
-árbol lateral; Definiciones consulta la información de definiciones disponible
-sin acciones de modificación. Configuración separa los valores de Coquena
+árbol lateral; Definiciones consulta información y ofrece operaciones de gestión
+sobre el ámbito seleccionado. Configuración separa los valores de Coquena
 (los mismos de `coquena config`), las preferencias de la TUI (filtro del log y
 recursos visibles en la barra inferior) y el inventario y sondeo de Sistema. La [consulta de definiciones](tui/B-definiciones-recetas.salt.puml)
 conserva el catálogo observado. La [vista por servidor](ui-servicio.md) muestra inferencia en

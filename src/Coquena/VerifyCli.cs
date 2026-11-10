@@ -80,7 +80,7 @@ public static class VerifyCli
         _ => status
     };
 
-    private static async Task<int> RunAsync(string[] args, TextWriter output, CancellationToken cancellation)
+    internal static async Task<int> RunAsync(string[] args, TextWriter output, CancellationToken cancellation)
     {
         var files = new List<string>(); var env = new List<string>(); var selectors = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var seen = new HashSet<string>(); string? basePath = null; bool global = false, unused = false, privateSelection = false, checksum = false, json = false;

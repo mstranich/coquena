@@ -21,6 +21,7 @@ public sealed record RepositoryFile(string Path, long Size, string GitOid,
         new("xet", "xet-file", XetHash) : new("sha1", "git-blob", GitOid));
 }
 public sealed record RepositoryInventory(RepositoryRevision Revision, RepositoryFile[] Files);
+public sealed record ModelSearchPage(string[] Repositories, Uri? Next);
 
 /// <summary>Public Hub repository access. No clone, history, credentials or disk state.</summary>
 public sealed class HuggingFaceStore(HttpClient client)
@@ -34,6 +35,46 @@ public sealed class HuggingFaceStore(HttpClient client)
     public static HttpClient CreateClient() => new(new HttpClientHandler
     { AllowAutoRedirect = false, UseCookies = false, AutomaticDecompression = DecompressionMethods.None })
     { Timeout = Timeout.InfiniteTimeSpan };
+
+    // Public GGUF search, one bounded page at a time. Continuations stay on the Hub.
+    public async Task<ModelSearchPage> SearchAsync(string query, Uri? continuation = null, CancellationToken cancellation = default)
+    {
+        if (query.Length > 256 || query.Any(char.IsControl)) throw Error("invalid-search", "Búsqueda inválida.");
+        var uri = continuation ?? new Uri($"{Host}/api/models?filter=gguf&search={Uri.EscapeDataString(query)}&limit=20&sort=downloads&direction=-1");
+        ValidateSearchUri(uri);
+        var (bytes, link) = await ReadAsync(uri, MaxMetadataBytes, cancellation);
+        try
+        {
+            using var document = JsonDocument.Parse(bytes, new() { MaxDepth = 32 });
+            if (document.RootElement.ValueKind != JsonValueKind.Array || document.RootElement.GetArrayLength() > 20) throw new JsonException();
+            var repositories = document.RootElement.EnumerateArray().Select(item =>
+            {
+                Unique(item);
+                var id = item.GetProperty("id").GetString() ?? throw new JsonException();
+                ValidateRepository(id); return id;
+            }).Distinct(StringComparer.Ordinal).ToArray();
+            Uri? next = null;
+            if (link is not null)
+                foreach (var part in link.Split(','))
+                {
+                    var match = Regex.Match(part.Trim(), "^<([^>]+)>;\\s*rel=\"([^\"]+)\"$", RegexOptions.CultureInvariant);
+                    if (!match.Success) throw Error("invalid-pagination", "Paginación HF inválida.");
+                    if (match.Groups[2].Value != "next") continue;
+                    if (next is not null || !Uri.TryCreate(match.Groups[1].Value, UriKind.Absolute, out next)) throw new JsonException();
+                    ValidateSearchUri(next);
+                }
+            return new(repositories, next);
+        }
+        catch (Exception error) when (error is JsonException or KeyNotFoundException or InvalidOperationException)
+        { throw Error("invalid-metadata", "Respuesta de búsqueda HF inválida."); }
+    }
+
+    private static void ValidateSearchUri(Uri uri)
+    {
+        if (!uri.IsAbsoluteUri || uri.Scheme != "https" || uri.Host != "huggingface.co" || !uri.IsDefaultPort ||
+            uri.AbsolutePath != "/api/models" || uri.UserInfo.Length != 0 || uri.Fragment.Length != 0)
+            throw Error("invalid-pagination", "Paginación fuera de la búsqueda HF.");
+    }
 
     public async Task<RepositoryRevision> ResolveAsync(string repository, string revision = "main",
         CancellationToken cancellation = default)
