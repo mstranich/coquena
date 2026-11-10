@@ -26,6 +26,7 @@ están en [interfaces visuales](../interfaces-visuales.md) y
 | K | Seleccionar backend | + Backend |
 | L | Importar en Global | Importar |
 | M | Definiciones › Servicios | nodo Servicios (global) o Servicio (local) |
+| T | Modal Agregar servicio global: nombre, backend y configuración de proceso | + Agregar en Servicios |
 | N | Definiciones › Descargas | nodo Descargas, indicador ⇣ |
 | Q | Definiciones › Parámetros | nodo Parámetros |
 | U | Definiciones › Actualizaciones (Comprobar = update, Actualizar = upgrade) | nodo Actualizaciones |

@@ -3,7 +3,8 @@
 ## Contexto y alcance
 
 - Leer docs/design/README.md y los documentos canónicos del área antes de trabajar.
-- docs/design/ contiene las reglas funcionales; docs/milestones/ define entregables y alcance.
+- docs/design/ contiene las reglas funcionales; docs/milestones/ define entregables y alcance;
+  docs/findings/ registra hallazgos para evaluación, que no son tareas ni decisiones.
   docs/user-guide/ es el manual en inglés de la versión publicada; se actualiza en cada
   release con tag, sólo con lo disponible en esa versión y con ejemplos probados.
   specs/ contiene tareas concretas y evidencia, enlazadas a su milestone sin duplicar reglas.
@@ -102,7 +103,7 @@ contexto del hallazgo, no una lista de tareas pendientes.
   hipótesis. Ese horizonte no autoriza anticipar funciones ni ampliar la tarea.
 - Describir el problema antes de proponer una solución. Un hallazgo no es automáticamente
   una tarea ni un compromiso: primero se evalúa si merece seguimiento en un registro
-  de hallazgos separado de LeanSpec. Varios hallazgos pueden analizarse juntos y alimentar
+  de hallazgos separado de LeanSpec ([docs/findings](docs/findings/README.md)). Varios hallazgos pueden analizarse juntos y alimentar
   una propuesta común que luego origine una única tarea o las entregas necesarias.
 - Señalar relaciones entre hallazgos cuando ayuden a ese análisis. No crear registros,
   propuestas o tarjetas ni absorber su implementación sin autorización; el reporte

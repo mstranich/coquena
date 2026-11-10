@@ -44,6 +44,7 @@ if (args is ["--dashboard-tests"])
         Coquena.Tests.DefinitionsPresentationTests.RunSource(Check);
         Coquena.Tests.SettingsPresentationTests.Run(Check);
         Coquena.Tests.SettingsPresentationTests.RunStore(Check);
+        await Coquena.Tests.ManagementTests.Run(Check);
         await Coquena.Tests.InferenceObservationTests.Run(Check);
         await Coquena.Tests.DashboardProjectTests.Run(Check);
         Console.WriteLine($"Dashboard checks: {checks}.");

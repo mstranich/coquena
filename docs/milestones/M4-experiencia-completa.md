@@ -94,6 +94,7 @@ La secuencia comienza por 066. Los IDs y directorios históricos no fijan orden.
 | 8 | [080](../../specs/080-m4-tui-en-vivo/README.md) | Llevar En vivo y sus pantallas al aspecto de la vista previa | 079 |
 | 9 | [081](../../specs/081-m4-tui-definiciones-lectura/README.md) | Llevar Definiciones a la vista previa como capa de sólo lectura | 080 |
 | 10 | [082](../../specs/082-m4-tui-configuracion/README.md) | Llevar Configuración a la vista previa con sus acciones | 081 |
+| 11 | [083](../../specs/083-m4-tui-gestion-servicios/README.md) | Completar Servicios, alta, backends, descargas y confirmación de Up (X), sin Editor | Base entregada 080–082; contratos 048 y 053 |
 
 ### Vistas de la TUI trabajadas
 
@@ -106,9 +107,11 @@ Avance sobre las [pantallas de la TUI](../design/tui/README.md):
 | D Hardware | ✔ implementada | 080 |
 | Z Notificaciones | ✔ implementada, sólo avisos de la sesión | 080 |
 | Barras superior e inferior | ✔ como la vista previa (⇣ sin fuente de descargas) | 080 |
-| B, J, M, N, O, P, Q, U, W Definiciones | ✔ sólo lectura, botones deshabilitados | 081 |
+| J, O, P, Q, U, W Definiciones | ✔ sólo lectura, botones deshabilitados (O permite acceder a K en 083) | 081, 083 |
+| B Recetas | Consulta y acceso a Up de combinaciones existentes; demás acciones deshabilitadas | 081, 083 |
+| M Servicios, N Descargas, K Backends, T Alta de servicio y X Confirmar Up | ✔ implementadas y validadas por el usuario | 083 |
 | E, F, G Configuración | ✔ con sus acciones | 082 |
-| C, H, K, L, R, S, V–Y | ☐ sin trabajar | — |
+| C, H, L, R, S, V, Y | ☐ sin completar (R tiene una página con acciones deshabilitadas) | — |
 
 Las dependencias de ejecución de la tabla incluyen la reorganización acordada.
 El adaptador local rechaza `leanspec rel add`: las nuevas relaciones 066→062/063/064

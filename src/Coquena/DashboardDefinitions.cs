@@ -22,8 +22,7 @@ internal static partial class DashboardCli
         public List<Place> Places()
         {
             var places = new List<Place>();
-            if (Directory.Exists(Path.Combine(home.Root, "global")))
-                places.Add(new(new("Global", true, false, true, true), ScopeContext.Global(home), null));
+            places.Add(new(new("Global", true, false, true, true), ScopeContext.Global(home), null));
             var here = Path.TrimEndingDirectorySeparator(Path.GetFullPath(directory));
             places.Add(Project(here, true));
             string[] indexed = [];
@@ -130,7 +129,7 @@ internal static partial class DashboardCli
         {
             var context = place.Context!;
             var store = new ScopeStore(context);
-            var defaultId = context.IsGlobal ? store.ReadVerified().State?["data"]?["aliases"]?["default"]?.GetValue<string>() : null;
+            var defaultId = context.IsGlobal ? store.Read().State?["data"]?["aliases"]?["default"]?.GetValue<string>() : null;
             var services = new RecipeRegistry(store).Services().Select(service =>
             {
                 var index = targets.ToList().FindIndex(target => target.Service?.ServiceId == service.ServiceId &&

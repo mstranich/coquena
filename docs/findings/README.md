@@ -15,3 +15,6 @@ después de evaluar los hallazgos.
 | [006: La salida de la CLI orienta poco](006-verify-un-error-por-vez.md) | Defectos de CLI conocidos por el usuario y formalizados: `verify` muestra un error por vez; `update` y `upgrade` muestran JSON. |
 | [007: Formato de la receta tras editar](007-formato-receta-tras-init.md) | Defecto de CLI señalado por el usuario; la edición conserva el estilo `{}` creado por `init`. |
 | [008: Definiciones de argumentos y forks](008-aplicabilidad-de-argumentos.md) | Los rangos de builds no alcanzan a forks, `verify` no los comprueba, el prefijo `--` es fijo y el catálogo integrado no valida las recetas. |
+| [009: Cambiar el backend de un servicio](009-cambiar-backend-servicio.md) | Pendiente de diseño señalado por el usuario; sin recorrido en la TUI. |
+| [010: Descargas repartidas por ámbito](010-descargas-globales.md) | El usuario prefiere una única pantalla global; «Volver» confuso sin reproducir. |
+| [011: Cancelar una descarga desde la TUI](011-cancelar-descarga-tui.md) | Defecto señalado por el usuario; sin reproducir ni diagnosticar. |

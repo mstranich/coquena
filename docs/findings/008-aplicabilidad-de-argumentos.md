@@ -1,7 +1,7 @@
 # Las definiciones de argumentos no cubren forks por completo
 
 Fecha de registro: 5 de noviembre de 2026. Solicitado por el usuario durante la
-revisión del manual de usuario ([077](../specs/077-manual-usuario-y-reorganizacion-docs/README.md)).
+revisión del manual de usuario ([077](../../specs/077-manual-usuario-y-reorganizacion-docs/README.md)).
 
 ## Intención
 
@@ -14,9 +14,9 @@ rápido la compatibilidad con un release.
 
 **Los forks quedan sin validación por versión.** `min-build` y `max-build` sólo se
 comparan en builds oficiales `bNNNN`. Con otro backend,
-[ArgumentValidation](../src/Coquena/Recipes/ArgumentValidation.cs) registra
+[ArgumentValidation](../../src/Coquena/Recipes/ArgumentValidation.cs) registra
 `argument-applicability-unknown`, sin rechazar el argumento. Esto coincide con
-[parámetros](../docs/design/catalogo-de-parametros.md#metaschema-de-definiciones), que
+[parámetros](../design/catalogo-de-parametros.md#metaschema-de-definiciones), que
 indica no inventar una versión comparable para externos. Justamente los forks son uno
 de los motivos de estas definiciones.
 
@@ -26,7 +26,7 @@ OK» sobre la misma combinación, con los recursos preparados. La comprobación 
 exige hoy intentar una publicación.
 
 **El prefijo `--` es fijo.** El usuario señala que un argumento no siempre usa doble
-guion. [ArgumentEmission](../src/Coquena/Recipes/ArgumentEmission.cs) antepone `--` al
+guion. [ArgumentEmission](../../src/Coquena/Recipes/ArgumentEmission.cs) antepone `--` al
 emitir por CLI, y `emit.cli.name` se define como nombre sin `--`. Un fork que use `-x`,
 otro prefijo o ninguno no puede representarse. El usuario propone indicar el prefijo en
 la definición, con `--` por defecto y admitiendo un guion, ninguno u otro texto.
@@ -34,7 +34,7 @@ la definición, con `--` por defecto y admitiendo un guion, ninguno u otro texto
 **El catálogo integrado no valida las recetas.** `param show ctx-size --global` lo
 declara `integer`, pero una receta con `ctx-size: abc` pasó `verify` y `up` publicó el
 preset. En cambio, una definición propia en `arg-defs` sí rechaza un valor inválido.
-El usuario aclara que «conocidos», en [parámetros](../docs/design/catalogo-de-parametros.md),
+El usuario aclara que «conocidos», en [parámetros](../design/catalogo-de-parametros.md),
 son los argumentos que el proyecto llama.cpp define al momento de compilar Coquena. Por
 lo tanto, el modo permisivo debería validarlos, y este comportamiento es un defecto. La
 redacción de ese documento quedó ambigua.

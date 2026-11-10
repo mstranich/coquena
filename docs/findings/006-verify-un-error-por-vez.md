@@ -1,7 +1,7 @@
 # La salida de la CLI orienta poco al usuario
 
 Fecha de registro: 5 de noviembre de 2026. Formalizado a pedido del usuario durante la
-revisión del manual de usuario ([077](../specs/077-manual-usuario-y-reorganizacion-docs/README.md)).
+revisión del manual de usuario ([077](../../specs/077-manual-usuario-y-reorganizacion-docs/README.md)).
 El usuario ya conocía el comportamiento y lo considera un defecto de la CLI.
 
 ## Problema observado

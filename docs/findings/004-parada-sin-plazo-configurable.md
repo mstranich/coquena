@@ -1,7 +1,7 @@
 # La parada de un servicio termina forzada y su plazo no es configurable
 
 Fecha de registro: 5 de noviembre de 2026. Solicitado por el usuario durante la
-revisión del manual de usuario ([077](../specs/077-manual-usuario-y-reorganizacion-docs/README.md)),
+revisión del manual de usuario ([077](../../specs/077-manual-usuario-y-reorganizacion-docs/README.md)),
 que lo considera un defecto de la CLI.
 
 ## Problema observado
@@ -12,10 +12,10 @@ parada ordenada no concluyó dentro de la espera, y el usuario no puede ajustarl
 
 ## Implementación y regla vigente
 
-- [Servidores](../docs/design/servidores.md) define una parada ordenada con espera de
+- [Servidores](../design/servidores.md) define una parada ordenada con espera de
   diez segundos.
-- [ScopedServiceProcess](../src/Coquena/Servers/ScopedServiceProcess.cs) y
-  [ServerRuntime](../src/Coquena/Servers/ServerRuntime.cs) fijan esos diez segundos en
+- [ScopedServiceProcess](../../src/Coquena/Servers/ScopedServiceProcess.cs) y
+  [ServerRuntime](../../src/Coquena/Servers/ServerRuntime.cs) fijan esos diez segundos en
   el código. No se encontró un campo YAML, una opción ni un comando `config` para
   cambiarlos.
 

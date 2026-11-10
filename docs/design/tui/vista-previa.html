@@ -320,6 +320,29 @@ TOPF("",24,"Servicios de Global{pad}{btn| + Agregar }"),
 " {btn| Editar YAML }  {btn| Ver en vivo }"][i]??"")),
 HW1,HW2
 ]],
+["T · Modal Agregar servicio global — sólo backends del ámbito",[
+TABS(1),
+TOPF("",24,"Servicios de Global"),
+...[...Array(18)].map((_,i)=>[["z1",23,T("Servicios",i,"G")],["z0",3,""],["dlg",51,[
+" {hi|Agregar servicio a Global}",
+"",
+" {mut|nombre}     {focb| laboratorio                     }",
+" {mut|backend}    {focb| cuda@13 · b6120                 }",
+"            vulkan · b6120",
+"            externo · llama-server.exe",
+"",
+"            {btn| Ir a backends }",
+"",
+" {mut|host}       {focb| 127.0.0.1    } {mut|puerto} {focb| 9940  }",
+" {mut|URL salud}  {focb| http://127.0.0.1:9940/health    }",
+" {btn| Argumentos de proceso… }",
+"",
+" {mut|Sólo backends ya preparados en Global.}",
+" {mut|Crear guarda la definición; no inicia.}",
+"",
+"{pad}{btn| Cancelar }  {btnf| Agregar }"][i]??""],["z0",3,""]]),
+HW1,HW2
+]],
 ["N · ◇ Definiciones › Global › Descargas — progreso y control",[
 TABS(1),
 TOPF("",24,"Descargas de Global{pad}{mut|2 activas · 1 pausada}"),
@@ -467,7 +490,7 @@ TOPF("",24,"Backends de Global{pad}{btn| + Backend }"),
 " {mut|ruta} $CoquenaHome\\backends\\cuda13-b6120",
 " {mut|compatibilidad} ✓ driver 13.0 · RTX 4090",
 "",
-" {btn| Quitar protección }  {btn| Eliminar }  {btn| Descargar versión… }"][i]??"")),
+" {btn| Quitar protección }  {btn| Eliminar }"][i]??"")),
 HW1,HW2
 ]],
 ["X · Modal Aceptar/Cancelar — Up con el destino ocupado",[
@@ -560,13 +583,13 @@ for(const [title,raw] of screens){const lines=align(raw);
 const LINKS={"● En vivo":"A","◇ Definiciones":"B","≡ Configuración":"E","Receta":"B","Modelos":"W",
 "Coquena":"E","TUI":"F","Sistema":"G","Editar YAML":"H","Cerrar":"B","Ver en vivo":"A","Histórico":"I",
 "Volver":"A","+ Backend":"K","Importar":"L","Cancelar":"B","Agregar":"B","Inicializar":"B","Actualizar":"B",
-"Servicios":"M","Backends":"O","inventario":"W","Hugging Face":"C","+ Agregar local…":"S","Descargar versión…":"K","Recetas":"B","Presets":"P","Parámetros":"Q","Mantenimiento":"R","Actualizaciones":"U","Actualizaciones 2↑":"U","Editar":"H","+ Nueva combinación…":"V","Aceptar":"B","+ Archivo nuevo…":"H","Clonar…":"H","gemma-4-12B-it-qat Q4_0":"W","▲ Up":"X","Publicar igual":"B","▲ 2":"Z","⇣ 1 · 68%":"N","Ver log":"I","Marcar leídas":"Z","Guardar":"Y","Sí":"H","No":"H","Servicio":"M","Descargas":"N","Descargas 1":"N",
+"Servicios":"M","Backends":"O","inventario":"W","Hugging Face":"C","+ Agregar local…":"S","Recetas":"B","Presets":"P","Parámetros":"Q","Mantenimiento":"R","Actualizaciones":"U","Actualizaciones 2↑":"U","Editar":"H","+ Nueva combinación…":"V","Aceptar":"B","+ Archivo nuevo…":"H","Clonar…":"H","gemma-4-12B-it-qat Q4_0":"W","▲ Up":"X","Publicar igual":"B","▲ 2":"Z","⇣ 1 · 68%":"N","Ver log":"I","Marcar leídas":"Z","Guardar":"Y","Sí":"H","No":"H","Servicio":"M","Descargas":"N","Descargas 1":"N",
 "+ Agregar":"M","Reanudar":"N","Ver descargas":"N"};
 const terms=[...document.querySelectorAll(".term")],heads=[...document.querySelectorAll("#screens h2")];
 const ids=heads.map(h=>h.textContent.trim()[0]);
 terms.forEach((t,i)=>{t.id="s"+ids[i];heads[i].id="h"+ids[i];
   t.querySelectorAll("span").forEach(sp=>{const k=sp.textContent.trim();
-    const to=({Y:{Cancelar:"H",Sí:"P",No:"H"},X:{Cancelar:"B"},S:{Cancelar:"W",Agregar:"W"},O:{"+ Backend":"K"},V:{Cancelar:"B"}}[ids[i]]||{})[k]||LINKS[k];
+    const to=({Y:{Cancelar:"H",Sí:"P",No:"H"},X:{Cancelar:"B"},S:{Cancelar:"W",Agregar:"W"},M:{"+ Agregar":"T"},T:{Cancelar:"M",Agregar:"M","Ir a backends":"O"},O:{"+ Backend":"K"},V:{Cancelar:"B"}}[ids[i]]||{})[k]||LINKS[k];
     if(to&&!sp.querySelector("span")){sp.classList.add("lnk");sp.title="→ "+to;sp.onclick=()=>go(to);}});
   const pre=t.querySelector("pre");const rows=pre.innerHTML.split("\n");
   rows.slice(-2).forEach(()=>{});});

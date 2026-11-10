@@ -131,6 +131,18 @@ por clic tiene una forma de enfocarla e invocarla por teclado. Antes de
 confirmar una operación se muestra el destino y, cuando corresponda, el plan
 y los riesgos. Las restricciones y confirmaciones son las del comando.
 
+Servicios permite crear un servicio global con nombre, uno de los backends ya
+preparados en el ámbito, host, puerto y argumentos de proceso. El formulario no
+descarga ni registra backends: sin ninguno disponible ofrece ir a Backends del
+mismo ámbito. Un externo exige URL de salud explícita; no se presume que
+implemente los flags o APIs del oficial. El formulario guarda la definición sin
+iniciar ni modificar una instancia activa. Preparar un recurso desde Backends
+conserva el ámbito elegido y no lo asigna implícitamente a un servicio. El
+progreso de una descarga se consulta en Descargas y su resultado queda como aviso
+de la sesión, sin interrumpir con un modal.
+Los detalles muestran argumentos redactados y consumidores según las publicaciones
+registradas, separados del estado observado del proceso.
+
 Configuración lee el valor efectivo al abrir y después de guardar o
 restablecer. Guardar asigna el valor elegido y restablecer elimina el override
 de esa preferencia. Repetir cualquiera deja el mismo valor efectivo y no

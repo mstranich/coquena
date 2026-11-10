@@ -123,7 +123,7 @@ Local, 2026-11-05, con binario Native AOT 0.3.0 compilado desde el árbol actual
 - `uv run docs-site/build.py` y `uvx zensical@0.0.73 build --clean --strict`: «No issues found», 20 diagramas. Enlaces locales de todos los `.md`: 0 rotos.
 - Selección del manual desde tag comprobada en un clon temporal.
 
-Hallazgos registrados durante la revisión: [003](../../findings/003-publicacion-sin-interaccion.md), [004](../../findings/004-parada-sin-plazo-configurable.md), [005](../../findings/005-espacio-usado-no-consultable.md), [006](../../findings/006-verify-un-error-por-vez.md), [007](../../findings/007-formato-receta-tras-init.md) y [008](../../findings/008-aplicabilidad-de-argumentos.md).
+Hallazgos registrados durante la revisión: [003](../../docs/findings/003-publicacion-sin-interaccion.md), [004](../../docs/findings/004-parada-sin-plazo-configurable.md), [005](../../docs/findings/005-espacio-usado-no-consultable.md), [006](../../docs/findings/006-verify-un-error-por-vez.md), [007](../../docs/findings/007-formato-receta-tras-init.md) y [008](../../docs/findings/008-aplicabilidad-de-argumentos.md).
 
 Publicado el 2026-11-05 con el [run 42061920932](https://github.com/mstranich/coquena/actions/runs/42061920932), commit `f0a354f`. Recorrido del sitio publicado: 38 páginas y 23 imágenes (20 diagramas SVG) sin errores; `/coquena/` muestra el manual, la navegación llega a Roadmap y Design, el índice de búsqueda incluye ambos idiomas y `lang` coincide con cada sección. `git log --follow` conserva la historia de los documentos movidos. La búsqueda no se probó con consultas en el navegador.
 

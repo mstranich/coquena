@@ -153,13 +153,13 @@ final en el volumen acordado; rutas reales y salidas crudas sólo locales.
   Las interfaces de M4 deben representar ese diagnóstico y la intervención requerida;
   no se añade una política nueva de señales por PID ni un supervisor.
   A solicitud del usuario, se registró por separado en
-  [hallazgo 001](../../findings/001-hijos-identidad-incierta.md), sin crear una tarjeta.
+  [hallazgo 001](../../docs/findings/001-hijos-identidad-incierta.md), sin crear una tarjeta.
 
 ### Evaluación adicional de coordinación monitor/limpieza
 
 Solicitada por el usuario el 29 de octubre de 2026. La evaluación, reproducción
 controlada sobre el commit base y el actual, impacto y recomendación se mantienen
-en el [hallazgo 002](../../findings/002-coordinacion-monitor-limpieza.md).
+en el [hallazgo 002](../../docs/findings/002-coordinacion-monitor-limpieza.md).
 Se registró por separado a solicitud del usuario; no se modificó el motor ni se
 incorporó su corrección al alcance de esta tarjeta.
 

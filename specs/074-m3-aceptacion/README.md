@@ -167,7 +167,7 @@ paquetes preliminares de esta ejecución.
 
 ## Hallazgos y límites de la evidencia
 
-El [hallazgo 002](../../findings/002-coordinacion-monitor-limpieza.md) mantiene
+El [hallazgo 002](../../docs/findings/002-coordinacion-monitor-limpieza.md) mantiene
 su alcance autorizado. Pasar estas pruebas no descarta la carrera conocida entre
 monitor y limpieza temporal. Su corrección no forma parte de esta aceptación.
 Las pruebas remotas usan fixtures controlados para red, corrupción e incertidumbre.

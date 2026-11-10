@@ -1,7 +1,7 @@
 # Editar una receta creada por init la deja en una sola línea
 
 Fecha de registro: 5 de noviembre de 2026. Solicitado por el usuario durante la
-revisión del manual de usuario ([077](../specs/077-manual-usuario-y-reorganizacion-docs/README.md)),
+revisión del manual de usuario ([077](../../specs/077-manual-usuario-y-reorganizacion-docs/README.md)),
 que lo considera un defecto de la CLI.
 
 ## Problema observado

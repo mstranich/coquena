@@ -1,7 +1,7 @@
 # La CLI no informa el espacio total usado
 
 Fecha de registro: 5 de noviembre de 2026. Solicitado por el usuario durante la
-revisión del manual de usuario ([077](../specs/077-manual-usuario-y-reorganizacion-docs/README.md)),
+revisión del manual de usuario ([077](../../specs/077-manual-usuario-y-reorganizacion-docs/README.md)),
 que lo considera un defecto de la CLI.
 
 ## Problema observado
@@ -12,7 +12,7 @@ y su variante de proyecto se consultan por separado. Un usuario no puede saber c
 ocupan sus modelos y backends sin inspeccionar las carpetas.
 
 El problema pesa más porque cada ámbito conserva sus propios recursos: dos proyectos
-pueden guardar el mismo modelo, según [servicios y recetas](../docs/design/servicios-recetas.md#ámbitos-y-propiedad).
+pueden guardar el mismo modelo, según [servicios y recetas](../design/servicios-recetas.md#ámbitos-y-propiedad).
 
 ## Evidencia
 
@@ -28,4 +28,4 @@ Revisión de `coquena --help` y ejecución de `clean --dry-run` con el binario N
 - Cómo distinguir recursos propios, externos y archivos temporales.
 
 La deduplicación de modelos es una mejora posible, registrada en el
-[Roadmap](../docs/milestones/README.md#later); no depende de este hallazgo.
+[Roadmap](../milestones/README.md#later); no depende de este hallazgo.

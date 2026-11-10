@@ -1,7 +1,7 @@
 # La publicación de presets no puede ejecutarse sin interacción
 
 Fecha de registro: 5 de noviembre de 2026. Solicitado por el usuario durante la
-revisión del manual de usuario ([077](../specs/077-manual-usuario-y-reorganizacion-docs/README.md)),
+revisión del manual de usuario ([077](../../specs/077-manual-usuario-y-reorganizacion-docs/README.md)),
 que lo considera un defecto de la CLI.
 
 ## Problema observado
@@ -13,11 +13,11 @@ ni en CI. El usuario espera que `-d` evite la solicitud de interacción.
 
 ## Implementación y regla vigente
 
-- [PublicationCli](../src/Coquena/PublicationCli.cs) rechaza la operación si no hay
+- [PublicationCli](../../src/Coquena/PublicationCli.cs) rechaza la operación si no hay
   interacción disponible, antes de consultar si hace falta una confirmación.
-- [Servidores](../docs/design/servidores.md#plazos-y-control) exige interacción y
+- [Servidores](../design/servidores.md#plazos-y-control) exige interacción y
   declara que no hay aceptación implícita por `-d` o `--start-service`.
-- [M3](../docs/milestones/M3-definiciones-declarativas.md) y `coquena --help` indican
+- [M3](../milestones/M3-definiciones-declarativas.md) y `coquena --help` indican
   que `up` no admite `-d`.
 
 El comportamiento coincide con la regla vigente. Lo que se cuestiona es la regla, por

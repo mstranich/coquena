@@ -15,8 +15,28 @@ public interface IPublicationInteraction
 {
     bool Available { get; }
     bool Confirm(string diagnostic);
+    bool Confirm(string diagnostic, string destination) => Confirm("Destino: " + destination + "\n" + diagnostic);
     bool StartService();
     bool StartService(string diagnostic) => StartService();
+}
+
+public sealed record ServiceCreationOptions(string Host, int Port, string? HealthUrl, JsonObject Arguments)
+{
+    internal JsonObject Server(bool external)
+    {
+        if (string.IsNullOrWhiteSpace(Host) || Host.Any(char.IsControl) || Port is < 1 or > 65535)
+            throw new ArgumentException("Host o puerto inválido.");
+        if (external && string.IsNullOrWhiteSpace(HealthUrl)) throw new ArgumentException("El backend externo requiere URL de salud.");
+        if (!string.IsNullOrWhiteSpace(HealthUrl) && (!Uri.TryCreate(HealthUrl, UriKind.Absolute, out var url) ||
+            url.Scheme is not ("http" or "https") || !string.IsNullOrEmpty(url.UserInfo)))
+            throw new ArgumentException("URL de salud inválida o con credenciales.");
+        var args = Arguments.DeepClone().AsObject();
+        if (args.ContainsKey("host") || args.ContainsKey("port")) throw new ArgumentException("Usá los campos Host y Puerto para esos argumentos.");
+        args["host"] = Host; args["port"] = Port;
+        var server = new JsonObject { ["args"] = args };
+        if (!string.IsNullOrWhiteSpace(HealthUrl)) server["health"] = new JsonObject { ["url"] = HealthUrl };
+        return server;
+    }
 }
 
 public static class PublicationCli
@@ -203,6 +223,7 @@ public static class PublicationCli
             throw new StorageException("publication-conflict", "La identidad física del destino registrado cambió.");
         var lifecycle = new ScopedServiceProcess(targetStore, output, error);
         var manager = new PresetPublication(store, targetStore, service.ServiceId);
+        bool Confirm(string diagnostic) => interaction.Confirm(diagnostic, service.Name + (targetContext.IsGlobal ? " (global)" : " (proyecto)"));
         var running = lifecycle.Reconcile(service.ServiceId);
         if (!running && !withdrawing)
         {
@@ -246,7 +267,7 @@ public static class PublicationCli
             var reconciled = await manager.ReconcileAsync(identity.RecipeId, router, !running, cancellation);
             if (reconciled.Confirmed && reconciled.WarmupFailed && router is not null)
             {
-                var restored = reconciled.Restored ? reconciled : await manager.RestoreFailedAsync(identity.RecipeId, router, true, interaction.Confirm, cancellation);
+                var restored = reconciled.Restored ? reconciled : await manager.RestoreFailedAsync(identity.RecipeId, router, true, Confirm, cancellation);
                 error.WriteLine("Error: preset-load-failed. Entradas: " + string.Join(", ", reconciled.FailedEntries ?? []));
                 output.WriteLine(restored?.Confirmed == true ? "Entradas afectadas restauradas sin reiniciar." : "Carga fallida; consultar estado de la composición.");
                 return restored?.Confirmed == false ? 9 : 8;
@@ -261,7 +282,7 @@ public static class PublicationCli
         }
         if (!withdrawing && router is not null)
         {
-            var restoration = await manager.RestoreFailedAsync(identity.RecipeId, router, true, interaction.Confirm, cancellation);
+            var restoration = await manager.RestoreFailedAsync(identity.RecipeId, router, true, Confirm, cancellation);
             if (restoration is not null)
             {
                 error.WriteLine("Error: preset-load-failed. Entradas: " + string.Join(", ", restoration.FailedEntries ?? []));
@@ -332,7 +353,7 @@ public static class PublicationCli
                     ArgumentEmission.Cli(recipe, block with { Arguments = block.Arguments.Where(p => adapter.Supports(p.Key, "preset", "cli")).ToDictionary(p => p.Key, p => p.Value) }, adapter, Resolve).ToArray(), bindings, recipe.PresetWarmup(block.Key)));
             }
         }
-        var result = await manager.PublishAsync(identity.RecipeId, presets.ToArray(), combination, name, !running, true, interaction.Confirm, router, validate, cancellation);
+        var result = await manager.PublishAsync(identity.RecipeId, presets.ToArray(), combination, name, !running, true, Confirm, router, validate, cancellation);
         if (result.WarmupFailed) error.WriteLine("Error: preset-load-failed. Entradas: " + string.Join(", ", result.FailedEntries ?? []));
         if (result.Confirmed && !result.WarmupFailed)
         {
@@ -362,7 +383,8 @@ public static class PublicationCli
         p["expected-arguments"]!.AsArray().Select(a => a!.GetValue<string>()).ToArray(), p["resources"]!.DeepClone().AsArray(), p["warmup"]!.GetValue<bool>());
 
     public static async Task EnsureGlobalAsync(ScopeContext context, TextWriter output, Func<Task<BackendCandidate?>>? select = null,
-        string? serviceName = null)
+        string? serviceName = null, BackendIntent? backend = null, CancellationToken cancellation = default, ServiceCreationOptions? options = null,
+        bool installed = false)
     {
         if (!context.IsGlobal) throw new ArgumentException("La provisión requiere ámbito global.");
         var store = new ScopeStore(context); var snapshot = store.Read();
@@ -381,12 +403,32 @@ public static class PublicationCli
             if (services.Any(s => s.Name == serviceName)) throw new StorageException("service-name-conflict", "Ya existe un servicio con ese nombre.");
         }
         var name = serviceName ?? "coquena";
+        backend?.Validate();
+        var server = options?.Server(backend?.Executable is not null);
+        if (backend?.Executable is { } executable && !File.Exists(Path.GetFullPath(executable, context.Base)))
+            throw new BackendException("backend-executable-absent", "No existe el ejecutable externo seleccionado.");
         using var http = new HttpClient();
-        var selected = (select is null ? (await new OfficialBackendSource(http).ResolveAsync(HardwareProbe.Inspect(), null, "latest")).Selected : await select())
+        // An installed backend was already resolved and checked when the scope prepared it.
+        if (installed && backend is null) throw new ArgumentException("Un backend instalado requiere su selección.");
+        var selected = backend?.Executable is not null || installed ? null :
+            (select is null ? (await new OfficialBackendSource(http).ResolveAsync(HardwareProbe.Inspect(), backend?.Variant, backend?.Version ?? "latest", cancellation)).Selected : await select())
             ?? throw new BackendException("publication-unsupported", "No se encontró una variante compatible.");
+        if (selected is not null && backend is not null) ScopedBackends.CheckCompatibility(selected, HardwareProbe.Inspect(), false, message => output.WriteLine(message));
+        backend ??= new("latest", selected!.Variant);
+        cancellation.ThrowIfCancellationRequested();
         var serviceId = ProjectDocuments.Id(); var recipeId = ProjectDocuments.Id();
         var path = $"services/{serviceId}/recipe.yaml";
-        PresetPublication.WriteIni(context.PathFor(path), $"name: '{name.Replace("'", "''")}'\nservice:\n  backend:\n    version: latest\n    variant: {selected.Variant}\n");
+        var definition = backend.Executable is { } external
+            ? "    executable: " + JsonValue.Create(Path.GetFullPath(external, context.Base))!.ToJsonString() + "\n"
+            : $"    version: {backend.Version}\n    variant: {backend.Variant}\n";
+        var yaml = $"name: '{name.Replace("'", "''")}'\nservice:\n  backend:\n" + definition +
+            (server is null ? "" : "  server: " + server.ToJsonString() + "\n");
+        // Run recipe/argument validation before publishing any definition or registration.
+        var selection = new RecipeSelection(context.Base, [context.PathFor(path)], context.Base)
+        { CapturedFiles = new Dictionary<string, byte[]> { [context.PathFor(path)] = System.Text.Encoding.UTF8.GetBytes(yaml) } };
+        var recipe = RecipeReader.Read(selection);
+        _ = ArgumentValidation.Validate(recipe);
+        PresetPublication.WriteIni(context.PathFor(path), yaml);
         var docs = RecipeRegistry.Next(snapshot);
         var recipes = docs.GetValueOrDefault("local/recipes.json")?["data"]?["recipes"]?.DeepClone().AsArray() ?? new JsonArray();
         recipes.Add((JsonNode)new JsonObject { ["recipe-id"] = recipeId, ["consumer-id"] = ProjectDocuments.Id(),
@@ -395,6 +437,8 @@ public static class PublicationCli
         docs["local/recipes.json"] = ProjectDocuments.Create("recipe-registry", docs.GetValueOrDefault("local/recipes.json")?["revision"]?.GetValue<long>() ?? 1,
             new JsonObject { ["recipes"] = recipes });
         ScopeStore.CommitTogether([new(store, snapshot.Revision, docs, DefaultServiceId: services.Length == 0 ? serviceId : null)]);
-        output.WriteLine($"Servicio global {name}: llama.cpp {selected.Release}, {selected.Variant}; {selected.Diagnostic}");
+        output.WriteLine(backend.Executable is not null ? $"Servicio global {name}: ejecutable externo; no iniciado."
+            : selected is null ? $"Servicio global {name}: backend {backend.Variant} · {backend.Version} del ámbito; no iniciado."
+            : $"Servicio global {name}: llama.cpp {selected.Release}, {selected.Variant}; {selected.Diagnostic}");
     }
 }

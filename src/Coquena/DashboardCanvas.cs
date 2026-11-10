@@ -41,6 +41,8 @@ internal static partial class DashboardCli
     {
         private IReadOnlyList<string> rows = [];
         private int focusedAction;
+        private int rowOffset;
+        public bool Scrollable { get; set; }
         protected readonly bool UseColor;
         public string ZoneName { get; set; } = "z0";
         public Func<int, string?>? RowZone { get; set; }
@@ -56,6 +58,7 @@ internal static partial class DashboardCli
             {
                 if (rows.SequenceEqual(value)) return;
                 rows = value.ToArray();
+                rowOffset = Math.Clamp(rowOffset, 0, Math.Max(0, rows.Count - Viewport.Height));
                 SetNeedsDraw();
             }
         }
@@ -65,7 +68,7 @@ internal static partial class DashboardCli
 
         public bool Interactive { set => CanFocus = value; }
 
-        protected virtual string RowAt(int y) => y < rows.Count ? rows[y] : "";
+        protected virtual string RowAt(int y) => y + rowOffset < rows.Count ? rows[y + rowOffset] : "";
         protected virtual string? ZoneAt(int y) => RowZone?.Invoke(y);
 
         protected override bool OnDrawingContent(DrawContext? context)
@@ -128,11 +131,25 @@ internal static partial class DashboardCli
 
         protected override bool OnKeyDown(Key key)
         {
+            if (Scrollable && (key == Key.CursorDown || key == Key.CursorUp || key == Key.PageDown || key == Key.PageUp))
+            {
+                var step = key == Key.PageDown || key == Key.PageUp ? Math.Max(1, Viewport.Height - 1) : 1;
+                rowOffset = Math.Clamp(rowOffset + (key == Key.CursorDown || key == Key.PageDown ? step : -step),
+                    0, Math.Max(0, rows.Count - Viewport.Height));
+                SetNeedsDraw();
+                return true;
+            }
             var actions = Actions;
             if (actions.Count == 0) return base.OnKeyDown(key);
             if (key == Key.CursorRight || key == Key.CursorLeft)
             {
                 focusedAction = (focusedAction + (key == Key.CursorRight ? 1 : actions.Count - 1)) % actions.Count;
+                if (Scrollable)
+                {
+                    var row = rows.ToList().FindIndex(line => Markup.Parse(line).Any(span => span.Action == actions[focusedAction]));
+                    if (row < rowOffset) rowOffset = row;
+                    else if (row >= rowOffset + Viewport.Height) rowOffset = Math.Max(0, row - Viewport.Height + 1);
+                }
                 SetNeedsDraw();
                 return true;
             }

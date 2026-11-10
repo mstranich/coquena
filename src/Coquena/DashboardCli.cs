@@ -84,7 +84,7 @@ internal static partial class DashboardCli
 
     // Zones of the preview (docs/design/tui): tabs (row 0), a 23-column tree, the page on the
     // right, the service log under En vivo and the hardware bar (last two rows). Every page but
-    // Configuración is drawn as markup rows; Definiciones is a read-only layer.
+    // Configuración is drawn as markup rows; management actions capture their selected scope.
     internal static int RunDashboard(ISystemMetrics? metrics = null, HardwareProbe.AdapterEvidence? adapters = null)
     {
         const int Left = LivePresentation.TreeWidth, Right = Left + 1;
@@ -94,6 +94,7 @@ internal static partial class DashboardCli
         var hardware = metrics ?? SystemMetrics.Create();
         using var stop = new CancellationTokenSource();
         using var app = Application.Create().Init();
+        var consoleOut = Console.Out; // Notices ring the terminal bell through it.
         var useColor = string.IsNullOrEmpty(Environment.GetEnvironmentVariable("NO_COLOR"));
         Palette.Ansi16 = app.Driver?.Force16Colors == true;
         using var window = new Window { BorderStyle = LineStyle.None };
@@ -115,7 +116,8 @@ internal static partial class DashboardCli
         var historyFooter = new Canvas(useColor) { Height = 1, ZoneName = "z1" };
         var noticeTitle = new Canvas(useColor) { Y = 1, Height = 1, ZoneName = "hd", Interactive = true };
         var noticeList = new Lines(useColor) { Y = 2, ShowSelectionWithoutFocus = false };
-        var definitionDetail = new Canvas(useColor) { X = Right, Y = 2 };
+        var definitionDetail = new Canvas(useColor) { X = Right, Y = 2, Interactive = true, Scrollable = true };
+        rightTitle.Interactive = true;
 
         // Publication controls kept for the recipe actions; Definiciones shows them disabled.
         var pageView = new View { X = Right, Y = 1, Width = Dim.Fill(), Visible = false };
@@ -173,6 +175,8 @@ internal static partial class DashboardCli
         var serviceSamples = new Dictionary<int, (int Epoch, Task<ServicePanel> Task)>();
         var serviceCaptures = new Dictionary<int, Stopwatch>();
         Task<string?>? operation = null;
+        int? publicationExit = null;
+        string? operationLabel = null;
         ServiceSnapshot? selectedSnapshot = null;
         var inference = new InferenceTasks(preferences.InferenceHistory());
         string? preferredEntry = null, inferenceEntry = null;
@@ -205,6 +209,15 @@ internal static partial class DashboardCli
         IReadOnlyList<DefinitionsPresentation.Node> definitionNodes = [];
         DefinitionsPresentation.Page? definitionPage = null;
         var definitionClock = new Stopwatch();
+        var managedSelection = new Dictionary<string, string>();
+        var managementJobs = new Dictionary<string, Task<string>>();
+        var transferClock = new Stopwatch();
+        var knownTransfers = new List<(DefinitionsSource.Place Place, Coquena.Contracts.OperationDocument Operation)>();
+        var transferCount = 0;
+        string? transferProblem = null;
+
+        rightTitle.Pressed += DefinitionAction;
+        definitionDetail.Pressed += DefinitionAction;
 
         // Events.
         tabs.Pressed += action =>
@@ -215,7 +228,19 @@ internal static partial class DashboardCli
                 case "tab1": Open(Definitions); break;
                 case "tab2": Open(Settings); break;
                 case "notices": Open(Notices); break;
-                case "downloads": break;
+                case "downloads":
+                    Open(Definitions);
+                    var destinations = places.Where(place => place.Context is not null && place.Scope.Accessible).ToArray();
+                    var choice = Choose(app, "Descargas · elegir ámbito", destinations.Select(place => place.Scope.Name + " · " +
+                        knownTransfers.Count(item => SameScope(item.Place.Context!, place.Context!)) + " operaciones").ToArray(), "Abrir");
+                    if (choice is int selected && selected < destinations.Length)
+                    {
+                        focusedPlace = places.IndexOf(destinations[selected]);
+                        definitionView = "Descargas";
+                        definitionPage = null;
+                        Render();
+                    }
+                    break;
             }
         };
         bar.Pressed += action =>
@@ -347,10 +372,15 @@ internal static partial class DashboardCli
             Tick();
             return true;
         });
+        var consoleError = Console.Error;
+        Console.SetError(TextWriter.Null);
         try { app.Run(window); }
         finally
         {
+            Console.SetError(consoleError);
             stop.Cancel();
+            try { Task.WhenAll(managementJobs.Values).WaitAsync(TimeSpan.FromSeconds(10)).GetAwaiter().GetResult(); }
+            catch (Exception error) when (ManagementError(error) || error is TimeoutException) { }
             Task.WhenAll(logSessions.Values.Select(session => session.CloseAsync()).Concat(retiredLogs)).GetAwaiter().GetResult();
             var observations = Task.WhenAll(serviceSamples.Values.Select(value => (Task)value.Task)
                 .Concat(machineSample is null ? [] : new Task[] { machineSample }));
@@ -387,17 +417,44 @@ internal static partial class DashboardCli
 
         void Tick()
         {
+            foreach (var job in managementJobs.Where(job => job.Value.IsCompleted).ToArray())
+            {
+                managementJobs.Remove(job.Key);
+                definitionPage = null;
+                transferClock.Reset();
+                if (job.Key.StartsWith("service:", StringComparison.Ordinal)) RefreshTargets();
+                var message = job.Value.IsCompletedSuccessfully ? job.Value.Result : job.Value.Exception?.GetBaseException().Message ?? "Operación cancelada.";
+                Notify(job.Value.IsCompletedSuccessfully ? "✓" : "✗", job.Value.IsCompletedSuccessfully ? "ok" : "err", message, -1);
+                Render();
+            }
+            if (!transferClock.IsRunning || transferClock.Elapsed >= CaptureInterval)
+            {
+                transferClock.Restart();
+                var transfers = new List<(DefinitionsSource.Place, Coquena.Contracts.OperationDocument)>();
+                string? problem = null;
+                foreach (var place in definitionSource.Places().Where(place => place.Context is not null && place.Scope.Accessible))
+                {
+                    try { transfers.AddRange(TransferList(place.Context!).Select(operation => (place, operation))); }
+                    catch (Exception error) when (ManagementError(error)) { problem = place.Scope.Name + ": " + error.Message; }
+                }
+                knownTransfers = transfers;
+                transferCount = knownTransfers.Count(item => item.Operation.State is not ("completed" or "failed" or "cancelled"));
+                if (problem is not null && problem != transferProblem) Notify("✗", "err", "Descargas · " + problem, -1);
+                transferProblem = problem;
+                // Descargas follows the persisted progress of its operations.
+                if (page == Definitions && definitionView == "Descargas") { definitionPage = null; Render(); }
+            }
             if (operation is { IsCompleted: true } completed)
             {
                 operation = null;
                 selectedSnapshot = null;
                 serviceNote = null;
-                RefreshProject();
-                Select();
+                RefreshTargets();
                 var problem = completed.IsCompletedSuccessfully ? completed.Result : completed.Exception?.GetBaseException().Message;
                 if (!string.IsNullOrWhiteSpace(problem))
                 {
-                    Notify("✗", "err", targets.ElementAtOrDefault(index)?.Label + ": " + problem.Split('\n')[0], index);
+                    var tone = completed.IsCompletedSuccessfully && publicationExit == 0 ? "ok" : publicationExit == 130 ? "warn" : "err";
+                    Notify(tone == "ok" ? "✓" : tone == "warn" ? "▲" : "✗", tone, operationLabel + ": " + problem, -1);
                     Query(app, "Resultado de la operación", problem, "Aceptar");
                 }
             }
@@ -522,10 +579,13 @@ internal static partial class DashboardCli
             notices.Add(new(DateTimeOffset.Now, glyph, @class, text, target));
             if (notices.Count > 100) notices.RemoveAt(0);
             if (page != Notices) unread++;
+            // Terminal bell: the terminal decides whether it sounds or flashes.
+            try { consoleOut.Write(''); consoleOut.Flush(); } catch (IOException) { }
         }
 
         void OpenNotice(Notice notice)
         {
+            if (notice.Target < 0) { Query(app, "Aviso de la sesión", notice.Text, "Aceptar"); return; }
             if (notice.Target != index && notice.Target < targets.Count) { index = notice.Target; preferredEntry = null; selectionEpoch++; Select(); }
             Open(Live);
         }
@@ -533,7 +593,7 @@ internal static partial class DashboardCli
         void Render()
         {
             var now = DateTimeOffset.UtcNow;
-            tabs.Rows = [LivePresentation.Tabs(page is Definitions ? 1 : page is Settings ? 2 : 0, 0, unread)];
+            tabs.Rows = [LivePresentation.Tabs(page is Definitions ? 1 : page is Settings ? 2 : 0, transferCount, unread)];
             RenderBar(now);
             switch (page)
             {
@@ -749,7 +809,7 @@ internal static partial class DashboardCli
             {
                 var notice = notices[notices.Count - 1 - row];
                 var text = " " + Markup.Style(notice.Class, notice.Glyph) + " " + Markup.Style("mut", notice.At.ToString("HH:mm", CultureInfo.InvariantCulture)) +
-                    " " + Markup.Escape(notice.Text) + "{pad}" + Markup.Style("btn", " Ver log ", "n" + row) + " ";
+                    " " + Markup.Escape(notice.Text.Split('\n')[0]) + "{pad}" + Markup.Style("btn", notice.Target < 0 ? " Ver aviso " : " Ver log ", "n" + row) + " ";
                 return text;
             });
         }
@@ -769,10 +829,176 @@ internal static partial class DashboardCli
                 definitionPage = definitionView is null ? DefinitionsPresentation.Inaccessible(place.Scope.Name)
                     : definitionSource.Read(place, definitionView, targets, snapshots, definitionDetail.Viewport.Height,
                         Math.Max(20, window.Viewport.Width - Right));
+                try
+                {
+                    if (definitionView is "Servicios" or "Servicio" && place.Context is not null)
+                    {
+                        var services = ServiceDefinitions(place, targets, snapshots);
+                        var selected = managedSelection.GetValueOrDefault(place.Context.Root);
+                        if (selected is null || !services.Any(service => service.Key == selected)) selected = services.FirstOrDefault()?.Key;
+                        if (selected is not null) managedSelection[place.Context.Root] = selected;
+                        definitionPage = ManagementPresentation.Services(place.Scope.Name, place.Scope.Global, services, selected,
+                            Math.Max(20, window.Viewport.Width - Right));
+                    }
+                    else if (definitionView == "Descargas" && place.Context is not null)
+                        definitionPage = ManagementPresentation.Downloads(place.Scope.Name,
+                            TransferList(place.Context).Select(operation => (operation.Id, TransferRow(operation))).ToArray(),
+                            Math.Max(20, window.Viewport.Width - Right));
+                    else if (definitionView == "Backends")
+                        definitionPage = definitionPage with { Title = definitionPage.Title.Replace(DefinitionsPresentation.Off("+ Backend"),
+                            ManagementPresentation.Button("+ Backend", "backend"), StringComparison.Ordinal) };
+                    else if (definitionView == "Recetas" && place.Context is not null)
+                        definitionPage = definitionPage with { Rows = definitionPage.Rows.Select(row => row.Replace(DefinitionsPresentation.Off("▲ Up"),
+                            ManagementPresentation.Button("▲ Up", "up"), StringComparison.Ordinal)).ToArray() };
+                }
+                catch (Exception error) when (ManagementError(error)) { definitionPage = DefinitionsPresentation.Problem(definitionView ?? "Definiciones", error.Message); }
             }
             leftTitle.Rows = [""];
             rightTitle.Rows = [" " + definitionPage.Title];
             definitionDetail.Rows = definitionPage.Rows;
+        }
+
+        void RefreshTargets()
+        {
+            var previous = targets.ElementAtOrDefault(index);
+            selectionEpoch++;
+            foreach (var session in logSessions.Values) retiredLogs.Add(session.CloseAsync());
+            logSessions.Clear(); snapshots.Clear(); catalogues.Clear(); serviceCaptures.Clear();
+            // Old captures must finish before their numeric slots can be reused.
+            foreach (var sample in serviceSamples.Values) _ = sample.Task.ContinueWith(task => { _ = task.Exception; }, TaskContinuationOptions.OnlyOnFaulted);
+            serviceSamples.Clear();
+            var previousTargets = targets;
+            targets = Discover(out diagnostic);
+            foreach (var previousTarget in previousTargets.Where(target => !target.Store.Context.IsGlobal && target.Service is not null))
+            {
+                if (targets.Any(target => target.Service?.ServiceId == previousTarget.Service!.ServiceId && SameScope(target.Store.Context, previousTarget.Store.Context))) continue;
+                try
+                {
+                    if (new RecipeRegistry(previousTarget.Store).Services().Any(service => service.ServiceId == previousTarget.Service!.ServiceId)) targets.Add(previousTarget);
+                }
+                catch (Exception error) when (ManagementError(error)) { diagnostic = error.Message; }
+            }
+            for (var row = 0; row < notices.Count; row++)
+            {
+                var target = previousTargets.ElementAtOrDefault(notices[row].Target);
+                notices[row] = notices[row] with { Target = target is null ? -1 : targets.FindIndex(candidate =>
+                    candidate.Service?.ServiceId == target.Service?.ServiceId && SameScope(candidate.Store.Context, target.Store.Context)) };
+            }
+            index = Math.Max(0, targets.FindIndex(target => previous is not null && target.Service?.ServiceId == previous.Service?.ServiceId &&
+                SameScope(target.Store.Context, previous.Store.Context)));
+            Select();
+        }
+
+        void ManagementJob(string key, Func<Task<string>> run)
+        {
+            if (managementJobs.ContainsKey(key)) { Query(app, "Operación en curso", "Ya hay una operación de este tipo sobre el destino elegido.", "Aceptar"); return; }
+            managementJobs[key] = Task.Run(run, stop.Token);
+        }
+
+        void DefinitionAction(string action)
+        {
+            if (page != Definitions) return;
+            var place = places[focusedPlace];
+            if (place.Context is not { } context) return;
+            try
+            {
+                if (action.StartsWith("service:", StringComparison.Ordinal))
+                { managedSelection[context.Root] = action[8..]; definitionPage = null; Render(); return; }
+                if (action == "create")
+                {
+                    // A service only takes a backend already installed in its scope; Backends prepares them.
+                    var form = ServiceForm(app, place.Scope.Name, null, InstalledBackends(context), out var goToBackends);
+                    if (goToBackends) { definitionView = "Backends"; definitionPage = null; Render(); return; }
+                    if (form is null) return;
+                    ManagementJob("service:" + context.Root, async () =>
+                    {
+                        var output = new StringWriter();
+                        await PublicationCli.EnsureGlobalAsync(context, output, serviceName: form.Name, backend: form.Intent,
+                            cancellation: stop.Token, options: form.Options, installed: true);
+                        return output.ToString().Trim();
+                    });
+                    return;
+                }
+                if (action == "backend")
+                {
+                    var form = BackendForm(app, place.Scope.Name, evidence?.Context);
+                    if (form is null) return;
+                    ManagementJob("backend:" + context.Root, async () =>
+                    {
+                        var output = new StringWriter();
+                        using var transport = new OfficialArtifactTransport();
+                        var backends = new ScopedBackends(context);
+                        // Progress is read from the operation in Descargas, never written to the console.
+                        var prepared = form.Intent.Executable is not null
+                            ? await backends.PrepareCombinationAsync(form.Intent, HardwareProbe.Inspect(), transport, null, false, output.WriteLine, stop.Token)
+                            : await backends.DownloadAsync(form.Intent, HardwareProbe.Inspect(), transport, warning: output.WriteLine,
+                                cancellation: stop.Token, progress: _ => { });
+                        backends.Protect(prepared.InstallationId, true);
+                        output.WriteLine("Backend preparado en " + place.Scope.Name + "; no se asignó a ningún servicio.");
+                        return output.ToString().Trim();
+                    });
+                    return;
+                }
+                if (action == "up")
+                {
+                    var combinations = new CombinationPreparation(context).List().ToArray();
+                    var chosen = Choose(app, "Up · combinación de " + place.Scope.Name,
+                        combinations.Select(item => string.Join(" + ", item.Value!["files"]!.AsArray().Select(file => file!.GetValue<string>())) +
+                            " · " + item.Key[..6]).ToArray(), combinations.Length > 0 ? "Usar" : null);
+                    if (chosen is not int row) return;
+                    var combination = combinations[row].Value!;
+                    var selection = new RecipeSelection(context.Base, combination["files"]!.AsArray().Select(file => file!.GetValue<string>()), context.Base,
+                        combination["env-files"]!.AsArray().Select(file => file!.GetValue<string>()));
+                    BeginPublication("up", selection, place.Scope.Name, combination["private"]?.GetValue<bool>() == true);
+                    return;
+                }
+                var split = action.Split(':', 2);
+                if (split.Length == 2 && Guid.TryParse(split[1], out var operationId) && split[0] is "pause" or "resume" or "cancel")
+                {
+                    if (split[0] == "cancel" && Query(app, "Cancelar descarga", "Se retirarán los parciales propios de esta operación.", "Conservar", "Cancelar descarga") != 1) return;
+                    var label = "Descarga " + Transfers(context).Downloads.Status(operationId).Name + " · " + place.Scope.Name;
+                    ManagementJob(split[0] + ":" + context.Root + operationId, async () =>
+                    {
+                        if (split[0] == "resume") return label + ": " + await ResumeTransfer(context, operationId, app, stop.Token);
+                        await Transfers(context).ControlAsync(operationId, split[0] == "cancel", stop.Token);
+                        return label + ": " + (split[0] == "cancel" ? "cancelada." : "pausada.");
+                    });
+                    return;
+                }
+                var selected = managedSelection.GetValueOrDefault(context.Root);
+                if (action == "live" && selected == "recipe" && place.Recipe is { } localRecipe)
+                {
+                    var targetIndex = targets.FindIndex(target => SameScope(target.Store.Context, context) && target.Recipe is not null);
+                    if (targetIndex < 0) { targets.Add(new(new ScopeStore(context), null, false, localRecipe, place.Scope.Name, true)); targetIndex = targets.Count - 1; }
+                    index = targetIndex; preferredEntry = null; selectionEpoch++; Select(); Open(Live); return;
+                }
+                var registry = new RecipeRegistry(new ScopeStore(context));
+                var service = registry.Services().SingleOrDefault(service => service.ServiceId == selected)
+                    ?? throw new StorageException("service-conflict", "El servicio seleccionado ya no existe; volvé a seleccionarlo.");
+                if (action == "live")
+                {
+                    var targetIndex = targets.FindIndex(target => target.Service?.ServiceId == service.ServiceId && SameScope(target.Store.Context, context));
+                    if (targetIndex < 0)
+                    {
+                        var selection = ServiceSelection(place, service);
+                        targets.Add(new(new ScopeStore(context), service, false, selection, place.Scope.Name, true));
+                        targetIndex = targets.Count - 1;
+                    }
+                    index = targetIndex; preferredEntry = null; selectionEpoch++; Select(); Open(Live); return;
+                }
+                if (action == "default" && context.IsGlobal)
+                {
+                    registry.SetDefaultService(service.ServiceId);
+                    RefreshTargets(); definitionPage = null; Render(); return;
+                }
+                if (action == "remove" && Query(app, "Eliminar servicio", "Eliminar «" + service.Name + "». Se conservan archivos y logs; se comprobarán las protecciones de uso.", "Cancelar", "Eliminar") == 1)
+                    ManagementJob("service:" + context.Root, () =>
+                    {
+                        new ScopedServiceProcess(new ScopeStore(context)).Remove(service.ServiceId);
+                        return Task.FromResult("Servicio «" + service.Name + "» retirado; archivos y logs conservados.");
+                    });
+            }
+            catch (Exception error) when (ManagementError(error)) { Query(app, "No se completó la operación", error.Message, "Aceptar"); }
         }
 
         // E, F and G: the category tree, the title with its source and the selected form.
@@ -999,6 +1225,8 @@ internal static partial class DashboardCli
 
             upButton.Enabled = downButton.Enabled = false;
             serviceNote = $"{verb.ToLowerInvariant()}…";
+            publicationExit = null;
+            operationLabel = target.Label;
             selectionEpoch++;
             operation = Task.Run(async () =>
             {
@@ -1065,13 +1293,17 @@ internal static partial class DashboardCli
             return changed;
         }
 
-        void BeginPublication(string action)
+        void BeginPublication(string action, RecipeSelection? requested = null, string? requestedLabel = null, bool requestedPrivate = false)
         {
-            if (operation is not null || index >= targets.Count || targets[index].Recipe is not { } selection) return;
-            var label = targets[index].Label;
-            var usePrivateResources = privatePreparation.Value == CheckState.Checked;
+            if (operation is not null) return;
+            var selection = requested ?? targets.ElementAtOrDefault(index)?.Recipe;
+            if (selection is null) return;
+            var label = requestedLabel ?? targets[index].Label;
+            var usePrivateResources = requested is not null ? requestedPrivate : privatePreparation.Value == CheckState.Checked;
             upButton.Enabled = downButton.Enabled = false;
             serviceNote = $"{action}…";
+            publicationExit = null;
+            operationLabel = label;
             selectionEpoch++;
             operation = Task.Run<string?>(() =>
             {
@@ -1089,8 +1321,10 @@ internal static partial class DashboardCli
                 var args = new List<string> { action, "--project-directory", selection.Base };
                 if (usePrivateResources) args.Add("--private");
                 foreach (var file in selection.Files) args.AddRange(["--file", file]);
+                foreach (var file in selection.EnvFiles) args.AddRange(["--env-file", file]);
                 var result = PublicationCli.Execute(args.ToArray(), output, error,
                     new DashboardPublicationInteraction(app, label, stop.Token), frontend);
+                publicationExit = result;
                 return $"{action} · {label} · código {result}\n{output}\n{error}".Trim();
             });
         }
@@ -1104,12 +1338,11 @@ internal static partial class DashboardCli
         var height = Math.Min(app.Screen.Height - 4, wrapped.Count + 5);
         using var dialog = new Dialog { Width = width, Height = height, BorderStyle = LineStyle.None, ShadowStyle = ShadowStyles.None };
         var heading = new Label { X = 1, Text = title, Width = Dim.Fill(1) };
-        var content = new ListView { X = 1, Y = 2, Width = Dim.Fill(1), Height = Dim.Fill(1),
-            ViewportSettings = ViewportSettingsFlags.HasVerticalScrollBar };
-        content.SetSource(new ObservableCollection<string>(wrapped));
-        dialog.Add(heading, content);
         var color = string.IsNullOrEmpty(Environment.GetEnvironmentVariable("NO_COLOR"));
-        if (color) { Paint(dialog, Palette.Text, Palette.Card); Paint(heading, Palette.Text, Palette.Card); Paint(content, Palette.Text, Palette.Card); }
+        var content = new Canvas(color) { X = 1, Y = 2, Width = Dim.Fill(1), Height = Math.Max(1, height - 4),
+            ZoneName = "dlg", Interactive = true, Scrollable = true, Rows = wrapped.Select(Markup.Escape).ToArray() };
+        dialog.Add(heading, content);
+        if (color) { Paint(dialog, Palette.Text, Palette.Card); Paint(heading, Palette.Text, Palette.Card); }
         foreach (var text in actions)
         {
             var button = new Button { Text = " " + text + " ", NoDecorations = true, ShadowStyle = ShadowStyles.None };
@@ -1183,7 +1416,8 @@ internal static partial class DashboardCli
     private sealed class DashboardPublicationInteraction(IApplication app, string project, CancellationToken cancellation) : IPublicationInteraction
     {
         public bool Available => !cancellation.IsCancellationRequested;
-        public bool Confirm(string diagnostic) => Ask("Publicar / retirar · " + project, diagnostic, "Continuar");
+        public bool Confirm(string diagnostic) => Ask("Publicar en destino · " + project, diagnostic, "Publicar igual");
+        public bool Confirm(string diagnostic, string destination) => Ask("Publicar en " + destination, project + "\n" + diagnostic, "Publicar igual");
         public bool StartService() => Ask("Destino detenido · " + project,
             "La publicación requiere iniciar el servicio destino. ¿Iniciar ahora?", "Iniciar");
         public bool StartService(string diagnostic) => Ask("Destino detenido · " + project, diagnostic, "Iniciar");
