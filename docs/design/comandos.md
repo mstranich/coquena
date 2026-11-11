@@ -178,7 +178,11 @@ Los strings "true"/"false" son valores literales. Véase
 [parámetros](catalogo-de-parametros.md).
 El schema puede alimentar formularios. Un texto de `--help` requiere validación
 antes de usarlo como schema. `param list --global` y `param show <nombre> --global`
-consultan el catálogo global.
+consultan el catálogo global. `param edit <nombre> --global` modifica una definición
+del catálogo global: `--add-alias` y `--remove-alias`, repetibles, agregan o quitan
+nombres alternativos sin reemplazar los demás; quitar un alias inexistente es un error
+y no cambia nada. Los alias del catálogo identifican el mismo argumento al comparar
+lo publicado con lo que informa el servidor.
 
 ### config
 

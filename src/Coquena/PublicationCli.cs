@@ -72,7 +72,8 @@ public static class PublicationCli
             var code = e switch { StorageException s => s.Code, RecipeException r => r.Code, BackendException b => b.Code,
                 ModelSourceException m => m.Code, DownloadException d => d.Code, ContractException c => c.Code,
                 ConfigurationException => "instance-identity-uncertain", OperationCanceledException => "cancelled", _ => "publication-error" };
-            error.WriteLine($"Error: {code}. {e.Message}");
+            // The message explains; the code stays at the end for scripts and reports.
+            error.WriteLine($"Error: {e.Message.TrimEnd().TrimEnd('.')} ({code}).");
             if (e is ArgumentException) error.WriteLine("Consulte coquena --help para ver la sintaxis.");
             if (e is OperationCanceledException) return 130;
             if (code == "unsupported-argument-destination") return 5;
@@ -234,12 +235,12 @@ public static class PublicationCli
                     throw new StorageException("service-stopped", "No se autorizó iniciar el destino.");
             }
             var startArgs = new List<string> { "--service", targetContext.IsGlobal ? service.Name : "self", "start", "-d" };
-            if (PresetPublication.Service(targetStore.Read(), service.ServiceId)["publication-operation"] is not null)
+            if (PresetPublication.Service(targetStore.Read(), service.ServiceId)["publication-operation"] is JsonNode unfinished)
             {
                 var recovered = await manager.ReconcileAsync(identity.RecipeId, null, stopped: true, cancellation: cancellation);
                 if (!recovered.Confirmed)
-                    throw new StorageException("publication-pending", "No se pudo recuperar la publicación anterior; el servicio sigue detenido.");
-                output.WriteLine("Se recuperó la publicación anterior. Iniciando el servicio.");
+                    throw new StorageException("publication-pending", Unfinished(unfinished) + " y no se pudo completar; el servicio sigue detenido.");
+                output.WriteLine(Unfinished(unfinished) + "; se completó. Iniciando el servicio.");
             }
             if (targetContext.IsGlobal) startArgs.Add("--global");
             if (!targetContext.IsGlobal)
@@ -268,16 +269,18 @@ public static class PublicationCli
             if (reconciled.Confirmed && reconciled.WarmupFailed && router is not null)
             {
                 var restored = reconciled.Restored ? reconciled : await manager.RestoreFailedAsync(identity.RecipeId, router, true, Confirm, cancellation);
-                error.WriteLine("Error: preset-load-failed. Entradas: " + string.Join(", ", reconciled.FailedEntries ?? []));
-                output.WriteLine(restored?.Confirmed == true ? "Entradas afectadas restauradas sin reiniciar." : "Carga fallida; consultar estado de la composición.");
+                error.WriteLine("Error: no cargaron estos presets: " + string.Join(", ", reconciled.FailedEntries ?? []) + " (preset-load-failed).");
+                output.WriteLine(restored?.Confirmed == true ? "Esos presets volvieron a su configuración anterior sin reiniciar el servicio."
+                    : "Esos presets no cargaron; consulta su estado con «service show».");
                 return restored?.Confirmed == false ? 9 : 8;
             }
             if (reconciled.Confirmed && action == "up" && continueAfterRecovery)
             {
-                output.WriteLine("Se recuperó la publicación anterior. Continuando con up.");
+                output.WriteLine("Un «up» anterior había quedado sin terminar; se completó. Continuando con este «up».");
                 return await RunAsync(args, output, error, interaction, continueAfterRecovery: false, frontend: frontend);
             }
-            output.WriteLine(reconciled.Confirmed ? "Operación anterior reconciliada; repetir el comando para una nueva publicación." : "Resultado anterior incierto; recursos protegidos.");
+            output.WriteLine(reconciled.Confirmed ? "Se completó un «up» anterior que había quedado sin terminar; repite el comando para publicar los cambios nuevos."
+                : "No se sabe si un «up» anterior terminó; no se borró ni modificó nada. Consulta «service show» antes de reintentar.");
             return reconciled.Confirmed ? 0 : 9;
         }
         if (!withdrawing && router is not null)
@@ -285,7 +288,7 @@ public static class PublicationCli
             var restoration = await manager.RestoreFailedAsync(identity.RecipeId, router, true, Confirm, cancellation);
             if (restoration is not null)
             {
-                error.WriteLine("Error: preset-load-failed. Entradas: " + string.Join(", ", restoration.FailedEntries ?? []));
+                error.WriteLine("Error: no cargaron estos presets: " + string.Join(", ", restoration.FailedEntries ?? []) + " (preset-load-failed).");
                 output.WriteLine(restoration.Confirmed ? "Carga fallida detectada; entradas afectadas restauradas sin reiniciar. Repetir para aplicar otra candidata." : "Restauración no confirmada; operación y recursos conservados.");
                 return restoration.Confirmed ? 8 : 9;
             }
@@ -324,8 +327,10 @@ public static class PublicationCli
             }
             using var transport = new HuggingFaceTransport();
             using var stopped = CancellationTokenSource.CreateLinkedTokenSource(frontend?.Cancellation ?? CancellationToken.None);
+            // The same backend is checked once per resource that needs it; each warning is shown once.
+            var warned = new HashSet<string>(StringComparer.Ordinal);
             var resources = new ScopedCombinationResources(context, HardwareProbe.Inspect(), new HuggingFaceStore(http), transport,
-                frontend?.Models ?? new ConsoleModelSelectionInteraction(), warning: message => error.WriteLine(message),
+                frontend?.Models ?? new ConsoleModelSelectionInteraction(), warning: message => { if (warned.Add(message)) error.WriteLine(message); },
                 downloadProgress: operation => DownloadCli.Show(operation, output));
             PreparedCombination prepared;
             ConsoleCancelEventHandler cancel = (_, e) => { e.Cancel = true; stopped.Cancel(); };
@@ -354,7 +359,7 @@ public static class PublicationCli
             }
         }
         var result = await manager.PublishAsync(identity.RecipeId, presets.ToArray(), combination, name, !running, true, Confirm, router, validate, cancellation);
-        if (result.WarmupFailed) error.WriteLine("Error: preset-load-failed. Entradas: " + string.Join(", ", result.FailedEntries ?? []));
+        if (result.WarmupFailed) error.WriteLine("Error: no cargaron estos presets: " + string.Join(", ", result.FailedEntries ?? []) + " (preset-load-failed).");
         if (result.Confirmed && !result.WarmupFailed)
         {
             var previous = (publication?["presets"] as JsonArray ?? []).Select(p => FromNode(p!)).ToArray();
@@ -440,5 +445,14 @@ public static class PublicationCli
         output.WriteLine(backend.Executable is not null ? $"Servicio global {name}: ejecutable externo; no iniciado."
             : selected is null ? $"Servicio global {name}: backend {backend.Variant} · {backend.Version} del ámbito; no iniciado."
             : $"Servicio global {name}: llama.cpp {selected.Release}, {selected.Variant}; {selected.Diagnostic}");
+    }
+
+    // Names what an interrupted «up» was publishing, so the user knows what was completed.
+    private static string Unfinished(JsonNode operation)
+    {
+        var recipe = operation["recipe-name"]?.GetValue<string>();
+        var presets = (operation["affected"] as JsonArray)?.Select(item => item?.GetValue<string>()).OfType<string>().ToArray() ?? [];
+        return "Un «up» anterior" + (recipe is null ? "" : " de «" + recipe + "»") + " había quedado sin terminar" +
+            (presets.Length == 0 ? "" : " (presets: " + string.Join(", ", presets) + ")");
     }
 }

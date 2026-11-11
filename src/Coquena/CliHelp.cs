@@ -221,6 +221,9 @@ internal static class CliHelp
 
         Parámetros:
           param list | show <nombre> [--global]
+          param edit <nombre> --global [--add-alias <alias>]...
+            [--remove-alias <alias>]...
+            Agregar o quitar nombres alternativos en el catálogo global
           param define <nombre> --file <definición.yaml>
           param set <nombre> <campo> <valor-yaml>
           param unset <nombre> <campo>

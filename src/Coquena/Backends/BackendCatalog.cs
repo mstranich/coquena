@@ -99,19 +99,19 @@ public static partial class BackendCatalog
     private static AccelerationEvidence CudaCompatibility(HardwareContext hardware, int major, int minor)
     {
         if (hardware.Cuda.State != "compatible") return hardware.Cuda;
-        if (major is not (12 or 13)) return new("unknown", "Sin regla verificada para esta versión mayor de CUDA.");
+        if (major is not (12 or 13)) return new("unknown", $"Coquena todavía no sabe comprobar backends con CUDA {major}; puede funcionar, pero no está garantizado.");
         if (hardware.CudaDriverVersion is not int driver || hardware.CudaDevices.Length == 0)
-            return new("unknown", "Falta evidencia del driver o de dispositivos CUDA.");
+            return new("unknown", "No se pudo leer la versión del driver de NVIDIA o detectar las GPU; no se puede confirmar que este backend funcione.");
         var minimumSm = major == 13 ? 75 : 50;
         var devices = hardware.CudaDevices.Where(d => d.ComputeCapability >= minimumSm).ToArray();
-        if (devices.Length == 0) return new("incompatible", $"Ningún dispositivo detectado alcanza SM {minimumSm} requerido por CUDA {major}.");
-        if (driver / 1000 < major) return new("incompatible", $"Driver admite CUDA {driver / 1000}.{driver % 1000 / 10}, menor que CUDA {major}.");
+        if (devices.Length == 0) return new("incompatible", $"Ninguna GPU detectada es lo bastante reciente para CUDA {major} (requiere capacidad de cómputo {minimumSm / 10}.{minimumSm % 10} o superior).");
+        if (driver / 1000 < major) return new("incompatible", $"El driver de NVIDIA instalado admite hasta CUDA {driver / 1000}.{driver % 1000 / 10} y este backend necesita CUDA {major}. Actualiza el driver o elige otra variante.");
         if (driver < major * 1000 + minor * 10)
-            return new("unknown", "El driver es de la misma versión mayor, pero no demuestra soporte del toolkit completo; compatibilidad menor no presumida.");
+            return new("unknown", $"El driver de NVIDIA instalado admite CUDA {driver / 1000}.{driver % 1000 / 10} y este backend usa CUDA {major}.{minor}. Puede funcionar, pero no está garantizado; si falla al cargar un modelo, actualiza el driver de NVIDIA.");
         if (devices.All(d => d.ComputeCapability >= 100) && major == 12 && minor < 8)
-            return new("unknown", "Toolkit anterior al soporte nativo Blackwell (12.8); no se presume cobertura mediante PTX del binario concreto.");
+            return new("unknown", $"Las GPU de arquitectura Blackwell necesitan CUDA 12.8 o superior y este backend usa CUDA {major}.{minor}; puede no funcionar.");
         if (devices.All(d => d.ComputeCapability > 121))
-            return new("unknown", "Dispositivos posteriores a las arquitecturas verificadas; no se presume cobertura del binario.");
-        return new("compatible", $"Driver CUDA y dispositivo SM >= {minimumSm} detectados; comprobación básica, no garantía de inferencia ni del binario concreto.");
+            return new("unknown", "Las GPU detectadas son más nuevas que las que Coquena sabe comprobar; puede funcionar, pero no está garantizado.");
+        return new("compatible", $"Driver de NVIDIA y GPU compatibles con CUDA {major}.{minor} (comprobación básica).");
     }
 }

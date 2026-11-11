@@ -71,12 +71,17 @@ public static class ParameterCli
             }
             if (action is not ("define" or "edit" or "remove") || args.Length < 2) Invalid();
             var valueOptions = action == "remove" ? Array.Empty<string>() : new[]
-                { "--type", "--description", "--default", "--alias", "--values", "--scope", "--target" };
+                { "--type", "--description", "--default", "--alias", "--add-alias", "--remove-alias", "--values", "--scope", "--target" };
             var switches = action == "define" ? Array.Empty<string>() : action == "remove" ? ["--dry-run"] : new[]
                 { "--dry-run", "--clear-default", "--clear-description", "--clear-aliases" };
             var metadata = Parse(args, 2, valueOptions, switches);
             foreach (var pair in new[] { ("--default", "--clear-default"), ("--description", "--clear-description"), ("--alias", "--clear-aliases") })
                 if (metadata.ContainsKey(pair.Item1) && metadata.ContainsKey(pair.Item2)) Invalid();
+            // --alias and --clear-aliases replace the whole list; --add-alias and --remove-alias change it.
+            if ((metadata.ContainsKey("--add-alias") || metadata.ContainsKey("--remove-alias")) &&
+                (action == "define" || metadata.ContainsKey("--alias") || metadata.ContainsKey("--clear-aliases"))) Invalid();
+            if (metadata.TryGetValue("--add-alias", out var added) && metadata.TryGetValue("--remove-alias", out var removed) &&
+                added.Intersect(removed, StringComparer.Ordinal).Any()) Invalid();
             if (action == "define" && new[] { "--type", "--scope", "--target" }.Any(k => !metadata.ContainsKey(k))) Invalid();
             if (One(metadata, "--type") is { } type && type is not ("integer" or "decimal" or "string" or "boolean" or "flag" or "enum")) Invalid();
             if (One(metadata, "--scope") is { } scope && scope is not ("model" or "server")) Invalid();
@@ -84,13 +89,17 @@ public static class ParameterCli
             ParameterDefinition Edit(ParameterDefinition d)
             {
                 var nextType = One(metadata, "--type") ?? d.Type;
+                if (metadata.GetValueOrDefault("--remove-alias")?.FirstOrDefault(alias => !d.Aliases.Contains(alias)) is { } absent)
+                    throw new ConfigurationException($"«{absent}» no es alias de {d.Name}; sin cambios.");
                 return d with
                 {
                     Type = nextType, Application = One(metadata, "--scope") ?? d.Application,
                     Destination = One(metadata, "--target")?.ToUpperInvariant() ?? d.Destination,
                     Description = metadata.ContainsKey("--clear-description") ? "" : One(metadata, "--description") ?? d.Description,
                     Default = metadata.ContainsKey("--clear-default") ? null : One(metadata, "--default") ?? d.Default,
-                    Aliases = metadata.ContainsKey("--clear-aliases") ? [] : metadata.TryGetValue("--alias", out var aliases) ? aliases.ToArray() : d.Aliases,
+                    Aliases = metadata.ContainsKey("--clear-aliases") ? [] : metadata.TryGetValue("--alias", out var aliases) ? aliases.ToArray()
+                        : d.Aliases.Where(alias => !(metadata.GetValueOrDefault("--remove-alias")?.Contains(alias) ?? false))
+                            .Concat(metadata.GetValueOrDefault("--add-alias") ?? []).Distinct(StringComparer.Ordinal).ToArray(),
                     Choices = metadata.TryGetValue("--values", out var values) ? values.ToArray() : nextType == "enum" ? d.Choices : []
                 };
             }
@@ -121,9 +130,9 @@ public static class ParameterCli
             { if (split.Length != 1 || !result.TryAdd(key, [])) Invalid(); continue; }
             if (!values.Contains(key)) Invalid();
             var value = split.Length == 2 ? split[1] : ++i < args.Length ? args[i] : throw new ConfigurationException("Falta valor de opción.");
-            if (split.Length == 1 && (value.StartsWith("--", StringComparison.Ordinal) || key == "--alias" && value.StartsWith('-'))) Invalid();
+            if (split.Length == 1 && (value.StartsWith("--", StringComparison.Ordinal) || key is "--alias" or "--add-alias" or "--remove-alias" && value.StartsWith('-'))) Invalid();
             if (!result.TryGetValue(key, out var list)) result[key] = list = [];
-            else if (key is not ("--alias" or "--values")) Invalid();
+            else if (key is not ("--alias" or "--add-alias" or "--remove-alias" or "--values")) Invalid();
             list.Add(value);
         }
         return result;

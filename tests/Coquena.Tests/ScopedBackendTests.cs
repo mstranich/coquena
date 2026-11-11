@@ -137,7 +137,7 @@ internal static class ScopedBackendTests
         var unknown = new ScopedBackends(a, unknownFixture.Resolve, Probe);
         warnings.Clear();
         await unknown.DownloadAsync(new("b1", "cuda@12"), Hardware("unknown"), unknownFixture, warning: warnings.Add);
-        Check(warnings.Any(w => w.Contains("desconocida")), "unknown evidence warns and continues");
+        Check(warnings.Any(w => w.StartsWith("Aviso: ", StringComparison.Ordinal)), "unknown evidence warns and continues");
         var missing = manager.List().SelectMany(r => r!["installations"]!.AsArray()).Single(i => i!["installation-id"]!.GetValue<string>() == second.InstallationId)!;
         // Simulate a completely absent revision, keeping immutable inventory evidence.
         var missingDirectory = a.PathFor(missing["location"]!.GetValue<string>());

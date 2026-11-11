@@ -51,6 +51,14 @@ internal static class ParameterTests
             Check(manager.Find("custom") is { Default: "0.7", Type: "decimal" } d && d.Aliases.SequenceEqual(["-x"]), "edit preserves omitted fields");
             Cli(0, "edit", "custom", "--alias=-y", "--alias=--custom-alias");
             Check(manager.Find("custom")!.Aliases.SequenceEqual(["-y", "--custom-alias"]), "repeated aliases replace list");
+            Cli(0, "edit", "custom", "--add-alias", "otro", "--add-alias", "otro-mas", "--remove-alias=-y");
+            Check(manager.Find("custom")!.Aliases.SequenceEqual(["--custom-alias", "otro", "otro-mas"]), "add and remove change the alias list without replacing it");
+            state = State();
+            foreach (var args in new string[][] { ["edit", "custom", "--remove-alias", "ausente"], ["edit", "custom", "--add-alias", "x", "--alias", "y"],
+                ["edit", "custom", "--add-alias", "x", "--remove-alias", "x"], ["edit", "custom", "--remove-alias", "otro", "--clear-aliases"] })
+                Cli(2, args);
+            Check(State() == state, "absent, mixed or contradictory alias changes preserve state");
+            Cli(0, "edit", "custom", "--alias=-y", "--alias=--custom-alias");
             Cli(0, "edit", "custom", "--default", "0.9");
             Check(config.View("one").Own["custom"] == "0.2", "changing default does not alter assignments");
             config.Set("one", "custom", null); Check(!config.View("one").Own.ContainsKey("custom"), "unset does not restore default");

@@ -256,7 +256,7 @@ public sealed class ScopedBackends(ScopeContext context,
             if (!force) throw new BackendException("backend-incompatible", "Preparación detenida; --force permite intentar con advertencia.");
             warning?.Invoke("--force: se continúa con el backend incompatible; no acredita ejecución.");
         }
-        else if (candidate.Compatibility != "compatible") warning?.Invoke("Compatibilidad desconocida: " + candidate.Diagnostic);
+        else if (candidate.Compatibility != "compatible") warning?.Invoke("Aviso: " + candidate.Diagnostic);
     }
 
     public static void CheckSelection(BackendDownloadSelection selection, HardwareContext hardware, bool force, Action<string>? warning)

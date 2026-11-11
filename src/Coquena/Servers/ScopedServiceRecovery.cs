@@ -58,7 +58,7 @@ public sealed partial class ScopedServiceProcess
                     var result = await StartLockedAsync(serviceId, plan, cancellation, forceRequested);
                     available = true;
                     RecordRecovery(serviceId, null, "candidate-succeeded", result);
-                    ReportRecovery(serviceId, "Candidata funcional; diagnóstico de fallo eliminado.", warning: false);
+                    ReportRecovery(serviceId, "El servicio arrancó correctamente; se descartó el registro del fallo anterior.", warning: false);
                     return result;
                 }
                 catch (Exception failure) when (Recoverable(failure))
@@ -69,19 +69,19 @@ public sealed partial class ScopedServiceProcess
                     // Failed preparation must never interrupt the original service.
                     if (running && !stoppedOriginal)
                     {
-                        ReportRecovery(serviceId, $"Candidata fallida ({code}); se conserva la instancia activa {originalInstance}.");
+                        ReportRecovery(serviceId, $"La nueva configuración no arrancó ({code}); el servicio sigue funcionando con la anterior.");
                         if (!detached && decide?.Invoke(code, false) == ServiceRecoveryChoice.Retry) continue;
                         return originalInstance!;
                     }
                     if (ReconcileLocked(serviceId))
                         StopLocked(serviceId, forceRequested, candidateId);
                     running = false; available = false;
-                    ReportRecovery(serviceId, $"Candidata fallida ({code}).");
+                    ReportRecovery(serviceId, $"La nueva configuración no arrancó ({code}).");
                     var choice = detached ? ServiceRecoveryChoice.LastGood : decide?.Invoke(code, good is not null) ?? ServiceRecoveryChoice.Cancel;
                     if (choice == ServiceRecoveryChoice.Retry) continue;
                     if (choice != ServiceRecoveryChoice.LastGood || good is null)
                     {
-                        ReportRecovery(serviceId, "Sin recuperación; no hay última buena disponible o se canceló la operación.");
+                        ReportRecovery(serviceId, "No se pudo volver a una configuración que funcionara: no hay una anterior o se canceló la operación.");
                         throw;
                     }
                     recoveryResult = "failed";
@@ -97,7 +97,7 @@ public sealed partial class ScopedServiceProcess
                         var result = await StartLockedAsync(serviceId, recovery, cancellation, forceRequested);
                         recoveryResult = "succeeded"; available = true;
                         RecordRecovery(serviceId, code, "last-good-succeeded", result);
-                        ReportRecovery(serviceId, $"Última buena recuperada; instancia {result}. La candidata conserva su diagnóstico de fallo.");
+                        ReportRecovery(serviceId, "Se volvió a la última configuración que funcionaba; el fallo de la nueva queda registrado.");
                         return result;
                     }
                     catch (Exception recoveryFailure) when (Recoverable(recoveryFailure) || FailureCode(recoveryFailure) is
@@ -105,7 +105,7 @@ public sealed partial class ScopedServiceProcess
                     {
                         if (ReconcileLocked(serviceId)) StopLocked(serviceId, forceRequested, recoveryId);
                         RecordRecovery(serviceId, code, "last-good-failed", recoveryId, FailureCode(recoveryFailure));
-                        ReportRecovery(serviceId, $"Última buena fallida ({FailureCode(recoveryFailure)}); recuperación terminada sin más intentos.");
+                        ReportRecovery(serviceId, $"Tampoco arrancó la última configuración que funcionaba ({FailureCode(recoveryFailure)}); no se intenta nada más.");
                         if (FailureCode(recoveryFailure).Contains("integrity", StringComparison.Ordinal)) throw;
                         throw new StorageException("service-recovery-failed", $"Falló candidata ({code}) y última buena ({FailureCode(recoveryFailure)}).", inner: recoveryFailure);
                     }
@@ -144,7 +144,7 @@ public sealed partial class ScopedServiceProcess
 
     private void ReportRecovery(string serviceId, string message, bool warning = true)
     {
-        var line = $"[Recuperación] {message}";
+        var line = $"[Servicio] {message}";
         (warning ? diagnostics ?? output : output)?.WriteLine(line);
         var path = store.Context.PathFor($"local/runtime/{serviceId}/recovery.log");
         try

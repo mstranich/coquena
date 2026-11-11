@@ -1,5 +1,7 @@
 using System.Text;
 using System.Text.Json.Nodes;
+using Coquena.Configuration;
+using Coquena.Contracts;
 using Coquena.Projects;
 using Coquena.Storage;
 
@@ -84,7 +86,7 @@ public sealed class PresetPublication(ScopeStore consumer, ScopeStore target, st
             if (!stopped && router is not null)
             {
                 var observed = await router.ObserveAsync(cancellation);
-                if (!Matches(before, observed)) throw new StorageException("remote-composition-conflict", "El catálogo difiere de la composición registrada.");
+                if (Mismatch(before, observed) is { } difference) throw Conflict(difference);
                 var names = presets.Select(p => p.Name).ToHashSet(StringComparer.Ordinal);
                 var failures = observed.Where(p => names.Contains(p!["id"]!.GetValue<string>()) && p["status"]?["failed"]?.GetValue<bool>() == true)
                     .Select(p => p!["id"]!.GetValue<string>()).ToArray();
@@ -110,11 +112,7 @@ public sealed class PresetPublication(ScopeStore consumer, ScopeStore target, st
             try
             {
                 var observed = await router.ObserveAsync(cancellation);
-                var ownedNames = before.SelectMany(c => c!["presets"]!.AsArray()).Select(p => p!["name"]!.GetValue<string>()).ToHashSet(StringComparer.Ordinal);
-                if (observed.Any(p => !ownedNames.Contains(p!["id"]!.GetValue<string>())))
-                    throw new StorageException("remote-composition-conflict", "El router ofrece entradas no registradas; no se sobrescriben.");
-                if (!Matches(before, observed))
-                    throw new StorageException("remote-composition-conflict", "Cambió una definición remota; no se sobrescriben publicaciones discrepantes.");
+                if (Mismatch(before, observed) is { } difference) throw Conflict(difference);
             }
             catch (Exception error) when (error is HttpRequestException || error is OperationCanceledException && !cancellation.IsCancellationRequested) { throw new StorageException("router-unreachable", "No se pudo consultar el catálogo del servidor."); }
             var activity = await router.ActivityAsync(affected, cancellation);
@@ -282,40 +280,66 @@ public sealed class PresetPublication(ScopeStore consumer, ScopeStore target, st
         SetPhase(recipeId, operation, "uncertain"); return new(false);
     }
 
-    public static bool Matches(JsonArray expected, JsonArray observed, JsonArray? previous = null)
+    public static bool Matches(JsonArray expected, JsonArray observed, JsonArray? previous = null, ParameterDefinition[]? definitions = null) =>
+        Mismatch(expected, observed, previous, definitions) is null;
+
+    // Why the server's catalog differs from the registered composition, in words a user
+    // can act on; null when it matches. Argument names are compared through the aliases
+    // of the parameter catalog, the same that validates recipes and `param show` lists, so
+    // another accepted name for the same argument is equal.
+    public static string? Mismatch(JsonArray expected, JsonArray observed, JsonArray? previous = null, ParameterDefinition[]? definitions = null)
     {
         var entries = expected.SelectMany(c => c!["presets"]!.AsArray()).ToArray();
-        if (entries.Length != observed.Count) return false;
+        definitions ??= Catalog();
+        string Key(string key) => ParameterCatalog.Find(key, definitions)?.Name ?? key;
+        var registered = entries.Select(e => e!["name"]!.GetValue<string>()).ToHashSet(StringComparer.Ordinal);
+        if (observed.Select(p => p?["id"]?.GetValue<string>()).FirstOrDefault(id => id is not null && !registered.Contains(id)) is { } extra)
+            return $"el servidor ofrece «{extra}», que Coquena no publicó.";
         foreach (var entry in entries)
         {
-            var found = observed.SingleOrDefault(p => p?["id"]?.GetValue<string>() == entry!["name"]!.GetValue<string>());
-            if (found is null) return false;
-            if (found["status"]?["preset"]?.GetValue<string>() is string actualIni && entry!["ini"]?.GetValue<string>() is string expectedIni)
+            var name = entry!["name"]!.GetValue<string>();
+            var found = observed.SingleOrDefault(p => p?["id"]?.GetValue<string>() == name);
+            if (found is null) return $"falta «{name}» en el servidor.";
+            if (found["status"]?["preset"]?.GetValue<string>() is string actualIni && entry["ini"]?.GetValue<string>() is string expectedIni)
             {
-                var actual = IniValues(actualIni);
-                var wanted = IniValues(expectedIni);
-                if (wanted.Any(pair => !actual.Any(value => RouterIniKey(value.Key) == RouterIniKey(pair.Key)) ||
-                    actual.Any(value => RouterIniKey(value.Key) == RouterIniKey(pair.Key) && value.Value != pair.Value))) return false;
-                var prior = previous?.SelectMany(c => c!["presets"]!.AsArray()).SingleOrDefault(p => p!["name"]!.GetValue<string>() == entry["name"]!.GetValue<string>());
-                if (prior?["ini"]?.GetValue<string>() is string priorIni && IniValues(priorIni).Keys.Select(RouterIniKey)
-                    .Any(k => !wanted.Keys.Select(RouterIniKey).Contains(k) && actual.Keys.Select(RouterIniKey).Contains(k))) return false;
+                var actual = IniValues(actualIni).ToDictionary(pair => Key(pair.Key), pair => pair.Value, StringComparer.Ordinal);
+                foreach (var (key, value) in IniValues(expectedIni))
+                {
+                    if (!actual.TryGetValue(Key(key), out var current)) return $"en «{name}», el servidor no tiene {key} = {value}" +
+                        (actual.Where(pair => pair.Value == value).Select(pair => pair.Key).FirstOrDefault() is { } other ? $" (tiene {other} = {value})." : ".");
+                    if (current != value) return $"en «{name}», {key} vale {current} en el servidor y {value} en la receta.";
+                }
+                var prior = previous?.SelectMany(c => c!["presets"]!.AsArray()).SingleOrDefault(p => p!["name"]!.GetValue<string>() == name);
+                var wanted = IniValues(expectedIni).Keys.Select(Key).ToHashSet(StringComparer.Ordinal);
+                if (prior?["ini"]?.GetValue<string>() is string priorIni &&
+                    IniValues(priorIni).Keys.FirstOrDefault(k => !wanted.Contains(Key(k)) && actual.ContainsKey(Key(k))) is { } stale)
+                    return $"en «{name}», el servidor todavía usa {stale}, que la receta ya no define.";
                 continue;
             }
             var args = found["status"]?["args"] as JsonArray;
-            var tokens = entry!["expected-arguments"]!.AsArray().Select(a => a!.GetValue<string>()).ToArray();
-            if (tokens.Length == 0 && entry["ini"]?.GetValue<string>() is string definition && IniValues(definition).Count != 0) return false;
-            if (tokens.Length != 0 && (args is null || !Subsequence(tokens, args.Select(a => a!.GetValue<string>()).ToArray()))) return false;
+            var tokens = entry["expected-arguments"]!.AsArray().Select(a => a!.GetValue<string>()).ToArray();
+            if (tokens.Length == 0 && entry["ini"]?.GetValue<string>() is string definition && IniValues(definition).Count != 0)
+                return $"el servidor no informa la configuración de «{name}».";
+            if (tokens.Length != 0 && (args is null || !Subsequence(tokens, args.Select(a => a!.GetValue<string>()).ToArray())))
+                return $"«{name}» se ejecuta con argumentos distintos de los publicados.";
         }
-        return true;
+        return null;
     }
     private static Dictionary<string, string> IniValues(string ini) => ini.Split('\n').Where(l => l.Contains('=') && !l.StartsWith('['))
         .Select(l => l.Split('=', 2)).ToDictionary(p => p[0].Trim(), p => p[1].Trim(), StringComparer.Ordinal);
-    private static string RouterIniKey(string key) => key switch
+    // The global parameter catalog; without a readable one, the built-in definitions.
+    private static ParameterDefinition[] Catalog()
     {
-        "spec-draft-model" => "model-draft",
-        "spec-draft-ngl" => "n-gpu-layers-draft",
-        _ => key
-    };
+        try { return new ParameterManager(Home.Resolve()).List(); }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException or StorageException or ConfigurationException or ContractException)
+        { return ParameterCatalog.Definitions; }
+    }
+    // The server no longer serves what Coquena published; nothing is overwritten.
+    private static StorageException Conflict(string difference) => new("remote-composition-conflict",
+        "Lo que el servidor tiene cargado no coincide con lo que Coquena publicó: " + difference +
+        " No se modificó nada. Si el servidor usa otro nombre para el mismo parámetro, agrégalo como alias en el catálogo" +
+        " (consulta «param show <parámetro> --global»); si alguien cambió el servidor a mano, reinícialo con «service restart».");
+
     private static bool Subsequence(string[] wanted, string[] actual)
     {
         var position = 0;

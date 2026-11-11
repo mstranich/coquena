@@ -4,6 +4,7 @@ using Coquena.Recipes;
 using Coquena.Servers;
 using Coquena.Storage;
 using Coquena.Backends;
+using Coquena.Configuration;
 
 namespace Coquena.Tests;
 
@@ -381,6 +382,19 @@ internal static class PresetPublicationTests
             { ["name"] = "test", ["expected-arguments"] = new JsonArray("--model", "new") }) }),
             new JsonArray(new JsonObject { ["id"] = "test", ["status"] = new JsonObject { ["args"] = new JsonArray("--model", "old") } })),
             "matching name alone never certifies a changed definition");
+        ParameterDefinition[] parameters = [.. ParameterCatalog.Definitions,
+            new("spec-draft-p-min", "number", "model", "INI", "Probabilidad mínima draft", ["draft-p-min"])];
+        JsonArray Composition(string ini) => new(new JsonObject { ["presets"] = new JsonArray(new JsonObject
+            { ["name"] = "coding/q", ["ini"] = ini, ["expected-arguments"] = new JsonArray() }) });
+        JsonArray Catalog(string preset) => new(new JsonObject { ["id"] = "coding/q", ["status"] = new JsonObject { ["preset"] = preset } });
+        Check(PresetPublication.Mismatch(Composition("[coding/q]\nspec-draft-p-min = 0.70\n"), Catalog("[coding/q]\ndraft-p-min = 0.70\n"), definitions: parameters) is null &&
+            PresetPublication.Mismatch(Composition("[coding/q]\nspec-draft-p-min = 0.70\n"), Catalog("[coding/q]\ndraft-p-min = 0.70\n"), definitions: ParameterCatalog.Definitions) is not null,
+            "an alias of the parameter catalog is the same argument; an unknown name is a difference");
+        Check(PresetPublication.Mismatch(Composition("[coding/q]\nc = 4096\n"), Catalog("[coding/q]\nctx-size = 8192\n"), definitions: parameters) is { } changed &&
+            changed.Contains("coding/q") && changed.Contains("8192") && changed.Contains("4096"),
+            "a real difference names the preset, the argument and both values");
+        Check(PresetPublication.Mismatch(Composition("[coding/q]\nctx-size = 4096\n"), new JsonArray(), definitions: parameters) is { } missing && missing.Contains("falta «coding/q»"),
+            "a missing preset is named");
         var copy = Path.Combine(root, "copy"); Directory.CreateDirectory(copy);
         foreach (var file in Directory.EnumerateFiles(a.Store.Context.Base, "*", SearchOption.AllDirectories))
         {

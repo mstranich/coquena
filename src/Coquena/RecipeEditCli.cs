@@ -71,6 +71,9 @@ internal static class RecipeEditCli
             {
                 if (family == "param" && action is "list" or "show" && files.Count == 0 && env.Count == 0 && directory is null)
                     return ParameterCli.Run(positional.ToArray(), output, error);
+                // Aliases and fields of a global definition are edited in the global catalog.
+                if (family == "param" && action == "edit" && files.Count == 0 && env.Count == 0 && directory is null)
+                    return ParameterCli.Run(positional.ToArray(), output, error);
                 throw Invalid();
             }
             if (family == "param" && (action is not ("list" or "show" or "define" or "set" or "unset" or "remove") ||

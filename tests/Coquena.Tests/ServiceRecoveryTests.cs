@@ -116,7 +116,7 @@ internal static class ServiceRecoveryTests
             }
             catch (StorageException error) when (error.Code == "scope-conflict")
             { Check(JsonNode.DeepEquals(untouchedGood, Good()), "coordination conflict preserves recovery evidence"); }
-            Check(output.ToString().Contains("Última buena recuperada") && File.ReadAllText(context.PathFor($"local/runtime/{service.ServiceId}/recovery.log")).Contains("Última buena fallida"), "terminal and durable log describe recovery outcomes");
+            Check(output.ToString().Contains("Se volvió a la última configuración que funcionaba") && File.ReadAllText(context.PathFor($"local/runtime/{service.ServiceId}/recovery.log")).Contains("Tampoco arrancó la última configuración"), "terminal and durable log describe recovery outcomes");
             var noGoodService = registry.EnsureProjectService(["other.yaml"], "no-good");
             try
             {
@@ -241,11 +241,11 @@ internal static class ServiceRecoveryTests
             check((await Command("stop")).Code == 0, "published CLI stop");
             File.WriteAllText(yaml, saved.Replace("      scoped-health-child: true", "      scoped-health-child: true\n      health-unready: true"));
             var fallback = await Command("start");
-            check(fallback.Code == 0 && fallback.Text.Contains("Última buena recuperada"), "published CLI recovers after health failure: " + fallback.Text);
+            check(fallback.Code == 0 && fallback.Text.Contains("Se volvió a la última configuración que funcionaba"), "published CLI recovers after health failure: " + fallback.Text);
             check((await Command("stop")).Code == 0, "published CLI stop fallback");
             File.WriteAllText(yaml, "invalid: [");
             var malformed = await Command("restart");
-            check(malformed.Code == 0 && malformed.Text.Contains("Última buena recuperada"), "published CLI recovers malformed YAML preparation using previous snapshot: " + malformed.Text);
+            check(malformed.Code == 0 && malformed.Text.Contains("Se volvió a la última configuración que funcionaba"), "published CLI recovers malformed YAML preparation using previous snapshot: " + malformed.Text);
             check((await Command("stop")).Code == 0, "published CLI stops despite malformed YAML");
             File.WriteAllText(yaml, saved);
             var fixedCandidate = await Command("start");
