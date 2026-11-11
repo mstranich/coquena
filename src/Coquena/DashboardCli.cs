@@ -32,7 +32,9 @@ internal static partial class DashboardCli
 
     private sealed record ServicePanel(ServiceSnapshot Snapshot);
 
-    private sealed record Notice(DateTimeOffset At, string Glyph, string Class, string Text, int Target);
+    // Retry repeats a failed operation; Updates names the scope root whose Actualizaciones it opens.
+    private sealed record Notice(DateTimeOffset At, string Glyph, string Class, string Text, int Target,
+        (string Key, Func<Task<string>> Run)? Retry = null, string? Updates = null);
 
     private sealed record Device(int Number, string Name, Gauge Use, Gauge Memory, Gauge Shared);
 
@@ -202,6 +204,7 @@ internal static partial class DashboardCli
         // Notificaciones: what this session observed; nothing is persisted.
         var notices = new List<Notice>();
         var unread = 0;
+        Notice? focusedNotice = null;
         var lastStates = new Dictionary<int, string>();
         // Last slots seen with context per entry: they stay visible until the next generation.
         // Prompt processing time reported by the backend log, per slot and task.
@@ -227,6 +230,7 @@ internal static partial class DashboardCli
         var hubViews = new Dictionary<string, HubView>();
         var maintenanceViews = new Dictionary<string, MaintenanceView>();
         var managementJobs = new Dictionary<string, Task<string>>();
+        var managementRuns = new Dictionary<string, Func<Task<string>>>();
         var transferClock = new Stopwatch();
         // Descargas: Global and the current project only; other known projects are not listed.
         var transferGroups = new List<(DefinitionsSource.Place Place, ScopeContext Context, DownloadsPresentation.Group Group)>();
@@ -356,21 +360,23 @@ internal static partial class DashboardCli
         noticeTitle.Pressed += action =>
         {
             if (action == "read") unread = 0;
-            else if (action == "back") Open(Live);
             Render();
         };
         noticeList.Pressed += action =>
         {
             if (!action.StartsWith('n') || !int.TryParse(action[1..], CultureInfo.InvariantCulture, out var row) || row >= notices.Count) return;
-            OpenNotice(notices[notices.Count - 1 - row]);
+            NoticeAction(notices[notices.Count - 1 - row]);
         };
         noticeList.Chosen += row => { if (row < notices.Count) OpenNotice(notices[notices.Count - 1 - row]); };
+        // The selection follows the notice, not the row: new notices are added above it.
+        noticeList.SelectionChanged += row => focusedNotice = row >= 0 && row < notices.Count ? notices[notices.Count - 1 - row] : null;
         upButton.Accepted += (_, _) => BeginPublication("up");
         downButton.Accepted += (_, _) => BeginPublication("down");
         window.KeyDown += (_, key) =>
         {
             if (page == Editing && key == Key.S.WithCtrl) { key.Handled = true; SaveDrafts(); Render(); return; }
-            if (key != Key.Esc || page is Live or Definitions or Settings) return;
+            // Tabs have no «Volver»: Esc only leaves subpages and the Editor.
+            if (key != Key.Esc || page is Live or Definitions or Settings or Notices or DownloadsPage) return;
             key.Handled = true;
             if (page == Editing) { CloseEditor(); return; }
             if (page == History) CloseHistory(); else Open(Live);
@@ -429,7 +435,6 @@ internal static partial class DashboardCli
             if (page == History && selected != History) LeaveHistory();
             // Leaving the Editor asks for its drafts like Cerrar does.
             if (page == Editing && selected != Editing && !ReleaseEditor()) return;
-            if (selected == Notices) unread = 0;
             if (selected == Definitions)
             {
                 places = definitionSource.Places();
@@ -455,6 +460,7 @@ internal static partial class DashboardCli
             foreach (var job in managementJobs.Where(job => job.Value.IsCompleted).ToArray())
             {
                 managementJobs.Remove(job.Key);
+                managementRuns.Remove(job.Key, out var run);
                 resourceCache.Clear(); resourceProblems.Clear();
                 definitionPage = null;
                 transferClock.Reset();
@@ -465,7 +471,15 @@ internal static partial class DashboardCli
                 if (job.Value.Exception?.GetBaseException() is Coquena.Downloads.DownloadException { Code: "transfer-cancelled" } cancelled)
                     Notify("▲", "warn", cancelled.Message, -1);
                 else if (!(job.Key.StartsWith("hf:", StringComparison.Ordinal) && job.Value.IsCompletedSuccessfully))
-                    Notify(job.Value.IsCompletedSuccessfully ? "✓" : "✗", job.Value.IsCompletedSuccessfully ? "ok" : "err", message, -1);
+                {
+                    // Comprobar and Actualizar lead to their view; other failures can be repeated,
+                    // except removals, whose confirmed plan may no longer hold.
+                    var updates = job.Key.StartsWith("update:", StringComparison.Ordinal) ? job.Key["update:".Length..] : null;
+                    var retry = !job.Value.IsCompletedSuccessfully && updates is null && run is not null &&
+                        !job.Key.StartsWith("remove:", StringComparison.Ordinal) && !job.Key.StartsWith("forget:", StringComparison.Ordinal)
+                        ? (job.Key, run) : ((string, Func<Task<string>>)?)null;
+                    Notify(job.Value.IsCompletedSuccessfully ? "✓" : "✗", job.Value.IsCompletedSuccessfully ? "ok" : "err", message, -1, retry, updates);
+                }
                 Render();
             }
             if (!transferClock.IsRunning || transferClock.Elapsed >= CaptureInterval)
@@ -610,18 +624,47 @@ internal static partial class DashboardCli
             catalogues[index] = snapshot.Entries;
         }
 
-        void Notify(string glyph, string @class, string text, int target)
+        void Notify(string glyph, string @class, string text, int target, (string Key, Func<Task<string>> Run)? retry = null, string? updates = null)
         {
-            notices.Add(new(DateTimeOffset.Now, glyph, @class, text, target));
+            notices.Add(new(DateTimeOffset.Now, glyph, @class, text, target, retry, updates));
             if (notices.Count > 100) notices.RemoveAt(0);
-            if (page != Notices) unread++;
+            unread++;
             // Terminal bell: the terminal decides whether it sounds or flashes.
             try { consoleOut.Write(''); consoleOut.Flush(); } catch (IOException) { }
         }
 
+        // The row button acts; Enter on the row shows the notice, as Ver detalle or Ver log do.
+        void NoticeAction(Notice notice)
+        {
+            if (notice.Updates is { } root)
+            {
+                places = definitionSource.Places();
+                var place = places.FindIndex(candidate => candidate.Context?.Root == root);
+                if (place < 0) { Query(app, "Actualizaciones", "El ámbito de este aviso ya no está disponible.", "Aceptar"); return; }
+                focusedPlace = place;
+                definitionView = "Actualizaciones";
+                Open(Definitions);
+                return;
+            }
+            if (notice.Retry is { } retry)
+            {
+                var row = notices.FindLastIndex(candidate => ReferenceEquals(candidate, notice));
+                if (managementJobs.ContainsKey(retry.Key)) { Query(app, "Operación en curso", "Ya hay una operación de este tipo sobre el destino elegido.", "Aceptar"); return; }
+                if (row >= 0)
+                {
+                    notices[row] = notice with { Retry = null };
+                    if (ReferenceEquals(focusedNotice, notice)) focusedNotice = notices[row];
+                }
+                ManagementJob(retry.Key, retry.Run);
+                Render();
+                return;
+            }
+            OpenNotice(notice);
+        }
+
         void OpenNotice(Notice notice)
         {
-            if (notice.Target < 0) { Query(app, "Aviso de la sesión", notice.Text, "Aceptar"); return; }
+            if (notice.Target < 0) { Query(app, "Detalle del aviso", notice.Text, "Aceptar"); return; }
             if (notice.Target != index && notice.Target < targets.Count) { index = notice.Target; preferredEntry = null; selectionEpoch++; Select(); }
             Open(Live);
         }
@@ -629,7 +672,7 @@ internal static partial class DashboardCli
         void Render()
         {
             var now = DateTimeOffset.UtcNow;
-            tabs.Rows = [LivePresentation.Tabs(page is Definitions or Editing ? 1 : page is Settings ? 2 : page is DownloadsPage ? 3 : 0,
+            tabs.Rows = [LivePresentation.Tabs(page is Definitions or Editing ? 1 : page is Settings ? 2 : page is DownloadsPage ? 3 : page is Notices ? 4 : 0,
                 transferCount, unread, transferIndicator)];
             RenderBar(now);
             switch (page)
@@ -805,7 +848,7 @@ internal static partial class DashboardCli
             try { historyMatches = pattern is null ? [] : rows.Select((row, i) => (row, i)).Where(item => pattern.IsMatch(item.row)).Select(item => item.i).ToArray(); }
             catch (RegexMatchTimeoutException) { historyMatches = []; historyProblem = "regex demasiado costosa"; }
             if (historyMatch >= historyMatches.Length) historyMatch = -1;
-            var level = historyLevel switch { 1 => "▲ y ✗", 2 => "✗", _ => "todos" };
+            var level = historyLevel switch { 1 => "avisos y errores", 2 => "sólo errores", _ => "todos" };
             var count = historyProblem ?? (pattern is null ? "" : historyMatches.Length + " coincidencias");
             historyControls.Rows =
             [
@@ -939,16 +982,19 @@ internal static partial class DashboardCli
 
         void RenderNotices()
         {
-            noticeTitle.Rows = [" Notificaciones{pad}" + Markup.Style("btn", " Marcar leídas ", "read") + "  " + Markup.Style("btn", " Volver ", "back") + " "];
+            noticeTitle.Rows = [" Notificaciones" + (unread > 0 ? "  " + Markup.Style("mut", unread + " sin leer") : "") + "{pad}" +
+                (unread > 0 ? Markup.Style("btn", " Marcar leídas ", "read") + " " : "")];
             noticeList.RowZone = y => noticeList.HasFocus && noticeList.Top + y == noticeList.Selected ? "chg" : null;
-            if (notices.Count == 0) { noticeList.Show(1, (_, _) => " " + Markup.Style("mut", "Sin avisos en esta sesión.")); return; }
+            if (notices.Count == 0) { noticeList.Show(1, (_, _) => " " + Markup.Style("mut", "Todavía no hay avisos en esta sesión.")); return; }
+            var focused = focusedNotice is null ? -1 : notices.FindLastIndex(notice => ReferenceEquals(notice, focusedNotice));
             noticeList.Show(notices.Count, (row, selected) =>
             {
                 var notice = notices[notices.Count - 1 - row];
                 var text = " " + Markup.Style(notice.Class, notice.Glyph) + " " + Markup.Style("mut", notice.At.ToString("HH:mm", CultureInfo.InvariantCulture)) +
-                    " " + Markup.Escape(notice.Text.Split('\n')[0]) + "{pad}" + Markup.Style("btn", notice.Target < 0 ? " Ver aviso " : " Ver log ", "n" + row) + " ";
+                    " " + Markup.Escape(notice.Text.Split('\n')[0]) + "{pad}" + Markup.Style("btn", " " + LivePresentation.NoticeAction(notice.Updates is not null, notice.Retry is not null, notice.Target >= 0) + " ", "n" + row) + " ";
                 return text;
-            });
+            }, focused < 0 ? null : notices.Count - 1 - focused);
+            if (focused >= 0) noticeList.ScrollTo(notices.Count - 1 - focused);
         }
 
         void RenderDefinitions()
@@ -1078,8 +1124,10 @@ internal static partial class DashboardCli
             for (var row = 0; row < notices.Count; row++)
             {
                 var target = previousTargets.ElementAtOrDefault(notices[row].Target);
+                var focused = ReferenceEquals(notices[row], focusedNotice);
                 notices[row] = notices[row] with { Target = target is null ? -1 : targets.FindIndex(candidate =>
                     candidate.Service?.ServiceId == target.Service?.ServiceId && SameScope(candidate.Store.Context, target.Store.Context)) };
+                if (focused) focusedNotice = notices[row];
             }
             index = Math.Max(0, targets.FindIndex(target => previous is not null && target.Service?.ServiceId == previous.Service?.ServiceId &&
                 SameScope(target.Store.Context, previous.Store.Context)));
@@ -1090,6 +1138,7 @@ internal static partial class DashboardCli
         {
             if (managementJobs.ContainsKey(key)) { Query(app, "Operación en curso", "Ya hay una operación de este tipo sobre el destino elegido.", "Aceptar"); return; }
             managementJobs[key] = Task.Run(run, stop.Token);
+            managementRuns[key] = run;
         }
 
         void DefinitionAction(string action)

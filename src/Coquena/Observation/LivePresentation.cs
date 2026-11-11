@@ -27,7 +27,7 @@ internal static class LivePresentation
         new(ratios.Select(ratio => ratio is double value ? Levels[Math.Clamp((int)(Math.Clamp(value, 0, 1) * Levels.Length), 0, Levels.Length - 1)] : ' ').ToArray());
 
     // Top bar: three tabs, downloads and notices. The indicators always keep their space.
-    // active: 0 En vivo, 1 Definiciones, 2 Configuración, 3 Descargas.
+    // active: 0 En vivo, 1 Definiciones, 2 Configuración, 3 Descargas, 4 Notificaciones.
     public static string Tabs(int active, int downloads, int notices, string? downloadText = null)
     {
         string[] names = ["● En vivo", "◇ Definiciones", "≡ Configuración"];
@@ -35,9 +35,14 @@ internal static class LivePresentation
         downloadText ??= "⇣ " + downloads;
         var download = active == 3 ? Style("sel", " " + downloadText + " ", "downloads")
             : Style(downloads > 0 ? "nav" : "mut", downloadText, "downloads");
-        var notice = Style(notices > 0 ? "warn" : "mut", "▲ " + notices, "notices");
+        var notice = active == 4 ? Style("sel", " ▲ " + notices + " ", "notices")
+            : Style(notices > 0 ? "warn" : "mut", "▲ " + notices, "notices");
         return tabs + "{pad}" + download + "  " + notice + " ";
     }
+
+    // The button of a notice: its own action first, otherwise what shows it.
+    public static string NoticeAction(bool updates, bool retry, bool service) =>
+        updates ? "Actualizaciones" : retry ? "Reintentar" : service ? "Ver log" : "Ver detalle";
 
     public static (string Glyph, string Class, string Text) ServiceState(ServiceSnapshot? snapshot)
     {

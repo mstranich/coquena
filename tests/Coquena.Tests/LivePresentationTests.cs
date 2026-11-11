@@ -17,6 +17,13 @@ internal static class LivePresentationTests
         var tabs = Markup.Fit(LivePresentation.Tabs(0, 0, 2), 80);
         check(Markup.Width(tabs) == 80 && Markup.Plain(tabs).StartsWith(" ● En vivo ") && Markup.Plain(tabs).EndsWith("⇣ 0  ▲ 2 "),
             "top bar fits 80 columns with tabs and both indicators");
+        var noticeTab = Markup.Fit(LivePresentation.Tabs(4, 0, 2), 80);
+        check(Markup.Width(noticeTab) == 80 && Markup.Parse(noticeTab).Any(span => span.Class == "sel" && span.Action == "notices" && span.Text == " ▲ 2 ") &&
+            !Markup.Parse(noticeTab).Any(span => span.Class == "sel" && span.Action != "notices"),
+            "the ▲ tab is highlighted while active and keeps its counter");
+        check(LivePresentation.NoticeAction(true, false, false) == "Actualizaciones" && LivePresentation.NoticeAction(false, true, false) == "Reintentar" &&
+            LivePresentation.NoticeAction(false, false, true) == "Ver log" && LivePresentation.NoticeAction(false, false, false) == "Ver detalle",
+            "each notice offers its own action, otherwise a way to see it");
         check(Markup.Width(Markup.Fit("x{pad}" + new string('y', 90), 80)) == 80, "rows never exceed their width");
 
         var store = new ScopeStore(ScopeContext.Global(new Home(Path.Combine(Path.GetTempPath(), "coquena-readonly-live"))));
