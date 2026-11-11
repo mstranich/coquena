@@ -56,6 +56,40 @@ internal static class ScopedBackendTests
             return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(Artifacts[operation.Files[file].SourcePath]) });
         }
     }
+    // Serves the archive one byte at a time so a cancellation arrives during the transfer.
+    internal sealed class SlowFixture : IDownloadTransport
+    {
+        private readonly Fixture inner = new();
+        public Action? Started;
+        public void Add(string build, string variant) => inner.Add(build, variant,
+            Archive(("llama-server.exe", System.Text.Encoding.UTF8.GetBytes(build[1..])), ("padding.bin", new byte[4096])));
+        public Task<BackendResolution> Resolve(HardwareContext hardware, string variant, string version, CancellationToken cancellation) =>
+            inner.Resolve(hardware, variant, version, cancellation);
+        public Task<HttpResponseMessage> OpenAsync(OperationDocument operation, int file, long offset, CancellationToken cancellation)
+        {
+            Started?.Invoke(); Started = null;
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+                { Content = new StreamContent(new SlowStream(inner.Artifacts[operation.Files[file].SourcePath])) });
+        }
+    }
+    private sealed class SlowStream(byte[] bytes) : Stream
+    {
+        private int position;
+        public override bool CanRead => true; public override bool CanSeek => false; public override bool CanWrite => false;
+        public override long Length => bytes.Length; public override long Position { get => position; set => throw new NotSupportedException(); }
+        public override void Flush() { }
+        public override int Read(byte[] buffer, int offset, int count) => ReadAsync(buffer, offset, count).GetAwaiter().GetResult();
+        public override async Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellation)
+        {
+            if (position >= bytes.Length) return 0;
+            await Task.Delay(5, cancellation);
+            buffer[offset] = bytes[position++];
+            return 1;
+        }
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => throw new NotSupportedException();
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+    }
     private static Task<string> Probe(string path, CancellationToken cancellation) => Task.FromResult($"version: {File.ReadAllText(path)} (abcdef)");
     private static async Task Expect(string code, Func<Task> action)
     {
@@ -208,6 +242,16 @@ internal static class ScopedBackendTests
         var movedExternal = await new ScopedBackends(moved).PrepareAsync(own.ServiceId, new(Executable: "./external.exe"), moved.Base, hardware, fixture);
         Check(movedExternal.Executable == Path.Combine(movedBase, "external.exe") && movedExternal.InstallationId == external.InstallationId,
             "project move keeps identity and resolves its relative external against new base");
+        // Cancelling while the transfer runs (TUI or download cancel) ends the preparation without installing anything.
+        var cancelling = Project(Path.Combine(root, "cancelling"));
+        var slow = new SlowFixture(); slow.Add("b1", "cpu");
+        var cancellingManager = new ScopedBackends(cancelling, slow.Resolve, Probe);
+        Guid? started = null;
+        slow.Started = () => _ = Task.Run(() => new ScopeTransfers(cancelling).ControlAsync(started!.Value, true));
+        await Expect("transfer-cancelled", () => cancellingManager.DownloadAsync(new("b1", "cpu"), hardware, slow,
+            progress: operation => started ??= operation.Id));
+        Check(new ScopeTransfers(cancelling).Downloads.List().Length == 0 && cancellingManager.List().All(resource =>
+                resource!["installations"]!.AsArray().Count == 0), "a cancelled preparation installs nothing and leaves no operation");
         Console.WriteLine($"OK: {checks} comprobaciones de backends por ámbito, latest/pins, externos, incompatibilidad/force, integridad, aislamiento y CLI" + (executable is null ? "." : " Native AOT."));
     }
     private sealed class Injected : Exception;

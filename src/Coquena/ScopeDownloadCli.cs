@@ -63,7 +63,7 @@ public static class ScopeDownloadCli
             {
                 transfers.ControlAsync(id, values[0] == "cancel").GetAwaiter().GetResult();
                 if (json) output.WriteLine(new JsonObject { ["operation-id"] = id.ToString("D"), ["action"] = values[0], ["confirmed"] = true }.ToJsonString());
-                else output.WriteLine($"{id:D}: {values[0]} confirmado en el ámbito seleccionado.");
+                else output.WriteLine($"{id:D}: descarga {(values[0] == "cancel" ? "cancelada" : "pausada")}.");
                 return 0;
             }
             var selected = transfers.Downloads.Status(id);
@@ -103,12 +103,12 @@ public static class ScopeDownloadCli
         catch (Exception e) when (e is BackendException or DownloadException or StorageException or ContractException or IOException or UnauthorizedAccessException or OperationCanceledException)
         {
             var code = e switch { BackendException b => b.Code, DownloadException d => d.Code, StorageException s => s.Code, ContractException c => c.Code, _ => "local-io-failed" };
-            error.WriteLine($"Error: {code}. Estado conservado en el ámbito seleccionado.");
+            error.WriteLine(DownloadCli.ErrorLine(code));
             if (code.StartsWith("checkpoint-write-failed-", StringComparison.Ordinal))
                 error.WriteLine("Falló la escritura del checkpoint local; no es una respuesta HTTP. Conserve el parcial.");
             return e is BackendException ? code == "invalid-selection" ? 2 : 5 : 1;
         }
     }
-    private static int Invalid(TextWriter error) { error.WriteLine("Error: argumentos de download inválidos. Consulte coquena --help."); return 2; }
+    private static int Invalid(TextWriter error) { error.WriteLine("Error: opciones no válidas para download. Consulte coquena --help."); return 2; }
     private static JsonObject Structured(OperationDocument operation) => JsonNode.Parse(ContractJson.Write(operation, ContractJsonContext.Default.OperationDocument))!.AsObject();
 }

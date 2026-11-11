@@ -88,7 +88,8 @@ internal static partial class DashboardCli
     internal static int RunDashboard(ISystemMetrics? metrics = null, HardwareProbe.AdapterEvidence? adapters = null)
     {
         const int Left = LivePresentation.TreeWidth, Right = Left + 1;
-        const int Live = 0, Definitions = 1, Settings = 2, Hardware = 3, History = 4, Notices = 5, Editing = 6;
+        const int Live = 0, Definitions = 1, Settings = 2, Hardware = 3, History = 4, Notices = 5, Editing = 6, DownloadsPage = 7;
+        const string Finished = "ya había terminado o fue retirada; no hubo cambios.";
         var targets = Discover(out var diagnostic);
         var preferences = new ConfigurationManager(Home.Resolve());
         var hardware = metrics ?? SystemMetrics.Create();
@@ -117,6 +118,9 @@ internal static partial class DashboardCli
         var noticeTitle = new Canvas(useColor) { Y = 1, Height = 1, ZoneName = "hd", Interactive = true };
         var noticeList = new Lines(useColor) { Y = 2, ShowSelectionWithoutFocus = false };
         var definitionDetail = new Canvas(useColor) { X = Right, Y = 2, Interactive = true, Scrollable = true };
+        // N · Descargas: full width, one title row and the grouped operations.
+        var downloadTitle = new Canvas(useColor) { Y = 1, Height = 1, ZoneName = "hd" };
+        var downloadDetail = new Canvas(useColor) { Y = 2, Interactive = true, Scrollable = true };
         rightTitle.Interactive = true;
 
         // Publication controls kept for the recipe actions; Definiciones shows them disabled.
@@ -137,7 +141,7 @@ internal static partial class DashboardCli
         settingsView.Add(settings.Coquena, settings.Tui, systemDetail);
 
         window.Add(tabs, leftTitle, rightTitle, tree, detail, tasks, logTitle, logLines, hardwareDetail,
-            historyTitle, historyControls, regex, historyLines, historyFooter, noticeTitle, noticeList, definitionDetail, pageView, settingsView, bar);
+            historyTitle, historyControls, regex, historyLines, historyFooter, noticeTitle, noticeList, definitionDetail, downloadTitle, downloadDetail, pageView, settingsView, bar);
         window.Add(recipeEditor.Views.ToArray());
         if (useColor)
         {
@@ -224,8 +228,12 @@ internal static partial class DashboardCli
         var maintenanceViews = new Dictionary<string, MaintenanceView>();
         var managementJobs = new Dictionary<string, Task<string>>();
         var transferClock = new Stopwatch();
-        var knownTransfers = new List<(DefinitionsSource.Place Place, Coquena.Contracts.OperationDocument Operation)>();
+        // Descargas: Global and the current project only; other known projects are not listed.
+        var transferGroups = new List<(DefinitionsSource.Place Place, ScopeContext Context, DownloadsPresentation.Group Group)>();
+        var transferSamples = new Dictionary<Guid, (long Done, DateTimeOffset At, double? Speed)>();
+        var transferProblems = new List<string>();
         var transferCount = 0;
+        string? transferIndicator = null;
         string? transferProblem = null;
 
         rightTitle.Pressed += DefinitionAction;
@@ -237,6 +245,7 @@ internal static partial class DashboardCli
         };
         recipeEditor.Tools.Pressed += EditorAction;
         definitionDetail.Pressed += DefinitionAction;
+        downloadDetail.Pressed += DownloadAction;
 
         // Events.
         tabs.Pressed += action =>
@@ -247,19 +256,7 @@ internal static partial class DashboardCli
                 case "tab1": Open(Definitions); break;
                 case "tab2": Open(Settings); break;
                 case "notices": Open(Notices); break;
-                case "downloads":
-                    Open(Definitions);
-                    var destinations = places.Where(place => place.Context is not null && place.Scope.Accessible).ToArray();
-                    var choice = Choose(app, "Descargas · elegir ámbito", destinations.Select(place => place.Scope.Name + " · " +
-                        knownTransfers.Count(item => SameScope(item.Place.Context!, place.Context!)) + " operaciones").ToArray(), "Abrir");
-                    if (choice is int selected && selected < destinations.Length)
-                    {
-                        focusedPlace = places.IndexOf(destinations[selected]);
-                        definitionView = "Descargas";
-                        definitionPage = null;
-                        Render();
-                    }
-                    break;
+                case "downloads": Open(DownloadsPage); break;
             }
         };
         bar.Pressed += action =>
@@ -443,7 +440,7 @@ internal static partial class DashboardCli
             Arrange();
             Render();
             if (page == Editing) { recipeEditor.Show(recipeEditor.Current); return; }
-            (page switch { Hardware or Settings or Live or Definitions => tree, Notices => noticeList, _ => (View)historyLines }).SetFocus();
+            (page switch { Hardware or Settings or Live or Definitions => tree, Notices => noticeList, DownloadsPage => downloadDetail, _ => (View)historyLines }).SetFocus();
         }
 
         void Tick()
@@ -464,26 +461,17 @@ internal static partial class DashboardCli
                 if (job.Key.StartsWith("service:", StringComparison.Ordinal)) RefreshTargets();
                 var message = job.Value.IsCompletedSuccessfully ? job.Value.Result : job.Value.Exception?.GetBaseException().Message ?? "Operación cancelada.";
                 // Hub queries are navigation: their result is the page itself, only failures are notices.
-                if (!(job.Key.StartsWith("hf:", StringComparison.Ordinal) && job.Value.IsCompletedSuccessfully))
+                // A preparation whose transfer was cancelled ends without installing anything; it is not an error.
+                if (job.Value.Exception?.GetBaseException() is Coquena.Downloads.DownloadException { Code: "transfer-cancelled" } cancelled)
+                    Notify("▲", "warn", cancelled.Message, -1);
+                else if (!(job.Key.StartsWith("hf:", StringComparison.Ordinal) && job.Value.IsCompletedSuccessfully))
                     Notify(job.Value.IsCompletedSuccessfully ? "✓" : "✗", job.Value.IsCompletedSuccessfully ? "ok" : "err", message, -1);
                 Render();
             }
             if (!transferClock.IsRunning || transferClock.Elapsed >= CaptureInterval)
             {
                 transferClock.Restart();
-                var transfers = new List<(DefinitionsSource.Place, Coquena.Contracts.OperationDocument)>();
-                string? problem = null;
-                foreach (var place in definitionSource.Places().Where(place => place.Context is not null && place.Scope.Accessible))
-                {
-                    try { transfers.AddRange(TransferList(place.Context!).Select(operation => (place, operation))); }
-                    catch (Exception error) when (ManagementError(error)) { problem = place.Scope.Name + ": " + error.Message; }
-                }
-                knownTransfers = transfers;
-                transferCount = knownTransfers.Count(item => item.Operation.State is not ("completed" or "failed" or "cancelled"));
-                if (problem is not null && problem != transferProblem) Notify("✗", "err", "Descargas · " + problem, -1);
-                transferProblem = problem;
-                // Descargas follows the persisted progress of its operations.
-                if (page == Definitions && definitionView == "Descargas") { definitionPage = null; Render(); }
+                ReadTransfers();
             }
             if (operation is { IsCompleted: true } completed)
             {
@@ -567,6 +555,8 @@ internal static partial class DashboardCli
             historyLines.Height = content - 4;
             historyFooter.Y = content;
             noticeTitle.Visible = noticeList.Visible = notice;
+            downloadTitle.Visible = downloadDetail.Visible = page == DownloadsPage;
+            downloadDetail.Height = content - 1;
             noticeList.Height = content - 1;
             recipeRow.Visible = false;
             settingsView.Visible = settingsPage;
@@ -639,7 +629,8 @@ internal static partial class DashboardCli
         void Render()
         {
             var now = DateTimeOffset.UtcNow;
-            tabs.Rows = [LivePresentation.Tabs(page is Definitions or Editing ? 1 : page is Settings ? 2 : 0, transferCount, unread)];
+            tabs.Rows = [LivePresentation.Tabs(page is Definitions or Editing ? 1 : page is Settings ? 2 : page is DownloadsPage ? 3 : 0,
+                transferCount, unread, transferIndicator)];
             RenderBar(now);
             switch (page)
             {
@@ -647,6 +638,7 @@ internal static partial class DashboardCli
                 case Hardware: RenderHardware(now); break;
                 case History: RenderHistory(); break;
                 case Notices: RenderNotices(); break;
+                case DownloadsPage: RenderDownloads(); break;
                 case Definitions: RenderDefinitions(); break;
                 case Editing: recipeEditor.Render(window.Viewport.Width); break;
                 default: RenderSettings(); break;
@@ -847,6 +839,104 @@ internal static partial class DashboardCli
             return at == 0 ? LivePresentation.LogRow(row) : text + Markup.Escape(row[at..]);
         }
 
+        // Reads Global and the current project; a scope that cannot be read is reported without hiding the other.
+        void ReadTransfers()
+        {
+            var groups = new List<(DefinitionsSource.Place, ScopeContext, DownloadsPresentation.Group)>();
+            var problems = new List<string>();
+            string? problem = null;
+            var now = DateTimeOffset.UtcNow;
+            var seen = new HashSet<Guid>();
+            foreach (var place in definitionSource.Places().Where(place => place.Scope.Global || place.Scope.Here))
+            {
+                if (!place.Scope.Accessible) { problems.Add("No se puede abrir la carpeta de " + place.Scope.Name + "."); continue; }
+                // A folder without recipe can already hold a local scope created by the CLI.
+                var context = place.Context ?? (place.Scope.Here && place.Folder is { } folder && Directory.Exists(Path.Combine(folder, ".coquena"))
+                    ? ScopeContext.Project(Path.Combine(folder, "coquena.yaml")) : null);
+                if (context is null) continue;
+                try
+                {
+                    var items = TransferList(context).Select(operation => TransferItem(context, operation, now)).ToArray();
+                    seen.UnionWith(items.Select(item => item.Id));
+                    groups.Add((place, context, new(place.Scope.Name, place.Scope.Here && !place.Scope.Global, items)));
+                }
+                catch (Exception error) when (ManagementError(error))
+                {
+                    problems.Add("No se pudieron leer las descargas de " + place.Scope.Name + ".");
+                    problem = place.Scope.Name + ": " + error.Message;
+                }
+            }
+            foreach (var gone in transferSamples.Keys.Where(id => !seen.Contains(id)).ToArray()) transferSamples.Remove(gone);
+            transferGroups = groups;
+            transferProblems = problems;
+            var all = groups.SelectMany(group => group.Item3.Items).ToArray();
+            transferCount = all.Count(item => DownloadsPresentation.Visible(item.State) && DownloadsPresentation.Rank(item.State) == 0);
+            transferIndicator = DownloadsPresentation.Indicator(all);
+            if (problem is not null && problem != transferProblem) Notify("✗", "err", "Descargas · " + problem, -1);
+            transferProblem = problem;
+        }
+
+        // Speed comes from the confirmed bytes between two reads; the start is the operation folder's creation.
+        DownloadsPresentation.Item TransferItem(ScopeContext context, Coquena.Contracts.OperationDocument operation, DateTimeOffset now)
+        {
+            var row = TransferRow(operation);
+            double? speed = null;
+            if (transferSamples.TryGetValue(operation.Id, out var last) && (now - last.At).TotalSeconds > 0 && row.Done >= last.Done)
+                speed = row.Done > last.Done ? (row.Done - last.Done) / (now - last.At).TotalSeconds : last.Speed;
+            transferSamples[operation.Id] = (row.Done, now, speed);
+            // Operations created before CreatedAt existed fall back to their folder's creation time.
+            var started = operation.CreatedAt ?? operation.UpdatedAt;
+            if (operation.CreatedAt is null)
+                try
+                {
+                    var folder = context.PathFor("downloads/" + operation.Id.ToString("D"));
+                    if (Directory.Exists(folder)) started = Directory.GetCreationTimeUtc(folder);
+                }
+                catch (Exception error) when (error is IOException or UnauthorizedAccessException or StorageException) { }
+            return new(operation.Id, row.Name, row.Kind, row.State, row.Phase, row.Done, row.Total, row.Diagnostic, started,
+                operation.State == "downloading" ? speed : null);
+        }
+
+        void RenderDownloads()
+        {
+            var groups = transferGroups.Select(item => item.Group).ToArray();
+            downloadTitle.Rows = [" " + DownloadsPresentation.Title(groups) + " "];
+            downloadDetail.Rows = DownloadsPresentation.Rows(groups, transferProblems);
+        }
+
+        // Pausar, Reanudar, Cancelar and Reintentar act on the operation of the row's own scope.
+        void DownloadAction(string action)
+        {
+            if (page != DownloadsPage) return;
+            var split = action.Split(':', 3);
+            if (split.Length != 3 || split[0] is not ("pause" or "resume" or "cancel") ||
+                !int.TryParse(split[1], CultureInfo.InvariantCulture, out var group) || group < 0 || group >= transferGroups.Count ||
+                !Guid.TryParse(split[2], out var operationId)) return;
+            var (place, context, _) = transferGroups[group];
+            try
+            {
+                if (split[0] == "cancel" && Query(app, "Cancelar descarga", "Se borrará lo descargado hasta ahora.", "No cancelar", "Cancelar descarga") != 1) return;
+                var label = "Descarga " + Transfers(context).Downloads.Status(operationId).Name + " · " + place.Scope.Name;
+                ManagementJob(split[0] + ":" + context.Root + operationId, async () =>
+                {
+                    try
+                    {
+                        if (split[0] == "resume") return label + ": " + await ResumeTransfer(context, operationId, app, stop.Token);
+                        await Transfers(context).ControlAsync(operationId, split[0] == "cancel", stop.Token);
+                    }
+                    // The transfer finished or was removed while the confirmation was open.
+                    catch (Coquena.Downloads.DownloadException error) when (error.Code == "not-found") { return label + ": " + Finished; }
+                    return label + ": " + (split[0] == "cancel" ? "cancelada." : "pausada.");
+                });
+            }
+            catch (Coquena.Downloads.DownloadException error) when (error.Code == "not-found")
+            {
+                transferClock.Reset();
+                Query(app, "Descarga", "La descarga " + Finished, "Aceptar");
+            }
+            catch (Exception error) when (ManagementError(error)) { Query(app, "No se completó la operación", error.Message, "Aceptar"); }
+        }
+
         void RenderNotices()
         {
             noticeTitle.Rows = [" Notificaciones{pad}" + Markup.Style("btn", " Marcar leídas ", "read") + "  " + Markup.Style("btn", " Volver ", "back") + " "];
@@ -887,10 +977,6 @@ internal static partial class DashboardCli
                         definitionPage = ManagementPresentation.Services(place.Scope.Name, place.Scope.Global, services, selected,
                             Math.Max(20, window.Viewport.Width - Right));
                     }
-                    else if (definitionView == "Descargas" && place.Context is not null)
-                        definitionPage = ManagementPresentation.Downloads(place.Scope.Name,
-                            TransferList(place.Context).Select(operation => (operation.Id, TransferRow(operation))).ToArray(),
-                            Math.Max(20, window.Viewport.Width - Right));
                     else if (definitionView is "Backends" or "Modelos" && place.Context is not null)
                     {
                         var backend = definitionView == "Backends";
@@ -1219,7 +1305,7 @@ internal static partial class DashboardCli
                     else Render();
                     return;
                 }
-                if (action == "downloads") { definitionView = "Descargas"; definitionPage = null; Render(); return; }
+                if (action == "downloads") { Open(DownloadsPage); return; }
                 if (action.StartsWith("maintenance-", StringComparison.Ordinal))
                 {
                     if (!maintenanceViews.TryGetValue(context.Root, out var state)) maintenanceViews[context.Root] = state = new();
@@ -1551,19 +1637,6 @@ internal static partial class DashboardCli
                     if (chosen.Selection.Files.Any(file => !File.Exists(file)))
                     { OpenEditor(chosen.Selection, place.Scope.Name, chosen.Private, combinationNewFiles.GetValueOrDefault(context.Root)); return; }
                     BeginPublication("up", chosen.Selection, place.Scope.Name, chosen.Private);
-                    return;
-                }
-                var split = action.Split(':', 2);
-                if (split.Length == 2 && Guid.TryParse(split[1], out var operationId) && split[0] is "pause" or "resume" or "cancel")
-                {
-                    if (split[0] == "cancel" && Query(app, "Cancelar descarga", "Se retirarán los parciales propios de esta operación.", "Conservar", "Cancelar descarga") != 1) return;
-                    var label = "Descarga " + Transfers(context).Downloads.Status(operationId).Name + " · " + place.Scope.Name;
-                    ManagementJob(split[0] + ":" + context.Root + operationId, async () =>
-                    {
-                        if (split[0] == "resume") return label + ": " + await ResumeTransfer(context, operationId, app, stop.Token);
-                        await Transfers(context).ControlAsync(operationId, split[0] == "cancel", stop.Token);
-                        return label + ": " + (split[0] == "cancel" ? "cancelada." : "pausada.");
-                    });
                     return;
                 }
                 var selected = managedSelection.GetValueOrDefault(context.Root);
@@ -2234,7 +2307,7 @@ internal static partial class DashboardCli
     internal static List<Target> Discover(out string diagnostic, string? directory = null, Home? selectedHome = null)
     {
         var targets = new List<Target>();
-        diagnostic = "Sin servicios registrados en el ámbito global o en este proyecto.";
+        diagnostic = "No hay servicios en Global ni en esta carpeta.";
         if (!OperatingSystem.IsWindows())
         {
             diagnostic = "La observación de servicios registrados está disponible en Windows.";

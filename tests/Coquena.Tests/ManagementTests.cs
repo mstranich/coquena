@@ -85,12 +85,43 @@ internal static class ManagementTests
                 "official creation preserves explicit build, variant and process settings without a download");
 
             var id = Guid.NewGuid(); var other = Guid.NewGuid();
-            var downloads = ManagementPresentation.Downloads("Global", [(id, new("same name", "model", "paused", "transfer", 5, 10, null)),
-                (other, new("same name", "backend", "failed", "transfer", 5, 10, "connection"))], 56);
-            var controls = downloads.Rows.SelectMany(Markup.Parse).Select(span => span.Action).OfType<string>().ToArray();
-            check(controls.Contains("resume:" + id) && controls.Contains("cancel:" + id) && controls.Contains("resume:" + other),
-                "transfer controls distinguish persisted operation ids even when names match");
-            check(downloads.Rows.All(row => Markup.Width(Markup.Fit(row, 56)) == 56), "transfer rows fit the 80-column layout");
+            var start = DateTimeOffset.UtcNow;
+            DownloadsPresentation.Item Transfer(Guid key, string name, string kind, string state, int minutes, string? diagnostic = null) =>
+                new(key, name, kind, state, "transfer", 5, 10, diagnostic, start.AddMinutes(minutes), state == "downloading" ? 1_000_000 : null);
+            DownloadsPresentation.Group[] groups =
+            [
+                new("Global", false, [Transfer(Guid.NewGuid(), "gemma", "model", "downloading", 1), Transfer(Guid.NewGuid(), "cuda@13", "backend", "downloading", 0)]),
+                new("código", true,
+                [
+                    Transfer(other, "same name", "companion", "failed", 9, "connection-interrupted"), Transfer(id, "same name", "companion", "paused", 1),
+                    Transfer(Guid.NewGuid(), "older", "model", "downloading", 2), Transfer(Guid.NewGuid(), "newer", "model", "downloading", 5),
+                    Transfer(Guid.NewGuid(), "done", "model", "completed", 7), Transfer(Guid.NewGuid(), "gone", "model", "cancelled", 8)
+                ]),
+                new("vacío", false, [Transfer(Guid.NewGuid(), "finished", "model", "completed", 0)])
+            ];
+            var downloadRows = DownloadsPresentation.Rows(groups, ["No se pudieron leer las descargas de notas."]).ToList();
+            var plain = downloadRows.Select(Markup.Plain).Select(row => row.Trim()).Where(row => row.Length > 0 && !row.StartsWith("❚❚ Pausar", StringComparison.Ordinal) &&
+                !row.StartsWith("Reanudar", StringComparison.Ordinal) && !row.StartsWith("Reintentar", StringComparison.Ordinal) && !row.StartsWith("Cancelar", StringComparison.Ordinal))
+                .Select(row => row.Split("  ")[0]).ToArray();
+            check(plain.SequenceEqual(["Global", "BACKENDS", "cuda@13", "MODELOS", "gemma", "código (esta carpeta)", "MODELOS", "newer", "older",
+                    "AUXILIARES", "same name", "same name", "▲ No se pudieron leer las descargas de notas."]),
+                "Descargas groups by scope then backends, models and companions; newest first; hides finished and empty scopes");
+            var controls = downloadRows.SelectMany(Markup.Parse).Select(span => span.Action).OfType<string>().ToArray();
+            check(controls.Contains("resume:1:" + id) && controls.Contains("cancel:1:" + id) && controls.Contains("resume:1:" + other) &&
+                controls.Contains("cancel:1:" + other) && controls.Contains("pause:0:" + groups[0].Items[1].Id),
+                "every row acts on its own scope and operation; failed ones offer Reintentar and Cancelar");
+            check(downloadRows.IndexOf(downloadRows.First(row => Markup.Plain(row).Contains("✗ se cortó la conexión"))) >
+                downloadRows.IndexOf(downloadRows.First(row => Markup.Plain(row).Contains("❚❚ pausada"))), "failed transfers go after paused ones");
+            check(downloadRows.All(row => Markup.Width(row) <= 80), "transfer rows fit 80 columns");
+            check(Markup.Plain(DownloadsPresentation.Title(groups)) == "Descargas  4 activas · 1 pausada · 1 con error" &&
+                DownloadsPresentation.Indicator(groups.SelectMany(group => group.Items).ToArray()).StartsWith("⇣ 4 · 50% · ", StringComparison.Ordinal) &&
+                DownloadsPresentation.Indicator(groups.SelectMany(group => group.Items).ToArray()).EndsWith("/s", StringComparison.Ordinal) &&
+                Markup.Plain(DownloadsPresentation.Rows([], [])[0]).Trim() == "No hay descargas." &&
+                Markup.Plain(DownloadsPresentation.Title([])) == "Descargas" && DownloadsPresentation.Failure("model-transfer-interrupted") == "se cortó la descarga" && DownloadsPresentation.Failure("cleanup-pending") == "falló la descarga" && DownloadCli.ErrorLine("model-transfer-interrupted").StartsWith("Error: se cortó la descarga (model-transfer-interrupted).", StringComparison.Ordinal) && DownloadCli.ErrorLine("invalid-selector") == "Error: invalid-selector. Se conserva lo hecho hasta ahora." && DownloadCli.ErrorLine("transfer-cancelled") == "La descarga fue cancelada; no se instaló nada.",
+                "title, ⇣ indicator and empty tab");
+            check(Markup.Plain(Markup.Fit(LivePresentation.Tabs(3, 1, 0, "⇣ 1 · 68%"), 80)).Contains(" ⇣ 1 · 68% ") &&
+                Markup.Parse(Markup.Fit(LivePresentation.Tabs(3, 1, 0, "⇣ 1 · 68%"), 80)).Any(span => span.Class == "sel" && span.Action == "downloads"),
+                "the ⇣ tab is highlighted while active");
             var localFolder = Path.Combine(root, "unregistered"); Directory.CreateDirectory(localFolder);
             File.WriteAllText(Path.Combine(localFolder, "coquena.yaml"), "name: fresh\nservice:\n  backend:\n    version: latest\n    variant: cpu\n");
             var localPlace = new DashboardCli.DefinitionsSource(home, localFolder).Places().Single(place => place.Scope.Here);

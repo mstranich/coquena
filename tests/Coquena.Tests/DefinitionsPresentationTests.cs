@@ -21,13 +21,13 @@ internal static class DefinitionsPresentationTests
             new("nuevo", false, false, true, false)
         ];
         var tree = View.Tree(scopes, 1);
-        check(tree.Count == 5 + 9 && tree.Count(node => node.View is not null) == 9 && tree.Where(node => node.View is not null).All(node => node.Scope == 1),
+        check(tree.Count == 5 + 8 && tree.Count(node => node.View is not null) == 8 && tree.Where(node => node.View is not null).All(node => node.Scope == 1),
             "only the focused scope is expanded");
         var rows = tree.Select(node => Markup.Plain(View.TreeRow(node, scopes, 1, false))).ToArray();
         check(rows[0] == " ▸ Global" && rows[1] == " ▾ código · aquí" && rows[2] == "  Recetas" && rows.Contains(" ✗ cli-project"),
             "scope headers show collapsed, expanded, here and inaccessible");
         check(tree.All(node => Markup.Width(View.TreeRow(node, scopes, 1, true)) == View.TreeWidth), "the selected tree row fills the column");
-        check(View.Views(scopes[0]).SequenceEqual(["Servicios", "Presets", "Modelos", "Backends", "Parámetros", "Descargas", "Actualizaciones", "Mantenimiento"]) &&
+        check(View.Views(scopes[0]).SequenceEqual(["Servicios", "Presets", "Modelos", "Backends", "Parámetros", "Actualizaciones", "Mantenimiento"]) &&
               View.Views(scopes[4]).SequenceEqual(["Receta"]) && View.Views(scopes[3]).Length == 0,
             "Global, a recipe, a folder without recipe and an inaccessible path offer their views");
 
@@ -39,7 +39,6 @@ internal static class DefinitionsPresentationTests
             View.Models("Global", [new("gemma-4-12B-it-qat Q4_0", false, false, 7_600_000_000, true), new("mi-modelo.gguf", false, true, null, false)]),
             View.Backends("Global", [new("cuda@13", "b6120", false, 435_000_000, true)]),
             View.Parameters("Global", Enumerable.Range(0, 40).Select(i => new View.Parameter("p" + i, "entero", "modelo", null)).ToArray(), 20),
-            View.Downloads("Global", [new("gemma", "model", "running", "transfer", 50, 100, null), new("qwen", "model", "completed", "done", 10, 10, null)], Width),
             View.Updates("código", DateTimeOffset.Now, [new("backend llama.cpp", "b6120", "b6188", null)]),
             View.Maintenance("código"),
             View.NoRecipe("nuevo")
@@ -55,8 +54,6 @@ internal static class DefinitionsPresentationTests
               pages[0].Rows.SelectMany(Markup.Parse).Where(span => span.Text.Contains("Up")).All(span => span.Class == "off"),
             "recipes mark the current and private combinations and show Up disabled");
         check(Markup.Plain(pages[5].Rows[^3]).Contains("más"), "a long parameter list says how many rows are left out");
-        check(Markup.Plain(pages[6].Rows[1]).Contains("50%") && pages[6].Rows.Any(row => Markup.Plain(row).Contains("TERMINADAS")),
-            "downloads show progress and finished operations");
         check(Markup.Plain(View.Updates("x", null, []).Rows[0]).Contains("Sin plan"), "without a recorded plan updates say so");
     }
 

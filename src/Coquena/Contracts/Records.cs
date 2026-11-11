@@ -105,7 +105,9 @@ public sealed record OperationDocument(int SchemaVersion, Guid Id, string Resour
     string? Diagnostic, BackendInstallPlan? BackendInstall = null, ModelInstallPlan? ModelInstall = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] ScopePublicationPlan? ScopePublication = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] TransferExecutor? Executor = null,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] TransferIncident? LastIncident = null);
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] TransferIncident? LastIncident = null,
+    // Set once when the operation is created; older operations do not have it.
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] DateTimeOffset? CreatedAt = null);
 
 public sealed record TransferIncident(string Reason, int FileIndex, long Offset, int ConsecutiveFailures,
     int RetryLimit, long WaitMilliseconds, DateTimeOffset At);

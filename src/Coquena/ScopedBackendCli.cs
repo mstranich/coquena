@@ -137,7 +137,7 @@ public static class ScopedBackendCli
         {
             var code = e switch { BackendException b => b.Code, RecipeException r => r.Code, StorageException s => s.Code,
                 DownloadException d => d.Code, ContractException c => c.Code, _ => "backend-preparation-failed" };
-            error.WriteLine($"Error: {code}. Consulte coquena --help.");
+            error.WriteLine(e is DownloadException ? DownloadCli.ErrorLine(code) : $"Error: {code}. Consulte coquena --help.");
             if (e is OperationCanceledException) return 130;
             if (code is "backend-incompatible" or "unsupported-platform" or "no-candidate") return 5;
             if (code is "backend-integrity-invalid") return 6;

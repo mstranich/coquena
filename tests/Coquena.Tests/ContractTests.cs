@@ -43,7 +43,12 @@ internal static class ContractTests
             split.Files.Select(f => new TransferRecord(f.Path, "downloads/1/files/" + f.Path + ".part",
                 "models/fixture/tiny/" + f.Path, 4, f.Size, null, "\"transport-tag\"", null, "paused")).ToArray(),
             "paused", "transfer", DateTimeOffset.Parse("2026-10-07T12:00:00Z"), "Interrupción de fixture");
-        Round(operation, context.OperationDocument, ContractValidation.Operation);
+        var withoutCreation = Round(operation, context.OperationDocument, ContractValidation.Operation);
+        // Operations written before createdAt existed still read; new ones keep their creation date.
+        var created = Round(operation with { CreatedAt = DateTimeOffset.Parse("2026-10-07T11:00:00Z") }, context.OperationDocument, ContractValidation.Operation);
+        if (withoutCreation.Contains("createdAt") || !created.Contains("\"createdAt\": \"2026-10-07T11:00:00+00:00\""))
+            throw new Exception("createdAt opcional mal serializado.");
+        Fails(() => Round(operation with { CreatedAt = default(DateTimeOffset) }, context.OperationDocument, ContractValidation.Operation));
         var artifacts = new RemoteFile[] { new("backend.zip", 16), new("libraries.zip", null) };
         var backendOperation = operation with { ResourceKind = "backend", ModelSelection = null,
             BackendSelection = new("ggml", "b1234", "cpu", "cpu", "win-x64", artifacts),

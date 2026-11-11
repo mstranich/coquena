@@ -5,7 +5,7 @@ version: 1
 features:
   - id: terminal-service-dashboard
     intent: Gestionar servicios, recetas, presets y parámetros, importar intención y aplicar planes de actualización desde Definiciones; observar hardware compartido, entradas y logs en En vivo.
-    keywords: [tui, dashboard, Terminal.Gui, project, recipe, preset, param, import, update, upgrade, combination, up, down, services, hardware, logs]
+    keywords: [tui, dashboard, Terminal.Gui, project, recipe, preset, param, import, update, upgrade, combination, up, down, services, hardware, logs, downloads tab]
     entrypoints:
       - src/Coquena/Cli.cs
       - src/Coquena/DashboardCli.cs
@@ -18,6 +18,7 @@ features:
       - src/Coquena/Observation/DashboardPresentation.cs
       - src/Coquena/Observation/LivePresentation.cs
       - src/Coquena/Observation/DefinitionsPresentation.cs
+      - src/Coquena/Observation/DownloadsPresentation.cs
       - src/Coquena/DashboardDefinitions.cs
       - src/Coquena/DashboardManagement.cs
       - src/Coquena/DashboardEditor.cs
@@ -58,6 +59,7 @@ features:
       - docs/design/ui-servicio.md
       - docs/design/tui/README.md
       - docs/design/tui/A-en-vivo.salt.puml
+      - docs/design/tui/N-definiciones-descargas.salt.puml
   - id: continuous-service-observation
     intent: Seguir servicios por identidad con snapshots reconciliados y eventos acotados sin controlar el backend.
     keywords: [ps, watch, SSE, reconnect, cancellation, observer-retry]

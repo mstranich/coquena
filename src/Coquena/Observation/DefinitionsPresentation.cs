@@ -25,9 +25,9 @@ internal static class DefinitionsPresentation
     public static string Off(string text) => Style("off", " " + text + " ");
 
     public static string[] Views(Scope scope) => !scope.Accessible ? []
-        : scope.Global ? ["Servicios", "Presets", "Modelos", "Backends", "Parámetros", "Descargas", "Actualizaciones", "Mantenimiento"]
+        : scope.Global ? ["Servicios", "Presets", "Modelos", "Backends", "Parámetros", "Actualizaciones", "Mantenimiento"]
         : !scope.HasRecipe ? ["Receta"]
-        : ["Recetas", "Presets", "Servicio", "Modelos", "Backends", "Parámetros", "Descargas", "Actualizaciones", "Mantenimiento"];
+        : ["Recetas", "Presets", "Servicio", "Modelos", "Backends", "Parámetros", "Actualizaciones", "Mantenimiento"];
 
     // Scope headers and, under the focused scope only, its views.
     public static IReadOnlyList<Node> Tree(IReadOnlyList<Scope> scopes, int focused)
@@ -148,41 +148,6 @@ internal static class DefinitionsPresentation
     }
 
     // With operation ids the controls are enabled and carry "pause:", "resume:" or "cancel:" plus the id.
-    public static Page Downloads(string scope, IReadOnlyList<Download> items, int width, IReadOnlyList<Guid>? ids = null)
-    {
-        string Control(Download item, string text, string action) => ids is null ? Off(text)
-            : Style("btn", " " + text + " ", action + ":" + ids[items.ToList().IndexOf(item)]);
-        static bool Stopped(Download item) => item.State is "paused" or "interrupted";
-        var active = items.Where(item => item.State is not ("completed" or "failed" or "cancelled")).ToArray();
-        var finished = items.Except(active).ToArray();
-        var rows = new List<string>();
-        foreach (var item in active)
-        {
-            rows.Add(" " + Escape(item.Name) + "{pad}" + Style("mut", item.Kind) + " ");
-            var ratio = item.Total is > 0 ? Math.Clamp(item.Done / (double)item.Total.Value, 0, 1) : (double?)null;
-            var bar = Math.Max(10, width - 24);
-            var filled = ratio is { } r ? (int)Math.Round(r * bar) : 0;
-            rows.Add(" " + Style(Stopped(item) ? "mut" : "foc", new string('█', filled) + new string('░', bar - filled)) +
-                (ratio is { } shown ? " " + LivePresentation.Number(shown * 100, "0") + "%" : "") + "  " +
-                DashboardPresentation.Compact(item.Done) + (item.Total is { } total ? "/" + DashboardPresentation.Compact(total) : ""));
-            rows.Add(" " + (item.State == "paused" ? Style("warn", "❚❚ pausada") : item.State == "interrupted" ? Style("warn", "▲ interrumpida")
-                    : Style("mut", item.Phase)) + "{pad}" +
-                (Stopped(item) ? Control(item, "Reanudar", "resume") : Control(item, "❚❚ Pausar", "pause")) + " " + Control(item, "Cancelar", "cancel") + " ");
-            rows.Add("");
-        }
-        if (finished.Length > 0)
-        {
-            rows.Add(" " + Style("mut", "TERMINADAS"));
-            rows.AddRange(finished.Select(item => " " + Escape(Cell(item.Name, 28)) + " " +
-                (item.State == "completed" ? Style("ok", "✓") + " " + DashboardPresentation.Compact(item.Done)
-                    : Style("err", "✗") + " " + Escape(item.Diagnostic ?? item.State) +
-                        (item.State == "failed" && ids is not null ? " " + Control(item, "Reintentar", "resume") : ""))));
-        }
-        if (items.Count == 0) rows.Add(" " + Style("mut", "Sin operaciones de descarga."));
-        var summary = active.Length == 0 ? "" : Style("mut", active.Count(item => !Stopped(item)) + " activas · " + active.Count(Stopped) + " pausadas");
-        return new("Descargas de " + Escape(scope) + "{pad}" + summary + " ", rows);
-    }
-
     public static Page Updates(string scope, DateTimeOffset? planned, IReadOnlyList<Update> items)
     {
         var rows = new List<string>();
@@ -209,7 +174,7 @@ internal static class DefinitionsPresentation
 
     public static Page NoRecipe(string folder) =>
         new(Escape(folder) + "  " + Style("mut", "sin coquena.yaml"),
-            ["", " " + Style("btnf", " Inicializar ", "init"), "", " " + Style("mut", "crea coquena.yaml como coquena init; la receta toma el nombre " + folder)]);
+            ["", " " + Style("btnf", " Inicializar ", "init"), "", " " + Style("mut", "Crea el archivo de configuración de esta carpeta (coquena.yaml) con el nombre " + folder + ".")]);
 
     public static Page Inaccessible(string name) =>
         new(Escape(name), ["", " " + Style("err", "✗") + " " + Style("mut", "La ruta del proyecto ya no se puede resolver.")]);

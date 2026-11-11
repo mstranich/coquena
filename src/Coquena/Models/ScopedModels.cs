@@ -214,7 +214,10 @@ public sealed partial class ScopedModels(ScopeContext context)
             $"Operación {result.Id:D}: {result.Diagnostic ?? result.State}" +
             (result.LastIncident is { } incident ? $" ({incident.Reason}, offset {incident.Offset} bytes, {incident.ConsecutiveFailures} fallos consecutivos)" : "") +
             $". Consultar download status {result.Id:D} o continuar con download resume {result.Id:D} en el mismo ámbito.");
-        resource = List(selected.CompanionType is not null).Single(r => r!["resource-id"]!.GetValue<string>() == operation.ScopePublication!.ResourceId.ToString("D"));
+        resource = List(selected.CompanionType is not null).SingleOrDefault(r => r!["resource-id"]!.GetValue<string>() == operation.ScopePublication!.ResourceId.ToString("D"));
+        // Someone cancelled the transfer (TUI or download cancel): nothing was installed.
+        if (resource is null || !resource["installations"]!.AsArray().Any(i => i!["installation-id"]!.GetValue<string>() == operation.ScopePublication!.InstallationId.ToString("D")))
+            throw new DownloadException("transfer-cancelled", "Descarga cancelada; no se instaló el modelo.");
         return Prepared(resource!, resource!["installations"]!.AsArray().Single(i => i!["installation-id"]!.GetValue<string>() == operation.ScopePublication!.InstallationId.ToString("D"))!);
     }
     private static bool Same(RemoteSelection a, RemoteSelection b) => a.Repository == b.Repository && a.Commit == b.Commit &&

@@ -15,7 +15,7 @@ public static class DownloadCli
     {
         if (!Valid(args))
         {
-            error.WriteLine("Error: argumentos de download inválidos. Consulte coquena --help."); return 2;
+            error.WriteLine("Error: opciones no válidas para download. Consulte coquena --help."); return 2;
         }
         try
         {
@@ -100,6 +100,16 @@ public static class DownloadCli
         (args.Length == 1 && args[0] is "list" or "status") ||
         (args.Length == 2 && args[0] == "list" && args[1] is "--model" or "--companion" or "--backend") ||
         (args.Length == 2 && args[0] is "status" or "pause" or "resume" or "cancel" && Guid.TryParse(args[1], out var id) && id != Guid.Empty);
+
+    // Keeps the code for diagnosis and says what happened when it is a known transfer problem.
+    internal static string ErrorLine(string code)
+    {
+        if (code == "transfer-cancelled") return "La descarga fue cancelada; no se instaló nada.";
+        var text = Coquena.Observation.DownloadsPresentation.Failure(code);
+        return text == "falló la descarga" || text == code
+            ? $"Error: {code}. Se conserva lo hecho hasta ahora."
+            : $"Error: {text} ({code}). Lo descargado se conserva; para reanudarla, consulte coquena download list.";
+    }
 
     internal static void Show(OperationDocument value, TextWriter output)
     {

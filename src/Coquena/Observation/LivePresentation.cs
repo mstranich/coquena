@@ -27,11 +27,14 @@ internal static class LivePresentation
         new(ratios.Select(ratio => ratio is double value ? Levels[Math.Clamp((int)(Math.Clamp(value, 0, 1) * Levels.Length), 0, Levels.Length - 1)] : ' ').ToArray());
 
     // Top bar: three tabs, downloads and notices. The indicators always keep their space.
-    public static string Tabs(int active, int downloads, int notices)
+    // active: 0 En vivo, 1 Definiciones, 2 Configuración, 3 Descargas.
+    public static string Tabs(int active, int downloads, int notices, string? downloadText = null)
     {
         string[] names = ["● En vivo", "◇ Definiciones", "≡ Configuración"];
         var tabs = string.Join(" ", names.Select((name, i) => i == active ? Style("sel", " " + name + " ", "tab" + i) : " " + Style("nav", name, "tab" + i) + " "));
-        var download = Style(downloads > 0 ? "nav" : "mut", "⇣ " + downloads, "downloads");
+        downloadText ??= "⇣ " + downloads;
+        var download = active == 3 ? Style("sel", " " + downloadText + " ", "downloads")
+            : Style(downloads > 0 ? "nav" : "mut", downloadText, "downloads");
         var notice = Style(notices > 0 ? "warn" : "mut", "▲ " + notices, "notices");
         return tabs + "{pad}" + download + "  " + notice + " ";
     }
@@ -285,7 +288,7 @@ internal static class LivePresentation
         string second;
         var shown = gpus.Select((gpu, i) => (gpu, i, key: gpu.Name.ToLowerInvariant()))
             .Where(item => !(hidden.Contains(item.key + ".use") && hidden.Contains(item.key + ".memory") && hidden.Contains(item.key + ".shared"))).ToArray();
-        if (gpus.Count == 0) second = " " + Style("mut@hardware", waiting ? "GPU · esperando lecturas" : "GPU · sin cómputo confirmado");
+        if (gpus.Count == 0) second = " " + Style("mut@hardware", waiting ? "GPU · esperando lecturas" : "GPU · sin datos");
         else second = string.Concat(shown.Select((item, n) => (n == 0 ? " " : "   ") + Style("mut@gpu" + item.i, item.gpu.Name) +
             (hidden.Contains(item.key + ".use") ? "" : " " + Style(UsageClass(item.gpu.Use), Spark(Last(item.gpu.Ratios, 5))) + " " +
                 (item.gpu.Use is null ? "—" : Number(item.gpu.Use.Value * 100, "0") + "%")) +

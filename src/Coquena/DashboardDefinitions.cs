@@ -69,7 +69,6 @@ internal static partial class DashboardCli
                     "Backends" => View.Backends(scope.Name, Backends(context)),
                     "Parámetros" => View.Parameters(scope.Name, new ParameterManager(home).List()
                         .Select(item => new View.Parameter(item.Name, item.Type, item.Application, item.Default)).ToArray(), rows),
-                    "Descargas" => View.Downloads(scope.Name, Downloads(context), width),
                     "Actualizaciones" => Updates(place),
                     _ => View.Maintenance(scope.Name)
                 };
@@ -176,18 +175,6 @@ internal static partial class DashboardCli
             foreach (var file in installations.SelectMany(installation => installation?["files"] as JsonArray ?? []))
                 if (file?["size"]?.GetValue<long>() is { } size) { total += size; any = true; }
             return any ? total : null;
-        }
-
-        // Same guard as download list: a scope without state has no transfers to show.
-        private static View.Download[] Downloads(ScopeContext context)
-        {
-            if (!File.Exists(context.PathFor("local/state.json"))) return [];
-            var backends = new Coquena.Backends.ScopedBackends(context);
-            return new ScopeTransfers(context, validateBackend: backends.ValidateOfficial).Downloads.List().Select(operation =>
-                new View.Download(operation.Name, operation.ResourceKind, operation.State, operation.Phase,
-                    operation.Files.Sum(file => file.ConfirmedBytes),
-                    operation.Files.All(file => file.ExpectedSize is not null) ? operation.Files.Sum(file => file.ExpectedSize!.Value) : null,
-                    operation.Diagnostic)).ToArray();
         }
 
         // The last recorded plan, as `update` reported it. It is not revalidated here.

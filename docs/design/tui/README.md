@@ -27,7 +27,7 @@ están en [interfaces visuales](../interfaces-visuales.md) y
 | L | Importar en Global | Importar |
 | M | Definiciones › Servicios | nodo Servicios (global) o Servicio (local) |
 | T | Modal Agregar servicio global: nombre, backend y configuración de proceso | + Agregar en Servicios |
-| N | Definiciones › Descargas | nodo Descargas, indicador ⇣ |
+| N | Descargas: Global y proyecto actual, por ámbito y categoría | pestaña ⇣ |
 | Q | Definiciones › Parámetros | nodo Parámetros |
 | U | Definiciones › Actualizaciones (Comprobar = update, Actualizar = upgrade) | nodo Actualizaciones |
 | R | Definiciones › Mantenimiento (Verificar, Limpiar) | nodo Mantenimiento |
@@ -51,7 +51,7 @@ Tres pestañas, sin marca ni fila de atajos:
 | Pestaña | Contenido |
 |---|---|
 | ● En vivo | Árbol servicio → proyecto → preset; detalle del servicio (puerto, estado, CPU y RAM del proceso, cola) y de la entrada (tasas, caché, especulación, contexto por slot, tareas); log del servicio. |
-| ◇ Definiciones | Árbol por ámbito (Global y cada proyecto del índice; sólo el enfocado expandido) con Recetas o Servicios, Presets, Servicio, Modelos, Backends, Parámetros, Descargas, Actualizaciones y Mantenimiento. |
+| ◇ Definiciones | Árbol por ámbito (Global y cada proyecto del índice; sólo el enfocado expandido) con Recetas o Servicios, Presets, Servicio, Modelos, Backends, Parámetros, Actualizaciones y Mantenimiento. |
 | ≡ Configuración | Categorías Coquena (lo mismo que `coquena config`), TUI (filtro del log, recursos de la barra inferior) y Sistema (`system probe`). |
 
 Las dos últimas filas son hardware medido por dispositivo: CPU, RAM, y por GPU uso,

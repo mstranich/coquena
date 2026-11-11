@@ -54,7 +54,4 @@ internal static class ManagementPresentation
         }
     }
 
-    public static DefinitionsPresentation.Page Downloads(string scope, IReadOnlyList<(Guid Id, DefinitionsPresentation.Download Item)> operations, int width) =>
-        DefinitionsPresentation.Downloads(scope, operations.Select(operation => operation.Item).ToArray(), width,
-            operations.Select(operation => operation.Id).ToArray());
 }

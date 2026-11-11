@@ -156,7 +156,7 @@ internal static partial class DashboardCli
                 resourceBoxes.Add(box);
                 resourceRows.Add(box);
             }
-            if (gpus == 0) resourceRows.Add(new Label { Y = 1, Text = "GPU · sin cómputo confirmado" });
+            if (gpus == 0) resourceRows.Add(new Label { Y = 1, Text = "GPU · sin datos" });
         }
 
         private void Defaults()

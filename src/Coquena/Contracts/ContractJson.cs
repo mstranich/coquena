@@ -362,6 +362,7 @@ public static class ContractValidation
     public static void Operation(OperationDocument value)
     {
         Version(value.SchemaVersion); Id(value.Id); Text(value.Name); Text(value.Phase);
+        Require(value.CreatedAt is null || value.CreatedAt.Value != default, "Fecha de creación inválida.");
         if (value.LastIncident is { } incident)
         {
             Text(incident.Reason);

@@ -194,7 +194,11 @@ public sealed class ScopedBackends(ScopeContext context,
         progress?.Invoke(operation);
         var pending = await transfers.RunAsync(operation.Id, transport, progress: progress, cancellation: cancellation);
         if (pending is not null) throw new DownloadException(pending.Diagnostic ?? "backend-preparation-incomplete", "Preparación no completada; conserve el GUID para reanudar.");
-        var found = FindInstallation(operation.ScopePublication!.InstallationId.ToString("D"));
+        var installationId = operation.ScopePublication!.InstallationId.ToString("D");
+        // Someone cancelled the transfer (TUI or download cancel): nothing was installed.
+        if (!List().Any(resource => resource!["installations"]!.AsArray().Any(i => i!["installation-id"]!.GetValue<string>() == installationId)))
+            throw new DownloadException("transfer-cancelled", "Descarga cancelada; no se instaló el backend.");
+        var found = FindInstallation(installationId);
         return await ReadPrepared(found.Resource, found.Installation, hardware, force, null, cancellation);
     }
 
@@ -336,7 +340,7 @@ public sealed class ScopedBackends(ScopeContext context,
         foreach (var resource in List())
             foreach (var installation in resource!["installations"]!.AsArray())
                 if (installation!["installation-id"]!.GetValue<string>() == id) return (resource, installation);
-        throw new BackendException("backend-installation-missing", "La revisión fijada no figura en el inventario del ámbito.");
+        throw new BackendException("backend-installation-missing", "Esa versión del backend no está instalada.");
     }
     private static JsonNode Service(Dictionary<string, JsonObject> docs, string id) =>
         docs.TryGetValue(Registry, out var registry) ? registry["data"]!["recipes"]!.AsArray().SelectMany(r => r!["entities"]!.AsArray())
