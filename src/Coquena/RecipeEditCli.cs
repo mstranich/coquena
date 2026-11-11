@@ -274,7 +274,7 @@ internal static class RecipeEditCli
         _ => Render(value)
     };
 
-    private static string Render(RecipeValue value) => value.Kind switch
+    internal static string Render(RecipeValue value) => value.Kind switch
     {
         RecipeKind.Map when value.Get("literal") is { } literal && value.Fields.Count == 1 => "{literal: " + Literal(literal) + "}",
         RecipeKind.Map => Map(value.Fields.ToDictionary(p => p.Key, p => Render(p.Value), StringComparer.Ordinal)),

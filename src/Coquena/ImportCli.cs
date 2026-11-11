@@ -37,7 +37,8 @@ public static class ImportCli
         }
     }
 
-    private static async Task<int> RunAsync(string[] args, TextWriter output, TextWriter error)
+    internal static async Task<int> RunAsync(string[] args, TextWriter output, TextWriter error,
+        IModelSelectionInteraction? interaction = null, Func<string, bool>? confirm = null, CancellationToken cancellation = default)
     {
         var positional = new List<string>(); var files = new List<string>(); var env = new List<string>(); var replace = new List<string>();
         string? select = null, basePath = null; bool force = false, asDefault = false, end = false;
@@ -73,7 +74,7 @@ public static class ImportCli
         using var http = new HttpClient(new HttpClientHandler { AllowAutoRedirect = false }) { Timeout = TimeSpan.FromSeconds(120) };
         using var transport = new OfficialArtifactTransport();
         var resources = new ScopedCombinationResources(context, HardwareProbe.Inspect(), new HuggingFaceStore(http), transport,
-            new ConsoleModelSelectionInteraction(), warning: message => error.WriteLine(message), allowNewLocalRevision: true);
+            interaction ?? new ConsoleModelSelectionInteraction(), warning: message => error.WriteLine(message), allowNewLocalRevision: true);
         IPresetRouter? Router(string id)
         {
             var store = new ScopeStore(context);
@@ -89,7 +90,7 @@ public static class ImportCli
             return Console.ReadLine()?.Trim().Equals("a", StringComparison.OrdinalIgnoreCase) == true;
         }
         var result = await new RecipeImporter(context).ImportAsync(source, resources, select, replace, force, asDefault,
-            interactive: !Console.IsInputRedirected, confirm: Confirm, router: Router);
+            interactive: interaction?.IsInteractive ?? !Console.IsInputRedirected, confirm: confirm ?? Confirm, router: Router, cancellation: cancellation);
         output.WriteLine(result.ReconciledOnly ? "Se observó la operación anterior sin reenviar reload. Repetir import para aplicar una nueva candidata o completar remanentes." : result.Confirmed ? "Intención importada; presets seleccionados confirmados o conservados para el próximo inicio. Servicio no iniciado." :
             "Intención importada; publicación incompleta. Pendientes: " + string.Join(", ", result.Pending));
         if (result.Confirmed && result.Pending.Length != 0) output.WriteLine("Se conservan remanentes anteriores no seleccionados: " + string.Join(", ", result.Pending));

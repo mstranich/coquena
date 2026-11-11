@@ -34,8 +34,8 @@ internal static class RecipeEditorTests
             var page = DashboardCli.RecipesPage("nuevo", null, combinations, combinations[0].Key, 56);
             var spans = page.Rows.SelectMany(Markup.Parse).ToArray();
             check(spans.Any(span => span.Action == "recipe-edit") && !spans.Any(span => span.Action == "recipe-forget") &&
-                  spans.Any(span => span.Text.Contains("Nueva combinación") && span.Action is null),
-                "B enables Editar, keeps Olvidar off for an unregistered recipe and Nueva combinación off");
+                  spans.Any(span => span.Action == "recipe-new") && spans.Any(span => span.Action == "recipe-import"),
+                "B enables Editar, Nueva combinación and Importar while Olvidar requires registration");
             check(page.Rows.Count <= 20 && page.Rows.All(row => Markup.Width(Markup.Fit(row, 56)) == 56), "B fits 80×24");
 
             // H: drafts are validated in memory with the core reader and located by line.

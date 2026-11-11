@@ -208,6 +208,10 @@ internal static partial class DashboardCli
         var places = definitionSource.Places();
         var focusedPlace = Math.Max(0, places.FindIndex(place => place.Scope.Here));
         var definitionView = DefinitionsPresentation.Views(places[focusedPlace].Scope).FirstOrDefault();
+        var sessionCombinations = new Dictionary<string, RecipeCombination>();
+        var combinationNewFiles = new Dictionary<string, IReadOnlySet<string>>();
+        var authorSelections = new Dictionary<string, RecipeSelection[]>();
+        var updateViews = new Dictionary<string, UpdateView>();
         IReadOnlyList<DefinitionsPresentation.Node> definitionNodes = [];
         DefinitionsPresentation.Page? definitionPage = null;
         var definitionClock = new Stopwatch();
@@ -919,7 +923,7 @@ internal static partial class DashboardCli
                     }
                     else if (definitionView == "Recetas" && place.Context is not null)
                     {
-                        var combinations = RecipeCombinations(place);
+                        var combinations = AvailableCombinations(place);
                         var key = place.Context.Root + "Recetas";
                         var selected = managedSelection.GetValueOrDefault(key);
                         if (!combinations.Any(item => item.Key == selected)) selected = combinations.FirstOrDefault(item => item.Current)?.Key ?? combinations.FirstOrDefault()?.Key;
@@ -928,6 +932,34 @@ internal static partial class DashboardCli
                         try { destination = place.Recipe is null ? null : RecipeReader.Read(place.Recipe).Target; }
                         catch (RecipeException) { }
                         definitionPage = RecipesPage(place.Scope.Name, destination, combinations, selected, Math.Max(20, window.Viewport.Width - Right));
+                    }
+                    else if (definitionView == "Presets" && place.Context is not null)
+                    {
+                        var presets = PresetRows(place.Context, AuthorSelections(place), snapshots);
+                        var key = place.Context.Root + "Presets";
+                        var selected = managedSelection.GetValueOrDefault(key);
+                        if (!presets.Any(preset => preset.Id == selected)) selected = presets.FirstOrDefault()?.Id;
+                        if (selected is not null) managedSelection[key] = selected;
+                        definitionPage = PresetsPage(place.Scope.Name, presets, selected, Math.Max(20, window.Viewport.Width - Right));
+                    }
+                    else if (definitionView == "Actualizaciones" && place.Context is not null)
+                    {
+                        if (!updateViews.TryGetValue(place.Context.Root, out var state)) updateViews[place.Context.Root] = state = new();
+                        ReadUpdates(place.Context, AuthorSelections(place), state);
+                        var ids = (state.Plan?["resources"] as System.Text.Json.Nodes.JsonArray ?? []).Select(item => item?["installation-id"]?.ToString()).OfType<string>().ToArray();
+                        var impact = snapshots.Values.Where(snapshot => snapshot.ProcessState == "alive" && ids.Any(id => ContainsIdentity(snapshot.ActiveComposition, id)))
+                            .Select(snapshot => snapshot.Name + ": conserva su revisión hasta aplicar/reiniciar explícitamente").ToArray();
+                        definitionPage = UpdatesPage(place.Scope.Name, state, impact, managementJobs.ContainsKey("update:" + place.Context.Root));
+                    }
+                    else if (definitionView == "Parámetros" && place.Context is not null)
+                    {
+                        var key = place.Context.Root + "Parámetros";
+                        var filter = resourceFilters.GetValueOrDefault(key) ?? "";
+                        var definitions = DefinitionRows(DefinitionSelections(place)).Where(row => row.Name.Contains(filter, StringComparison.OrdinalIgnoreCase)).ToArray();
+                        var selected = managedSelection.GetValueOrDefault(key);
+                        if (!definitions.Any(row => row.Id == selected)) selected = definitions.FirstOrDefault()?.Id;
+                        if (selected is not null) managedSelection[key] = selected;
+                        definitionPage = ParametersPage(place.Scope.Name, definitions, selected, filter);
                     }
                 }
                 catch (Exception error) when (ManagementError(error)) { definitionPage = DefinitionsPresentation.Problem(definitionView ?? "Definiciones", error.Message); }
@@ -993,6 +1025,200 @@ internal static partial class DashboardCli
             if (place.Context is not { } context) return;
             try
             {
+                if (action == "recipe-import")
+                {
+                    var combination = SelectedCombination(place) ?? throw new ArgumentException("Seleccioná una combinación.");
+                    var recipe = RecipeReader.Read(combination.Selection);
+                    var global = ScopeContext.Global(Home.Resolve());
+                    var form = ImportForm(app, recipe, global);
+                    if (form is null) return;
+                    var importSelection = combination.Selection;
+                    var args = new List<string> { "import", importSelection.Files[0], "--project-directory", importSelection.Base, "--select", form.Categories };
+                    foreach (var file in importSelection.Files.Skip(1)) args.AddRange(["-f", file]);
+                    foreach (var file in importSelection.EnvFiles) args.AddRange(["--env-file", file]);
+                    foreach (var entity in form.Replacements) args.AddRange(["--replace", entity]);
+                    if (form.Default) args.Add("--as-default");
+                    ManagementJob("import:" + global.Root, async () =>
+                    {
+                        var output = new StringWriter(); var error = new StringWriter();
+                        var code = await ImportCli.RunAsync(args.ToArray(), output, error, new DashboardModelSelection(app, error),
+                            message => AskOnUi(app, "Importar · confirmar publicación", message, "Aplicar", stop.Token).GetAwaiter().GetResult(), stop.Token);
+                        var text = output + "\n" + error;
+                        if (code != 0) throw new IOException(text);
+                        return text;
+                    });
+                    return;
+                }
+                if (action.StartsWith("update-", StringComparison.Ordinal))
+                {
+                    if (!updateViews.TryGetValue(context.Root, out var state)) updateViews[context.Root] = state = new();
+                    var selections = AuthorSelections(place);
+                    ReadUpdates(context, selections, state);
+                    if (action.StartsWith("update-toggle:", StringComparison.Ordinal))
+                    {
+                        var selector = System.Text.Encoding.UTF8.GetString(Convert.FromHexString(action[14..]));
+                        if (!state.Chosen.Add(selector)) state.Chosen.Remove(selector);
+                        definitionPage = null; Render(); return;
+                    }
+                    if (action == "update-check")
+                    {
+                        if (state.Unprepared) throw new ArgumentException(state.Notice);
+                        var fields = ResourceForm(app, "Comprobar novedades · filtros opcionales", [("referencias", "")], "Comprobar");
+                        if (fields is null) return;
+                        var filters = fields[0].Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries).ToHashSet(StringComparer.OrdinalIgnoreCase);
+                        foreach (var filter in filters) _ = ResourceSelector.Parse(filter);
+                        ManagementJob("update:" + context.Root, async () =>
+                        {
+                            using var client = HuggingFaceStore.CreateClient();
+                            using var github = new HttpClient(new HttpClientHandler { AllowAutoRedirect = false, UseCookies = false }) { Timeout = TimeSpan.FromSeconds(60) };
+                            var source = new OfficialBackendSource(github); var hardware = HardwareProbe.Inspect();
+                            var output = new StringWriter();
+                            var probe = new ResourceUpdateProbe(new(client), (variant, token) => source.ResolveAsync(hardware, variant, "latest", token), new DashboardModelSelection(app, output));
+                            var plan = await new RecipeUpdatePlans(context).UpdateAsync(selections, filters, probe, stop.Token);
+                            var report = RecipeUpdatePlans.Report(plan);
+                            var text = "Comprobación completada en " + place.Scope.Name + "\n" + UpdateReportText(report);
+                            if (report["resources"]!.AsArray().Any(item => item?["status"]?.ToString() is not ("unchanged" or "update-available" or "not-applicable"))) throw new IOException(text);
+                            return text;
+                        });
+                    }
+                    else if (action == "update-apply")
+                    {
+                        if (state.Problem is not null) throw new ArgumentException(state.Problem);
+                        var filters = state.Chosen.ToHashSet(StringComparer.Ordinal);
+                        if (filters.Count == 0) return;
+                        if (Query(app, "Actualizar · " + place.Scope.Name, string.Join("\n", filters) + "\nSe aplica el plan persistido como conjunto; no se modifica YAML ni se reinician servicios.", "Cancelar", "Actualizar") != 1) return;
+                        ManagementJob("update:" + context.Root, async () =>
+                        {
+                            using var models = new HuggingFaceTransport(); using var backends = new OfficialArtifactTransport();
+                            var report = await new RecipeUpgrade(context).ApplyAsync(selections, filters, HardwareProbe.Inspect(), models, backends,
+                                new ScopedBackends(context).ValidateOfficial, _ => { }, cancellation: stop.Token);
+                            if (report["resources"]!.AsArray().Any(item => item?["upgrade-status"]?.ToString() == "blocked")) throw new IOException(UpdateReportText(report));
+                            return "Actualización de " + place.Scope.Name + "\n" + UpdateReportText(report);
+                        });
+                    }
+                    return;
+                }
+                if (action == "author-selection")
+                {
+                    var options = place.Scope.Global ? UpdateCli.GlobalSelections(context) : AvailableCombinations(place).Select(item => item.Selection).ToArray();
+                    var row = Choose(app, "Combinación · " + place.Scope.Name,
+                        (place.Scope.Global ? new[] { "Todas las intenciones de Global" } : Array.Empty<string>()).Concat(options.Select(selection => string.Join(" + ", selection.Files.Select(file => Path.GetRelativePath(context.Base, file))))).ToArray(), "Elegir");
+                    if (row is int choice)
+                    {
+                        authorSelections[context.Root] = place.Scope.Global && choice == 0 ? options : [options[choice - (place.Scope.Global ? 1 : 0)]];
+                        if (!place.Scope.Global)
+                            managedSelection[context.Root + "Recetas"] = AvailableCombinations(place).Single(item => CombinationIdentity.FromSelection(item.Selection).Id == CombinationIdentity.FromSelection(options[choice]).Id).Key;
+                    }
+                    definitionPage = null; Render(); return;
+                }
+                if (action.StartsWith("preset:", StringComparison.Ordinal) || action.StartsWith("param:", StringComparison.Ordinal))
+                { managedSelection[context.Root + definitionView] = action[(action.IndexOf(':') + 1)..]; definitionPage = null; Render(); return; }
+                if (action.StartsWith("preset-", StringComparison.Ordinal))
+                {
+                    var items = PresetRows(context, AuthorSelections(place), snapshots);
+                    var chosen = items.FirstOrDefault(item => item.Id == managedSelection.GetValueOrDefault(context.Root + "Presets")) ?? items.FirstOrDefault()
+                        ?? throw new ArgumentException("Seleccioná un preset.");
+                    if (action is "preset-next" or "preset-prev")
+                    { managedSelection[context.Root + "Presets"] = items[Math.Clamp(Array.IndexOf(items, chosen) + (action == "preset-next" ? 4 : -4), 0, items.Length - 1)].Id; }
+                    else if (action == "preset-edit") { OpenEditor(chosen.Recipe.Selection, place.Scope.Name, AuthorPrivate(place, chosen.Recipe.Selection)); FocusOrigin(chosen.Value.Origin); return; }
+                    else if (action == "preset-detail") Choose(app, chosen.Name, ["Receta: " + chosen.Recipe.Name, "Archivo: " + chosen.Value.Origin.File,
+                        chosen.Value.Redacted()?.ToJsonString() ?? "—", "Publicación: " + (chosen.Published is null ? "sin evidencia en la instancia observada" : "snapshot de la instancia; no prueba carga")], null);
+                    else if (action == "preset-clone")
+                    {
+                        // An invalid name says why and reopens the form with what was typed.
+                        var name = "";
+                        while (true)
+                        {
+                            var fields = ResourceForm(app, "Clonar preset · " + chosen.Name, [("nuevo nombre", name)], "Abrir borrador");
+                            if (fields is null) return;
+                            name = fields[0].Trim();
+                            var reason = name.Length == 0 ? "Escribí un nombre para el preset nuevo."
+                                : chosen.Recipe.Root.Get("presets")?.Get(name) is not null ? "Ya existe un preset «" + name + "» en esta combinación." : null;
+                            if (reason is null) break;
+                            Query(app, "Clonar preset · nombre no válido", reason, "Aceptar");
+                        }
+                        StageEdit(chosen.Recipe.Selection, place.Scope.Name, chosen.Recipe.Selection.Files[^1], ["presets", name], RecipeEditCli.Render(chosen.Recipe.SourceRoot.Get("presets")!.Get(chosen.Name)!));
+                        return;
+                    }
+                    else if (action == "preset-remove")
+                    {
+                        if (Query(app, "Eliminar definición · " + chosen.Name, "Se prepara una desasignación en YAML. Guardar no borra pesos ni retira publicaciones; Up aplicará el cambio explícitamente.", "Cancelar", "Abrir borrador") != 1) return;
+                        StageEdit(chosen.Recipe.Selection, place.Scope.Name, chosen.Recipe.Selection.Files[^1], ["presets", chosen.Name], "null"); return;
+                    }
+                    else if (action == "preset-live" && chosen.Target is int target)
+                    { index = target; preferredEntry = context.IsGlobal ? chosen.Name : chosen.Recipe.Name + "/" + chosen.Name; selectionEpoch++; Select(); Open(Live); return; }
+                    else if (action.StartsWith("preset-resource:", StringComparison.Ordinal))
+                    {
+                        var argument = System.Text.Encoding.UTF8.GetString(Convert.FromHexString(action[16..]));
+                        var value = chosen.Value.Get("args")?.Get(argument);
+                        if (value is null || value.Sensitive) throw new ArgumentException("Sin referencia de inventario visible.");
+                        var reference = ArgumentValidation.Reference(chosen.Recipe, value, false, true);
+                        if (reference is null) throw new ArgumentException("El valor es literal; no identifica un recurso del inventario.");
+                        var requests = CombinationPreparation.Requests(chosen.Recipe, ArgumentValidation.Validate(chosen.Recipe));
+                        var request = requests.SingleOrDefault(item => item.Kind == reference.Kind && item.Key.Equals(reference.Name, StringComparison.OrdinalIgnoreCase));
+                        var binding = request is null ? null : CombinationPreparation.VerificationBinding(context, chosen.Recipe, request, chosen.Recipe.Selection.EnvFiles.Count > 0);
+                        definitionView = "Modelos";
+                        resourceFilters[context.Root + definitionView] = binding?.InstallationId is null ? reference.Name : "";
+                        if (binding?.InstallationId is { } installation) managedSelection[context.Root + definitionView] = installation;
+                        resourceCache.Remove(context.Root + definitionView);
+                    }
+                    definitionPage = null; Render(); return;
+                }
+                if (action.StartsWith("param-", StringComparison.Ordinal))
+                {
+                    var selections = DefinitionSelections(place);
+                    if (selections.Length == 0) throw new ArgumentException("Seleccioná una intención existente.");
+                    var key = context.Root + "Parámetros";
+                    if (action == "param-filter")
+                    {
+                        var fields = ResourceForm(app, "Filtrar parámetros", [("nombre", resourceFilters.GetValueOrDefault(key) ?? "")], "Filtrar");
+                        if (fields is not null) resourceFilters[key] = fields[0];
+                    }
+                    else
+                    {
+                        var items = DefinitionRows(selections).Where(row => row.Name.Contains(resourceFilters.GetValueOrDefault(key) ?? "", StringComparison.OrdinalIgnoreCase)).ToArray();
+                        var chosen = items.FirstOrDefault(item => item.Id == managedSelection.GetValueOrDefault(key)) ?? items.FirstOrDefault();
+                        if (action is "param-prev" or "param-next" && chosen is not null)
+                            managedSelection[key] = items[Math.Clamp(Array.IndexOf(items, chosen) + (action == "param-next" ? 4 : -4), 0, items.Length - 1)].Id;
+                        else if (action == "param-define")
+                        {
+                            var fields = ResourceForm(app, "Definir parámetro · completar metadatos en YAML", [("nombre", ""), ("tipo", "string"), ("ámbito", "preset")], "Abrir borrador");
+                            if (fields is null) return;
+                            var recipe = RecipeReader.Read(selections[0]);
+                            if (ArgumentSchema.Load(recipe).Definitions.ContainsKey(fields[0])) throw new ArgumentException("Ya existe esa definición.");
+                            StageEdit(selections[0], place.Scope.Name, ParameterFile(recipe), ["arg-defs", "definitions", fields[0]],
+                                "{type: " + RecipeEdit.Quote(fields[1]) + ", scope: " + RecipeEdit.Quote(fields[2]) + "}", true, context.IsGlobal ? context : null); return;
+                        }
+                        else if (chosen is not null)
+                        {
+                            if (action == "param-edit") { OpenEditor(chosen.Recipe.Selection, place.Scope.Name, AuthorPrivate(place, chosen.Recipe.Selection)); recipeEditor.RequireValidSave = true; FocusOrigin(chosen.Value.Origin); return; }
+                            if (action == "param-remove")
+                            {
+                                if (Query(app, "Quitar definición · " + chosen.Name, "Asignaciones en la selección: " + string.Join(", ", chosen.Uses) + "\nSe conservan valores y recursos. Se validará el modo estricto y las reglas antes de permitir guardar.", "Cancelar", "Abrir borrador") != 1) return;
+                                StageEdit(chosen.Recipe.Selection, place.Scope.Name, ParameterFile(chosen.Recipe), ["arg-defs", "definitions", chosen.Name], "null", true); return;
+                            }
+                            if (action == "param-detail") Choose(app, chosen.Name + " · definición efectiva", ["Origen: " + chosen.Value.Origin.File, chosen.Value.Redacted()?.ToJsonString() ?? "—", "Usado por: " + string.Join(", ", chosen.Uses)], null);
+                        }
+                    }
+                    definitionPage = null; Render(); return;
+                }
+                if (action == "recipe-new")
+                {
+                    var combination = SelectedCombination(place);
+                    var current = combination?.Selection ?? place.Recipe;
+                    if (current is null) return;
+                    var form = CombinationForm(app, current, combination?.Private == true);
+                    if (form is null) return;
+                    var key = CombinationIdentity.FromSelection(form.Selection).Id;
+                    sessionCombinations[context.Root] = new(key, null, form.Selection, form.Private, false);
+                    authorSelections[context.Root] = [form.Selection];
+                    combinationNewFiles[context.Root] = form.NewFiles;
+                    managedSelection[context.Root + "Recetas"] = key;
+                    definitionPage = null;
+                    if (form.NewFiles.Count > 0) OpenEditor(form.Selection, place.Scope.Name, form.Private, form.NewFiles);
+                    else Render();
+                    return;
+                }
                 if (action == "downloads") { definitionView = "Descargas"; definitionPage = null; Render(); return; }
                 if (action.StartsWith("maintenance-", StringComparison.Ordinal))
                 {
@@ -1261,12 +1487,17 @@ internal static partial class DashboardCli
                 if (action.StartsWith("service:", StringComparison.Ordinal))
                 { managedSelection[context.Root] = action[8..]; definitionPage = null; Render(); return; }
                 if (action.StartsWith("combination:", StringComparison.Ordinal))
-                { managedSelection[context.Root + "Recetas"] = action[12..]; definitionPage = null; Render(); return; }
+                {
+                    managedSelection[context.Root + "Recetas"] = action[12..];
+                    var chosen = AvailableCombinations(place).SingleOrDefault(item => item.Key == action[12..]);
+                    if (chosen is not null) authorSelections[context.Root] = [chosen.Selection];
+                    definitionPage = null; Render(); return;
+                }
                 if (action is "recipe-edit" or "recipe-forget")
                 {
-                    var chosen = RecipeCombinations(place).SingleOrDefault(item => item.Key == managedSelection.GetValueOrDefault(context.Root + "Recetas"))
+                    var chosen = AvailableCombinations(place).SingleOrDefault(item => item.Key == managedSelection.GetValueOrDefault(context.Root + "Recetas"))
                         ?? throw new ArgumentException("Seleccioná nuevamente la combinación.");
-                    if (action == "recipe-edit") { OpenEditor(chosen.Selection, place.Scope.Name, chosen.Private); return; }
+                    if (action == "recipe-edit") { OpenEditor(chosen.Selection, place.Scope.Name, chosen.Private, combinationNewFiles.GetValueOrDefault(context.Root)); return; }
                     if (chosen.Id is not { } id) return;
                     if (Query(app, "Olvidar combinación · " + place.Scope.Name, chosen.Files + " · " + id[..6] +
                         "\nSe quita del registro de .coquena. Los YAML, los pesos y lo publicado se conservan; una instancia activa sigue igual.",
@@ -1315,15 +1546,11 @@ internal static partial class DashboardCli
                 }
                 if (action == "up")
                 {
-                    var combinations = new CombinationPreparation(context).List().ToArray();
-                    var chosen = Choose(app, "Up · combinación de " + place.Scope.Name,
-                        combinations.Select(item => string.Join(" + ", item.Value!["files"]!.AsArray().Select(file => file!.GetValue<string>())) +
-                            " · " + item.Key[..6]).ToArray(), combinations.Length > 0 ? "Usar" : null);
-                    if (chosen is not int row) return;
-                    var combination = combinations[row].Value!;
-                    var selection = new RecipeSelection(context.Base, combination["files"]!.AsArray().Select(file => file!.GetValue<string>()), context.Base,
-                        combination["env-files"]!.AsArray().Select(file => file!.GetValue<string>()));
-                    BeginPublication("up", selection, place.Scope.Name, combination["private"]?.GetValue<bool>() == true);
+                    var chosen = SelectedCombination(place);
+                    if (chosen is null) return;
+                    if (chosen.Selection.Files.Any(file => !File.Exists(file)))
+                    { OpenEditor(chosen.Selection, place.Scope.Name, chosen.Private, combinationNewFiles.GetValueOrDefault(context.Root)); return; }
+                    BeginPublication("up", chosen.Selection, place.Scope.Name, chosen.Private);
                     return;
                 }
                 var split = action.Split(':', 2);
@@ -1667,9 +1894,67 @@ internal static partial class DashboardCli
             return changed;
         }
 
-        void OpenEditor(RecipeSelection selection, string scope, bool isPrivate)
+        RecipeCombination[] AvailableCombinations(DefinitionsSource.Place place)
         {
-            try { recipeEditor.Open(selection, scope, isPrivate); }
+            var items = RecipeCombinations(place).ToList();
+            if (place.Context is { } context && sessionCombinations.TryGetValue(context.Root, out var pending))
+            {
+                var existing = items.FindIndex(item => CombinationIdentity.FromSelection(item.Selection).Id == pending.Key);
+                if (existing < 0) items.Insert(0, pending);
+                else items[existing] = items[existing] with { Selection = pending.Selection, Private = pending.Private };
+            }
+            return items.ToArray();
+        }
+
+        RecipeSelection[] AuthorSelections(DefinitionsSource.Place place) => authorSelections.GetValueOrDefault(place.Context!.Root)
+            ?? (place.Scope.Global ? UpdateCli.GlobalSelections(place.Context) : SelectedCombination(place) is { } selected ? [selected.Selection] : []);
+
+        bool AuthorPrivate(DefinitionsSource.Place place, RecipeSelection selection) => selection.ImportedScope is not null ||
+            AvailableCombinations(place).Any(item => item.Private && CombinationIdentity.FromSelection(item.Selection).Id == CombinationIdentity.FromSelection(selection).Id) ||
+            CombinationIdentity.FromSelection(selection).Private;
+
+        RecipeSelection[] DefinitionSelections(DefinitionsSource.Place place)
+        {
+            var selections = AuthorSelections(place);
+            if (selections.Length > 0 || !place.Scope.Global) return selections;
+            var path = place.Context!.PathFor("recipe.yaml");
+            if (File.Exists(path)) throw new StorageException("unregistered-global-intention", "Existe un YAML global sin intención registrada; se conserva sin adoptarlo ni sobrescribirlo.");
+            return [new RecipeSelection(place.Context.Base, [path], place.Context.Base)
+                { CapturedFiles = new Dictionary<string, byte[]> { [path] = [] } }];
+        }
+
+        void FocusOrigin(RecipeOrigin origin)
+        {
+            var at = recipeEditor.Files.FindIndex(file => file.Path.Equals(origin.File, StringComparison.OrdinalIgnoreCase));
+            if (at < 0) return;
+            recipeEditor.Show(at);
+            var document = recipeEditor.Files[at].View.Document!;
+            recipeEditor.Files[at].View.CaretOffset = document.GetLineByNumber(Math.Clamp(origin.Line, 1, document.LineCount)).Offset;
+        }
+
+        void StageEdit(RecipeSelection selection, string scope, string file, string[] path, string value, bool strict = false, ScopeContext? importedContext = null)
+        {
+            var newFiles = importedContext is not null ? selection.Files.Where(path => !File.Exists(path) && selection.CapturedFiles?.ContainsKey(path) == true).ToHashSet(StringComparer.OrdinalIgnoreCase) : null;
+            OpenEditor(selection, scope, AuthorPrivate(places[focusedPlace], selection), newFiles);
+            if (page != Editing) return;
+            recipeEditor.ImportedContext = importedContext ?? selection.ImportedScope;
+            var inputs = recipeEditor.Drafts().ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.OrdinalIgnoreCase);
+            var candidate = RecipeEdit.Propose(selection, inputs, file, path, value);
+            recipeEditor.RequireValidSave = strict;
+            recipeEditor.Stage(file, candidate);
+            recipeEditor.Status = "borrador; Guardar no aplica a ejecución";
+            Render();
+        }
+
+        RecipeCombination? SelectedCombination(DefinitionsSource.Place place)
+        {
+            var items = AvailableCombinations(place);
+            return items.FirstOrDefault(item => item.Key == managedSelection.GetValueOrDefault(place.Context!.Root + "Recetas")) ?? items.FirstOrDefault();
+        }
+
+        void OpenEditor(RecipeSelection selection, string scope, bool isPrivate, IReadOnlySet<string>? newFiles = null)
+        {
+            try { recipeEditor.Open(selection, scope, isPrivate, newFiles); }
             catch (Exception error) when (ManagementError(error) || error is RecipeException)
             { recipeEditor.Close(); Query(app, "Editor", "No se pudo abrir la combinación: " + error.Message, "Aceptar"); return; }
             Open(Editing);
@@ -1698,12 +1983,35 @@ internal static partial class DashboardCli
         {
             var modified = recipeEditor.Files.Where(file => file.Modified).ToArray();
             if (modified.Length == 0) { recipeEditor.Status = "sin cambios"; return true; }
-            if (recipeEditor.Validate() is { } problem && Query(app, "La combinación no es válida",
-                problem.Message + "\nUp no la publicará hasta corregirla. ¿Guardar igualmente?", "Cancelar", "Guardar igualmente") != 1) return false;
+            if (recipeEditor.ImportedContext is { } importedScope)
+            {
+                var opened = recipeEditor.Files.ToDictionary(file => file.Path, file => file.Opened, StringComparer.OrdinalIgnoreCase);
+                var drafts = modified.ToDictionary(file => file.Path, file => RecipeDrafts.Encode(file.View.Text, file.Opened), StringComparer.OrdinalIgnoreCase);
+                var overwrite = false;
+                foreach (var file in recipeEditor.Files)
+                    if (file.Existed && !File.Exists(file.Path) || File.Exists(file.Path) && !RecipeYaml.ReadBytes(file.Path).AsSpan().SequenceEqual(file.Opened))
+                    {
+                        var choice = Query(app, "Cambios externos · " + file.Name, "La intención global cambió. Sí sobrescribe con tu borrador; No recarga; Cancelar conserva la edición.", "Sí", "No", "Cancelar");
+                        if (choice == 1) { OpenEditor(recipeEditor.Selection!, recipeEditor.Scope, recipeEditor.Private); return false; }
+                        if (choice != 0) return false;
+                        overwrite = true;
+                    }
+                ImportedRecipeEdits.Save(importedScope, opened, drafts, overwrite);
+                foreach (var file in modified) { RecipeEditorPage.Load(file, drafts[file.Path]); file.Existed = true; }
+                recipeEditor.Status = "intención global guardada; ejecución sin cambios";
+                definitionPage = null;
+                Notify("✓", "ok", recipeEditor.Status, -1);
+                return true;
+            }
+            if (recipeEditor.Validate() is { } problem)
+            {
+                if (recipeEditor.RequireValidSave) { Query(app, "Cambios inválidos; se conserva lo guardado", problem.Message, "Aceptar"); return false; }
+                if (Query(app, "La combinación no es válida", problem.Message + "\nUp no la publicará hasta corregirla. ¿Guardar igualmente?", "Cancelar", "Guardar igualmente") != 1) return false;
+            }
             foreach (var file in modified)
             {
                 var draft = RecipeDrafts.Encode(file.View.Text, file.Opened);
-                var result = RecipeDrafts.Save(file.Path, file.Opened, draft, false);
+                var result = RecipeDrafts.Save(file.Path, file.Opened, draft, !file.Existed && !File.Exists(file.Path));
                 if (result is RecipeDrafts.SaveResult.Changed or RecipeDrafts.SaveResult.Missing)
                 {
                     var missing = result == RecipeDrafts.SaveResult.Missing;
@@ -1724,6 +2032,7 @@ internal static partial class DashboardCli
                     result = RecipeDrafts.Save(file.Path, file.Opened, draft, true);
                 }
                 file.Opened = draft;
+                file.Existed = true;
                 file.OpenedLines = file.View.Text.Split('\n');
                 file.Changed = null;
                 file.View.Document!.UndoStack.MarkAsOriginalFile();
@@ -1753,6 +2062,7 @@ internal static partial class DashboardCli
                         }
                         break;
                     case "up" or "down":
+                        if (recipeEditor.ImportedContext is not null) break;
                         // Up and Down use the files on disk: drafts are saved first or the action is cancelled.
                         if (recipeEditor.Files.Any(item => item.Modified))
                         {
@@ -1819,11 +2129,13 @@ internal static partial class DashboardCli
     {
         var width = Math.Min(70, app.Screen.Width - 6);
         var wrapped = DashboardPresentation.Wrap(message, width - 4);
-        var height = Math.Min(app.Screen.Height - 4, wrapped.Count + 5);
+        // Title, blank row, message and the button row with its margin: the message keeps all its rows
+        // (the previous height left the button row over the last message row).
+        var height = Math.Min(app.Screen.Height - 4, wrapped.Count + 6);
         using var dialog = new Dialog { Width = width, Height = height, BorderStyle = LineStyle.None, ShadowStyle = ShadowStyles.None };
         var heading = new Label { X = 1, Text = title, Width = Dim.Fill(1) };
         var color = string.IsNullOrEmpty(Environment.GetEnvironmentVariable("NO_COLOR"));
-        var content = new Canvas(color) { X = 1, Y = 2, Width = Dim.Fill(1), Height = Math.Max(1, height - 4),
+        var content = new Canvas(color) { X = 1, Y = 2, Width = Dim.Fill(1), Height = Math.Max(1, height - 5),
             ZoneName = "dlg", Interactive = true, Scrollable = true, Rows = wrapped.Select(Markup.Escape).ToArray() };
         dialog.Add(heading, content);
         if (color) { Paint(dialog, Palette.Text, Palette.Card); Paint(heading, Palette.Text, Palette.Card); }

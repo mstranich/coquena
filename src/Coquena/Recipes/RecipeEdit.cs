@@ -7,7 +7,7 @@ namespace Coquena.Recipes;
 
 internal static class RecipeEdit
 {
-    internal static void Save(RecipeSelection selection, Dictionary<string, byte[]> inputs, string file,
+    internal static byte[] Propose(RecipeSelection selection, Dictionary<string, byte[]> inputs, string file,
         string[] keys, string value)
     {
         var original = inputs[file];
@@ -67,54 +67,19 @@ internal static class RecipeEdit
         var (encoding, offset) = RecipeYaml.TextEncoding(original, false);
         var candidate = original.Take(offset).Concat(encoding.GetBytes(text)).ToArray();
         var changed = new Dictionary<string, byte[]>(inputs, inputs.Comparer) { [file] = candidate };
-        selection.CapturedFiles = changed;
-        var recipe = RecipeReader.Read(selection);
+        var candidateSelection = new RecipeSelection(selection.Base, selection.Files, selection.Base, selection.EnvFiles)
+        {
+            CapturedFiles = changed, ImportedScope = selection.ImportedScope,
+            ImportedPathBases = selection.ImportedPathBases, FilterUnusedModels = selection.FilterUnusedModels
+        };
+        var recipe = RecipeReader.Read(candidateSelection);
         if (recipe.Root.Get("service")?.Get("backend") is not null) _ = Backends.BackendIntent.FromRecipe(recipe);
         _ = Models.ModelIntent.FromRecipe(recipe);
         var impact = ArgumentValidation.Impact(recipe, ArgumentSchema.Load(recipe));
         if (impact.Count != 0)
             throw new RecipeException(impact[0].Code, "edit", impact[0].Origin, string.Join(Environment.NewLine, impact.Select(d => d.Detail)));
 
-        var temporary = Path.Combine(Path.GetDirectoryName(file)!, "." + Guid.NewGuid().ToString("N") + ".tmp");
-        // Lock all selected inputs in the same order across overlapping combinations.
-        var locks = new Stack<Mutex>();
-        try
-        {
-            using (var stream = new FileStream(temporary, FileMode.CreateNew, FileAccess.Write, FileShare.None))
-            {
-                stream.Write(candidate);
-                stream.Flush(true);
-            }
-            foreach (var input in inputs.Keys.Order(StringComparer.OrdinalIgnoreCase))
-            {
-                var id = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
-                    Encoding.UTF8.GetBytes(input.ToUpperInvariant())));
-                var mutex = new Mutex(false, "CoquenaRecipeEdit-" + id);
-                try
-                {
-                    try { mutex.WaitOne(); }
-                    catch (AbandonedMutexException) { }
-                    locks.Push(mutex);
-                }
-                catch { mutex.Dispose(); throw; }
-            }
-            foreach (var input in inputs)
-                if (!RecipeYaml.ReadBytes(input.Key).AsSpan().SequenceEqual(input.Value))
-                    throw root.Error("edit-conflict", "edit", "Cambió una capa seleccionada; vuelva a revisar la edición.");
-            if (!candidate.AsSpan().SequenceEqual(original)) File.Replace(temporary, file, null);
-        }
-        finally
-        {
-            try { File.Delete(temporary); }
-            finally
-            {
-                while (locks.TryPop(out var mutex))
-                {
-                    mutex.ReleaseMutex();
-                    mutex.Dispose();
-                }
-            }
-        }
+        return candidate;
 
         int EndOf(RecipeValue item)
         {
@@ -135,6 +100,34 @@ internal static class RecipeEdit
             if (start is Scalar { Style: ScalarStyle.Plain, Value.Length: 0 } && index > 0 && text[index - 1] == ':')
                 replacement = " " + replacement;
             return text[..index] + replacement + text[end..];
+        }
+    }
+
+    internal static void Save(RecipeSelection selection, Dictionary<string, byte[]> inputs, string file, string[] keys, string value)
+    {
+        var candidate = Propose(selection, inputs, file, keys, value);
+        var locks = new Stack<Mutex>();
+        var temporary = Path.Combine(Path.GetDirectoryName(file)!, "." + Guid.NewGuid().ToString("N") + ".tmp");
+        try
+        {
+            using (var stream = new FileStream(temporary, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+            { stream.Write(candidate); stream.Flush(true); }
+            foreach (var input in inputs.Keys.Order(StringComparer.OrdinalIgnoreCase))
+            {
+                var id = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(Encoding.UTF8.GetBytes(input.ToUpperInvariant())));
+                var mutex = new Mutex(false, "CoquenaRecipeEdit-" + id);
+                try { try { mutex.WaitOne(); } catch (AbandonedMutexException) { } locks.Push(mutex); }
+                catch { mutex.Dispose(); throw; }
+            }
+            foreach (var input in inputs)
+                if (!RecipeYaml.ReadBytes(input.Key).AsSpan().SequenceEqual(input.Value))
+                    throw new RecipeException("edit-conflict", "edit", new(file, 1, 1, "$"), "Cambió una capa seleccionada; vuelva a revisar la edición.");
+            if (!candidate.AsSpan().SequenceEqual(inputs[file])) File.Replace(temporary, file, null);
+        }
+        finally
+        {
+            try { File.Delete(temporary); }
+            finally { while (locks.TryPop(out var mutex)) { mutex.ReleaseMutex(); mutex.Dispose(); } }
         }
     }
 

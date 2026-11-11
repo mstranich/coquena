@@ -169,6 +169,16 @@ sin aplicar ni reiniciar automáticamente.
 
 ## Formularios de parámetros
 
+Presets y Parámetros consultan la combinación seleccionada. Clonar o quitar una
+definición prepara el cambio en el Editor y requiere Guardar explícitamente.
+La edición de schema conserva las asignaciones y valida su impacto antes de
+guardar; un resultado incompatible permanece como borrador para corregirlo.
+La comparación distingue el snapshot publicado de una lectura de argumentos
+efectivos del backend; sólo muestra valores efectivos cuando existe esa fuente.
+En Global se edita la intención importada del ámbito, conservando su generación;
+guardar no aplica el cambio a una instancia. El catálogo histórico global no
+sustituye las definiciones YAML de un proyecto.
+
 Schema del proyecto aporta nombre, tipo, ámbito, aplicabilidad, descripción,
 opciones/default y dependencias cuando el validador las soporte.
 Sin schema mantener editor genérico de args. La CLI también permite mantener coherencia.

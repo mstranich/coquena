@@ -20,7 +20,8 @@ internal static class RecipeDrafts
         {
             foreach (var file in selection.Files.Concat(selection.EnvFiles))
                 captured[file] = drafts.TryGetValue(file, out var draft) ? draft : RecipeYaml.ReadBytes(file);
-            var candidate = new RecipeSelection(selection.Base, selection.Files, selection.Base, selection.EnvFiles) { CapturedFiles = captured };
+            var candidate = new RecipeSelection(selection.Base, selection.Files, selection.Base, selection.EnvFiles)
+            { CapturedFiles = captured, ImportedScope = selection.ImportedScope, ImportedPathBases = selection.ImportedPathBases, FilterUnusedModels = selection.FilterUnusedModels };
             var recipe = RecipeReader.Read(candidate);
             if (recipe.Root.Get("service")?.Get("backend") is not null) _ = Backends.BackendIntent.FromRecipe(recipe);
             _ = Models.ModelIntent.FromRecipe(recipe);

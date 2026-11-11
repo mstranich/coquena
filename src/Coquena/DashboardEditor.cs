@@ -73,7 +73,7 @@ internal static partial class DashboardCli
         if (items.Count == 0) rows.Add(" " + Markup.Style("mut", "Sin combinaciones registradas."));
         var chosen = items.FirstOrDefault(item => item.Key == selected);
         rows.Add("");
-        rows.Add(" " + DefinitionsPresentation.Off("+ Nueva combinación…") + "  " +
+        rows.Add(" " + ManagementPresentation.Button("+ Nueva combinación…", "recipe-new") + "  " +
             (chosen is null ? DefinitionsPresentation.Off("Editar") : ManagementPresentation.Button("Editar", "recipe-edit")) + "  " +
             (chosen?.Id is null ? DefinitionsPresentation.Off("Olvidar") : ManagementPresentation.Button("Olvidar", "recipe-forget")));
         rows.Add("");
@@ -83,7 +83,7 @@ internal static partial class DashboardCli
         rows.Add(" " + Markup.Style("mut", (chosen?.Private == true ? "[x]" : "[ ]") + " preparación privada"));
         rows.Add("");
         rows.Add(" " + ManagementPresentation.Button("▲ Up", "up") + "  " + DefinitionsPresentation.Off("▼ Down") + "  " +
-            DefinitionsPresentation.Off("Importar") + "  " + DefinitionsPresentation.Off("Ver en vivo"));
+            (chosen is null ? DefinitionsPresentation.Off("Importar") : ManagementPresentation.Button("Importar", "recipe-import")) + "  " + DefinitionsPresentation.Off("Ver en vivo"));
         return new("Recetas de " + Markup.Escape(scope) + (destination is null ? "" : " " + Markup.Style("mut", "→") + " " + Markup.Escape(destination)), rows);
 
         static string Pad(string text, int size) => DashboardPresentation.Fit(text, size - 1).PadRight(size);
@@ -96,11 +96,12 @@ internal static partial class DashboardCli
         public required byte[] Opened { get; set; }
         public required Editor View { get; init; }
         public required bool Environment { get; init; }
+        public bool Existed { get; set; } = true;
         public string[] OpenedLines { get; set; } = [];
         public (int First, int Last)? Changed { get; set; }
         public int? ErrorLine { get; set; }
         public string Name => System.IO.Path.GetFileName(Path);
-        public bool Modified => !RecipeDrafts.Encode(View.Text, Opened).AsSpan().SequenceEqual(Opened);
+        public bool Modified => !Existed || !RecipeDrafts.Encode(View.Text, Opened).AsSpan().SequenceEqual(Opened);
     }
 
     // Marks the changed block and the line of the last validation error with a background.
@@ -132,6 +133,8 @@ internal static partial class DashboardCli
         public RecipeSelection? Selection { get; private set; }
         public string Scope { get; private set; } = "";
         public bool Private { get; private set; }
+        public bool RequireValidSave { get; set; }
+        public ScopeContext? ImportedContext { get; set; }
         public RecipeDrafts.Diagnostic? Problem { get; set; }
         public bool Validated { get; set; }
         public string? Status { get; set; }
@@ -150,13 +153,15 @@ internal static partial class DashboardCli
 
         public EditorFile? File => Files.ElementAtOrDefault(Current);
 
-        public void Open(RecipeSelection selection, string scope, bool isPrivate)
+        public void Open(RecipeSelection selection, string scope, bool isPrivate, IReadOnlySet<string>? newFiles = null)
         {
             Close();
             (Selection, Scope, Private) = (selection, scope, isPrivate);
+            ImportedContext = selection.ImportedScope;
             foreach (var (path, environment) in selection.Files.Select(file => (file, false)).Concat(selection.EnvFiles.Select(file => (file, true))))
             {
-                var bytes = RecipeYaml.ReadBytes(path);
+                var isNew = newFiles?.Contains(path) == true && !System.IO.File.Exists(path);
+                var bytes = isNew ? Array.Empty<byte>() : RecipeYaml.ReadBytes(path);
                 var editor = new Editor
                 {
                     Width = Dim.Fill(), Height = Dim.Fill(), GutterOptions = GutterOptions.LineNumbers,
@@ -164,7 +169,7 @@ internal static partial class DashboardCli
                 };
                 if (!environment) editor.HighlightingDefinition = YamlDefinition();
                 if (useColor) Paint(editor, Palette.Text, Palette.Base);
-                var file = new EditorFile { Path = path, Opened = bytes, View = editor, Environment = environment };
+                var file = new EditorFile { Path = path, Opened = bytes, View = editor, Environment = environment, Existed = !isNew };
                 Load(file, bytes);
                 editor.LineTransformers.Add(new LineMarks(file, useColor));
                 editor.ContentChanged += (_, _) => { Diff(file); Validated = false; Changed?.Invoke(); };
@@ -173,6 +178,14 @@ internal static partial class DashboardCli
             }
             Current = 0;
             Show(0);
+        }
+
+        public void Stage(string path, byte[] bytes)
+        {
+            var at = Files.FindIndex(file => file.Path.Equals(path, StringComparison.OrdinalIgnoreCase));
+            if (at < 0) throw new ArgumentException("El archivo no pertenece a la combinación abierta.");
+            Files[at].View.Text = RecipeYaml.ReadText(path, false, bytes);
+            Diff(Files[at]); Validated = false; Show(at); Changed?.Invoke();
         }
 
         public event Action? Changed;
@@ -217,6 +230,8 @@ internal static partial class DashboardCli
             foreach (var file in Files) { Host.Remove(file.View); file.View.Dispose(); }
             Files.Clear();
             (Selection, Problem, Validated, Status, Current) = (null, null, false, null, 0);
+            RequireValidSave = false;
+            ImportedContext = null;
         }
 
         public IReadOnlyDictionary<string, byte[]> Drafts() =>
@@ -246,8 +261,9 @@ internal static partial class DashboardCli
                 return i == Current ? Markup.Style("sel", label, "tab:" + i) : Markup.Style("nav", label, "tab:" + i);
             }));
             Tabs.Rows = [tabs + "{pad}" + Markup.Style("mut", Status ?? clock) + " "];
-            Tools.Rows = [" " + Button("Guardar", "save") + " " + Button("Validar", "validate") + " " + Button("▲ Up", "up") + " " +
-                Button("▼ Down", "down") + "   " + Button("Copiar", "copy") + " " + Button("Cortar", "cut") + " " + Button("Pegar", "paste") +
+            Tools.Rows = [" " + Button("Guardar", "save") + " " + Button("Validar", "validate") + " " +
+                (ImportedContext is null ? Button("▲ Up", "up") : DefinitionsPresentation.Off("▲ Up")) + " " +
+                (ImportedContext is null ? Button("▼ Down", "down") : DefinitionsPresentation.Off("▼ Down")) + "   " + Button("Copiar", "copy") + " " + Button("Cortar", "cut") + " " + Button("Pegar", "paste") +
                 "{pad}" + Button("Cerrar", "close") + " "];
             ValidationTitle.Rows = [" Validación"];
             Validation.Rows = [Problem is { } problem

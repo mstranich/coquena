@@ -87,6 +87,9 @@ public sealed class RecipeUpdatePlans(ScopeContext context)
         return plan;
     }
 
+    public JsonObject? ReadRecorded(IReadOnlyList<RecipeSelection> selections) =>
+        store.Read().Documents.GetValueOrDefault(PathName)?["data"]?["plans"]?[PlanId(selections)]?.DeepClone().AsObject();
+
     public JsonObject ReadValid(IReadOnlyList<RecipeSelection> selections)
     {
         var state = store.Read();
@@ -122,6 +125,9 @@ public sealed class RecipeUpdatePlans(ScopeContext context)
         return new JsonObject { ["created-at"] = plan["created-at"]!.DeepClone(), ["resources"] = resources };
     }
     private static bool Sensitive(RecipeValue value) => value.Sensitive || value.Fields.Values.Any(Sensitive) || value.Items.Any(Sensitive);
+
+    // Whether the scope holds the local intention identity that plans require.
+    public bool Prepared => File.Exists(context.PathFor("local/intent.key")) && new FileInfo(context.PathFor("local/intent.key")).Length == 32;
 
     private byte[] ReadKey()
     {

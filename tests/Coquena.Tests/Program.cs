@@ -47,12 +47,15 @@ if (args is ["--dashboard-tests"])
         await Coquena.Tests.ManagementTests.Run(Check);
         await Coquena.Tests.ResourceDashboardTests.Run(Check);
         await Coquena.Tests.RecipeEditorTests.Run(Check);
+        await Coquena.Tests.AuthoringDashboardTests.Run(Check);
         await Coquena.Tests.InferenceObservationTests.Run(Check);
         await Coquena.Tests.DashboardProjectTests.Run(Check);
         Console.WriteLine($"Dashboard checks: {checks}.");
     });
     return;
 }
+if (args is ["--authoring-setup", var authoringRoot])
+{ await CheckedRun(() => Coquena.Tests.AuthoringDashboardTests.Setup(Path.GetFullPath(authoringRoot))); return; }
 if (args.Length is >= 1 and <= 3 && args[0] == "--watch-tests")
 { await Coquena.Tests.WatchTests.Run(args.Length >= 2 ? Path.GetFullPath(args[1]) : null, args.Length == 3 ? Path.GetFullPath(args[2]) : null); return; }
 if (args is ["--inference-router-tests", var inferenceBackend, var inferenceModel, var inferenceRoot])

@@ -18,3 +18,6 @@ después de evaluar los hallazgos.
 | [009: Cambiar el backend de un servicio](009-cambiar-backend-servicio.md) | Pendiente de diseño señalado por el usuario; sin recorrido en la TUI. |
 | [010: Descargas repartidas por ámbito](010-descargas-globales.md) | El usuario prefiere una única pantalla global; «Volver» confuso sin reproducir. |
 | [011: Cancelar una descarga desde la TUI](011-cancelar-descarga-tui.md) | Defecto señalado por el usuario; sin reproducir ni diagnosticar. |
+| [012: Coherencia visual entre vistas de la TUI](012-coherencia-visual-tui.md) | Recorrido de la TUI a pedido del usuario; selección, casillas, botones, rótulos y resaltado difieren entre vistas. |
+| [013: Estado, navegación y resultados en la TUI](013-estado-navegacion-tui.md) | Volver desde Notificaciones, fila resaltada y resultados sólo como aviso; reproduce el «Volver» de 010. |
+| [014: Procedencia de presets y filtros de actualización](014-procedencia-y-filtros-autoria.md) | P atribuye el preset a la última capa; Comprobar pide filtros como texto libre. |

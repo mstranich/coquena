@@ -225,6 +225,14 @@ La importación interpreta los bytes capturados de YAML, env y schemas, sin
 mezclar lecturas posteriores al materializar la intención; vuelve a comprobar
 los orígenes tras preparar la generación y antes de decidir el commit.
 
+La edición explícita de intención importada conserva la coordinación entre su
+documento y la proyección YAML. Comprueba los bytes abiertos y la revisión del
+ámbito antes de publicar una generación nueva, sin modificar snapshots activos
+ni publicar presets por guardar. Un cambio de schema común se valida contra
+todas las intenciones globales afectadas; si alguna queda inválida, se conserva
+la generación anterior. La intención común ausente puede crearse al guardar
+una definición global nueva; un archivo ajeno ya existente no se adopta por ello.
+
 El registro global conserva resoluciones importadas por entidad, con HMAC local
 de vigencia, selección exacta e IDs de recurso e instalación. Una intención idéntica
 reutiliza esa resolución aunque se importe desde otra fuente o se prepare por
