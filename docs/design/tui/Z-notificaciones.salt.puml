@@ -1,7 +1,7 @@
 @startsalt
 {
-  {/ <b>● En vivo | ◇ Definiciones | ≡ Configuración | . | ⇣ 1 · 68% | ▲ 2 }
-  { <b>Notificaciones | [Marcar leídas] | [Volver] }
+  {/ ● En vivo | ◇ Definiciones | ≡ Configuración | . | ⇣ 1 · 68% | <b>▲ 2 }
+  { <b>Notificaciones | 2 sin leer | [Marcar leídas] }
   {#
     ▲ | 12:09 | principal se reinició tras una caída (1/3) | [Ver log]
     ✗ | 12:05 | Ornith-35B Q4_K_M: conexión reiniciada | [Reintentar]

@@ -6,7 +6,7 @@
 <title>TUI En vivo</title>
 <style>
 :root{
-  --bg:#14171A; --surface:#1E2328; --card:#252B32; --border:#3E4651;
+  --bg:#14171A; --surface:#1E2328; --card:#252B32; --border:#3E4651; --modal:#2F363F; --edge:#8592A1;
   --text:#EAEBED; --muted:#88929A;
   --sel:#C85A32; --sel-text:#D57958; --focus:#2EC4B6;
   --metric-gen:#DDA15E; --metric-prompt:#457B9D;
@@ -23,8 +23,8 @@ pre{margin:0;line-height:1.25;font:13px/1.3 "Cascadia Mono",Consolas,monospace;w
 .mut{color:var(--muted)} .hi{font-weight:700}
 .gen{color:var(--metric-gen)} .pr{color:var(--metric-prompt)}
 .ok{color:var(--ok)} .warn{color:var(--warn)} .err{color:var(--err)}
-.bar{background:var(--surface)} .dlg{background:var(--card)}
-.bad{outline:1px solid var(--err)} .dlg{background:var(--card)} .nav{} .lnk{cursor:pointer;text-decoration:underline dotted;text-underline-offset:3px} .lnk:hover{outline:1px solid var(--focus)} #toolbar{margin:8px 0 12px} #toolbar button{background:var(--card);color:var(--text);border:1px solid var(--border);padding:4px 10px;margin-right:6px;border-radius:4px;cursor:pointer} #toolbar button.on{background:var(--sel)} .chg{background:var(--card)} .errl{background:#2a1c20} .btn{background:var(--border);color:var(--text)} .btnf{background:var(--focus);color:var(--bg);font-weight:700} .z1{background:var(--surface)} pre span{padding:.13em 0} .hd{background:var(--card);color:var(--text);font-weight:700} .gold{color:var(--text);font-weight:700}
+.bar{background:var(--surface)} .dlg{background:var(--modal)} .bdr{background:var(--modal);color:var(--edge)}
+.bad{outline:1px solid var(--err)} .nav{} .lnk{cursor:pointer;text-decoration:underline dotted;text-underline-offset:3px} .lnk:hover{outline:1px solid var(--focus)} #toolbar{margin:8px 0 12px} #toolbar button{background:var(--card);color:var(--text);border:1px solid var(--border);padding:4px 10px;margin-right:6px;border-radius:4px;cursor:pointer} #toolbar button.on{background:var(--sel)} .chg{background:var(--card)} .errl{background:#2a1c20} .btn{background:var(--border);color:var(--text)} .btnf{background:var(--focus);color:var(--bg);font-weight:700} .z1{background:var(--surface)} pre span{padding:.13em 0} .hd{background:var(--card);color:var(--text);font-weight:700} .gold{color:var(--text);font-weight:700}
 table{border-collapse:collapse;margin-top:8px;font-size:13px}
 td{padding:3px 10px;border-bottom:1px solid var(--border)}
 .sw{display:inline-block;width:12px;height:12px;border-radius:2px;vertical-align:middle;margin-right:6px}
@@ -39,8 +39,10 @@ const vis=s=>[...s.replace(/\{\w+\|([^}]*)\}/g,"$1")].length;
 const fill=(s,n)=>s+" ".repeat(Math.max(0,n-vis(s)));
 const sep="{mut|"+"─".repeat(W)+"}";
 // Hardware: sólo lo que el código mide por dispositivo (PDH + DXGI). Sin atribución a servicios.
-const TABS=k=>{k=k===true?0:k===false?1:k;const n=["● En vivo","◇ Definiciones","≡ Configuración"];
- return [["z1",80,n.map((x,i)=>i===k?"{sel| "+x+" }":" {nav|"+x+"} ").join(" ")+"{pad}{nav|⇣ 1 · 68%}  {warn|▲ 2} "]];};
+const TABS=(k,open)=>{k=k===true?0:k===false?1:k;const n=["● En vivo","◇ Definiciones","≡ Configuración"];
+ // ⇣ y ▲ son pestañas: muestran progreso y contador y se resaltan cuando están activas.
+ const dl=open==="N"?"{sel| ⇣ 1 · 68% }":" {nav|⇣ 1 · 68%} ",nt=open==="Z"?"{sel| ▲ 2 }":" {warn|▲ 2} ";
+ return [["z1",80,n.map((x,i)=>i===k?"{sel| "+x+" }":" {nav|"+x+"} ").join(" ")+"{pad}"+dl+nt]];};
 const CT=(sel,i)=>{const t=[" Coquena"," TUI"," Sistema"];const x=t[i]??"";return x.trim()===sel?"{focb|"+fill(x,23)+"}":(x?" {nav|"+x.trim()+"}":x);};
 const TOPF=(t1,w,t2)=>[["hd",w-1," "+t1],["z0",1,""],["hd",80-w," "+t2]];
 const ROW=(l,w,r)=>[["z1",w-1,l],["z0",1,""],["z0",80-w,r]];
@@ -50,10 +52,10 @@ const BOTF=()=>null;
 const HW1="{bar| CPU }{gen|▂▃▅▆▅▃▄▅▆▅▄▃▅▆▅▄}{bar| 42%        RAM }{gen|▅▅▆▆▆▆▆▅▆▆▆▆▆▆▆▆}{bar| 18,2/32G}";
 const HW2="{bar| GPU0 }{warn|▅▆▇▇▇}{bar| 91% }{warn|20,1/24G}{bar| +0,4G   GPU1 }{pr|▂▃▂▁▂}{bar| 12% 0,1/0,5G +1,1G}";
 // Árbol de Definiciones compartido: cada ámbito ofrece las mismas vistas.
-const GSET=["Servicios","Modelos","Backends","Modelos inventario","Descargas 1","Parámetros","Presets globales","Actualizaciones globales","Mantenimiento global"];
+const GSET=["Servicios","Modelos","Backends","Modelos inventario","Parámetros","Presets globales","Actualizaciones globales","Mantenimiento global"];
 const TREE=(sel,sc)=>{sc=sc||(GSET.includes(sel)?"G":"L");
- const g=sc==="G"?[" {mut|▾ Global}","  Servicios","  Presets","  Modelos","  Backends","  Parámetros","  Descargas 1","  Actualizaciones","  Mantenimiento"]:[" {mut|▸ Global}"];
- const l=sc==="L"?[" {mut|▾ código} {mut|· aquí}","  Recetas","  Presets","  Servicio","  Modelos","  Backends","  Parámetros","  Descargas","  Actualizaciones 2↑","  Mantenimiento"]:[" {mut|▸ código} {mut|· aquí}"];
+ const g=sc==="G"?[" {mut|▾ Global}","  Servicios","  Presets","  Modelos","  Backends","  Parámetros","  Actualizaciones","  Mantenimiento"]:[" {mut|▸ Global}"];
+ const l=sc==="L"?[" {mut|▾ código} {mut|· aquí}","  Recetas","  Presets","  Servicio","  Modelos","  Backends","  Parámetros","  Actualizaciones 2↑","  Mantenimiento"]:[" {mut|▸ código} {mut|· aquí}"];
  const t=[...g,...l," {mut|▸ notas}"," {mut|▸ agentes}"," {mut|▸ pruebas}"," {mut|✗ cli-project}"];
  const key=sel.replace(" globales","").replace(" global","").replace(" inventario","");
  return t.map(x=>x.trim()===key?"{focb|"+fill(x.replace(/\{\w+\|([^}]*)\}/g,"$1"),23)+"}":(x.includes("{")?x:x.replace(/^(\s*)(.+)$/,"$1{nav|$2}")));};
@@ -248,7 +250,7 @@ HW1,HW2
 ["J · ◇ Definiciones › carpeta sin receta — Inicializar",[
 TABS(1),
 TOPF("",24,"$TestRoot\\nuevo  {mut|sin coquena.yaml}"),
-...[...Array(18)].map((_,i)=>ROW([" {mut|Global}","  {nav|Servicios}","  {nav|Modelos}","  {nav|Descargas} {foc|1}","  {nav|Actualizaciones}",
+...[...Array(18)].map((_,i)=>ROW([" {mut|Global}","  {nav|Servicios}","  {nav|Modelos}","  {nav|Actualizaciones}",
 " {mut|nuevo} {mut|· aquí}","{focb|  Receta               }",
 " {mut|▸ código}"," {mut|▸ notas}"," {mut|▸ agentes}"][i]??"",24,[
 "",
@@ -343,25 +345,29 @@ TOPF("",24,"Servicios de Global"),
 "{pad}{btn| Cancelar }  {btnf| Agregar }"][i]??""],["z0",3,""]]),
 HW1,HW2
 ]],
-["N · ◇ Definiciones › Global › Descargas — progreso y control",[
-TABS(1),
-TOPF("",24,"Descargas de Global{pad}{mut|2 activas · 1 pausada}"),
-...[...Array(18)].map((_,i)=>ROW(T("Descargas 1",i,"G"),24,[
-"{focb| gemma-4-12B-it-qat Q4_0                   modelo }",
-" {foc|██████████████████▒░░░░░░░░} 68%  7,1/10,4G",
-" 42 MB/s · {mut|faltan} 1 min 18 s   {btn| ❚❚ Pausar } {btn| Cancelar }",
+["N · Descargas (pestaña ⇣ de la barra superior) — todos los ámbitos, por ámbito y tipo, ordenado por estado y progreso",[
+TABS(-1,"N"),
+MIDF("Descargas  {mut|3 activas · 1 pausada · 1 con error}"),
+...[
+" {hi|Global}",
+"  {mut|MODELOS}",
+"{focb|   gemma-4-12B-it-qat Q4_0     }{foc|██████████▒░░░░}{focb| 68%  42 MB/s · 1 min 18 s}",
+"                                          {btn| ❚❚ Pausar } {btn| Cancelar }",
+"  {mut|BACKENDS}",
+"   cuda@13 b6188               {foc|██████████████▒} 97%  {mut|verificando integridad}",
+"                                          {btn| Cancelar }",
+" {hi|código} {mut|· aquí}",
+"  {mut|COMPANIONS}",
+"   mmproj-F16                  {mut|████▒░░░░░░░░░░} 25%  {warn|❚❚ pausada 12:01}",
+"                                          {btn| Reanudar } {btn| Cancelar }",
+"   Ornith-35B Q4_K_M           {err|✗ conexión reiniciada}  {btn| Reintentar }",
+"  {mut|MODELOS}",
+"   qwen3-8B Q5_K_M             {ok|✓ 5,8G · 11:42}",
+" {hi|notas}  {mut|· 1 terminada}{pad}{mut|▸ desplegar}",
+" {warn|▲ cli-project: estado inválido; sus descargas no se pueden leer}",
 "",
-" backend cuda@13 b6188                     {mut|backend}",
-" {foc|██████████████████████████▒} 97%  402/415M",
-" 38 MB/s · {mut|verificando integridad}",
-"",
-" mmproj-F16                              {mut|companion}",
-" {mut|░░░░░░▒░░░░░░░░░░░░░░░░░░░░} 25%  210/850M",
-" {warn|❚❚ pausada} 12:01                {btn| Reanudar } {btn| Cancelar }",
-"",
-" {mut|TERMINADAS}",
-" qwen3-8B Q5_K_M   {ok|✓} 5,8G · 11:42",
-" Ornith-35B Q4_K_M {err|✗} conexión reiniciada {btn| Reintentar }"][i]??"")),
+" {mut|Orden: en curso, pausadas, con error, terminadas; luego por avance.}",
+" {mut|La pestaña conserva su estado; las demás conservan el suyo.}"].map(ROW1),
 HW1,HW2
 ]],
 ["Q · ◇ Definiciones › Global › Parámetros — catálogo del backend",[
@@ -524,14 +530,17 @@ TABS(false),
 "{pad}{btn| Sí }  {btn| No }  {btnf| Cancelar }"][i]??""],["z0",12,""]]),
 HW1,HW2
 ]],
-["Z · Notificaciones (▲ en la barra superior) — acciones sobre cada aviso",[
-TABS(0),
-[["hd",80," Notificaciones{pad}{btn| Marcar leídas }  {btn| Volver }"]],
-ROW1(" {warn|▲} {mut|12:09} principal se reinició tras una caída {mut|(1/3)}{pad}{btn| Ver log }"),
-ROW1(" {err|✗} {mut|12:05} Ornith-35B Q4_K_M: conexión reiniciada{pad}{btn| Reintentar }"),
-ROW1(" {ok|✓} {mut|11:42} qwen3-8B Q5_K_M descargado"),
-ROW1(" {ok|✓} {mut|11:40} código: 2 actualizaciones disponibles{pad}{btn| Actualizaciones }"),
-ROW1(""),ROW1(""),ROW1(""),ROW1(""),ROW1(""),ROW1(""),ROW1(""),ROW1(""),ROW1(""),ROW1(""),ROW1(""),ROW1(""),ROW1(""),ROW1(""),ROW1(""),
+["Z · Notificaciones (pestaña ▲ de la barra superior) — acciones sobre cada aviso",[
+TABS(-1,"Z"),
+MIDF("Notificaciones  {mut|2 sin leer}{pad}{btn| Marcar leídas }"),
+...[
+" {warn|▲} {mut|12:09} principal se reinició tras una caída {mut|(1/3)}{pad}{btn| Ver log }",
+" {err|✗} {mut|12:05} Ornith-35B Q4_K_M: conexión reiniciada{pad}{btn| Reintentar }",
+" {ok|✓} {mut|11:42} qwen3-8B Q5_K_M descargado",
+" {ok|✓} {mut|11:40} código: 2 actualizaciones disponibles{pad}{btn| Actualizaciones }",
+"","","","","","","","","","","","","",
+" {mut|Una acción que lleva a otra vista cambia de pestaña y la selecciona.}",
+"",""].map(ROW1),
 HW1,HW2
 ]],
 ["D · Hardware (clic en la barra inferior) — ¿saturó o desbordó la memoria?",[
@@ -569,9 +578,31 @@ function align(lines){const M="{mut|│}";const cols={};
   return lines.map(l=>{const i=l.indexOf(M);if(i<0)return l;let a=l.slice(0,i),b=l.slice(i);let d=target-vis(a);
     while(d<0&&/ (\})?$/.test(a)){a=a.replace(/ (\})?$/,"$1");d++;}
     return a+" ".repeat(Math.max(0,d))+b;});}
+// Modales: superficie elevada y borde redondeado de una celda, por fuera del contenido,
+// para distinguirlos de lo que queda detrás y de otro modal superpuesto.
+function elevate(rows){let at=rows.map(r=>Array.isArray(r)?r.findIndex(c=>c[0]==="dlg"):-1);
+  let idx=at.map((k,i)=>k>=0?i:-1).filter(i=>i>=0);if(!idx.length)return rows;
+  const first=idx[0];let last=idx[idx.length-1];
+  // Las filas de relleno de la pantalla que caen dentro del modal pasan a ser filas vacías del modal.
+  rows=rows.map((r,i)=>i>first&&i<last&&at[i]<0&&r===""?rows[first].map(c=>[c[0],c[1],""]):r);
+  at=rows.map(r=>Array.isArray(r)?r.findIndex(c=>c[0]==="dlg"):-1);idx=at.map((k,i)=>k>=0?i:-1).filter(i=>i>=0);
+  let texts=idx.map(i=>rows[i][at[i]][2]);
+  if(texts[0]!==""&&texts[texts.length-1]==="")texts=["",...texts.slice(0,-1)];
+  if(texts[texts.length-1]!==""&&texts[0]==="")texts=[...texts.slice(1),""];
+  // El modal mide lo que su contenido más una fila libre y el borde; debajo se ve la vista.
+  const used=texts.reduce((n,t,j)=>t!==""?j:n,0),keep=Math.min(texts.length-1,used+2);
+  if(keep<texts.length-1){const cut=idx[keep];
+    rows=rows.map((r,i)=>i>cut&&i<=last&&at[i]>=0?r.map(c=>c[0]==="dlg"?["z0",c[1],""]:c):r);
+    texts=texts.slice(0,keep+1);last=cut;}
+  return rows.map((r,i)=>{const k=at[i];if(i<first||i>last||k<0)return r;const segs=r.map(c=>[...c]);
+    const w=segs[k][1],prev=segs[k-1],next=segs[k+1];prev[1]-=1;next[1]-=1;
+    const top=i===first,bot=i===last;
+    segs[k][2]=top||bot?"{bdr|"+"─".repeat(w)+"}":texts[idx.indexOf(i)];
+    segs.splice(k+1,0,["bdr",1,top?"╮":bot?"╯":"│"]);segs.splice(k,0,["bdr",1,top?"╭":bot?"╰":"│"]);
+    return segs;});}
 for(const [title,raw] of screens){const lines=align(raw);
   const h=document.createElement("h2");h.textContent=title;root.appendChild(h);
-  const rows=lines.filter(x=>x!==null).slice(0,H);while(rows.length<H)rows.splice(rows.length-3,0,"");
+  let rows=lines.filter(x=>x!==null).slice(0,H);while(rows.length<H)rows.splice(rows.length-3,0,"");rows=elevate(rows);
   const html=rows.map((l,i)=>{if(Array.isArray(l)){let out="",len=0;for(const [c,w,m] of l){const pw=w;const r=render(m.includes("{pad}")?m.replace("{pad}","{pad}"):m);let o=r.out,n=r.len;if(m.includes("{pad}")){const [x,y]=m.split("{pad}");const r2=render(x+" ".repeat(Math.max(1,pw-1-vis(x)-vis(y)))+y);o=r2.out;n=r2.len;}out+=`<span class="${c}">${o}${" ".repeat(Math.max(0,pw-n))}</span>`;len+=Math.max(pw,n);}return len>W?`<span class="bad">${out}</span>`:out;}const r=render(l);const pad=" ".repeat(Math.max(0,W-r.len));
     const cls=(i===H-2||i===H-1)?"bar":"";
     return r.len>W?`<span class="bad">${r.out}</span>`:`<span class="${cls}">${r.out}${pad}</span>`}).join("\n");
@@ -583,13 +614,13 @@ for(const [title,raw] of screens){const lines=align(raw);
 const LINKS={"● En vivo":"A","◇ Definiciones":"B","≡ Configuración":"E","Receta":"B","Modelos":"W",
 "Coquena":"E","TUI":"F","Sistema":"G","Editar YAML":"H","Cerrar":"B","Ver en vivo":"A","Histórico":"I",
 "Volver":"A","+ Backend":"K","Importar":"L","Cancelar":"B","Agregar":"B","Inicializar":"B","Actualizar":"B",
-"Servicios":"M","Backends":"O","inventario":"W","Hugging Face":"C","+ Agregar local…":"S","Recetas":"B","Presets":"P","Parámetros":"Q","Mantenimiento":"R","Actualizaciones":"U","Actualizaciones 2↑":"U","Editar":"H","+ Nueva combinación…":"V","Aceptar":"B","+ Archivo nuevo…":"H","Clonar…":"H","gemma-4-12B-it-qat Q4_0":"W","▲ Up":"X","Publicar igual":"B","▲ 2":"Z","⇣ 1 · 68%":"N","Ver log":"I","Marcar leídas":"Z","Guardar":"Y","Sí":"H","No":"H","Servicio":"M","Descargas":"N","Descargas 1":"N",
+"Servicios":"M","Backends":"O","inventario":"W","Hugging Face":"C","+ Agregar local…":"S","Recetas":"B","Presets":"P","Parámetros":"Q","Mantenimiento":"R","Actualizaciones":"U","Actualizaciones 2↑":"U","Editar":"H","+ Nueva combinación…":"V","Aceptar":"B","+ Archivo nuevo…":"H","Clonar…":"H","gemma-4-12B-it-qat Q4_0":"W","▲ Up":"X","Publicar igual":"B","▲ 2":"Z","⇣ 1 · 68%":"N","Ver log":"I","Marcar leídas":"Z","Guardar":"Y","Sí":"H","No":"H","Servicio":"M",
 "+ Agregar":"M","Reanudar":"N","Ver descargas":"N"};
 const terms=[...document.querySelectorAll(".term")],heads=[...document.querySelectorAll("#screens h2")];
 const ids=heads.map(h=>h.textContent.trim()[0]);
 terms.forEach((t,i)=>{t.id="s"+ids[i];heads[i].id="h"+ids[i];
   t.querySelectorAll("span").forEach(sp=>{const k=sp.textContent.trim();
-    const to=({Y:{Cancelar:"H",Sí:"P",No:"H"},X:{Cancelar:"B"},S:{Cancelar:"W",Agregar:"W"},M:{"+ Agregar":"T"},T:{Cancelar:"M",Agregar:"M","Ir a backends":"O"},O:{"+ Backend":"K"},V:{Cancelar:"B"}}[ids[i]]||{})[k]||LINKS[k];
+    const to=({Y:{Cancelar:"H",Sí:"P",No:"H"},X:{Cancelar:"B"},S:{Cancelar:"W",Agregar:"W"},M:{"+ Agregar":"T"},T:{Cancelar:"M",Agregar:"M","Ir a backends":"O"},O:{"+ Backend":"K"},V:{Cancelar:"B"},N:{Cancelar:"N",Reintentar:"N"},Z:{Reintentar:"N"}}[ids[i]]||{})[k]||LINKS[k];
     if(to&&!sp.querySelector("span")){sp.classList.add("lnk");sp.title="→ "+to;sp.onclick=()=>go(to);}});
   const pre=t.querySelector("pre");const rows=pre.innerHTML.split("\n");
   rows.slice(-2).forEach(()=>{});});

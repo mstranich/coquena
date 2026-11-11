@@ -88,6 +88,14 @@ memoria dedicada y compartida. Hardware ampliado (D) se abre desde esa barra.
 - 80×24 es el mínimo de diseño. En terminales mayores, el espacio libre se reparte
   entre las zonas de contenido (log, gráficos, tablas y editor); la barra superior,
   los títulos y las dos filas de hardware conservan su altura.
-- Los modales son mensajes con acciones (Aceptar/Cancelar o Sí/No/Cancelar).
+- Los indicadores `⇣` (Descargas) y `▲` (Notificaciones) de la barra superior son
+  pestañas, como En vivo, Definiciones y Configuración: muestran progreso y contador en
+  todo momento y se resaltan cuando están activas. Cada pestaña conserva su propio estado
+  al cambiar a otra; no existe «Volver».
+- Los modales son mensajes con acciones (Aceptar/Cancelar o Sí/No/Cancelar) y formularios.
+  Todo modal se dibuja sobre una superficie más clara que el fondo, con un borde redondeado
+  de una celda por fuera de su contenido, y mide lo que su contenido; así se distingue de la
+  vista que queda detrás y de otro modal superpuesto. Ningún modal tapa la barra inferior
+  de recursos.
 - El Editor usa `Terminal.Gui.Editor` (aprobado): pestañas por archivo, deshacer,
   numeración y buscar/reemplazar. YAML necesita una definición de resaltado propia.

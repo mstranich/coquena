@@ -1,38 +1,29 @@
 @startsalt
 {
-  {/ ● En vivo | <b>◇ Definiciones | ≡ Configuración | . | ⇣ 1 · 68% | ▲ 2 }
+  {/ ● En vivo | ◇ Definiciones | ≡ Configuración | . | <b>⇣ 1 · 68% | ▲ 2 }
+  { <b>Descargas | 3 activas · 1 pausada · 1 con error }
   {
+    <b>Global
+    MODELOS
     {
-    {T
-      + Global
-      ++ Servicios
-      ++ Presets
-      ++ Modelos
-      ++ Backends
-      ++ Parámetros
-      ++ <b>Descargas 1
-      ++ Actualizaciones
-      ++ Mantenimiento
-      + código · aquí
-      + notas
-      + agentes
-      + pruebas
-      + ✗ cli-project
+      gemma-4-12B-it-qat Q4_0 | 68% · 42 MB/s · 1 min 18 s | [❚❚ Pausar] | [Cancelar]
     }
-    } | {
-      { <b>Descargas de Global | 2 activas · 1 pausada }
-      {#
-        Elemento | Tipo | Avance | Estado | .
-        gemma-4-12B-it-qat Q4_0 | modelo | 68% · 7,1/10,4G | 42 MB/s · 1 min 18 s | [Pausar] [Cancelar]
-        backend cuda@13 b6188 | backend | 97% · 402/415M | verificando integridad | .
-        mmproj-F16 | companion | 25% · 210/850M | ❚❚ pausada 12:01 | [Reanudar] [Cancelar]
-      }
-      <b>Terminadas
-      {#
-        qwen3-8B Q5_K_M | ✓ 5,8G · 11:42 | .
-        Ornith-35B Q4_K_M | ✗ conexión reiniciada | [Reintentar]
-      }
+    BACKENDS
+    {
+      cuda@13 b6188 | 97% · verificando integridad | . | [Cancelar]
     }
+    <b>código · aquí
+    COMPANIONS
+    {
+      mmproj-F16 | 25% · ❚❚ pausada 12:01 | [Reanudar] | [Cancelar]
+      Ornith-35B Q4_K_M | ✗ conexión reiniciada | [Reintentar] | .
+    }
+    MODELOS
+    {
+      qwen3-8B Q5_K_M | ✓ 5,8G · 11:42 | . | .
+    }
+    { <b>notas | · 1 terminada | ▸ desplegar }
+    ▲ cli-project: estado inválido; sus descargas no se pueden leer
   }
   { CPU ▂▃▅▆▅ 42% | RAM ▅▅▆▆ 18,2/32G }
   { GPU0 ▅▆▇▇ 91% 20,1/24G +0,4G | GPU1 ▂▃▂▁ 12% 0,1/0,5G +1,1G }
