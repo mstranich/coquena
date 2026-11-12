@@ -70,9 +70,14 @@ public static class ModelSelection
             if (role == ModelRole.Mtp) { state = EvidenceState.Conflict; diagnostic = "Rol mtp contradice arquitectura clip."; }
             else role = ModelRole.Mmproj;
         }
-        var publisherRecipe = label is not null && (label.StartsWith("UD-",StringComparison.Ordinal) || Base(label) is null);
-        if (label is not null && quant is not null && !publisherRecipe && Base(label) != quant)
-        { state = EvidenceState.Conflict; diagnostic = $"Nombre {label} contradice general.file_type {quant}."; }
+        var publisherRecipe = label is not null && (label.StartsWith("UD-",StringComparison.Ordinal) || label == "IQ1_S-XL" || Base(label) is null);
+        if (quant is not null && !publisherRecipe)
+        {
+            if (label is not null && Base(label) != quant && state != EvidenceState.Conflict)
+                diagnostic = $"Nombre {label}; general.file_type declara {quant}. Se usa la cabecera.";
+            label = quant;
+            source = EvidenceSource.Header;
+        }
         if (publisherRecipe && state != EvidenceState.Conflict)
         { state = EvidenceState.Candidate; diagnostic = "Etiqueta del publicador conservada; file_type describe predominancia, no certifica la receta dinámica."; }
         if (header?.FileTypeId is { } unknown && quant is null && state != EvidenceState.Conflict)
@@ -144,22 +149,66 @@ public static class ModelSelection
 
 public sealed class ModelResolver(IRemoteGgufInspector inspector, long unitBytes = 134217728)
 {
-    public async Task<ModelCandidates> DiscoverAsync(RepositoryInventory inventory, Action<string> show, CancellationToken cancellation)
+    public async Task<ModelCandidates> DiscoverAsync(RepositoryInventory inventory, Action<string> show, CancellationToken cancellation,
+        ModelRequest? request = null)
     {
         List<string> diagnostics = []; List<ModelVariant> variants = [];
-        foreach (var unit in ModelSelection.Units(inventory, diagnostics))
+        var units = ModelSelection.Units(inventory, diagnostics);
+        if (request?.Quantization is not null)
+        {
+            var role = request.CompanionType switch { "mmproj" => ModelRole.Mmproj, "mtp" => ModelRole.Mtp, _ => ModelRole.Principal };
+            var exact = units.Where(u => ModelSelection.NameRole(u.Files[0].Path) == role &&
+                request.Quantization.Equals(ModelSelection.NameQuantization(u.Files[0].Path), StringComparison.OrdinalIgnoreCase)).ToArray();
+            foreach (var unit in exact) await Add(unit, true);
+            if (variants.Any(Matches)) return ModelSelection.Sorted(variants.Where(Matches), diagnostics);
+            var preferred = units.Except(exact).Where(u => ModelSelection.NameRole(u.Files[0].Path) == role &&
+                Related(ModelSelection.NameQuantization(u.Files[0].Path), request.Quantization)).ToArray();
+            foreach (var unit in preferred) await Add(unit, true);
+            if (!variants.Any(Matches))
+            {
+                // A failed heuristic is not proof of absence. Try a small fallback, never the entire repository.
+                var fallback = units.Except(exact).Except(preferred).Where(u => ModelSelection.NameRole(u.Files[0].Path) == role ||
+                    ModelSelection.NameQuantization(u.Files[0].Path) is null && ModelSelection.NameRole(u.Files[0].Path) == ModelRole.Principal)
+                    .OrderBy(u => ModelSelection.NameQuantization(u.Files[0].Path) is null ? 0 : 1).ToArray();
+                foreach (var unit in fallback.Take(8)) await Add(unit, true);
+                if (fallback.Length > 8)
+                    diagnostics.Add("Exploración alternativa limitada a 8 unidades; resultado parcial/no concluyente.");
+            }
+            return ModelSelection.Sorted(variants.Where(Matches), diagnostics);
+        }
+        // Browsing without a concrete format uses cheap name candidates; validate only the chosen unit.
+        foreach (var unit in units)
+        {
+            if (request is not null && ModelSelection.NameRole(unit.Files[0].Path) !=
+                (request.CompanionType switch { "mmproj" => ModelRole.Mmproj, "mtp" => ModelRole.Mtp, _ => ModelRole.Principal })) continue;
+            await Add(unit, false);
+        }
+        return ModelSelection.Sorted(variants, diagnostics);
+
+        bool Matches(ModelVariant v) => v.CompanionType == request!.CompanionType &&
+            v.Quantization.Equals(request.Quantization, StringComparison.OrdinalIgnoreCase);
+
+        async Task Add(ModelUnit unit, bool inspect)
         {
             var evidence = unit.Files.Select(f => ModelSelection.Classify(inventory.Revision, f)).ToArray();
-            // Conventional names are cheap candidates. Ambiguous/arbitrary names get a chance through metadata.
-            if (evidence.Any(e => e.PublisherLabel is null))
+            if (inspect || evidence.Any(e => e.PublisherLabel is null))
             {
                 try { evidence = await ValidateAsync(inventory.Revision, unit, show, cancellation); }
-                catch (ModelSourceException e) { diagnostics.Add(unit.Files[0].Path + ": " + e.Code + ": " + e.Message); continue; }
+                catch (ModelSourceException e) { diagnostics.Add(unit.Files[0].Path + ": " + e.Code + ": " + e.Message); return; }
             }
             foreach (var e in evidence.Where(e => e.Diagnostic is not null)) diagnostics.Add(e.Path + ": " + e.Diagnostic);
             var variant = ModelSelection.Variant(unit, evidence); if (variant is not null) variants.Add(variant);
         }
-        return ModelSelection.Sorted(variants, diagnostics);
+    }
+    private static bool Related(string? named, string requested)
+    {
+        if (named is null) return false;
+        if (named.Equals(requested, StringComparison.OrdinalIgnoreCase)) return true;
+        // Publisher recipes are exact labels, not aliases for a predominant concrete type.
+        if (named.StartsWith("UD-", StringComparison.Ordinal) || requested.StartsWith("UD-", StringComparison.Ordinal)) return false;
+        var left = Regex.Match(named, "[0-9]+").Value;
+        var right = Regex.Match(requested, "[0-9]+").Value;
+        return left.Length > 0 && left == right;
     }
     public async Task<ModelEvidence[]> ValidateAsync(RepositoryRevision revision, ModelUnit unit, Action<string> show, CancellationToken cancellation)
     {

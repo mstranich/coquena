@@ -96,11 +96,13 @@ internal static class MtpResolutionTests
         Check(discovered.Variants.Length == 2 && discovered.Variants.Count(v => v.CompanionType == "mtp") == 1, "arbitrary names quant from header, role from directory only");
         foreach (var quant in new[] { ("Q4_0", 2u), ("Q8_0", 7u), ("BF16", 32u) })
             Check(ModelSelection.Classify(Revision, File("mtpdraft-" + quant.Item1 + ".gguf"), Header(quant.Item2)).State == EvidenceState.Candidate, "quant does not verify role");
-        foreach (var header in new[] { Header(2), Header(7, "clip") })
+        foreach (var header in new[] { Header(7, "clip") })
         {
             Check(ModelSelection.Classify(Revision, File(Draft), header).State == EvidenceState.Conflict, "incompatible quant or architecture blocks");
             Check(ModelSelection.Classify(Revision, File(A4lgDraft), header).State == EvidenceState.Conflict, "MTP-ONLY preserves incompatible metadata");
         }
+        Check(ModelSelection.Classify(Revision, File(Draft), Header(2)) is
+            { PublisherLabel: "Q4_0", Role: ModelRole.Mtp, State: EvidenceState.Candidate }, "MTP quant follows header without certifying role");
         Check(ModelSelection.Classify(Revision, File("mmproj-model-MTP-ONLY-Q8_0.gguf"), Header()).State == EvidenceState.Conflict,
             "MTP-ONLY cannot hide conflicting auxiliary marker");
         var conflict = ModelSelection.Classify(Revision, File("mtp-mmproj-Q8_0.gguf"), Header());

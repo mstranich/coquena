@@ -64,7 +64,7 @@ public sealed class ModelSelectionMenu(HuggingFaceStore store, IRemoteGgufInspec
         var inventory = await store.InventoryAsync(revision, cancellation);
         using var remote = inspector is null ? new RemoteGgufInspector() : null;
         var resolver = new ModelResolver(inspector ?? remote!);
-        var discovered = await resolver.DiscoverAsync(inventory, interaction.Show, cancellation);
+        var discovered = await resolver.DiscoverAsync(inventory, interaction.Show, cancellation, request);
         foreach (var diagnostic in discovered.Diagnostics) interaction.Show(diagnostic);
         var variants = discovered.Variants.Where(v => v.CompanionType == request.CompanionType &&
             (request.Quantization is null || v.Quantization.Equals(request.Quantization, StringComparison.OrdinalIgnoreCase))).ToArray();
@@ -94,12 +94,14 @@ public sealed class ModelSelectionMenu(HuggingFaceStore store, IRemoteGgufInspec
 
         async Task<SelectedModel> ValidateSelection(ModelVariant selected)
         {
-            var evidence = await resolver.ValidateAsync(revision, new(selected.Files), interaction.Show, cancellation);
+            cancellation.ThrowIfCancellationRequested();
+            var evidence = request.Quantization is not null ? selected.Evidence :
+                await resolver.ValidateAsync(revision, new(selected.Files), interaction.Show, cancellation);
             var verified = ModelSelection.Variant(new(selected.Files), evidence);
-            if (verified is null || verified.Quantization != selected.Quantization || verified.CompanionType != selected.CompanionType)
+            if (verified is null || request.Quantization is not null && !verified.Quantization.Equals(request.Quantization, StringComparison.OrdinalIgnoreCase) || verified.CompanionType != request.CompanionType)
                 throw new ModelSourceException("selection-conflict", string.Join("; ", evidence.Select(e => e.Diagnostic ?? "Rol/etiqueta cambió tras inspección.")));
             // The consumer starts the action with this result; never ask for another confirmation.
-            return new(selected.Name(revision.Repository), selected.CompanionType,
+            return new SelectedModel(verified.Name(revision.Repository), verified.CompanionType,
                 new(revision.Repository, revision.RequestedRevision, revision.Commit, selected.Files.Select(f => f.ToRemoteFile()).ToArray()));
         }
     }

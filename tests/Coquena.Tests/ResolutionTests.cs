@@ -90,7 +90,8 @@ internal static class ResolutionTests
         var f = File("whatever.gguf", 1000);
         Check(ModelSelection.Classify(Revision, f, h).PublisherLabel == "Q4_0", "arbitrary name metadata quant");
         Check(ModelSelection.Classify(Revision, File("model-IQ1_S-XL.gguf", 1000), h with { FileTypeId = 24 }).PublisherLabel == "IQ1_S-XL", "qualifier preserved");
-        Check(ModelSelection.Classify(Revision, File("model-Q4_0.gguf", 1000), h with { FileTypeId = 1 }).State == EvidenceState.Conflict, "name/header conflict");
+        Check(ModelSelection.Classify(Revision, File("model-Q4_0.gguf", 1000), h with { FileTypeId = 1 }) is
+            { PublisherLabel: "F16", State: EvidenceState.MetadataVerified, Source: EvidenceSource.Header }, "header overrides misleading name");
         Check(ModelSelection.Classify(Revision, f, h with { FileTypeId = uint.MaxValue }).PublisherLabel is null, "future unknown not invented");
         Check(ModelSelection.Classify(Revision, File("model-Q4_0.gguf", 1000), h with { FileTypeId = null }).PublisherLabel == "Q4_0", "optional file_type name-only");
         foreach (var label in new[] { "UD-IQ2_XXS", "UD-Q2_K_XL", "UD-Q3_K_XL", "UD-Q4_K_L", "UD-Q4_K_XL", "UD-Q5_K_XL", "UD-Q6_K_S", "UD-Q6_K_XL", "UD-Q8_K_XL" })
@@ -273,7 +274,7 @@ internal static class ResolutionTests
             Check(selected!.Selection.Commit == Commit && selected.Selection.Files.Length == 1 && selected.Selection.Files[0].Path == "gemma-4-26B_q4_0-it.gguf", "both Google selectors pinned principal only");
             Check(selector.Contains(':') ? menu.Menus.Count == 0 :
                 menu.Menus.Count == 2 && menu.Menus.All(m=>m.Length==3 && m[0].StartsWith("Descargar Q4_0")), "explicit selector skips menu; implicit keeps README");
-            Check(rangeHandler.Calls == 2, "memoization after README");
+            Check(rangeHandler.Calls == 1, "only requested principal header read, no unrelated companion");
         }
     }
     internal sealed class NamedInspector : IRemoteGgufInspector
@@ -299,10 +300,10 @@ internal static class ResolutionTests
                 Console.WriteLine($"{file.Path}: version={h.Version}; file_type={h.FileTypeId}; tensors={h.TensorCount}; architecture={h.Hints.GetValueOrDefault("general.architecture")}; split={h.SplitIndex}/{h.SplitCount}");
             }
         var resolver = new ModelResolver(inspector);
-        var candidates = await resolver.DiscoverAsync(inventory, Console.WriteLine, default);
+        var candidates = await resolver.DiscoverAsync(inventory, Console.WriteLine, default, request);
         foreach (var diagnostic in candidates.Diagnostics) Console.WriteLine(diagnostic);
         foreach (var v in candidates.Variants) Console.WriteLine(v.Label);
-        var selected = candidates.Variants.First(v => v.CompanionType is null && (request.Quantization is null || v.Quantization.Equals(request.Quantization, StringComparison.OrdinalIgnoreCase)));
+        var selected = candidates.Variants.First(v => v.CompanionType == request.CompanionType && (request.Quantization is null || v.Quantization.Equals(request.Quantization, StringComparison.OrdinalIgnoreCase)));
         var evidence = await resolver.ValidateAsync(revision, new(selected.Files), Console.WriteLine, default);
         if (ModelSelection.Variant(new(selected.Files), evidence) is null) throw new Exception("Live validation failed");
         Console.WriteLine($"SELECTED {selected.Name(revision.Repository)}: {string.Join(',', selected.Files.Select(f => f.Path))}");

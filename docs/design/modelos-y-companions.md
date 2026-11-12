@@ -36,8 +36,17 @@ Los nombres son pistas, no un requisito para reconocer un GGUF. La selección ev
 también archivos de nombre arbitrario mediante metadatos remotos acotados en el commit
 resuelto. Separa cuantización base y calificadores del publicador de tokens como `it`,
 `instruct` o `chat`. Conserva etiquetas respaldadas como `IQ1_S-XL`; `general.file_type`
-confirma la base, sin certificar la receta del calificador. Un conflicto entre nombre
-y cabecera impide crear la operación. Si falta `file_type` o su ID es desconocido,
+confirma la base, sin certificar la receta del calificador. Para formatos estándar
+reconocidos, la cabecera determina la cuantización concreta; el nombre orienta la
+búsqueda y no veta ni sustituye ese resultado. La búsqueda prioriza candidatos por
+rol y etiqueta solicitada; si no confirma coincidencias, considera formatos de la
+misma cantidad nominal de bits, sin equipararlos. Las cabeceras confirman el formato
+concreto dentro del grupo candidato. Una coincidencia confirmada evita explorar
+grupos menos probables. La búsqueda alternativa de nombres no concluyentes es
+acotada y comunica si el resultado es parcial; no inspecciona todo el repositorio
+para cada selección. Sin cuantización concreta se ofrecen candidatos por nombre
+y se valida la unidad elegida antes de preparar la descarga.
+Si falta `file_type` o su ID es desconocido,
 una etiqueta reconocida sigue siendo candidata por nombre; sin etiqueta resoluble se
 informa incertidumbre, sin inventar nombre local.
 
@@ -58,8 +67,8 @@ cuantización por cabecera; sin marcador ni evidencia específica no se inventa 
 Una cabecera genérica (`general.type=model`), metadatos específicos ausentes o un
 publicador distinto son evidencia insuficiente, no contradicciones por sí solos.
 Se considera incompatible un marcador MTP frente a arquitectura `clip`, marcadores
-auxiliares de tipos diferentes, una cuantización estándar discordante entre nombre y
-cabecera o metadatos incompatibles entre shards. Esos conflictos impiden la selección;
+auxiliares de tipos diferentes o metadatos incompatibles entre shards.
+Esos conflictos impiden la selección;
 la ausencia de cuantización resoluble produce un resultado no concluyente.
 Dos unidades con igual cuantización conservan opciones separadas por rutas. Antes del GUID
 se comprueban las cabeceras de todas las partes elegidas y la coherencia split; esto no

@@ -28,6 +28,17 @@ internal static class ModelSourceTests
                 broken ? 1 : file.Path.Contains("00001-of") ? 0 : 1, 2, 2, new Dictionary<string, string>()));
         }
     }
+    private sealed class ConcreteInspector(uint fileType) : IRemoteGgufInspector
+    {
+        public List<string> Paths { get; } = [];
+        public Task<GgufHeader> InspectAsync(RepositoryRevision revision, RepositoryFile file, CancellationToken cancellation)
+        {
+            cancellation.ThrowIfCancellationRequested();
+            Paths.Add(file.Path);
+            return Task.FromResult(new GgufHeader(3, 1, null, null, null,
+                new Dictionary<string, string> { ["general.architecture"] = "clip" }, fileType));
+        }
+    }
     private sealed class Fixture(Func<HttpRequestMessage, HttpResponseMessage> respond) : HttpMessageHandler
     {
         public List<string> Calls { get; } = [];
@@ -65,6 +76,8 @@ internal static class ModelSourceTests
 
     public static async Task Run()
     {
+        await HeaderSelection();
+        await HeuristicSelection();
         using var fixture = new Fixture(Standard);
         using var client = new HttpClient(fixture);
         var store = new HuggingFaceStore(client);
@@ -119,8 +132,10 @@ internal static class ModelSourceTests
         var splitSelection = await new ModelSelectionMenu(new(splitClient), splitInspector).SelectAsync(ModelRequest.Parse("owner/repo:Q4_K_M"), splitMenu);
         Check(splitSelection!.Selection.Files.Length == 2 && splitInspector.Calls == 2 && splitMenu.Menus.Count == 0,
             "one unit with two shards validated directly");
+        var brokenSplit = new Interaction { IsInteractive = false };
         await Fails(() => new ModelSelectionMenu(new(splitClient), new SplitInspector(true)).SelectAsync(
-            ModelRequest.Parse("owner/repo:Q4_K_M"), new Interaction()), "split-conflict");
+            ModelRequest.Parse("owner/repo:Q4_K_M"), brokenSplit), "interaction-required");
+        Check(brokenSplit.Messages.Any(m => m.Contains("split-conflict")), "discovery diagnoses broken split before selection");
         var readme = new Interaction(1, 0);
         await menu.SelectAsync(ModelRequest.Parse("owner/repo"), readme);
         Check(readme.Menus.Count == 2 && readme.Menus[0].SequenceEqual(readme.Menus[1]) && readme.Messages.Contains("README del commit"), "README returns same menu");
@@ -217,6 +232,56 @@ internal static class ModelSourceTests
             noGguf.Menus[0].SequenceEqual(new[] { "Mostrar README", "Cancelar" }), "no GGUF only readme/cancel");
         Check(!fixture.Calls.Any(c => c.Contains("/resolve/")), "no weight GET or transfer calls");
         Console.WriteLine($"OK: {checks} comprobaciones HF/selección; sin pesos, GUID ni persistencia.");
+    }
+    private static async Task HeaderSelection()
+    {
+        using var fixture = new Fixture(r => r.RequestUri!.AbsolutePath.Contains("/tree/")
+            ? Json("[" + FileJson("mmproj-model-f16.gguf") + "]") : Standard(r));
+        using var client = new HttpClient(fixture);
+        var menu = new ModelSelectionMenu(new(client), new ConcreteInspector(32));
+        var interaction = new Interaction { IsInteractive = false };
+        var selected = await menu.SelectAsync(ModelRequest.Parse("owner/repo#mmproj:BF16"), interaction);
+        Check(selected is { Name: "owner/repo#mmproj:BF16" } &&
+            selected.Selection.Files.Single().Path == "mmproj-model-f16.gguf" && interaction.Menus.Count == 0,
+            "BF16 header selected directly despite f16 filename, original path retained");
+        var mismatch = new Interaction { IsInteractive = false };
+        await Fails(() => menu.SelectAsync(ModelRequest.Parse("owner/repo#mmproj:F16"), mismatch), "interaction-required");
+        Check(mismatch.Messages.Any(m => m.Contains("No se sustituye")), "F16 request never substituted with BF16");
+        foreach (var id in Enumerable.Range(0, 42).Select(i => (uint)i).Where(i => ModelSelection.FileType(i) is not null))
+        {
+            var quant = ModelSelection.FileType(id)!;
+            var result = await new ModelSelectionMenu(new(client), new ConcreteInspector(id)).SelectAsync(
+                new ModelRequest("owner/repo", quant, "mmproj"), new Interaction { IsInteractive = false });
+            Check(result!.Name == "owner/repo#mmproj:" + quant, "header selects concrete format " + quant);
+        }
+    }
+    private static async Task HeuristicSelection()
+    {
+        var files = Enumerable.Range(0, 100).Select(i => File($"other-{i}-Q4_K_M.gguf"))
+            .Concat([File("mmproj-other-Q8_0.gguf"), File("imatrix_unsloth.gguf"), File("mmproj-model-f16.gguf")]).ToArray();
+        var inspector = new ConcreteInspector(32);
+        var resolver = new ModelResolver(inspector);
+        var found = await resolver.DiscoverAsync(new(Revision, files), _ => { }, default,
+            ModelRequest.Parse("owner/repo#mmproj:BF16"));
+        Check(found.Variants.Single().Quantization == "BF16" && inspector.Paths.SequenceEqual(["mmproj-model-f16.gguf"]),
+            "16-bit companion heuristic reads one header, skips all principals, imatrix and 8-bit companion");
+        inspector = new ConcreteInspector(32);
+        found = await new ModelResolver(inspector).DiscoverAsync(new(Revision,
+            [File("mmproj-correct-BF16.gguf"), File("mmproj-other-f16.gguf")]), _ => { }, default,
+            ModelRequest.Parse("owner/repo#mmproj:BF16"));
+        Check(found.Variants.Length == 1 && inspector.Paths.SequenceEqual(["mmproj-correct-BF16.gguf"]),
+            "confirmed exact-name group avoids broader bit-family search");
+        inspector = new ConcreteInspector(32);
+        found = await new ModelResolver(inspector).DiscoverAsync(new(Revision,
+            Enumerable.Range(0, 20).Select(i => File($"unknown-{i}.gguf")).ToArray()), _ => { }, default,
+            ModelRequest.Parse("owner/repo#mmproj:BF16"));
+        Check(inspector.Paths.Count == 8 && found.Diagnostics.Any(d => d.Contains("parcial/no concluyente")),
+            "fallback for arbitrary names is bounded and reports incomplete exploration");
+        inspector = new ConcreteInspector(32);
+        found = await new ModelResolver(inspector).DiscoverAsync(new(Revision,
+            [File("a/mmproj-f16.gguf"), File("b/mmproj-f16.gguf")]), _ => { }, default,
+            ModelRequest.Parse("owner/repo#mmproj:BF16"));
+        Check(found.Variants.Length == 2 && inspector.Paths.Count == 2, "ambiguity retained within candidate group");
     }
 
     // Opt-in metadata-only real provider exercise, including in the published native runner.

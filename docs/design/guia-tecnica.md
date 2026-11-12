@@ -95,7 +95,12 @@ La sintaxis de la API Python citada como referencia no exige introducir Python e
 
 `ModelSelection` conserva clasificación/agrupación pura y evidencia por archivo:
 commit/ruta, rol, base y etiqueta completa, fuente, estado y diagnóstico. `ModelResolver`
-inspecciona nombres sin etiqueta y valida todas las partes finalmente elegidas.
+prioriza grupos por rol y etiqueta, después por familia nominal de bits; inspecciona
+las cabeceras candidatas y se detiene en el primer grupo con coincidencias confirmadas.
+La exploración alternativa se limita a ocho unidades e informa si es parcial.
+Sin formato concreto conserva la exploración por nombres y valida la unidad elegida.
+Para formatos estándar reconocidos prevalece `general.file_type`. Conserva las etiquetas de
+recetas del publicador sin equipararlas a su tipo predominante.
 `RemoteGgufInspector` es async, secuencial e inyectable; comparte el parser binario con
 la inspección local. La API agregada `gguf` de HF no aporta cuantización por ruta y no
 se aplica al inventario como si lo hiciera. No se inspeccionan descriptores ni se deduce

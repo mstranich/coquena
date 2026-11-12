@@ -593,7 +593,7 @@ internal static class ModelInstallerTests
         var source = new HuggingFaceStore(client); var menu = new Menu(1, 2);
         using var output = new StringWriter(); using var error = new StringWriter();
         Check(ModelCli.Run(["download", "owner/menu"], output, error, installer, source,
-            new NoNetwork(), menu) == 0 && installer.Downloads.List().Length == 0, "README then cancel creates no GUID or work");
+            new NoNetwork(), menu, inspector: new ResolutionTests.NamedInspector()) == 0 && installer.Downloads.List().Length == 0, "README then cancel creates no GUID or work");
         Check(menu.Options.Count == 2 && menu.Options.All(o => o.Length == 3 && o[0].StartsWith("Descargar")), "one repeated menu, no companion");
         var bytes = new Bytes(payload); menu = new Menu();
         Check(ModelCli.Run(["download", "owner/menu:Q4_K_M"], output, error, installer, source, bytes, menu,

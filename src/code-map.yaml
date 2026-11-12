@@ -431,7 +431,7 @@ features:
       - docs/design/servicios-recetas.md
 
   - id: model-selection-download
-    intent: Seleccionar una cuantización GGUF de Hugging Face y descargarla con integridad.
+    intent: Priorizar candidatos GGUF por rol y nombres, confirmar formatos por cabecera con búsqueda alternativa acotada y descargar la selección con integridad.
     keywords: [model download, model companion download, Hugging Face, cuantización, shards, GGUF, mmproj, MTP]
     entrypoints:
       - src/Coquena/ScopedModelCli.cs
