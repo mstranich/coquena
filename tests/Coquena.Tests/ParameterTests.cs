@@ -18,7 +18,17 @@ internal static class ParameterTests
         using var report = new StringWriter();
         try
         {
-            Check(manager.List().Length == 22 && !Directory.Exists(root), "factory read does not initialize home");
+            Check(manager.List().Length == 24 && !Directory.Exists(root), "factory read does not initialize home");
+            foreach (var (name, first, previous) in new[] { ("moe-cache-mib", "b11480", "b11479"), ("moe-cache-cpu-share", "b12191", "b12190") })
+            {
+                var definition = manager.Find(name)!;
+                Check(ParameterManager.Availability(definition, null, "ggml", first) == "admitido" &&
+                    ParameterManager.Availability(definition, null, "ggml", previous) == "no admitido", "MoE factory build boundary " + name);
+                Check(ParameterCatalog.Availability(name, "ggml-org/llama.cpp", previous) == "no admitido" &&
+                    ParameterCatalog.Availability(name, "ggml-org/llama.cpp", first) == "admitido", "MoE raw catalog build boundary " + name);
+                Check(ParameterManager.Availability(definition, null, "fork", first) == "desconocido" &&
+                    definition.Default == "0", "MoE fork is unknown and default is metadata " + name);
+            }
             Check(!manager.ChangeDefinition("ctx-size", d => d with { Description = "consulta" }, "descripción", true, report, () => throw new Exception("dry-run prompted")) && !Directory.Exists(root), "dry-run without home performs no writes");
             Check(!manager.Reset(true, report, () => throw new Exception("reset dry-run prompted")) && !Directory.Exists(root), "reset dry-run without home performs no writes");
             var model = new ModelRecord(Guid.NewGuid(), "fixture/model:Q4", new("fixture/model", "main", new string('a', 40), [new("fixture.gguf", null)]),

@@ -8,5 +8,6 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../../src/Coquena/Coquena.csproj" />
+    <None Include="../../docs/examples/llama-moe-cache.yaml" Link="llama-moe-cache.yaml" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

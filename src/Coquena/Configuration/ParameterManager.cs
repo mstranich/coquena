@@ -15,7 +15,7 @@ public sealed class ParameterManager(Home home, LocalStore? storage = null)
     {
         Type = d.Type switch { "number" => "decimal", "text" => "string", _ => d.Type },
         Aliases = d.Aliases.ToArray(),
-        Choices = [], Support = Protected.Contains(d.Name) ? [] : [new(From: "b11482", Until: "b11482", EvidenceOnly: true)]
+        Choices = [], Support = Protected.Contains(d.Name) ? [] : d.Support?.ToArray() ?? [new(From: "b11482", Until: "b11482", EvidenceOnly: true)]
     }).ToArray());
     internal ParametersDocument Read() => store.Read(DocumentKind.Parameters, Json.ParametersDocument, Validate) ?? Factory();
     public ParameterDefinition[] List() => store.Inspect(() => Read().Definitions);

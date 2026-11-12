@@ -174,6 +174,25 @@ Documentación y ayuda del backend son evidencia para autoría manual/asistida.
 No presentar master como garantía para todos los releases.
 El metaschema y la emisión se describen abajo; no se presupone framework de plugins o IA integrada.
 
+### Definiciones reutilizables de caché MoE
+
+La capa opcional [llama-moe-cache.yaml](../examples/llama-moe-cache.yaml) describe
+`moe-cache-mib` (MiB no negativos; 0 desactiva) y `moe-cache-cpu-share` (fracción
+entre 0 y 1). Se puede copiar junto a una receta y seleccionar como otra capa:
+
+```text
+coquena param list -f coquena.yaml -f llama-moe-cache.yaml
+```
+
+La capa sólo aporta definiciones; los valores se asignan explícitamente en
+`args` del servicio o de cada preset. Sus defaults no habilitan la caché.
+Declara builds mínimos oficiales b11480 y b12191 respectivamente, según
+las incorporaciones upstream [#29887](https://github.com/ggml-org/llama.cpp/pull/29887)
+y [#30966](https://github.com/ggml-org/llama.cpp/pull/30966).
+Una versión de un fork no se compara automáticamente con esos builds oficiales.
+La disponibilidad del argumento no acredita aceleración: el resultado depende
+del modelo, la distribución de expertos, la memoria y el backend de cómputo.
+
 ## Aclaraciones
 
 No valida calidad de respuesta, VRAM necesaria o compatibilidad funcional del proyector.

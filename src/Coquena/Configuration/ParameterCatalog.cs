@@ -11,7 +11,8 @@ public sealed record ParameterSupport(string? Variant = null, Guid? BackendId = 
     string? From = null, string? Until = null, bool EvidenceOnly = false);
 public sealed record ParametersDocument(int SchemaVersion, ParameterDefinition[] Definitions);
 
-// Hand-authored, bounded catalog: evidence applies only to official b11482.
+// Hand-authored, bounded catalog: default evidence is official b11482.
+// Definitions with explicit Support retain their own upstream version bounds.
 // See specs/010-m1-config-presets-ini/README.md. Missing evidence is never rejection.
 public static partial class ParameterCatalog
 {
@@ -22,6 +23,10 @@ public static partial class ParameterCatalog
         new("threads-batch", "integer", "model", "INI", "Hilos de batch", ["tb"]),
         new("n-predict", "integer", "model", "INI", "Tokens a generar", ["n", "predict", "LLAMA_ARG_N_PREDICT"]),
         new("n-gpu-layers", "text", "model", "INI", "Capas GPU: número, auto o all", ["ngl", "gpu-layers", "LLAMA_ARG_N_GPU_LAYERS"]),
+        new("moe-cache-mib", "integer", "model", "INI", "Caché GPU de expertos MoE en CPU, en MiB; 0 desactiva", ["LLAMA_ARG_MOE_CACHE_MIB"],
+            Default: "0", Support: [new(From: "b11480")]),
+        new("moe-cache-cpu-share", "number", "model", "INI", "Fracción de fallos de caché MoE calculada en CPU al llenarse; entre 0 y 1", ["LLAMA_ARG_MOE_CACHE_CPU_SHARE"],
+            Default: "0", Support: [new(From: "b12191")]),
         new("temperature", "number", "model", "INI", "Temperatura", ["temp", "LLAMA_ARG_TEMPERATURE"]),
         new("top-k", "integer", "model", "INI", "Top K", ["LLAMA_ARG_TOP_K"]),
         new("top-p", "number", "model", "INI", "Top P", ["LLAMA_ARG_TOP_P"]),
@@ -61,9 +66,14 @@ public static partial class ParameterCatalog
     public static string Availability(string key, BackendRecord? backend) =>
         Availability(key, backend?.Repository, backend?.Build);
 
-    public static string Availability(string key, string? repository, string? release) =>
-        Find(key) is not null && repository is "ggml-org/llama.cpp" or "https://github.com/ggml-org/llama.cpp" && release == "b11482"
+    public static string Availability(string key, string? repository, string? release)
+    {
+        var definition = Find(key);
+        if (definition?.Support is not null)
+            return ParameterManager.Availability(definition, null, repository, release);
+        return definition is not null && repository is "ggml-org/llama.cpp" or "https://github.com/ggml-org/llama.cpp" && release == "b11482"
             ? "admitido" : "desconocido";
+    }
 
     public static void ModelParameter(string key, ParameterDefinition[]? definitions = null)
     {

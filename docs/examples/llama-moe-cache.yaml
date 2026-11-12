@@ -1,0 +1,27 @@
+# Optional argument definitions; compose with the recipe using --file.
+# Upstream: ggml-org/llama.cpp releases b11480 (#29887) and b12191 (#30966).
+# No values are assigned and no cache is enabled by this layer.
+arg-defs:
+  definitions:
+    moe-cache-mib:
+      type: integer
+      minimum: 0
+      maximum: 2147483647
+      default: 0
+      description: GPU cache for MoE experts kept in CPU memory, in MiB; 0 disables it.
+      applies-to:
+        min-build: b11480
+      emit:
+        cli: {mode: value}
+        ini: {mode: value}
+    moe-cache-cpu-share:
+      type: number
+      minimum: 0
+      maximum: 1
+      default: 0
+      description: Share of cache misses computed on CPU once the MoE cache is full.
+      applies-to:
+        min-build: b12191
+      emit:
+        cli: {mode: value}
+        ini: {mode: value}

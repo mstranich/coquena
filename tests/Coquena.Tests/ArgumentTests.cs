@@ -232,6 +232,22 @@ internal static class ArgumentTests
         }
         Check(ArgumentEmission.Ini(list, Preset(list), "p", adapter) == "[p]\nx=a\nx=b\n", "fixture codec repeat support");
         var official = new LlamaB11482ArgumentAdapter();
+        Write("moe.yaml", File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "llama-moe-cache.yaml")));
+        EffectiveRecipe Moe(string args) => Read("presets: {p: {args: " + args + "}}", "moe.yaml");
+        var moe = Moe("{moe-cache-mib: 4096, moe-cache-cpu-share: 0.25}");
+        Check(Preset(moe, new("ggml", "b12191")).Diagnostics.Count == 0 &&
+            ArgumentEmission.Ini(moe, Preset(moe), "p", official) == "[p]\nmoe-cache-cpu-share=0.25\nmoe-cache-mib=4096\n",
+            "shipped MoE layer validates and emits independent preset arguments");
+        Check(ArgumentEmission.Cli(moe, Preset(moe), official).SequenceEqual(["--moe-cache-cpu-share", "0.25", "--moe-cache-mib", "4096"]), "MoE scalar CLI emission");
+        Bad(() => Preset(moe, new("ggml", "b12190")), "argument-not-applicable");
+        Check(Preset(Moe("{moe-cache-mib: 0}"), new("ggml", "b11480")).Diagnostics.Count == 0, "MoE cache initial build accepts disabled cache");
+        Bad(() => Preset(Moe("{moe-cache-mib: 1}"), new("ggml", "b11479")), "argument-not-applicable");
+        Check(Preset(moe, new("fork", "b1")).Diagnostics.Count == 2, "MoE fork build is unknown rather than compared");
+        Check(Preset(Moe("{}")).Arguments.Count == 0, "MoE layer defaults do not assign arguments");
+        foreach (var args in new[] { "{moe-cache-mib: -1}", "{moe-cache-mib: 2147483648}", "{moe-cache-cpu-share: -0.1}", "{moe-cache-cpu-share: 1.1}" })
+            BadAny(() => Preset(Moe(args)), "MoE numeric bounds");
+        foreach (var share in new[] { "0", "1" })
+            Check(Preset(Moe("{moe-cache-cpu-share: " + share + "}"), new("ggml", "b12191")).Diagnostics.Count == 0, "MoE inclusive CPU share " + share);
         var extended = Read("""
             arg-defs:
               definitions:

@@ -390,6 +390,7 @@ features:
     references:
       - docs/design/catalogo-de-parametros.md
       - docs/design/formato-proyecto.md
+      - docs/examples/llama-moe-cache.yaml
 
   - id: recipe-reading-composition
     intent: Leer capas YAML y env explícitas, validar estructura y consultar intención efectiva sin preparar ni ejecutar.
