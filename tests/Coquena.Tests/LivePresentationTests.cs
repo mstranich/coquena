@@ -15,8 +15,8 @@ internal static class LivePresentationTests
         check(Markup.Plain(Markup.Escape("{\"a\":1} | x")) == "{\"a\":1} | x" && Markup.Parse(Markup.Escape("{x|y}")).Count == 1,
             "escaped text with braces and bars is drawn literally");
         var tabs = Markup.Fit(LivePresentation.Tabs(0, 0, 2), 80);
-        check(Markup.Width(tabs) == 80 && Markup.Plain(tabs).StartsWith(" ● En vivo ") && Markup.Plain(tabs).EndsWith("⇣ 0  ▲ 2 "),
-            "top bar fits 80 columns with tabs and both indicators");
+        check(Markup.Width(tabs) == 80 && Markup.Plain(tabs).StartsWith(" ● En vivo ") && Markup.Plain(tabs).EndsWith("⇣ 0  ▲ 2  ≡ "),
+            "top bar fits 80 columns with tabs, both indicators and the settings icon at the far right");
         var noticeTab = Markup.Fit(LivePresentation.Tabs(4, 0, 2), 80);
         check(Markup.Width(noticeTab) == 80 && Markup.Parse(noticeTab).Any(span => span.Class == "sel" && span.Action == "notices" && span.Text == " ▲ 2 ") &&
             !Markup.Parse(noticeTab).Any(span => span.Class == "sel" && span.Action != "notices"),

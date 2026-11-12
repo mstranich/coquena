@@ -5,7 +5,7 @@ version: 1
 features:
   - id: terminal-service-dashboard
     intent: Gestionar servicios, recetas, presets y parámetros, importar intención y aplicar planes de actualización desde Definiciones; observar hardware compartido, entradas y logs en En vivo.
-    keywords: [tui, dashboard, Terminal.Gui, project, recipe, preset, param, import, update, upgrade, combination, up, down, services, hardware, logs, downloads tab]
+    keywords: [tui, dashboard, Terminal.Gui, project, recipe, preset, param, import, update, upgrade, combination, up, down, services, hardware, logs, downloads tab, combination dropdown, spinner, modal, layers]
     entrypoints:
       - src/Coquena/Cli.cs
       - src/Coquena/DashboardCli.cs

@@ -1,17 +1,17 @@
 @startsalt
 {
-  {/ ● En vivo | <b>◇ Definiciones | ≡ Configuración | . | ⇣ 1 · 68% | ▲ 2 }
+  {/ ● En vivo | <b>◇ Definiciones | . | ⇣ 1 · 68% | ▲ 2 | ≡ }
   {
     {
     {T
       + Global
       + código · aquí
       ++ Recetas
-      ++ <b>Presets
+      ++ Backends
       ++ Servicio
       ++ Modelos
-      ++ Backends
       ++ Parámetros
+      ++ <b>Presets
       ++ Actualizaciones 2↑
       ++ Mantenimiento
       + notas
@@ -20,21 +20,21 @@
       + ✗ cli-project
     }
     } | {
-      <b>Presets de código
+      { <b>Presets de código | . | ^coquena.yaml + gpu^ }
       {#
         Preset | Modelo | En vivo | Receta
-        <b>asistente | gemma-4-12B Q4_0 | ● cargado | modif.
+        <b>asistente | gemma-4-12B Q4_0 | ● cargado | ≠ receta
         resumen | qwen3-8B Q5_K_M | ● cargado | —
         editor | gemma-4-E4B Q4_0 | ○ no publ. | —
       }
-      { <b>asistente | en coquena.yaml }
-      { modelo | <u>gemma-4-12B-it-qat Q4_0</u> }
-      { companion | mmproj-F16 }
+      { <b>asistente | capas | ¹ coquena.yaml | ² coquena.gpu.yaml }
+      { modelo | <u>gemma-4-12B-it-qat Q4_0</u> | ¹ }
+      { companion | mmproj-F16 | ¹ }
       {#
-        . | En vivo | Receta
-        contexto | 8192 | 16384
-        -ngl | 99 | 99
-        -dev | CUDA0 | CUDA0
+        . | En vivo | Receta | Capa
+        contexto | 8192 | 16384 | ²
+        -ngl | 99 | 99 | ¹
+        -dev | CUDA0 | CUDA0 | ²
       }
       { [Clonar…] | [Editar YAML] | [Eliminar] | [Ver en vivo] }
     }

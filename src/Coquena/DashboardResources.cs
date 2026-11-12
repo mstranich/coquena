@@ -23,14 +23,15 @@ internal static partial class DashboardCli
         public string? Cleanup;
     }
 
-    private static DefinitionsPresentation.Page MaintenancePage(string scope, MaintenanceView state)
+    private static DefinitionsPresentation.Page MaintenancePage(string scope, MaintenanceView state, bool busy = false)
     {
-        var rows = new List<string>
-        {
-            " " + ManagementPresentation.Button("Verificar", "maintenance-verify") + " " + Markup.Style("mut", "definición y recursos seleccionados"),
-        };
+        // While Verificar or Limpiar runs, both actions are disabled and the spinner shows the wait.
+        string Act(string text, string action) => busy ? DefinitionsPresentation.Off(text) : ManagementPresentation.Button(text, action);
+        var rows = new List<string>();
+        if (busy) rows.Add(" " + Markup.Style("warn", DashboardPresentation.Spinner() + " ") + Markup.Style("mut", "Trabajando… Podés cambiar de vista; la operación sigue."));
+        rows.Add(" " + Act("Verificar", "maintenance-verify") + " " + Markup.Style("mut", "definición y recursos seleccionados"));
         if (state.Verification is not null) rows.AddRange(state.Verification.Split('\n').Select(row => " " + Escape(row)));
-        rows.Add(""); rows.Add(" " + ManagementPresentation.Button("Limpiar…", "maintenance-preview") + " " + Markup.Style("mut", "recursos propios sin referencias"));
+        rows.Add(""); rows.Add(" " + Act("Limpiar…", "maintenance-preview") + " " + Markup.Style("mut", "recursos propios sin referencias"));
         if (state.Plan is { } plan)
         {
             rows.Add(" " + Markup.Style("mut", "RECURSO / INSTALACIÓN                 TAMAÑO"));
@@ -38,7 +39,7 @@ internal static partial class DashboardCli
             foreach (var diagnostic in plan.Diagnostics) rows.Add(" " + Markup.Style("warn", "Conservado: " + diagnostic));
             if (plan.Items.Count == 0) rows.Add(" " + Markup.Style("mut", "Sin instalaciones elegibles."));
             rows.Add(" " + Markup.Style("hi", "Recuperable: " + ByteSize.Format(plan.Bytes)));
-            if (plan.Items.Count > 0) rows.Add(" " + ManagementPresentation.Button("Eliminar conjunto…", "maintenance-clean"));
+            if (plan.Items.Count > 0) rows.Add(" " + Act("Eliminar conjunto…", "maintenance-clean"));
         }
         if (state.Cleanup is not null) rows.AddRange(state.Cleanup.Split('\n').Select(row => " " + Escape(row)));
         return new("Mantenimiento de " + Escape(scope), rows);
@@ -64,8 +65,6 @@ internal static partial class DashboardCli
     // The Hub search asks for pages of 20; 4 visible rows divide them evenly.
     private const int HubStep = 4;
 
-    private static readonly string[] Spinner = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
-
     // While a query runs, its network actions are disabled and a status line says what is pending.
     private static DefinitionsPresentation.Page HubPage(string scope, HubView hub, int width, bool busy = false)
     {
@@ -77,7 +76,7 @@ internal static partial class DashboardCli
             " " + Net("buscar: " + (hub.Query.Length == 0 ? "GGUF" : hub.Query), "hf-search") +
                 " " + Net("repositorio…", "hf-repository")
         };
-        if (busy) rows.Add(" " + Markup.Style("warn", Spinner[Environment.TickCount64 / 120 % Spinner.Length] + " ") +
+        if (busy) rows.Add(" " + Markup.Style("warn", DashboardPresentation.Spinner() + " ") +
             Markup.Style("mut", DashboardPresentation.Fit(hub.Status ?? "Consultando…", width - 5)));
         foreach (var (repository, index) in hub.Results.Select((repository, index) => (repository, index)).Skip(hub.ResultOffset).Take(HubStep))
             rows.Add(" " + (busy ? Markup.Style("off", DashboardPresentation.Fit(repository, width - 3))
@@ -112,10 +111,9 @@ internal static partial class DashboardCli
 
     private static LocalModelForm? AddLocalModelForm(IApplication app, string scope)
     {
-        using var dialog = new Dialog { Width = Math.Min(74, app.Screen.Width - 4), Height = 19,
-            BorderStyle = LineStyle.None, ShadowStyle = ShadowStyles.None };
-        var path = new TextField { X = 13, Y = 2, Width = Dim.Fill(9) };
-        var browse = new Button { X = Pos.AnchorEnd(8), Y = 2, Text = " … ", NoDecorations = true, ShadowStyle = ShadowStyles.None };
+        using var dialog = Modal(app, 74, 17, "Agregar modelo local · " + scope);
+        var path = new TextField { X = 13, Y = 0, Width = Dim.Fill(9) };
+        var browse = new Button { X = Pos.AnchorEnd(8), Y = 0, Text = " … ", NoDecorations = true, ShadowStyle = ShadowStyles.None };
         browse.Accepting += (_, args) =>
         {
             args.Handled = true;
@@ -126,17 +124,16 @@ internal static partial class DashboardCli
             app.Run(picker);
             if (!picker.Canceled) path.Text = picker.Path;
         };
-        var name = new TextField { X = 13, Y = 5, Width = Dim.Fill(2) };
-        var type = new OptionSelector { X = 13, Y = 7, Labels = ["modelo", "mmproj", "mtp"], Orientation = Orientation.Horizontal };
-        var match = new CheckBox { X = 1, Y = 11, Text = "buscar correspondencia en Hugging Face" };
-        var problem = new Label { X = 1, Y = 14, Width = Dim.Fill(1), Height = 2 };
-        dialog.Add(new Label { X = 1, Text = "Agregar modelo local · " + scope },
-            new Label { X = 1, Y = 2, Text = "archivo" }, path, browse,
-            new Label { X = 1, Y = 3, Width = Dim.Fill(1), Text = "Primer shard: se registra el conjunto esperado completo." },
-            new Label { X = 1, Y = 5, Text = "nombre" }, name,
-            new Label { X = 1, Y = 7, Text = "tipo" }, type,
-            new Label { X = 1, Y = 9, Width = Dim.Fill(1), Text = "alta: registrar en inventario; conservar archivos externos" }, match,
-            new Label { X = 1, Y = 12, Width = Dim.Fill(1), Text = "Matching: usá un nombre usuario/repositorio[:cuantización]." }, problem);
+        var name = new TextField { X = 13, Y = 3, Width = Dim.Fill(2) };
+        var type = new OptionSelector { X = 13, Y = 5, Labels = ["modelo", "mmproj", "mtp"], Orientation = Orientation.Horizontal };
+        var match = new CheckBox { X = 1, Y = 9, Text = "buscar correspondencia en Hugging Face" };
+        var problem = new Label { X = 1, Y = 12, Width = Dim.Fill(1), Height = 2 };
+        dialog.Add(new Label { X = 1, Y = 0, Text = "archivo" }, path, browse,
+            new Label { X = 1, Y = 1, Width = Dim.Fill(1), Text = "Primer shard: se registra el conjunto esperado completo." },
+            new Label { X = 1, Y = 3, Text = "nombre" }, name,
+            new Label { X = 1, Y = 5, Text = "tipo" }, type,
+            new Label { X = 1, Y = 7, Width = Dim.Fill(1), Text = "alta: registrar en inventario; conservar archivos externos" }, match,
+            new Label { X = 1, Y = 10, Width = Dim.Fill(1), Text = "Matching: usá un nombre usuario/repositorio[:cuantización]." }, problem);
         dialog.AddButton(new Button { Text = " Cancelar ", NoDecorations = true, ShadowStyle = ShadowStyles.None });
         var add = new Button { Text = " Agregar ", NoDecorations = true, ShadowStyle = ShadowStyles.None };
         add.Accepting += (_, args) =>
@@ -186,13 +183,11 @@ internal static partial class DashboardCli
     // Forms keep the visual language of S: card background, base fields, no borders.
     private static string[]? ResourceForm(IApplication app, string title, (string Label, string Value)[] fields, string accept)
     {
-        using var dialog = new Dialog { Width = Math.Min(74, app.Screen.Width - 4), Height = fields.Length * 2 + 5,
-            BorderStyle = LineStyle.None, ShadowStyle = ShadowStyles.None };
-        dialog.Add(new Label { X = 1, Text = title, Width = Dim.Fill(1) });
+        using var dialog = Modal(app, 74, fields.Length * 2 + 3, title);
         var inputs = fields.Select((field, index) =>
         {
-            dialog.Add(new Label { X = 1, Y = 2 + index * 2, Text = field.Label });
-            var input = new TextField { X = 14, Y = 2 + index * 2, Width = Dim.Fill(2), Text = field.Value };
+            dialog.Add(new Label { X = 1, Y = index * 2, Text = field.Label });
+            var input = new TextField { X = 14, Y = index * 2, Width = Dim.Fill(2), Text = field.Value };
             dialog.Add(input); return input;
         }).ToArray();
         dialog.AddButton(new Button { Text = " Cancelar ", NoDecorations = true, ShadowStyle = ShadowStyles.None });

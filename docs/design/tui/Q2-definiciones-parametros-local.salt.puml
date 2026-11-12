@@ -1,0 +1,40 @@
+@startsalt
+{
+  {/ ● En vivo | <b>◇ Definiciones | . | ⇣ 1 · 68% | ▲ 2 | ≡ }
+  {
+    {
+    {T
+      + Global
+      + código · aquí
+      ++ Recetas
+      ++ Backends
+      ++ Servicio
+      ++ Modelos
+      ++ <b>Parámetros
+      ++ Presets
+      ++ Actualizaciones 2↑
+      ++ Mantenimiento
+      + notas
+      + agentes
+      + pruebas
+      + ✗ cli-project
+    }
+    } | {
+      { <b>Parámetros de código | . | ^coquena.yaml + gpu^ }
+      { filtro | "todos           " | 3 parámetros }
+      {#
+        Parámetro | Tipo | Aplica | Predet. | Capa
+        <b>temperatura | real | modelo | 0,7 | ¹
+        ctx-size | entero | modelo | 16384 | ²
+        n-gpu-layers | entero | modelo | 99 | ¹
+      }
+      { <b>temperatura | capas | ¹ coquena.yaml | ² coquena.gpu.yaml }
+      { Temperatura de muestreo }
+      { usado por | asistente, resumen }
+      { [Definir…] | [Editar] | [Quitar definición] }
+    }
+  }
+  { CPU ▂▃▅▆▅ 42% | RAM ▅▅▆▆ 18,2/32G }
+  { GPU0 ▅▆▇▇ 91% 20,1/24G +0,4G | GPU1 ▂▃▂▁ 12% 0,1/0,5G +1,1G }
+}
+@endsalt

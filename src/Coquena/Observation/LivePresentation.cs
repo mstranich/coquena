@@ -26,18 +26,20 @@ internal static class LivePresentation
     public static string Spark(IEnumerable<double?> ratios) =>
         new(ratios.Select(ratio => ratio is double value ? Levels[Math.Clamp((int)(Math.Clamp(value, 0, 1) * Levels.Length), 0, Levels.Length - 1)] : ' ').ToArray());
 
-    // Top bar: three tabs, downloads and notices. The indicators always keep their space.
+    // Top bar: two tabs, downloads, notices and the Configuración icon. The indicators always keep their space.
     // active: 0 En vivo, 1 Definiciones, 2 Configuración, 3 Descargas, 4 Notificaciones.
     public static string Tabs(int active, int downloads, int notices, string? downloadText = null)
     {
-        string[] names = ["● En vivo", "◇ Definiciones", "≡ Configuración"];
+        string[] names = ["● En vivo", "◇ Definiciones"];
         var tabs = string.Join(" ", names.Select((name, i) => i == active ? Style("sel", " " + name + " ", "tab" + i) : " " + Style("nav", name, "tab" + i) + " "));
         downloadText ??= "⇣ " + downloads;
         var download = active == 3 ? Style("sel", " " + downloadText + " ", "downloads")
             : Style(downloads > 0 ? "nav" : "mut", downloadText, "downloads");
         var notice = active == 4 ? Style("sel", " ▲ " + notices + " ", "notices")
             : Style(notices > 0 ? "warn" : "mut", "▲ " + notices, "notices");
-        return tabs + "{pad}" + download + "  " + notice + " ";
+        // Configuración is the icon at the far right of the bar, after the indicators.
+        var settings = active == 2 ? Style("sel", " ≡ ", "tab2") : " " + Style("nav", "≡", "tab2") + " ";
+        return tabs + "{pad}" + download + "  " + notice + " " + settings;
     }
 
     // The button of a notice: its own action first, otherwise what shows it.
@@ -69,8 +71,11 @@ internal static class LivePresentation
         return text;
     }
 
-    public static string Controls(bool running, bool stopped, bool enabled)
+    // While a lifecycle action runs, its control stays in place, disabled, with the wait spinner.
+    public static string Controls(bool running, bool stopped, bool enabled, string? busy = null)
     {
+        if (busy is "Iniciar" or "Detener" or "Reiniciar")
+            return " " + Style("off", " " + DashboardPresentation.Spinner() + " " + busy + " ");
         if (!enabled) return "";
         if (running) return " " + Style("btn", " ■ Detener ", "stop") + "  " + Style("btn", " ⟳ Reiniciar ", "restart");
         return stopped ? " " + Style("btn", " ▸ Iniciar ", "start") : "";

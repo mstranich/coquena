@@ -39,10 +39,12 @@ const vis=s=>[...s.replace(/\{\w+\|([^}]*)\}/g,"$1")].length;
 const fill=(s,n)=>s+" ".repeat(Math.max(0,n-vis(s)));
 const sep="{mut|"+"─".repeat(W)+"}";
 // Hardware: sólo lo que el código mide por dispositivo (PDH + DXGI). Sin atribución a servicios.
-const TABS=(k,open)=>{k=k===true?0:k===false?1:k;const n=["● En vivo","◇ Definiciones","≡ Configuración"];
+const TABS=(k,open)=>{k=k===true?0:k===false?1:k;const n=["● En vivo","◇ Definiciones"];
  // ⇣ y ▲ son pestañas: muestran progreso y contador y se resaltan cuando están activas.
  const dl=open==="N"?"{sel| ⇣ 1 · 68% }":" {nav|⇣ 1 · 68%} ",nt=open==="Z"?"{sel| ▲ 2 }":" {warn|▲ 2} ";
- return [["z1",80,n.map((x,i)=>i===k?"{sel| "+x+" }":" {nav|"+x+"} ").join(" ")+"{pad}"+dl+nt]];};
+ // Configuración es sólo el ícono ≡, en el extremo derecho, después de los indicadores.
+ const cf=k===2?"{sel| ≡ }":" {nav|≡} ";
+ return [["z1",80,n.map((x,i)=>i===k?"{sel| "+x+" }":" {nav|"+x+"} ").join(" ")+"{pad}"+dl+nt+cf]];};
 const CT=(sel,i)=>{const t=[" Coquena"," TUI"," Sistema"];const x=t[i]??"";return x.trim()===sel?"{focb|"+fill(x,23)+"}":(x?" {nav|"+x.trim()+"}":x);};
 const TOPF=(t1,w,t2)=>[["hd",w-1," "+t1],["z0",1,""],["hd",80-w," "+t2]];
 const ROW=(l,w,r)=>[["z1",w-1,l],["z0",1,""],["z0",80-w,r]];
@@ -54,17 +56,38 @@ const HW2="{bar| GPU0 }{warn|▅▆▇▇▇}{bar| 91% }{warn|20,1/24G}{bar| +0,
 // Árbol de Definiciones compartido: cada ámbito ofrece las mismas vistas.
 const GSET=["Servicios","Modelos","Backends","Modelos inventario","Parámetros","Presets globales","Actualizaciones globales","Mantenimiento global"];
 const TREE=(sel,sc)=>{sc=sc||(GSET.includes(sel)?"G":"L");
- const g=sc==="G"?[" {mut|▾ Global}","  Servicios","  Presets","  Modelos","  Backends","  Parámetros","  Actualizaciones","  Mantenimiento"]:[" {mut|▸ Global}"];
- const l=sc==="L"?[" {mut|▾ código} {mut|· aquí}","  Recetas","  Presets","  Servicio","  Modelos","  Backends","  Parámetros","  Actualizaciones 2↑","  Mantenimiento"]:[" {mut|▸ código} {mut|· aquí}"];
+ const g=sc==="G"?[" {mut|▾ Global}","  Backends","  Servicios","  Modelos","  Parámetros","  Presets","  Actualizaciones","  Mantenimiento"]:[" {mut|▸ Global}"];
+ const l=sc==="L"?[" {mut|▾ código} {mut|· aquí}","  Recetas","  Backends","  Servicio","  Modelos","  Parámetros","  Presets","  Actualizaciones 2↑","  Mantenimiento"]:[" {mut|▸ código} {mut|· aquí}"];
  const t=[...g,...l," {mut|▸ notas}"," {mut|▸ agentes}"," {mut|▸ pruebas}"," {mut|✗ cli-project}"];
  const key=sel.replace(" globales","").replace(" global","").replace(" inventario","");
  return t.map(x=>x.trim()===key?"{focb|"+fill(x.replace(/\{\w+\|([^}]*)\}/g,"$1"),23)+"}":(x.includes("{")?x:x.replace(/^(\s*)(.+)$/,"$1{nav|$2}")));};
 const T=(sel,i,sc)=>TREE(sel,sc)[i]??"";
+// P: los presets de la combinación elegida en el desplegable; cada valor indica la capa (YAML) de la que sale.
+const PRESETS=[
+" {mut|  PRESET      MODELO               EN VIVO    RECETA}",
+"{focb|  asistente   gemma-4-12B Q4_0     ● cargado  }{warn|≠ receta}",
+"  resumen     qwen3-8B Q5_K_M      {ok|● cargado}  —",
+"  editor      gemma-4-E4B Q4_0     {mut|○ no publ.} —",
+"",
+" {hi|asistente}  {mut|capas} ¹ coquena.yaml  ² coquena.gpu.yaml",
+"   {mut|modelo}     {nav|gemma-4-12B-it-qat Q4_0}  {mut|¹}",
+"   {mut|companion}  mmproj-F16                {mut|¹}",
+"",
+"   {mut|           EN VIVO   RECETA   CAPA}",
+"   contexto    8192      {warn|16384}    ²",
+"   -ngl        99        99       ¹",
+"   -dev        CUDA0     CUDA0    ²",
+"",
+" {btn| Clonar… } {btn| Editar YAML } {btn| Eliminar } {btn| Ver en vivo }"];
+// Desplegable: las combinaciones registradas en Recetas; ● marca la elegida. Clic o Enter elige; Esc cierra.
+const DROP=(items,sel)=>{const w=28;return ["{bdr|╭"+"─".repeat(w)+"╮}",
+ ...items.map((t,i)=>"{bdr|│}"+(i===sel?"{focb|"+fill(" ● "+t,w)+"}":"{dlg|"+fill("   "+t,w)+"}")+"{bdr|│}"),"{bdr|╰"+"─".repeat(w)+"╯}"];};
+const COMBOS=DROP(["coquena.yaml + gpu","coquena.yaml","coquena.yaml + server","coquena.yaml + gpu + .env"],0);
 const screens=[
 ["A · ● En vivo — el servicio es la unidad del log y del proceso; la entrada, de métricas y tareas",[
 TABS(true),
 TOPF("",24,"principal  {mut|:9931}  {ok|● en línea}  {mut|CPU} 21% {mut|RAM} 3,1G {mut|cola} 2"),
-ROW(" {ok|▾●} {hi|principal}",24," {btn| ■ Detener }  {btn| ⟳ Reiniciar }"),
+ROW(" {ok|▾●} {hi|principal}",24," {btn| ■ Detener } {btn| ⟳ Reiniciar }"),
 ROW("   ▾ código",24," {hi|código/asistente}  {mut|gemma-4-12B Q4_0}  {warn|≠ receta}"),
 ROW("{focb|     asistente         }",24," {mut|prompt} {pr|▂▃▅▆▇▆▅▆▇▆▅▆▇▇▆▅▆▇▆▅▆▇} {hi|80} {mut|tk/s pico 96}"),
 ROW("      resumen",24," {mut|gen   } {gen|▂▅▆▆▆▅▆▆▇▆▆▅▆▆▇▆▆▅▆▆▅▆} {hi|20} {mut|tk/s pico 24}"),
@@ -95,34 +118,25 @@ TOPF("",24,"Recetas de código {mut|→} principal {ok|●}"),
 "  coquena.yaml + server        9b7d11   {mut|conocida}",
 "  coquena.yaml + gpu + .env    5e0a42   {warn|privada}",
 "",
-" {btn| + Nueva combinación… }  {btn| Editar }  {btn| Olvidar }",
+" {btn| + Nueva combinación… } {btn| Editar } {btn| Olvidar }",
 "",
 " {mut|archivos} coquena.yaml {mut|→} coquena.gpu.yaml",
 " {mut|backend}  usa el de principal   {btn| + Backend }",
-" [ ] preparación privada",
+" ☐ preparación privada",
 "",
-" {btnf| ▲ Up }  {btn| ▼ Down }  {btn| Importar }  {btn| Ver en vivo }"][i]??"")),
+" {btnf| ▲ Up } {btn| ▼ Down } {btn| Importar } {btn| Ver en vivo }"][i]??"")),
 HW1,HW2
 ]],
-["P · ◇ Definiciones › código › Presets — ver, clonar y saltar al modelo o al YAML",[
+["P · ◇ Definiciones › código › Presets — presets de la combinación elegida y capa de cada valor",[
 TABS(false),
-TOPF("",24,"Presets de código"),
-...[...Array(18)].map((_,i)=>ROW(T("Presets",i,"L"),24,[
-" {mut|  PRESET      MODELO               EN VIVO    RECETA}",
-"{focb|  asistente   gemma-4-12B Q4_0     ● cargado  }{warn|modif.}",
-"  resumen     qwen3-8B Q5_K_M      {ok|● cargado}  —",
-"  editor      gemma-4-E4B Q4_0     {mut|○ no publ.} —",
-"",
-" {hi|asistente}  {mut|en} coquena.yaml",
-"   {mut|modelo}     {nav|gemma-4-12B-it-qat Q4_0}",
-"   {mut|companion}  mmproj-F16",
-"",
-"   {mut|           EN VIVO   RECETA}",
-"   contexto    8192      {warn|16384}",
-"   -ngl        99        99",
-"   -dev        CUDA0     CUDA0",
-"",
-" {btn| Clonar… }  {btn| Editar YAML }  {btn| Eliminar }  {btn| Ver en vivo }"][i]??"")),
+TOPF("",24,"Presets de código{pad}{btn| coquena.yaml + gpu ▾ }"),
+...[...Array(18)].map((_,i)=>ROW(T("Presets",i,"L"),24,PRESETS[i]??"")),
+HW1,HW2
+]],
+["P2 · ◇ Definiciones › código › Presets — desplegable de combinación abierto",[
+TABS(false),
+TOPF("",24,"Presets de código{pad}{btnf| coquena.yaml + gpu ▾ }"),
+...[...Array(18)].map((_,i)=>ROW(T("Presets",i,"L"),24,i<COMBOS.length?fill([" {mut|  PRESET     MODELO}","{focb|  asistente  gemma-4-12B }","  resumen    qwen3-8B","  editor     gemma-4-E4B","",""," {hi|asistente}"][i],25)+COMBOS[i]:PRESETS[i]??"")),
 HW1,HW2
 ]],
 ["C · ◇ Definiciones › Global › Modelos — inventario y búsqueda dentro del ámbito",[
@@ -160,9 +174,9 @@ TOPF("",24,"Coquena  {mut|$CoquenaHome\\config.json}"),
 " {mut|LOGS}",
 "  Retención            {focb| 100 MiB }      {mut|predet.}",
 " {mut|PARÁMETROS}",
-"  Catálogo global      {btn| Simular reset }  {btn| Restablecer }",
+"  Catálogo global      {btn| Simular reset } {btn| Restablecer }",
 "",
-" {btn| Guardar }  {btn| Restablecer }  {btn| Recargar }"][i]??"")),
+" {btn| Guardar } {btn| Restablecer } {btn| Recargar }"][i]??"")),
 HW1,HW2
 ]],
 ["F · ≡ Configuración › TUI — preferencias propias de la interfaz",[
@@ -170,18 +184,18 @@ TABS(2),
 TOPF("",24,"TUI"),
 ...[...Array(18)].map((_,i)=>ROW(CT("TUI",i),24,[
 " {mut|LOG}",
-"  [x] Ocultar las peticiones de monitoreo de Coquena",
+"  ☑ Ocultar las peticiones de monitoreo de Coquena",
 "",
 " {mut|BARRA INFERIOR}",
-"  [x] CPU        [x] RAM",
-"  [x] GPU0 uso   [x] GPU0 dedicada   [x] GPU0 compartida",
-"  [x] GPU1 uso   [ ] GPU1 dedicada   [x] GPU1 compartida",
+"  ☑ CPU        ☑ RAM",
+"  ☑ GPU0 uso   ☑ GPU0 dedicada   ☑ GPU0 compartida",
+"  ☑ GPU1 uso   ☐ GPU1 dedicada   ☑ GPU1 compartida",
 ""][i]??"")),
 HW1,HW2
 ]],
 ["G · ≡ Configuración › Sistema — system probe",[
 TABS(2),
-TOPF("",24,"Sistema  {mut|sondeo local · 12:01}"),
+TOPF("",24,"Sistema  {mut|detectado en este equipo · 12:01}"),
 ...[...Array(18)].map((_,i)=>ROW(CT("Sistema",i),24,[
 " {mut|Coquena}     0.3.0",
 " {mut|Plataforma}  win-x64",
@@ -277,9 +291,9 @@ TOPF("",24,"código {mut|→} principal {ok|●}"),
 "",
 " {mut|archivo}  (•) coquena.yaml",
 "          ( ) coquena.{focb|server         }.yaml",
-" [x] descargar ahora",
+" ☑ descargar ahora",
 "",
-"{pad}{btn| Cancelar }  {btnf| Agregar }"][i]??""],["z0",3,""]]),
+"{pad}{btn| Cancelar } {btnf| Agregar }"][i]??""],["z0",3,""]]),
 HW1,HW2
 ]],
 ["L · ◇ Definiciones › Importar — modal de selección hacia Global",[
@@ -289,20 +303,20 @@ TOPF("",24,"código {mut|→} principal {ok|●}"),
 " {hi|Importar código en Global}",
 "",
 " {mut|categoría}  {mut|elementos}",
-"{focb| [x] presets  asistente, resumen, editor          }",
-" [x] model    gemma-4-12B Q4_0, qwen3-8B Q5_K_M",
-" [ ] params   ctx-size, n-gpu-layers",
-" {mut|[ ] service  sin servicio propio}",
+"{focb| ☑ presets  asistente, resumen, editor          }",
+" ☑ model    gemma-4-12B Q4_0, qwen3-8B Q5_K_M",
+" ☐ params   ctx-size, n-gpu-layers",
+" {mut|☐ service  sin servicio propio}",
 "",
 " {mut|conflictos}",
 " {warn|▲} preset resumen ya existe en Global",
 "     (•) conservar   ( ) reemplazar",
 "",
-" [ ] usar como servicio predeterminado",
+" ☐ usar como servicio predeterminado",
 "",
 "",
 "",
-"{pad}{btn| Cancelar }  {btnf| Importar }"][i]??""],["z0",3,""]]),
+"{pad}{btn| Cancelar } {btnf| Importar }"][i]??""],["z0",3,""]]),
 HW1,HW2
 ]],
 ["M · ◇ Definiciones › Global › Servicios — gestionar servicios del ámbito",[
@@ -318,8 +332,23 @@ TOPF("",24,"Servicios de Global{pad}{btn| + Agregar }"),
 "   {mut|args}        host 127.0.0.1 · models-max 1",
 "   {mut|consumidores} código (2), notas (1)",
 "",
-" {btn| ★ Predeterminado }  {btn| Eliminar }",
-" {btn| Editar YAML }  {btn| Ver en vivo }"][i]??"")),
+" {btn| ★ Predeterminado } {btn| Eliminar }",
+" {btn| Editar YAML } {btn| Ver en vivo }"][i]??"")),
+HW1,HW2
+]],
+["M2 · ◇ Definiciones › código › Servicio — servicio propio de la combinación elegida",[
+TABS(1),
+TOPF("",24,"Servicio de código{pad}{btn| coquena.yaml + gpu ▾ }"),
+...[...Array(18)].map((_,i)=>ROW(T("Servicio",i,"L"),24,[
+" {mut|  SERVICIO      BACKEND          PUERTO  ESTADO}",
+"{focb|   código        cuda@13 · b6120   9950    ● en línea }",
+"",
+" {hi|código} {mut|capas} ¹ coquena.yaml  ² coquena.gpu.yaml",
+"   {mut|backend}      cuda@13 · b6120          {mut|²}",
+"   {mut|args}         host 127.0.0.1:9950      {mut|¹}",
+"   {mut|presets}      asistente, resumen, editor",
+"",
+" {btn| Eliminar } {btn| Editar YAML } {btn| Ver en vivo }"][i]??"")),
 HW1,HW2
 ]],
 ["T · Modal Agregar servicio global — sólo backends del ámbito",[
@@ -342,7 +371,7 @@ TOPF("",24,"Servicios de Global"),
 " {mut|Sólo backends ya preparados en Global.}",
 " {mut|Crear guarda la definición; no inicia.}",
 "",
-"{pad}{btn| Cancelar }  {btnf| Agregar }"][i]??""],["z0",3,""]]),
+"{pad}{btn| Cancelar } {btnf| Agregar }"][i]??""],["z0",3,""]]),
 HW1,HW2
 ]],
 ["N · Descargas (pestaña ⇣ de la barra superior) — Global y proyecto actual, por ámbito y categoría, ordenado por estado",[
@@ -383,20 +412,39 @@ TOPF("",24,"Parámetros de Global  {mut|llama.cpp b6120}"),
 " Size of the prompt context (0 = from model)",
 " {mut|usado por} código/asistente, código/resumen",
 "",
-" {btn| Definir… }  {btn| Editar }  {btn| Quitar definición }"][i]??"")),
+" {btn| Definir… } {btn| Editar } {btn| Quitar definición }"][i]??"")),
+HW1,HW2
+]],
+["Q2 · ◇ Definiciones › código › Parámetros — definiciones de la combinación elegida",[
+TABS(false),
+TOPF("",24,"Parámetros de código{pad}{btn| coquena.yaml + gpu ▾ }"),
+...[...Array(18)].map((_,i)=>ROW(T("Parámetros",i,"L"),24,[
+" {mut|filtro} {focb| todos            }  {mut|3 parámetros}",
+"",
+" {mut| PARÁMETRO        TIPO     APLICA    PREDET.  CAPA}",
+"{focb| temperatura      real     modelo    0,7      ¹    }",
+"  ctx-size         entero   modelo    16384    ²",
+"  n-gpu-layers     entero   modelo    99       ¹",
+"",
+" {hi|temperatura}  {mut|capas} ¹ coquena.yaml  ² coquena.gpu.yaml",
+" Temperatura de muestreo",
+" {mut|usado por} asistente, resumen",
+"",
+" {btn| Definir… } {btn| Editar } {btn| Quitar definición }"][i]??"")),
 HW1,HW2
 ]],
 ["U · ◇ Definiciones › código › Actualizaciones — Comprobar (update) y Actualizar (upgrade)",[
 TABS(false),
-TOPF("",24,"Actualizaciones de código  {mut|plan 09/11 11:40} {ok|✓ vigente}"),
+TOPF("",24,"Actualizaciones de código{pad}{btn| coquena.yaml + gpu ▾ }"),
 ...[...Array(18)].map((_,i)=>ROW(T("Actualizaciones 2↑",i,"L"),24,[
+" {mut|Comprobado el 09/11 11:40 ·} {ok|✓ al día}",
 " {mut|    RECURSO              ACTUAL      PROPUESTA  ESTADO}",
-"{focb| [x] backend llama.cpp    b6120       b6188      ↑ nueva}",
-" [x] gemma-4-12B          rev a1f3    rev c07b   {ok|↑ nueva}",
-" [ ] qwen3-8B             Q5_K_M      —          {mut|fijado}",
-" [ ] mmproj               F16         ?          {warn|▲ falló}",
+"{focb| ☑ backend llama.cpp    b6120       b6188      ↑ nueva}",
+" ☑ gemma-4-12B          rev a1f3    rev c07b   {ok|↑ nueva}",
+" ☐ qwen3-8B             Q5_K_M      —          {mut|fijado}",
+" ☐ mmproj               F16         ?          {warn|▲ falló}",
 "",
-" {btn| Comprobar }  {btnf| Actualizar 2 }",
+" {btn| Comprobar } {btnf| Actualizar 2 }",
 "",
 " {mut|IMPACTO EN EJECUCIÓN}",
 "  {ok|●} principal usa b6120 hasta reiniciar",
@@ -411,8 +459,8 @@ TOPF("",24,"Mantenimiento de código"),
 "   {warn|▲} mmproj-F16: archivo modificado fuera de Coquena",
 "",
 " {btn| Limpiar… }  {mut|recursos sin referencias}",
-"   [x] backend b6044              412M",
-"   [x] gemma-3-12B Q4_0  {mut|auto}     7,3G",
+"   ☑ backend b6044              412M",
+"   ☑ gemma-3-12B Q4_0  {mut|auto}     7,3G",
 "   {mut|—   Ornith-35B Q4_K_M  protegido}",
 "   {mut|liberaría} 7,7G",
 "",
@@ -426,17 +474,17 @@ TOPF("",24,"Recetas de código {mut|→} principal {ok|●}"),
 " {hi|Nueva combinación}",
 "",
 " {mut|YAML (en orden)}",
-"{focb|  [x] 1  coquena.yaml           base               }",
-"  [x] 2  coquena.server.yaml   {btn| ↑ }{btn| ↓ }",
-"  [ ] —  coquena.gpu.yaml",
+"{focb|  ☑ 1  coquena.yaml           base               }",
+"  ☑ 2  coquena.server.yaml   {btn| ↑ }{btn| ↓ }",
+"  ☐ —  coquena.gpu.yaml",
 "  {btn| + Archivo nuevo… }",
 "",
 " {mut|.env}",
-"  [ ] .env            {warn|hace privada la combinación}",
+"  ☐ .env            {warn|hace privada la combinación}",
 "",
 " {mut|se registra al usarla en Up o Iniciar}",
 "",
-"{pad}{btn| Cancelar }  {btnf| Aceptar }"][i]??""],["z0",3,""]]),
+"{pad}{btn| Cancelar } {btnf| Aceptar }"][i]??""],["z0",3,""]]),
 HW1,HW2
 ]],
 ["W · ◇ Definiciones › Global › Modelos — inventario local y alta de archivos",[
@@ -455,7 +503,7 @@ TOPF("",24,"Modelos de Global{pad}{btn| + Agregar local… }"),
 " google/gemma-4-12B-it-qat-GGUF {mut|· rev a1f3}",
 " {mut|usado por} código/asistente, notas/tagger",
 "",
-" {btn| Quitar protección }  {btn| Verificar }  {btn| Eliminar }"][i]??"")),
+" {btn| Quitar protección } {btn| Verificar } {btn| Eliminar }"][i]??"")),
 HW1,HW2
 ]],
 ["S · Modal Agregar modelo local — model add",[
@@ -472,10 +520,10 @@ TOPF("",24,"Modelos de Global"),
 " {mut|alta}     (•) registrar en el inventario",
 "          ( ) declarar en {focb| recipe.yaml ▾ } ",
 "",
-" [x] buscar correspondencia en Hugging Face",
+" ☑ buscar correspondencia en Hugging Face",
 "     {mut|repositorio} {focb| unsloth/…-GGUF      }",
 "",
-"{pad}{btn| Cancelar }  {btnf| Agregar }"][i]??""],["z0",3,""]]),
+"{pad}{btn| Cancelar } {btnf| Agregar }"][i]??""],["z0",3,""]]),
 HW1,HW2
 ]],
 ["O · ◇ Definiciones › Global › Backends — instalaciones del ámbito",[
@@ -493,7 +541,7 @@ TOPF("",24,"Backends de Global{pad}{btn| + Backend }"),
 " {mut|ruta} $CoquenaHome\\backends\\cuda13-b6120",
 " {mut|compatibilidad} ✓ driver 13.0 · RTX 4090",
 "",
-" {btn| Quitar protección }  {btn| Eliminar }"][i]??"")),
+" {btn| Quitar protección } {btn| Eliminar }"][i]??"")),
 HW1,HW2
 ]],
 ["X · Modal Aceptar/Cancelar — Up con el destino ocupado",[
@@ -508,7 +556,7 @@ TOPF("",24,"Recetas de código {mut|→} principal {ok|●}"),
 " {warn|▲ 1 petición activa · 2 en cola}",
 "   pueden fallar al publicar",
 "",
-"{pad}{btnf| Cancelar }  {btn| Publicar igual }"][i]??""],["z0",3,""]]),
+"{pad}{btnf| Cancelar } {btn| Publicar igual }"][i]??""],["z0",3,""]]),
 HW1,HW2
 ]],
 ["Y · Modal Sí/No/Cancelar — guardar con cambios externos",[
@@ -524,7 +572,7 @@ TABS(false),
 "  No        recarga el disco y descarta tu borrador",
 "  Cancelar  vuelve al editor sin guardar",
 "",
-"{pad}{btn| Sí }  {btn| No }  {btnf| Cancelar }"][i]??""],["z0",12,""]]),
+"{pad}{btn| Sí } {btn| No } {btnf| Cancelar }"][i]??""],["z0",12,""]]),
 HW1,HW2
 ]],
 ["Z · Notificaciones (pestaña ▲ de la barra superior) — acciones sobre cada aviso",[
@@ -608,16 +656,18 @@ for(const [title,raw] of screens){const lines=align(raw);
 }
 
 // Navegación simulada: los controles con destino llevan a otra pantalla.
-const LINKS={"● En vivo":"A","◇ Definiciones":"B","≡ Configuración":"E","Receta":"B","Modelos":"W",
+const LINKS={"● En vivo":"A","◇ Definiciones":"B","≡":"E","coquena.yaml + gpu ▾":"P2","Receta":"B","Modelos":"W",
 "Coquena":"E","TUI":"F","Sistema":"G","Editar YAML":"H","Cerrar":"B","Ver en vivo":"A","Histórico":"I",
 "Volver":"A","+ Backend":"K","Importar":"L","Cancelar":"B","Agregar":"B","Inicializar":"B","Actualizar":"B",
-"Servicios":"M","Backends":"O","inventario":"W","Hugging Face":"C","+ Agregar local…":"S","Recetas":"B","Presets":"P","Parámetros":"Q","Mantenimiento":"R","Actualizaciones":"U","Actualizaciones 2↑":"U","Editar":"H","+ Nueva combinación…":"V","Aceptar":"B","+ Archivo nuevo…":"H","Clonar…":"H","gemma-4-12B-it-qat Q4_0":"W","▲ Up":"X","Publicar igual":"B","▲ 2":"Z","⇣ 1 · 68%":"N","Ver log":"I","Marcar leídas":"Z","Guardar":"Y","Sí":"H","No":"H","Servicio":"M",
+"Servicios":"M","Backends":"O","inventario":"W","Hugging Face":"C","+ Agregar local…":"S","Recetas":"B","Presets":"P","Parámetros":"Q","Mantenimiento":"R","Actualizaciones":"U","Actualizaciones 2↑":"U","Editar":"H","+ Nueva combinación…":"V","Aceptar":"B","+ Archivo nuevo…":"H","Clonar…":"H","gemma-4-12B-it-qat Q4_0":"W","▲ Up":"X","Publicar igual":"B","▲ 2":"Z","⇣ 1 · 68%":"N","Ver log":"I","Marcar leídas":"Z","Guardar":"Y","Sí":"H","No":"H","Servicio":"M2",
 "+ Agregar":"M","Reanudar":"N","Ver descargas":"N"};
 const terms=[...document.querySelectorAll(".term")],heads=[...document.querySelectorAll("#screens h2")];
-const ids=heads.map(h=>h.textContent.trim()[0]);
+const ids=heads.map(h=>h.textContent.trim().split(" ")[0]);
 terms.forEach((t,i)=>{t.id="s"+ids[i];heads[i].id="h"+ids[i];
+  // En pantallas de un proyecto, Parámetros lleva a la vista local (Q2) y no a la de Global (Q).
+  const local=t.textContent.includes("▾ código");
   t.querySelectorAll("span").forEach(sp=>{const k=sp.textContent.trim();
-    const to=({Y:{Cancelar:"H",Sí:"P",No:"H"},X:{Cancelar:"B"},S:{Cancelar:"W",Agregar:"W"},M:{"+ Agregar":"T"},T:{Cancelar:"M",Agregar:"M","Ir a backends":"O"},O:{"+ Backend":"K"},V:{Cancelar:"B"},N:{Cancelar:"N",Reintentar:"N"},Z:{Reintentar:"N"}}[ids[i]]||{})[k]||LINKS[k];
+    const to=({Y:{Cancelar:"H",Sí:"P",No:"H"},X:{Cancelar:"B"},S:{Cancelar:"W",Agregar:"W"},M:{"+ Agregar":"T"},T:{Cancelar:"M",Agregar:"M","Ir a backends":"O"},O:{"+ Backend":"K"},V:{Cancelar:"B"},N:{Cancelar:"N",Reintentar:"N"},Z:{Reintentar:"N"}}[ids[i]]||{})[k]||(local&&k==="Parámetros"?"Q2":LINKS[k]);
     if(to&&!sp.querySelector("span")){sp.classList.add("lnk");sp.title="→ "+to;sp.onclick=()=>go(to);}});
   const pre=t.querySelector("pre");const rows=pre.innerHTML.split("\n");
   rows.slice(-2).forEach(()=>{});});

@@ -43,9 +43,33 @@ internal static partial class DashboardCli
     }
 
     // B · Recetas: a combination registered in the scope, or the folder's own recipe before its first use.
+    // How a combination is named everywhere: its YAML in order and its .env files. File names are
+    // enough unless two share one (Global intentions are recipe.yaml in different folders); then each
+    // file is named by its path from the scope base.
+    internal static string CombinationLabel(RecipeSelection selection)
+    {
+        var files = selection.Files.Concat(selection.EnvFiles).ToArray();
+        var names = files.Select(file => Path.GetFileName(file)).ToArray();
+        var unique = names.Distinct(StringComparer.OrdinalIgnoreCase).Count() == names.Length;
+        return string.Join(" + ", unique ? names : files.Select(file => Path.GetRelativePath(selection.Base, file).Replace(Path.DirectorySeparatorChar, '/')));
+    }
+
+    // The YAML of a combination are its layers, numbered in order: ¹ first file, ² second…
+    // A value names the layer it comes from; one outside the YAML (an .env, a default) shows «·».
+    internal static string LayerMark(RecipeSelection selection, string? file)
+    {
+        var index = selection.Files.ToList().FindIndex(path => path.Equals(file, StringComparison.OrdinalIgnoreCase));
+        return index < 0 ? "·" : Superscript(index + 1);
+    }
+
+    internal static string LayerLegend(RecipeSelection selection) =>
+        string.Join("  ", selection.Files.Select((file, index) => Superscript(index + 1) + " " + Path.GetFileName(file)));
+
+    private static string Superscript(int number) => string.Concat(number.ToString(System.Globalization.CultureInfo.InvariantCulture).Select(digit => "⁰¹²³⁴⁵⁶⁷⁸⁹"[digit - '0']));
+
     internal sealed record RecipeCombination(string Key, string? Id, RecipeSelection Selection, bool Private, bool Current)
     {
-        public string Files => string.Join(" + ", Selection.Files.Concat(Selection.EnvFiles).Select(Path.GetFileName));
+        public string Files => CombinationLabel(Selection);
     }
 
     internal static RecipeCombination[] RecipeCombinations(DefinitionsSource.Place place)
@@ -60,7 +84,7 @@ internal static partial class DashboardCli
         return items.ToArray();
     }
 
-    internal static DefinitionsPresentation.Page RecipesPage(string scope, string? destination, IReadOnlyList<RecipeCombination> items, string? selected, int width)
+    internal static DefinitionsPresentation.Page RecipesPage(string scope, string? destination, IReadOnlyList<RecipeCombination> items, string? selected, int width, string? busy = null)
     {
         var rows = new List<string> { " " + Markup.Style("mut", "  " + Pad("COMBINACIÓN", 28) + " " + Pad("ID", 8) + " ESTADO") };
         foreach (var item in items)
@@ -73,17 +97,22 @@ internal static partial class DashboardCli
         if (items.Count == 0) rows.Add(" " + Markup.Style("mut", "Sin combinaciones registradas."));
         var chosen = items.FirstOrDefault(item => item.Key == selected);
         rows.Add("");
-        rows.Add(" " + ManagementPresentation.Button("+ Nueva combinación…", "recipe-new") + "  " +
-            (chosen is null ? DefinitionsPresentation.Off("Editar") : ManagementPresentation.Button("Editar", "recipe-edit")) + "  " +
+        rows.Add(" " + ManagementPresentation.Button("+ Nueva combinación…", "recipe-new") + " " +
+            (chosen is null ? DefinitionsPresentation.Off("Editar") : ManagementPresentation.Button("Editar", "recipe-edit")) + " " +
             (chosen?.Id is null ? DefinitionsPresentation.Off("Olvidar") : ManagementPresentation.Button("Olvidar", "recipe-forget")));
         rows.Add("");
         if (chosen is not null)
             rows.Add(" " + Markup.Style("mut", "archivos") + " " + string.Join(" " + Markup.Style("mut", "→") + " ",
                 chosen.Selection.Files.Concat(chosen.Selection.EnvFiles).Select(file => Markup.Escape(Path.GetFileName(file)))));
-        rows.Add(" " + Markup.Style("mut", (chosen?.Private == true ? "[x]" : "[ ]") + " preparación privada"));
+        rows.Add(" " + Markup.Style("mut", (chosen?.Private == true ? "☑" : "☐") + " preparación privada"));
         rows.Add("");
-        rows.Add(" " + ManagementPresentation.Button("▲ Up", "up") + "  " + DefinitionsPresentation.Off("▼ Down") + "  " +
-            (chosen is null ? DefinitionsPresentation.Off("Importar") : ManagementPresentation.Button("Importar", "recipe-import")) + "  " + DefinitionsPresentation.Off("Ver en vivo"));
+        // While Up runs, its button keeps its place, disabled, with the spinner, and a status row says so.
+        var spinner = DashboardPresentation.Spinner();
+        rows.Add(" " + (busy is null ? ManagementPresentation.Button("▲ Up", "up") : DefinitionsPresentation.Off((busy == "up" ? spinner : "▲") + " Up")) + " " +
+            DefinitionsPresentation.Off((busy == "down" ? spinner : "▼") + " Down") + " " +
+            (chosen is null || busy is not null ? DefinitionsPresentation.Off("Importar") : ManagementPresentation.Button("Importar", "recipe-import")) + " " + DefinitionsPresentation.Off("Ver en vivo"));
+        if (busy is not null)
+            rows.Add(" " + Markup.Style("warn", spinner + " ") + Markup.Style("mut", (busy == "down" ? "Deteniendo" : "Ejecutando Up") + "… Podés cambiar de vista; la operación sigue."));
         return new("Recetas de " + Markup.Escape(scope) + (destination is null ? "" : " " + Markup.Style("mut", "→") + " " + Markup.Escape(destination)), rows);
 
         static string Pad(string text, int size) => DashboardPresentation.Fit(text, size - 1).PadRight(size);

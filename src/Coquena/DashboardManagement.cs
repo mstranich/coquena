@@ -18,14 +18,15 @@ namespace Coquena;
 internal static partial class DashboardCli
 {
     internal static ManagementPresentation.Service[] ServiceDefinitions(DefinitionsSource.Place place,
-        IReadOnlyList<Target> targets, IReadOnlyDictionary<int, ServiceSnapshot> snapshots)
+        IReadOnlyList<Target> targets, IReadOnlyDictionary<int, ServiceSnapshot> snapshots, RecipeSelection? chosen = null)
     {
+        // In a project, the service is read from the combination chosen in the dropdown.
         var store = new ScopeStore(place.Context!);
         var state = store.Read();
         var registry = new RecipeRegistry(store);
         var defaultId = state.State?["data"]?["aliases"]?["default"]?.GetValue<string>();
         var services = registry.Services();
-        if (services.Length == 0 && place.Recipe is not null && RecipeReader.Read(place.Recipe).Root.Get("service") is not null)
+        if (services.Length == 0 && (chosen ?? place.Recipe) is { } declared && RecipeReader.Read(declared).Root.Get("service") is not null)
             return [Describe(null)];
         return services.Select(service => Describe(service)).ToArray();
 
@@ -35,15 +36,17 @@ internal static partial class DashboardCli
             string? problem = null;
             try
             {
-                var selection = service is null ? place.Recipe! : ServiceSelection(place, service);
-                file = string.Join(" + ", selection.Files);
+                var selection = chosen ?? (service is null ? place.Recipe! : ServiceSelection(place, service));
+                file = chosen is null ? string.Join(" + ", selection.Files) : "capas " + LayerLegend(selection);
                 var definition = RecipeReader.Read(selection).Root.Get("service");
                 var intent = definition?.Get("backend")?.Redacted();
                 backend = intent?["executable"] is not null ? "externo" :
                     string.Join(" · ", new[] { intent?["variant"]?.GetValue<string>(), intent?["version"]?.GetValue<string>() }.OfType<string>());
+                if (chosen is not null && definition?.Get("backend") is { } declaredBackend) backend += " " + LayerMark(selection, declaredBackend.Origin.File);
                 port = definition?.Get("server")?.Get("args")?.Get("port")?.Redacted()?.ToString() ?? "";
                 if (port.Length == 0 && intent?["executable"] is null) port = "9931";
                 arguments = definition?.Get("server")?.Get("args")?.Redacted()?.ToJsonString() ?? "";
+                if (chosen is not null && definition?.Get("server")?.Get("args") is { } declaredArgs) arguments += " " + LayerMark(selection, declaredArgs.Origin.File);
                 // Names come from published preset names, never inferred from a filesystem directory.
                 var record = service is null ? new JsonObject() : PresetPublication.Service(state, service.ServiceId);
                 consumers = string.Join(", ", (record["consumers"] as JsonArray ?? []).SelectMany(consumer => consumer?["presets"] as JsonArray ?? [])
@@ -140,28 +143,26 @@ internal static partial class DashboardCli
     private static ServiceFormResult? ServiceForm(IApplication app, string scope, string? fixedName,
         IReadOnlyList<InstalledBackend> backends, out bool goToBackends)
     {
-        using var dialog = new Dialog { Width = Math.Min(74, app.Screen.Width - 4), Height = 20,
-            BorderStyle = LineStyle.None, ShadowStyle = ShadowStyles.None };
+        using var dialog = Modal(app, 74, 18, "Agregar servicio a " + scope);
         var color = string.IsNullOrEmpty(Environment.GetEnvironmentVariable("NO_COLOR"));
         const int field = 12;
         var captions = new List<Label>();
-        Label Caption(int x, int y, string text) { var label = new Label { X = x, Y = y, Text = text }; captions.Add(label); return label; }
-        var heading = new Label { X = 1, Text = "Agregar servicio a " + scope, Width = Dim.Fill(1) };
-        var name = new TextField { X = field, Y = 2, Width = Dim.Fill(2), Text = fixedName ?? "", ReadOnly = fixedName is not null };
-        var list = new ListView { X = field, Y = 3, Width = Dim.Fill(2), Height = 4 };
+        Label Caption(int x, int y, string text) { var label = new Label { X = x, Y = y - 2, Text = text }; captions.Add(label); return label; }
+        var name = new TextField { X = field, Y = 0, Width = Dim.Fill(2), Text = fixedName ?? "", ReadOnly = fixedName is not null };
+        var list = new ListView { X = field, Y = 1, Width = Dim.Fill(2), Height = 4 };
         list.SetSource(new System.Collections.ObjectModel.ObservableCollection<string>(backends.Select(item => item.Label)));
         if (backends.Count > 0) list.SelectedItem = 0;
-        var go = new Button { X = field, Y = 7, Text = " Ir a backends ", NoDecorations = true, ShadowStyle = ShadowStyles.None };
-        var host = new TextField { X = field, Y = 9, Width = 15, Text = "127.0.0.1" };
-        var port = new TextField { X = field + 24, Y = 9, Width = 8, Text = "9931" };
-        var health = new TextField { X = field, Y = 10, Width = Dim.Fill(2) };
+        var go = new Button { X = field, Y = 5, Text = " Ir a backends ", NoDecorations = true, ShadowStyle = ShadowStyles.None };
+        var host = new TextField { X = field, Y = 7, Width = 15, Text = "127.0.0.1" };
+        var port = new TextField { X = field + 24, Y = 7, Width = 8, Text = "9931" };
+        var health = new TextField { X = field, Y = 8, Width = Dim.Fill(2) };
         var arguments = new JsonObject();
-        var argumentButton = new Button { X = 1, Y = 11, Text = " Argumentos de proceso… ", NoDecorations = true, ShadowStyle = ShadowStyles.None };
+        var argumentButton = new Button { X = 1, Y = 9, Text = " Argumentos de proceso… ", NoDecorations = true, ShadowStyle = ShadowStyles.None };
         argumentButton.Accepting += (_, args) => { args.Handled = true; EditProcessArguments(app, arguments); };
-        var status = new Label { X = 1, Y = 15, Width = Dim.Fill(1), Height = 2 };
+        var status = new Label { X = 1, Y = 13, Width = Dim.Fill(1), Height = 2 };
         var leave = false;
         go.Accepting += (_, args) => { args.Handled = true; leave = true; app.RequestStop(dialog); };
-        dialog.Add(heading, Caption(1, 2, "nombre"), name, Caption(1, 3, "backend"), list, go,
+        dialog.Add(Caption(1, 2, "nombre"), name, Caption(1, 3, "backend"), list, go,
             Caption(1, 9, "host"), host, Caption(field + 17, 9, "puerto"), port, Caption(1, 10, "URL salud"), health, argumentButton,
             Caption(1, 13, backends.Count == 0 ? "Sin backends en " + scope + ": descargalos o registralos en Backends."
                 : "Sólo backends ya preparados en " + scope + "."),
@@ -204,18 +205,16 @@ internal static partial class DashboardCli
     // assigning it to a service. All work runs after acceptance, outside the main loop.
     private static BackendFormResult? BackendForm(IApplication app, string scope, HardwareContext? hardware)
     {
-        using var dialog = new Dialog { Width = Math.Min(74, app.Screen.Width - 4), Height = 14,
-            BorderStyle = LineStyle.None, ShadowStyle = ShadowStyles.None };
+        using var dialog = Modal(app, 74, 12, "Agregar backend a " + scope);
         var color = string.IsNullOrEmpty(Environment.GetEnvironmentVariable("NO_COLOR"));
-        var heading = new Label { X = 1, Text = "Agregar backend a " + scope, Width = Dim.Fill(1) };
         const int field = 12;
         var captions = new List<Label>();
-        Label Caption(int x, int y, string text) { var label = new Label { X = x, Y = y, Text = text }; captions.Add(label); return label; }
-        var external = new CheckBox { X = field, Y = 2, Text = "ejecutable externo (sin copiar archivos)" };
-        var variant = new TextField { X = field, Y = 3, Width = 12, Text = "cpu" };
-        var version = new TextField { X = field + 21, Y = 3, Width = Dim.Fill(2), Text = "latest" };
-        var executable = new TextField { X = field, Y = 6, Width = Dim.Fill(2), Enabled = false };
-        var chooseVariant = new Button { X = 1, Y = 5, Text = " Elegir variante… ", NoDecorations = true, ShadowStyle = ShadowStyles.None };
+        Label Caption(int x, int y, string text) { var label = new Label { X = x, Y = y - 2, Text = text }; captions.Add(label); return label; }
+        var external = new CheckBox { X = field, Y = 0, Text = "ejecutable externo (sin copiar archivos)" };
+        var variant = new TextField { X = field, Y = 1, Width = 12, Text = "cpu" };
+        var version = new TextField { X = field + 21, Y = 1, Width = Dim.Fill(2), Text = "latest" };
+        var executable = new TextField { X = field, Y = 4, Width = Dim.Fill(2), Enabled = false };
+        var chooseVariant = new Button { X = 1, Y = 3, Text = " Elegir variante… ", NoDecorations = true, ShadowStyle = ShadowStyles.None };
         chooseVariant.Accepting += (_, args) =>
         {
             args.Handled = true;
@@ -224,8 +223,8 @@ internal static partial class DashboardCli
                 "arquitectura nativa" : item == "vulkan" ? hardware?.Vulkan.Diagnostic ?? "sin sondeo" : hardware?.Cuda.Diagnostic ?? "sin sondeo")).ToArray(), "Elegir");
             if (selected is int row) variant.Text = variants[row];
         };
-        var status = new Label { X = 1, Y = 9, Width = Dim.Fill(1), Height = 2 };
-        dialog.Add(heading, external, variant, version, executable, status, chooseVariant,
+        var status = new Label { X = 1, Y = 7, Width = Dim.Fill(1), Height = 2 };
+        dialog.Add(external, variant, version, executable, status, chooseVariant,
             Caption(1, 4, hardware is null ? "compatibilidad: se comprobará al resolver la selección" :
                 $"sondeo: CUDA {hardware.Cuda.State} · Vulkan {hardware.Vulkan.State}"),
             Caption(1, 2, "origen"), Caption(1, 3, "variante"), Caption(field + 13, 3, "versión"), Caption(1, 6, "ejecutable"),
@@ -266,14 +265,13 @@ internal static partial class DashboardCli
 
     private static void EditProcessArguments(IApplication app, JsonObject arguments)
     {
-        using var dialog = new Dialog { Width = Math.Min(72, app.Screen.Width - 4), Height = 18,
-            BorderStyle = LineStyle.None, ShadowStyle = ShadowStyles.None };
-        var list = new ListView { X = 1, Y = 2, Width = Dim.Fill(1), Height = 7 };
-        var name = new TextField { X = 10, Y = 10, Width = 24 };
-        var value = new TextField { X = 10, Y = 11, Width = Dim.Fill(1) };
-        var status = new Label { X = 1, Y = 13, Width = Dim.Fill(1), Height = 2 };
-        dialog.Add(new Label { X = 1, Text = "Argumentos de proceso · cambios sólo en este formulario" }, list,
-            new Label { X = 1, Y = 10, Text = "Nombre" }, name, new Label { X = 1, Y = 11, Text = "Valor" }, value, status);
+        using var dialog = Modal(app, 72, 16, "Argumentos de proceso · cambios sólo en este formulario");
+        var list = new ListView { X = 1, Y = 0, Width = Dim.Fill(1), Height = 7 };
+        var name = new TextField { X = 10, Y = 8, Width = 24 };
+        var value = new TextField { X = 10, Y = 9, Width = Dim.Fill(1) };
+        var status = new Label { X = 1, Y = 11, Width = Dim.Fill(1), Height = 2 };
+        dialog.Add(list,
+            new Label { X = 1, Y = 8, Text = "Nombre" }, name, new Label { X = 1, Y = 9, Text = "Valor" }, value, status);
         void Refresh() => list.SetSource(new System.Collections.ObjectModel.ObservableCollection<string>(arguments.Select(item => item.Key + " = " + item.Value)));
         Refresh();
         var set = new Button { Text = " Asignar ", NoDecorations = true, ShadowStyle = ShadowStyles.None };

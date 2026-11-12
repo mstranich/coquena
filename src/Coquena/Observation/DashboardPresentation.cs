@@ -7,6 +7,11 @@ namespace Coquena.Observation;
 internal static class DashboardPresentation
 {
     private static readonly TimeSpan Lifetime = TimeSpan.FromSeconds(4);
+    private static readonly string[] SpinnerFrames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
+
+    // Braille spinner shared by every wait: one frame each 120 ms, the period of the animation timer.
+    public static string Spinner(long? milliseconds = null) =>
+        SpinnerFrames[(milliseconds ?? Environment.TickCount64) / 120 % SpinnerFrames.Length];
 
     public static IReadOnlyList<string> Wrap(string message, int width)
     {

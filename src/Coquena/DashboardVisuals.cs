@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.Globalization;
 using Coquena.Observation;
+using Terminal.Gui.App;
 using Terminal.Gui.Drawing;
 using Terminal.Gui.ViewBase;
 using Terminal.Gui.Views;
@@ -176,6 +177,42 @@ internal static partial class DashboardCli
         if (previous == text) return;
         previous = text;
         list.SetSource(new ObservableCollection<string>(text.Split('\n')));
+    }
+
+    // Every modal: elevated surface with a one-cell rounded border outside its content, sized to
+    // that content (width × height, without the border) and never over the two hardware rows.
+    // The title sits on the top border between spaces, without the ┤ ├ connectors of the default title.
+    private static Dialog Modal(IApplication app, int width, int height, string? title = null)
+    {
+        var dialog = new Dialog
+        {
+            Width = Math.Max(10, Math.Min(width + 2, app.Screen.Width - 2)),
+            Height = Math.Max(5, Math.Min(height + 2, app.Screen.Height - 2)),
+            BorderStyle = LineStyle.Rounded, ShadowStyle = ShadowStyles.None,
+        };
+        dialog.Border.Settings &= ~BorderSettings.Title;
+        var color = string.IsNullOrEmpty(Environment.GetEnvironmentVariable("NO_COLOR"));
+        if (color && dialog.Border.GetOrCreateView() is View frame)
+            frame.SetScheme(new Scheme(new Terminal.Gui.Drawing.Attribute(Palette.Muted, Palette.Card)));
+        // Action buttons share one look in every modal: whatever each form painted, they are drawn
+        // as the buttons of the views, text over the button surface, focus in turquoise.
+        if (color) dialog.Initialized += (_, _) => { foreach (var button in dialog.Buttons) Paint(button, Palette.Text, Palette.Border); };
+        // The border lines are rendered after the border view draws; the title is written once the
+        // whole modal is complete, directly on screen, so the lines cannot cover it.
+        if (title is not null)
+            dialog.DrawComplete += (_, _) =>
+            {
+                if (dialog.App?.Driver is not { } driver) return;
+                var bounds = dialog.FrameToScreen();
+                var text = " " + DashboardPresentation.Fit(title, Math.Max(1, bounds.Width - 6)) + " ";
+                var clip = driver.Clip;
+                driver.Clip = new Region(bounds);
+                driver.SetAttribute(color ? new Terminal.Gui.Drawing.Attribute(Palette.Text, Palette.Card) : dialog.GetAttributeForRole(VisualRole.Normal));
+                driver.Move(bounds.X + 2, bounds.Y);
+                driver.AddStr(text);
+                driver.Clip = clip;
+            };
+        return dialog;
     }
 
     private static void Paint(View view, Color foreground, Color background) =>

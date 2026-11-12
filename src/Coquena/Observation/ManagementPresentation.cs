@@ -12,7 +12,11 @@ internal static class ManagementPresentation
 
     public static string Button(string text, string action) => Style("btn", " " + text + " ", action);
 
-    public static DefinitionsPresentation.Page Services(string scope, bool global, IReadOnlyList<Service> services, string? selected, int width = 56)
+    // The combination in use, as a dropdown control at the right of the view title.
+    public static string CombinationButton(string label) =>
+        Button(DashboardPresentation.Fit(label, 30) + " ▾", "author-selection");
+
+    public static DefinitionsPresentation.Page Services(string scope, bool global, IReadOnlyList<Service> services, string? selected, int width = 56, string? combination = null)
     {
         // Columns of the preview: name 15, backend 17, port 8, then the state.
         var rows = new List<string> { " " + Style("mut", "  " + Cell("SERVICIO", 13) + Cell("BACKEND", 17) + Cell("PUERTO", 8) + "ESTADO") };
@@ -36,10 +40,10 @@ internal static class ManagementPresentation
             rows.Add("");
             rows.Add(" " + (global ? Button("★ Predeterminado", "default") : DefinitionsPresentation.Off("★ Predeterminado")) +
                 "  " + (item.Id is null ? DefinitionsPresentation.Off("Eliminar") : Button("Eliminar", "remove")));
-            rows.Add(" " + DefinitionsPresentation.Off("Editar YAML") + "  " + Button("Ver en vivo", "live"));
+            rows.Add(" " + DefinitionsPresentation.Off("Editar YAML") + " " + Button("Ver en vivo", "live"));
         }
         return new((global ? "Servicios de " : "Servicio de ") + Escape(scope) +
-            (global ? "{pad}" + Button("+ Agregar", "create") : ""), rows);
+            (global ? "{pad}" + Button("+ Agregar", "create") : combination is null ? "" : "{pad}" + CombinationButton(combination)), rows);
 
         static string Cell(string text, int size) => DashboardPresentation.Fit(text, size - 1).PadRight(size);
 

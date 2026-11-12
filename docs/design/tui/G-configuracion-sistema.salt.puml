@@ -1,6 +1,6 @@
 @startsalt
 {
-  {/ ● En vivo | ◇ Definiciones | <b>≡ Configuración | . | ⇣ 1 · 68% | ▲ 2 }
+  {/ ● En vivo | ◇ Definiciones | . | ⇣ 1 · 68% | ▲ 2 | <b>≡ }
   {
     {
     {
@@ -9,7 +9,7 @@
       <b>Sistema
     }
     } | {
-      { <b>Sistema | sondeo local · 12:01 }
+      { <b>Sistema | detectado en este equipo · 12:01 }
       {#
         Coquena | 0.3.0
         Plataforma | win-x64

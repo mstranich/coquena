@@ -1,15 +1,15 @@
 @startsalt
 {
-  {/ ● En vivo | <b>◇ Definiciones | ≡ Configuración | . | ⇣ 1 · 68% | ▲ 2 }
+  {/ ● En vivo | <b>◇ Definiciones | . | ⇣ 1 · 68% | ▲ 2 | ≡ }
   {
     {
     {T
       + Global
-      ++ Servicios
-      ++ Presets
-      ++ Modelos
       ++ Backends
+      ++ Servicios
+      ++ Modelos
       ++ <b>Parámetros
+      ++ Presets
       ++ Actualizaciones
       ++ Mantenimiento
       + código · aquí

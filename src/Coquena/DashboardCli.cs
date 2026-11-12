@@ -185,6 +185,7 @@ internal static partial class DashboardCli
         Task<string?>? operation = null;
         int? publicationExit = null;
         string? operationLabel = null;
+        string? operationVerb = null;
         ServiceSnapshot? selectedSnapshot = null;
         var inference = new InferenceTasks(preferences.InferenceHistory());
         string? preferredEntry = null, inferenceEntry = null;
@@ -391,10 +392,21 @@ internal static partial class DashboardCli
         };
 
         Select();
-        // The status spinner of a Hub query animates only while it is visible.
+        // Every visible wait animates the shared spinner: the service operation (header and the
+        // button that started it) and the background job of the Definitions view in focus.
         app.AddTimeout(TimeSpan.FromMilliseconds(120), () =>
         {
-            if (page == Definitions && definitionView == "Modelos" && managementJobs.Keys.Any(key => key.StartsWith("hf:", StringComparison.Ordinal)))
+            if (operation is not null)
+            {
+                var frame = DashboardPresentation.Spinner();
+                if (operationVerb == "up") upButton.Text = " " + frame + " Up ";
+                else if (operationVerb == "down") downButton.Text = " " + frame + " Down ";
+                if (page == Live) Render();
+            }
+            else if (upButton.Text != " ▲ Up " || downButton.Text != " ▼ Down ") { upButton.Text = " ▲ Up "; downButton.Text = " ▼ Down "; }
+            if (page == Definitions && places.ElementAtOrDefault(focusedPlace)?.Context is { } shown &&
+                (managementJobs.Keys.Any(key => key.EndsWith(":" + shown.Root, StringComparison.Ordinal)) ||
+                 operation is not null && definitionView == "Recetas"))
             { definitionPage = null; Render(); }
             return true;
         });
@@ -649,7 +661,7 @@ internal static partial class DashboardCli
             if (notice.Retry is { } retry)
             {
                 var row = notices.FindLastIndex(candidate => ReferenceEquals(candidate, notice));
-                if (managementJobs.ContainsKey(retry.Key)) { Query(app, "Operación en curso", "Ya hay una operación de este tipo sobre el destino elegido.", "Aceptar"); return; }
+                if (managementJobs.ContainsKey(retry.Key)) { Query(app, "Operación en curso", "Ya hay una operación igual en curso. Esperá a que termine.", "Aceptar"); return; }
                 if (row >= 0)
                 {
                     notices[row] = notice with { Retry = null };
@@ -704,12 +716,13 @@ internal static partial class DashboardCli
             var width = Math.Max(20, window.Viewport.Width - Right);
             leftTitle.Rows = [""];
             rightTitle.Rows = [" " + LivePresentation.ServiceHeader(target is null ? diagnostic : target.Name, selectedSnapshot,
-                operation is not null ? serviceNote : selectedSnapshot is null ? serviceNote : null, now)];
+                operation is not null ? DashboardPresentation.Spinner() + " " + serviceNote : selectedSnapshot is null ? serviceNote : null, now)];
 
             var rows = new List<string>();
             var running = selectedSnapshot is { ProcessState: "alive", InstanceId: not null };
             var stopped = selectedSnapshot?.ProcessState == "stopped" || target is { Service: null, DeclaresService: true };
-            var controls = LivePresentation.Controls(running, stopped, operation is null && target is not null);
+            var controls = LivePresentation.Controls(running, stopped, operation is null && target is not null,
+                operation is not null && operationLabel == target?.Label ? operationVerb : null);
             if (controls.Length > 0) rows.Add(controls);
 
             // Entry and task in focus.
@@ -1016,12 +1029,12 @@ internal static partial class DashboardCli
                 {
                     if (definitionView is "Servicios" or "Servicio" && place.Context is not null)
                     {
-                        var services = ServiceDefinitions(place, targets, snapshots);
+                        var services = ServiceDefinitions(place, targets, snapshots, place.Scope.Global ? null : AuthorSelections(place).FirstOrDefault());
                         var selected = managedSelection.GetValueOrDefault(place.Context.Root);
                         if (selected is null || !services.Any(service => service.Key == selected)) selected = services.FirstOrDefault()?.Key;
                         if (selected is not null) managedSelection[place.Context.Root] = selected;
                         definitionPage = ManagementPresentation.Services(place.Scope.Name, place.Scope.Global, services, selected,
-                            Math.Max(20, window.Viewport.Width - Right));
+                            Math.Max(20, window.Viewport.Width - Right), place.Scope.Global ? null : CombinationTitle(place));
                     }
                     else if (definitionView is "Backends" or "Modelos" && place.Context is not null)
                     {
@@ -1051,7 +1064,7 @@ internal static partial class DashboardCli
                     else if (definitionView == "Mantenimiento" && place.Context is not null)
                     {
                         if (!maintenanceViews.TryGetValue(place.Context.Root, out var state)) maintenanceViews[place.Context.Root] = state = new();
-                        definitionPage = MaintenancePage(place.Scope.Name, state);
+                        definitionPage = MaintenancePage(place.Scope.Name, state, managementJobs.ContainsKey("maintenance:" + place.Context.Root));
                     }
                     else if (definitionView == "Recetas" && place.Context is not null)
                     {
@@ -1063,7 +1076,8 @@ internal static partial class DashboardCli
                         string? destination = null;
                         try { destination = place.Recipe is null ? null : RecipeReader.Read(place.Recipe).Target; }
                         catch (RecipeException) { }
-                        definitionPage = RecipesPage(place.Scope.Name, destination, combinations, selected, Math.Max(20, window.Viewport.Width - Right));
+                        definitionPage = RecipesPage(place.Scope.Name, destination, combinations, selected, Math.Max(20, window.Viewport.Width - Right),
+                            operation is not null && operationLabel == place.Scope.Name ? operationVerb : null);
                     }
                     else if (definitionView == "Presets" && place.Context is not null)
                     {
@@ -1072,7 +1086,7 @@ internal static partial class DashboardCli
                         var selected = managedSelection.GetValueOrDefault(key);
                         if (!presets.Any(preset => preset.Id == selected)) selected = presets.FirstOrDefault()?.Id;
                         if (selected is not null) managedSelection[key] = selected;
-                        definitionPage = PresetsPage(place.Scope.Name, presets, selected, Math.Max(20, window.Viewport.Width - Right));
+                        definitionPage = PresetsPage(place.Scope.Name, presets, selected, Math.Max(20, window.Viewport.Width - Right), CombinationTitle(place));
                     }
                     else if (definitionView == "Actualizaciones" && place.Context is not null)
                     {
@@ -1081,7 +1095,7 @@ internal static partial class DashboardCli
                         var ids = (state.Plan?["resources"] as System.Text.Json.Nodes.JsonArray ?? []).Select(item => item?["installation-id"]?.ToString()).OfType<string>().ToArray();
                         var impact = snapshots.Values.Where(snapshot => snapshot.ProcessState == "alive" && ids.Any(id => ContainsIdentity(snapshot.ActiveComposition, id)))
                             .Select(snapshot => snapshot.Name + ": conserva su revisión hasta aplicar/reiniciar explícitamente").ToArray();
-                        definitionPage = UpdatesPage(place.Scope.Name, state, impact, managementJobs.ContainsKey("update:" + place.Context.Root));
+                        definitionPage = UpdatesPage(place.Scope.Name, state, impact, managementJobs.ContainsKey("update:" + place.Context.Root), CombinationTitle(place));
                     }
                     else if (definitionView == "Parámetros" && place.Context is not null)
                     {
@@ -1091,7 +1105,8 @@ internal static partial class DashboardCli
                         var selected = managedSelection.GetValueOrDefault(key);
                         if (!definitions.Any(row => row.Id == selected)) selected = definitions.FirstOrDefault()?.Id;
                         if (selected is not null) managedSelection[key] = selected;
-                        definitionPage = ParametersPage(place.Scope.Name, definitions, selected, filter);
+                        definitionPage = ParametersPage(place.Scope.Name, definitions, selected, filter, CombinationTitle(place),
+                            AuthorSelections(place) is [var single] ? single : null);
                     }
                 }
                 catch (Exception error) when (ManagementError(error)) { definitionPage = DefinitionsPresentation.Problem(definitionView ?? "Definiciones", error.Message); }
@@ -1136,7 +1151,7 @@ internal static partial class DashboardCli
 
         void ManagementJob(string key, Func<Task<string>> run)
         {
-            if (managementJobs.ContainsKey(key)) { Query(app, "Operación en curso", "Ya hay una operación de este tipo sobre el destino elegido.", "Aceptar"); return; }
+            if (managementJobs.ContainsKey(key)) { Query(app, "Operación en curso", "Ya hay una operación igual en curso. Esperá a que termine.", "Aceptar"); return; }
             managementJobs[key] = Task.Run(run, stop.Token);
             managementRuns[key] = run;
         }
@@ -1198,10 +1213,9 @@ internal static partial class DashboardCli
                     if (action == "update-check")
                     {
                         if (state.Unprepared) throw new ArgumentException(state.Notice);
-                        var fields = ResourceForm(app, "Comprobar novedades · filtros opcionales", [("referencias", "")], "Comprobar");
-                        if (fields is null) return;
-                        var filters = fields[0].Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries).ToHashSet(StringComparer.OrdinalIgnoreCase);
-                        foreach (var filter in filters) _ = ResourceSelector.Parse(filter);
+                        var picked = PickResources(app, "Comprobar novedades", new RecipeUpdatePlans(context).Selectors(selections), "Comprobar");
+                        if (picked is null) return;
+                        var filters = picked.ToHashSet(StringComparer.OrdinalIgnoreCase);
                         ManagementJob("update:" + context.Root, async () =>
                         {
                             using var client = HuggingFaceStore.CreateClient();
@@ -1236,8 +1250,9 @@ internal static partial class DashboardCli
                 if (action == "author-selection")
                 {
                     var options = place.Scope.Global ? UpdateCli.GlobalSelections(context) : AvailableCombinations(place).Select(item => item.Selection).ToArray();
-                    var row = Choose(app, "Combinación · " + place.Scope.Name,
-                        (place.Scope.Global ? new[] { "Todas las intenciones de Global" } : Array.Empty<string>()).Concat(options.Select(selection => string.Join(" + ", selection.Files.Select(file => Path.GetRelativePath(context.Base, file))))).ToArray(), "Elegir");
+                    var labels = (place.Scope.Global ? new[] { "Todas las intenciones" } : Array.Empty<string>()).Concat(options.Select(option => place.Scope.Global ? IntentionLabel(context, option) : CombinationLabel(option))).ToArray();
+                    var current = Array.IndexOf(labels, CombinationTitle(place));
+                    var row = DropDown(app, labels, Math.Max(0, current), current);
                     if (row is int choice)
                     {
                         authorSelections[context.Root] = place.Scope.Global && choice == 0 ? options : [options[choice - (place.Scope.Global ? 1 : 0)]];
@@ -1384,6 +1399,7 @@ internal static partial class DashboardCli
                         var mode = Query(app, "Verificar · " + place.Scope.Name, "Auditar definición y recursos; no descarga ni repara.", "Cancelar", "Auditoría rápida", "SHA-256");
                         if (mode <= 0) return;
                         var args = new List<string>();
+                        RecipeSelection? verified = null;
                         if (context.IsGlobal)
                         {
                             args.Add("--global");
@@ -1401,16 +1417,17 @@ internal static partial class DashboardCli
                             var choice = Choose(app, "Combinación a verificar", selections.Select(selection => string.Join(" + ", selection.Files.Select(Path.GetFileName))).ToArray(), "Verificar");
                             if (choice is not int row) return;
                             var selection = selections[row];
+                            verified = selection;
                             args.AddRange(["--project-directory", context.Base]);
                             foreach (var file in selection.Files) args.AddRange(["-f", file]);
                             foreach (var file in selection.EnvFiles) args.AddRange(["--env-file", file]);
                             var combinationIndex = row - (place.Recipe is null ? 0 : 1);
                             if (combinationIndex >= 0 && combinations[combinationIndex].Value?["private"]?.GetValue<bool>() == true) args.Add("--private");
                         }
-                        var filters = ResourceForm(app, "Filtrar verificación · " + place.Scope.Name, [("referencias", "")], "Verificar todo / filtro");
-                        if (filters is null) return;
-                        foreach (var selector in filters[0].Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries))
-                        { _ = ResourceSelector.Parse(selector); args.AddRange(["--select", selector]); }
+                        var picked = PickResources(app, "Verificar · " + place.Scope.Name,
+                            new RecipeUpdatePlans(context).Selectors(context.IsGlobal ? AuthorSelections(place) : [verified!]), "Verificar");
+                        if (picked is null) return;
+                        foreach (var selector in picked) args.AddRange(["--select", selector]);
                         if (mode == 2) args.Add("--checksum");
                         ManagementJob("maintenance:" + context.Root, async () =>
                         {
@@ -1734,7 +1751,7 @@ internal static partial class DashboardCli
             {
                 0 => Home.Resolve().PathFor("config.json"),
                 1 => "preferencias de esta interfaz",
-                _ => probe.IsCompleted ? "sondeo local" + (probedAt is { } at ? " · " + at.ToString("HH:mm", CultureInfo.InvariantCulture) : "") : "sondeando…"
+                _ => probe.IsCompleted ? "detectado en este equipo" + (probedAt is { } at ? " · " + at.ToString("HH:mm", CultureInfo.InvariantCulture) : "") : "detectando hardware…"
             })];
             if (settings.Coquena.Visible != (settingsCategory == 0) || settings.Tui.Visible != (settingsCategory == 1)) Arrange();
             if (settingsCategory == 1) settings.ShowResources(devices.Count);
@@ -1948,6 +1965,7 @@ internal static partial class DashboardCli
 
             upButton.Enabled = downButton.Enabled = false;
             serviceNote = $"{verb.ToLowerInvariant()}…";
+            operationVerb = verb;
             publicationExit = null;
             operationLabel = target.Label;
             selectionEpoch++;
@@ -2027,6 +2045,27 @@ internal static partial class DashboardCli
             }
             return items.ToArray();
         }
+
+        // The dropdown names the combination in use; Global can show all its intentions at once.
+        string CombinationTitle(DefinitionsSource.Place place) => AuthorSelections(place) switch
+        {
+            [] => "Sin combinación",
+            [var single] => place.Scope.Global ? IntentionLabel(place.Context!, single) : CombinationLabel(single),
+            _ => "Todas las intenciones",
+        };
+
+        // A Global intention is named by where it comes from: «global» for the root recipe.yaml and
+        // the project name for an imported one, instead of their internal paths.
+        static string IntentionLabel(ScopeContext context, RecipeSelection selection) => string.Join(" + ", selection.Files.Select(file =>
+        {
+            if (file.Equals(context.PathFor("recipe.yaml"), StringComparison.OrdinalIgnoreCase)) return "global";
+            try
+            {
+                var root = new RecipeYaml(file).Read();
+                return root.Get("name")?.Text ?? root.Get("service")?.Get("name")?.Text ?? Path.GetFileName(Path.GetDirectoryName(file)) ?? file;
+            }
+            catch (Exception error) when (ManagementError(error) || error is RecipeException || error is IOException) { return Path.GetFileName(Path.GetDirectoryName(file)) ?? file; }
+        }));
 
         RecipeSelection[] AuthorSelections(DefinitionsSource.Place place) => authorSelections.GetValueOrDefault(place.Context!.Root)
             ?? (place.Scope.Global ? UpdateCli.GlobalSelections(place.Context) : SelectedCombination(place) is { } selected ? [selected.Selection] : []);
@@ -2218,6 +2257,7 @@ internal static partial class DashboardCli
             var usePrivateResources = requested is not null ? requestedPrivate : privatePreparation.Value == CheckState.Checked;
             upButton.Enabled = downButton.Enabled = false;
             serviceNote = $"{action}…";
+            operationVerb = action;
             publicationExit = null;
             operationLabel = label;
             selectionEpoch++;
@@ -2251,16 +2291,14 @@ internal static partial class DashboardCli
     {
         var width = Math.Min(70, app.Screen.Width - 6);
         var wrapped = DashboardPresentation.Wrap(message, width - 4);
-        // Title, blank row, message and the button row with its margin: the message keeps all its rows
-        // (the previous height left the button row over the last message row).
-        var height = Math.Min(app.Screen.Height - 4, wrapped.Count + 6);
-        using var dialog = new Dialog { Width = width, Height = height, BorderStyle = LineStyle.None, ShadowStyle = ShadowStyles.None };
-        var heading = new Label { X = 1, Text = title, Width = Dim.Fill(1) };
+        // The title is on the border; message, blank row and the button row with its margin.
+        var height = Math.Min(app.Screen.Height - 6, wrapped.Count + 3);
+        using var dialog = Modal(app, width, height, title);
         var color = string.IsNullOrEmpty(Environment.GetEnvironmentVariable("NO_COLOR"));
-        var content = new Canvas(color) { X = 1, Y = 2, Width = Dim.Fill(1), Height = Math.Max(1, height - 5),
+        var content = new Canvas(color) { X = 1, Width = Dim.Fill(1), Height = Math.Max(1, height - 3),
             ZoneName = "dlg", Interactive = true, Scrollable = true, Rows = wrapped.Select(Markup.Escape).ToArray() };
-        dialog.Add(heading, content);
-        if (color) { Paint(dialog, Palette.Text, Palette.Card); Paint(heading, Palette.Text, Palette.Card); }
+        dialog.Add(content);
+        if (color) Paint(dialog, Palette.Text, Palette.Card);
         foreach (var text in actions)
         {
             var button = new Button { Text = " " + text + " ", NoDecorations = true, ShadowStyle = ShadowStyles.None };
@@ -2274,16 +2312,15 @@ internal static partial class DashboardCli
     // Modal list: returns the selected row when the accept action is chosen; without one it only informs.
     private static int? Choose(IApplication app, string title, IReadOnlyList<string> rows, string? accept)
     {
-        using var dialog = new Dialog { Width = Dim.Percent(90), Height = Dim.Percent(80), BorderStyle = LineStyle.None, ShadowStyle = ShadowStyles.None };
-        var heading = new Label { X = 1, Text = title, Width = Dim.Fill(1) };
-        var list = new ListView { X = 1, Y = 2, Width = Dim.Fill(1), Height = Dim.Fill(1),
+        using var dialog = Modal(app, Math.Min(app.Screen.Width - 8, Math.Max(40, rows.DefaultIfEmpty("").Max(row => row.Length) + 2)), rows.Count + 3, title);
+        var list = new ListView { X = 1, Width = Dim.Fill(1), Height = Dim.Fill(1),
             ViewportSettings = ViewportSettingsFlags.HasVerticalScrollBar | ViewportSettingsFlags.HasHorizontalScrollBar };
         list.SetSource(new ObservableCollection<string>(rows));
         list.SetContentSize(new System.Drawing.Size(Math.Max(1, rows.DefaultIfEmpty("").Max(row => row.Length)), rows.Count));
         list.SelectedItem = 0;
-        dialog.Add(heading, list);
+        dialog.Add(list);
         var color = string.IsNullOrEmpty(Environment.GetEnvironmentVariable("NO_COLOR"));
-        if (color) { Paint(dialog, Palette.Text, Palette.Card); Paint(heading, Palette.Text, Palette.Card); Paint(list, Palette.Text, Palette.Base); }
+        if (color) { Paint(dialog, Palette.Text, Palette.Card); Paint(list, Palette.Text, Palette.Base); }
         var actions = accept is null ? new[] { " Aceptar " } : [" Cancelar ", " " + accept + " "];
         foreach (var text in actions)
         {
@@ -2293,6 +2330,58 @@ internal static partial class DashboardCli
         }
         app.Run(dialog);
         return accept is not null && dialog.Result == 1 ? list.SelectedItem : null;
+    }
+
+    // Dropdown under the combination control at the right of the view title: the registered
+    // combinations, ● on the one in use. Enter or a click chooses and closes; Esc closes unchanged.
+    private static int? DropDown(IApplication app, IReadOnlyList<string> items, int selected, int current)
+    {
+        var width = Math.Min(app.Screen.Width - 4, Math.Max(24, items.Max(item => item.Length) + 4));
+        using var dialog = Modal(app, width, Math.Min(items.Count, app.Screen.Height - 8));
+        dialog.X = Math.Max(0, app.Screen.Width - width - 3);
+        dialog.Y = 2;
+        var list = new ListView { Width = Dim.Fill(), Height = Dim.Fill() };
+        list.SetSource(new ObservableCollection<string>(items.Select((item, index) => (index == current ? "● " : "  ") + item)));
+        list.SelectedItem = Math.Clamp(selected, 0, items.Count - 1);
+        int? result = null;
+        void Choose() { result = list.SelectedItem; app.RequestStop(dialog); }
+        list.Accepting += (_, args) => { args.Handled = true; Choose(); };
+        // A click activates the row; the selection is read once the click has moved it.
+        list.Activating += (_, _) => app.Invoke(Choose);
+        dialog.Add(list);
+        if (string.IsNullOrEmpty(Environment.GetEnvironmentVariable("NO_COLOR"))) { Paint(dialog, Palette.Text, Palette.Card); Paint(list, Palette.Text, Palette.Card); }
+        app.Run(dialog);
+        return result;
+    }
+
+    // Modal checklist of resources, the visual form of --select: Enter, Space or a double click marks a
+    // row. Returns the marked selectors (none means every resource) or null when cancelled.
+    private static string[]? PickResources(IApplication app, string title, IReadOnlyList<(string Selector, string Kind, string Name)> items, string accept)
+    {
+        if (items.Count == 0) return Query(app, title, "La combinación no declara backends ni modelos para elegir; se incluye todo.", "Cancelar", accept) == 1 ? [] : null;
+        var marked = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var kinds = new Dictionary<string, string> { ["backend"] = "Backend", ["model"] = "Modelo", ["companion"] = "Auxiliar" };
+        using var dialog = Modal(app, 70, Math.Min(items.Count, 12) + 4, title);
+        var hint = new Label { X = 1, Width = Dim.Fill(1), Text = "Marcá los recursos (Enter o doble clic). Sin marcas se incluyen todos." };
+        var list = new ListView { X = 1, Y = 2, Width = Dim.Fill(1), Height = Math.Min(items.Count, 12) };
+        void Refresh()
+        {
+            var row = list.SelectedItem ?? 0;
+            list.SetSource(new ObservableCollection<string>(items.Select(item =>
+                (marked.Contains(item.Selector) ? "☑ " : "☐ ") + kinds.GetValueOrDefault(item.Kind, item.Kind) + " · " + item.Name)));
+            list.SelectedItem = Math.Clamp(row, 0, items.Count - 1);
+        }
+        void Toggle() { if (list.SelectedItem is int row && row >= 0 && row < items.Count && !marked.Add(items[row].Selector)) marked.Remove(items[row].Selector); Refresh(); }
+        list.Accepting += (_, args) => { args.Handled = true; Toggle(); };
+        list.KeyDown += (_, key) => { if (key == Key.Space) { key.Handled = true; Toggle(); } };
+        dialog.Add(hint, list);
+        var color = string.IsNullOrEmpty(Environment.GetEnvironmentVariable("NO_COLOR"));
+        if (color) { Paint(dialog, Palette.Text, Palette.Card); Paint(hint, Palette.Muted, Palette.Card); Paint(list, Palette.Text, Palette.Base); }
+        dialog.AddButton(new Button { Text = " Cancelar ", NoDecorations = true, ShadowStyle = ShadowStyles.None });
+        dialog.AddButton(new Button { Text = " " + accept + " ", NoDecorations = true, ShadowStyle = ShadowStyles.None });
+        Refresh();
+        app.Run(dialog);
+        return dialog.Result == 1 ? items.Where(item => marked.Contains(item.Selector)).Select(item => item.Selector).ToArray() : null;
     }
 
     private sealed class DashboardModelSelection(IApplication app, TextWriter diagnostics) : IModelSelectionInteraction
@@ -2308,13 +2397,12 @@ internal static partial class DashboardCli
                 if (cancellation.IsCancellationRequested) return;
                 try
                 {
-                    using var dialog = new Dialog { BorderStyle = LineStyle.None, ShadowStyle = ShadowStyles.None, Title = "Seleccionar recurso", Width = Dim.Percent(85), Height = Dim.Percent(70) };
-                    var list = new ListView { Y = 1, Width = Dim.Fill(), Height = Dim.Fill() };
-                    dialog.Add(new Label { Text = "Seleccionar recurso", Width = Dim.Fill() });
+                    using var dialog = Modal(app, 70, options.Count + 3, "Seleccionar recurso");
+                    var list = new ListView { X = 1, Width = Dim.Fill(1), Height = Dim.Fill() };
                     list.SetSource(new ObservableCollection<string>(options));
                     list.SelectedItem = 0;
-                    var accept = new Button { Text = "Elegir", IsDefault = true, ShadowStyle = ShadowStyles.None };
-                    var cancel = new Button { Text = "Cancelar", ShadowStyle = ShadowStyles.None };
+                    var accept = new Button { Text = " Elegir ", IsDefault = true, ShadowStyle = ShadowStyles.None };
+                    var cancel = new Button { Text = " Cancelar ", ShadowStyle = ShadowStyles.None };
                     dialog.Add(list);
                     dialog.AddButton(accept);
                     dialog.AddButton(cancel);

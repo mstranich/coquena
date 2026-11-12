@@ -136,6 +136,16 @@ public sealed class RecipeUpdatePlans(ScopeContext context)
             throw new StorageException("update-preparation-required", "Prepare la combinación antes de consultar un plan; falta la identidad local de intención.");
         return key;
     }
+    // The --select references a user can choose for these selections: one per declared resource,
+    // with the same form the plan report uses (backends qualified by recipe and alias).
+    public IReadOnlyList<(string Selector, string Kind, string Name)> Selectors(IReadOnlyList<RecipeSelection> selections) =>
+        selections.Select(selection => RecipeReader.Read(selection)).SelectMany(recipe => Requests(recipe)
+            .Where(request => !request.SensitiveSelection && request.Kind is "backend" or "model" or "companion")
+            .Select(request => request.Kind == "backend"
+                ? ("backend://" + recipe.Name + "/" + (request.Alias ?? request.Key), request.Kind, request.Alias ?? request.Key)
+                : (request.Kind + "://" + request.Key, request.Kind, request.Key)))
+            .DistinctBy(item => item.Item1, StringComparer.OrdinalIgnoreCase).ToArray();
+
     internal IReadOnlyList<PreparationRequest> Requests(EffectiveRecipe recipe)
     {
         var requests = CombinationPreparation.Requests(recipe, ArgumentValidation.Validate(recipe));

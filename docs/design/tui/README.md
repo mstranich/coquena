@@ -13,28 +13,45 @@ están en [interfaces visuales](../interfaces-visuales.md) y
 |---|---|---|
 | A | En vivo | pestaña ● En vivo, Ver en vivo |
 | B | Definiciones › Recetas: combinaciones registradas (`combination list`), Olvidar (`combination forget`) | pestaña ◇ Definiciones, nodo Recetas |
-| P | Definiciones › Presets | nodo Presets |
+| P | Definiciones › Presets: presets de la combinación elegida y capa de cada valor (P2: desplegable de combinación abierto) | nodo Presets |
 | W | Definiciones › Modelos (inventario) | nodo Modelos, modelo de un preset |
 | C | Definiciones › Modelos (búsqueda en Hugging Face) | selector Hugging Face en Modelos |
 | S | Modal Agregar modelo local (`model add`) | + Agregar local… |
 | O | Definiciones › Backends | nodo Backends |
 | D | Hardware | barra inferior |
-| E–G | Configuración › Coquena, TUI, Sistema | pestaña ≡ Configuración |
+| E–G | Configuración › Coquena, TUI, Sistema | pestaña ≡ |
 | H | Editor YAML, una pestaña por archivo de la combinación | Editar, + Agregar override, Clonar… |
 | I | Log histórico (RegEx) | Histórico en el log del servicio |
 | J | Carpeta sin receta | nodo Receta sin `coquena.yaml` (Inicializar) |
 | K | Seleccionar backend | + Backend |
 | L | Importar en Global | Importar |
-| M | Definiciones › Servicios | nodo Servicios (global) o Servicio (local) |
+| M | Definiciones › Servicios de Global | nodo Servicios (global) |
 | T | Modal Agregar servicio global: nombre, backend y configuración de proceso | + Agregar en Servicios |
+| M2 | Definiciones › Servicio de un proyecto: servicio de la combinación elegida y capa de cada valor | nodo Servicio (local) |
 | N | Descargas: Global y proyecto actual, por ámbito y categoría | pestaña ⇣ |
 | Q | Definiciones › Parámetros | nodo Parámetros |
+| Q2 | Definiciones › Parámetros de un proyecto: definiciones de la combinación elegida y su capa | nodo Parámetros (local) |
 | U | Definiciones › Actualizaciones (Comprobar = update, Actualizar = upgrade) | nodo Actualizaciones |
 | R | Definiciones › Mantenimiento (Verificar, Limpiar) | nodo Mantenimiento |
 | V | Modal Nueva combinación: YAML en orden y archivos .env | + Nueva combinación… |
 | X | Modal Aceptar/Cancelar: Up con destino ocupado | ▲ Up |
 | Y | Modal Sí/No/Cancelar: guardar con cambios externos | Guardar en el Editor |
 | Z | Notificaciones | indicador ▲ |
+
+El árbol sigue el orden en que se arma una definición: primero lo que se usa (backends,
+servicio, modelos y parámetros) y después los presets, que los relacionan. No es un asistente:
+cada vista se abre y se edita por separado.
+
+En un proyecto, Servicio, Presets, Parámetros y Actualizaciones muestran la combinación en uso en un
+desplegable arriba a la derecha (`coquena.yaml + gpu ▾`), con el mismo rótulo que Recetas.
+Abierto, lista las combinaciones registradas en Recetas y marca la actual con `●`; un clic o
+Enter la elige y Esc lo cierra sin cambiar. Hay una sola combinación en uso por ámbito y sesión:
+elegirla en el desplegable o en Recetas cambia ambas. En Global, Presets, Parámetros y
+Actualizaciones listan sus intenciones registradas y la opción «Todas las intenciones»; cada
+intención se nombra por su origen: «global» para el `recipe.yaml` raíz y el `name:` de la
+intención importada (por ejemplo, «global + coding»). En un proyecto, una combinación se nombra
+por sus archivos; si dos se llaman igual, por su ruta desde la base del ámbito. En Servicio, Presets y Parámetros, el detalle numera los YAML de la combinación como capas
+(`¹`, `²`) e indica de cuál sale cada valor.
 
 Las combinaciones conocidas salen del registro de `.coquena`, que suma una combinación
 cada vez que se usa `-f`. Desde la TUI, una combinación nueva se registra al usarla en
@@ -46,13 +63,13 @@ preset, modificarlo y observar) y se vincula con `benchmark`.
 
 ## Organización
 
-Tres pestañas, sin marca ni fila de atajos:
+Pestañas, sin marca ni fila de atajos:
 
 | Pestaña | Contenido |
 |---|---|
 | ● En vivo | Árbol servicio → proyecto → preset; detalle del servicio (puerto, estado, CPU y RAM del proceso, cola) y de la entrada (tasas, caché, especulación, contexto por slot, tareas); log del servicio. |
-| ◇ Definiciones | Árbol por ámbito (Global y cada proyecto del índice; sólo el enfocado expandido) con Recetas o Servicios, Presets, Servicio, Modelos, Backends, Parámetros, Actualizaciones y Mantenimiento. |
-| ≡ Configuración | Categorías Coquena (lo mismo que `coquena config`), TUI (filtro del log, recursos de la barra inferior) y Sistema (`system probe`). |
+| ◇ Definiciones | Árbol por ámbito (Global y cada proyecto del índice; sólo el enfocado expandido). En un proyecto: Recetas, Backends, Servicio, Modelos, Parámetros, Presets, Actualizaciones y Mantenimiento; en Global: Backends, Servicios, Modelos, Parámetros, Presets, Actualizaciones y Mantenimiento. |
+| ≡ (Configuración) | Categorías Coquena (lo mismo que `coquena config`), TUI (filtro del log, recursos de la barra inferior) y Sistema (`system probe`). |
 
 Las dos últimas filas son hardware medido por dispositivo: CPU, RAM, y por GPU uso,
 memoria dedicada y compartida. Hardware ampliado (D) se abre desde esa barra.
@@ -70,7 +87,12 @@ memoria dedicada y compartida. Hardware ampliado (D) se abre desde esa barra.
 
 - Zonas por color de fondo, sin bordes ni líneas: `bg-base` contenido, `bg-surface`
   navegación y hardware, `bg-card` títulos.
-- Botones por fondo y texto: normal sobre `border`, con foco sobre turquesa.
+- Botones por fondo y texto: normal sobre `border`, con foco sobre turquesa. Los botones
+  de una fila se separan con un espacio; uno deshabilitado conserva su lugar y su ancho.
+- Casillas `☑`/`☐` en listas, tablas y formularios.
+- Toda espera visible usa el spinner Braille `⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏`: junto al texto de estado
+  de la vista y en el botón que la inició, que queda deshabilitado hasta terminar.
+- Configuración se muestra sólo con su ícono `≡`, en el extremo derecho de la barra superior.
 
 | Rol | Color | Uso |
 |---|---|---|

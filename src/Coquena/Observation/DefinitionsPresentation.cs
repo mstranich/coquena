@@ -25,9 +25,10 @@ internal static class DefinitionsPresentation
     public static string Off(string text) => Style("off", " " + text + " ");
 
     public static string[] Views(Scope scope) => !scope.Accessible ? []
-        : scope.Global ? ["Servicios", "Presets", "Modelos", "Backends", "Parámetros", "Actualizaciones", "Mantenimiento"]
+        // Presets come after the entities they join: what is used first, then the presets that relate it.
+        : scope.Global ? ["Backends", "Servicios", "Modelos", "Parámetros", "Presets", "Actualizaciones", "Mantenimiento"]
         : !scope.HasRecipe ? ["Receta"]
-        : ["Recetas", "Presets", "Servicio", "Modelos", "Backends", "Parámetros", "Actualizaciones", "Mantenimiento"];
+        : ["Recetas", "Backends", "Servicio", "Modelos", "Parámetros", "Presets", "Actualizaciones", "Mantenimiento"];
 
     // Scope headers and, under the focused scope only, its views.
     public static IReadOnlyList<Node> Tree(IReadOnlyList<Scope> scopes, int focused)
@@ -67,12 +68,12 @@ internal static class DefinitionsPresentation
             (item.Current ? Style("ok", "● actual") : item.Private ? Style("warn", "privada") : Style("mut", "conocida"))));
         if (items.Count == 0) rows.Add(" " + Style("mut", "Sin combinaciones registradas."));
         rows.Add("");
-        rows.Add(" " + Off("+ Nueva combinación…") + "  " + Off("Editar") + "  " + Off("Olvidar"));
+        rows.Add(" " + Off("+ Nueva combinación…") + " " + Off("Editar") + " " + Off("Olvidar"));
         rows.Add("");
         if (files.Count > 0) rows.Add(" " + Style("mut", "archivos") + " " + string.Join(" " + Style("mut", "→") + " ", files.Select(Escape)));
         rows.Add(" " + Style("mut", "[ ] preparación privada"));
         rows.Add("");
-        rows.Add(" " + Off("▲ Up") + "  " + Off("▼ Down") + "  " + Off("Importar") + "  " + Off("Ver en vivo"));
+        rows.Add(" " + Off("▲ Up") + " " + Off("▼ Down") + " " + Off("Importar") + " " + Off("Ver en vivo"));
         return new("Recetas de " + Escape(scope) + (destination is null ? "" : " " + Style("mut", "→") + " " + Escape(destination)), rows);
     }
 
@@ -83,7 +84,7 @@ internal static class DefinitionsPresentation
             (item.Live is { } live ? Style(live == "loaded" ? "ok" : "mut", (live == "loaded" ? "● " : "○ ") + live) : Style("mut", "○ no publ."))));
         if (items.Count == 0) rows.Add(" " + Style("mut", "Sin presets."));
         rows.Add("");
-        rows.Add(" " + Off("Clonar…") + "  " + Off("Editar YAML") + "  " + Off("Eliminar") + "  " + Off("Ver en vivo"));
+        rows.Add(" " + Off("Clonar…") + " " + Off("Editar YAML") + " " + Off("Eliminar") + " " + Off("Ver en vivo"));
         return new("Presets de " + Escape(scope), rows);
     }
 
@@ -94,7 +95,7 @@ internal static class DefinitionsPresentation
             (item.State is { } state ? Style(item.StateClass ?? "mut", state) : "")));
         if (items.Count == 0) rows.Add(" " + Style("mut", global ? "Sin servicios registrados." : "La receta no tiene servicio registrado."));
         rows.Add("");
-        rows.Add(" " + Off("★ Predeterminado") + "  " + Off("Eliminar") + "  " + Off("Editar YAML") + "  " + Off("Ver en vivo"));
+        rows.Add(" " + Off("★ Predeterminado") + " " + Off("Eliminar") + " " + Off("Editar YAML") + " " + Off("Ver en vivo"));
         return new((global ? "Servicios de " : "Servicio de ") + Escape(scope) + "{pad}" + Off("+ Agregar"), rows);
     }
 
@@ -114,7 +115,7 @@ internal static class DefinitionsPresentation
         }));
         if (items.Count == 0) rows.Add(" " + Style("mut", "Sin modelos en el inventario."));
         rows.Add("");
-        rows.Add(" " + Off("Quitar protección") + "  " + Off("Verificar") + "  " + Off("Eliminar"));
+        rows.Add(" " + Off("Quitar protección") + " " + Off("Verificar") + " " + Off("Eliminar"));
         return new("Modelos de " + Escape(scope) + "{pad}" + Off("+ Agregar local…"), rows);
     }
 
@@ -126,7 +127,7 @@ internal static class DefinitionsPresentation
             (item.Protected ? " " + Style("mut", "■") : "")));
         if (items.Count == 0) rows.Add(" " + Style("mut", "Sin backends en el ámbito."));
         rows.Add("");
-        rows.Add(" " + Off("Quitar protección") + "  " + Off("Eliminar"));
+        rows.Add(" " + Off("Quitar protección") + " " + Off("Eliminar"));
         return new("Backends de " + Escape(scope) + "{pad}" + Off("+ Backend"), rows);
     }
 
@@ -134,7 +135,7 @@ internal static class DefinitionsPresentation
     {
         var rows = new List<string>
         {
-            " " + Style("mut", "filtro") + " " + Style("mut", "[                ]") + "  " + Style("mut", items.Count + " parámetros"),
+            " " + Style("mut", "filtro") + " " + Style("mut", "[                ]") + " " + Style("mut", items.Count + " parámetros"),
             "",
             " " + Style("mut", " " + Cell("PARÁMETRO", 22) + Cell("TIPO", 9) + Cell("APLICA", 10) + "PREDET.")
         };
@@ -143,7 +144,7 @@ internal static class DefinitionsPresentation
         if (items.Count == 0) rows.Add(" " + Style("mut", "Sin definiciones."));
         else if (items.Count > shown) rows.Add(" " + Style("mut", $"… {items.Count - shown} más"));
         rows.Add("");
-        rows.Add(" " + Off("Definir…") + "  " + Off("Editar") + "  " + Off("Quitar definición"));
+        rows.Add(" " + Off("Definir…") + " " + Off("Editar") + " " + Off("Quitar definición"));
         return new("Parámetros de " + Escape(scope), rows);
     }
 
@@ -159,21 +160,21 @@ internal static class DefinitionsPresentation
             {
                 var state = item.Diagnostic is not null ? Style("warn", "▲ " + item.Diagnostic)
                     : item.Proposed != "—" && item.Proposed != item.Current ? Style("ok", "↑ nueva") : Style("mut", "—");
-                return " " + Style("mut", "[ ]") + " " + Escape(Cell(item.Resource, 22) + Cell(item.Current, 12) + Cell(item.Proposed, 11)) + state;
+                return " " + Style("mut", "☐") + " " + Escape(Cell(item.Resource, 22) + Cell(item.Current, 12) + Cell(item.Proposed, 11)) + state;
             }));
         }
         rows.Add("");
-        rows.Add(" " + Off("Comprobar") + "  " + Off("Actualizar"));
+        rows.Add(" " + Off("Comprobar") + " " + Off("Actualizar"));
         var title = "Actualizaciones de " + Escape(scope) + (planned is { } at
             ? "  " + Style("mut", "plan " + at.ToLocalTime().ToString("dd/MM HH:mm", CultureInfo.InvariantCulture)) : "");
         return new(title, rows);
     }
 
     public static Page Maintenance(string scope) =>
-        new("Mantenimiento de " + Escape(scope), ["", " " + Off("Verificar") + "  " + Off("Limpiar")]);
+        new("Mantenimiento de " + Escape(scope), ["", " " + Off("Verificar") + " " + Off("Limpiar")]);
 
     public static Page NoRecipe(string folder) =>
-        new(Escape(folder) + "  " + Style("mut", "sin coquena.yaml"),
+        new(Escape(folder) + " " + Style("mut", "sin coquena.yaml"),
             ["", " " + Style("btnf", " Inicializar ", "init"), "", " " + Style("mut", "Crea el archivo de configuración de esta carpeta (coquena.yaml) con el nombre " + folder + ".")]);
 
     public static Page Inaccessible(string name) =>

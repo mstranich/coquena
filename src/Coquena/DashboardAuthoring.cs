@@ -47,7 +47,7 @@ internal static partial class DashboardCli
         return rows.ToArray();
     }
 
-    internal static DefinitionsPresentation.Page PresetsPage(string scope, IReadOnlyList<PresetRow> presets, string? selected, int width)
+    internal static DefinitionsPresentation.Page PresetsPage(string scope, IReadOnlyList<PresetRow> presets, string? selected, int width, string combination = "Combinación")
     {
         var rows = new List<string> { " " + Markup.Style("mut", "PRESET                 MODELO              EN VIVO") };
         var chosen = presets.FirstOrDefault(item => item.Id == selected) ?? presets.FirstOrDefault();
@@ -60,24 +60,27 @@ internal static partial class DashboardCli
         if (presets.Count > 4) rows.Add(" " + ManagementPresentation.Button("◂", "preset-prev") + " " + ManagementPresentation.Button("▸", "preset-next"));
         if (chosen is not null)
         {
-            rows.Add(""); rows.Add(" " + Markup.Style("hi", chosen.Name) + " " + Markup.Style("mut", "en " + Path.GetFileName(chosen.Value.Origin.File)));
+            var layers = chosen.Recipe.Selection;
+            var legend = DashboardPresentation.Fit(LayerLegend(layers), Math.Max(1, 52 - Math.Min(21, chosen.Name.Length)));
+            rows.Add(""); rows.Add(" " + Markup.Style("hi", DashboardPresentation.Fit(chosen.Name, 21)) + " " + Markup.Style("mut", "capas ") + Markup.Escape(legend));
             var args = chosen.Value.Get("args");
             foreach (var argument in args?.Fields.Where(pair => pair.Key == "model" || pair.Value.Text?.StartsWith("companion://", StringComparison.Ordinal) == true) ?? [])
-                rows.Add(" " + Markup.Style("mut", argument.Key + " ") + Markup.Style("nav", argument.Value.Redacted()?.ToString() ?? "—", "preset-resource:" + Convert.ToHexString(System.Text.Encoding.UTF8.GetBytes(argument.Key))));
-            rows.Add(" " + Markup.Style("mut", "ARGUMENTO       PUBLICADO          RECETA"));
+                rows.Add(" " + Markup.Style("mut", argument.Key + " ") + Markup.Style("mut", LayerMark(layers, argument.Value.Origin.File) + " ") + Markup.Style("nav", argument.Value.Redacted()?.ToString() ?? "—", "preset-resource:" + Convert.ToHexString(System.Text.Encoding.UTF8.GetBytes(argument.Key))));
+            rows.Add(" " + Markup.Style("mut", "ARGUMENTO       PUBLICADO          RECETA          CAPA"));
             var published = PublishedValues(chosen.Published?["ini"]?.GetValue<string>());
             var schema = ArgumentSchema.Load(chosen.Recipe);
             foreach (var pair in args?.Fields.Where(pair => pair.Key != "model").Take(4) ?? [])
             {
                 var emitted = schema.Definitions.GetValueOrDefault(pair.Key)?.Get("emit")?.Get("ini")?.Get("name")?.Text ?? pair.Key;
                 var prior = pair.Value.Sensitive ? "<redacted>" : published.GetValueOrDefault(emitted) ?? "—";
-                rows.Add(" " + Markup.Escape(DashboardPresentation.Fit(pair.Key, 14).PadRight(15) + DashboardPresentation.Fit(prior, 18).PadRight(19) + (pair.Value.Redacted()?.ToString() ?? "null")));
+                rows.Add(" " + Markup.Escape(DashboardPresentation.Fit(pair.Key, 14).PadRight(15) + DashboardPresentation.Fit(prior, 18).PadRight(19) +
+                    DashboardPresentation.Fit(pair.Value.Redacted()?.ToString() ?? "null", 15).PadRight(16) + LayerMark(layers, pair.Value.Origin.File)));
             }
             rows.Add(" " + Markup.Style("mut", "Publicado: snapshot registrado; — sin evidencia."));
             rows.Add(" " + ManagementPresentation.Button("Clonar…", "preset-clone") + " " + ManagementPresentation.Button("Editar YAML", "preset-edit") + " " + ManagementPresentation.Button("Eliminar", "preset-remove"));
             rows.Add(" " + (chosen.Target is null ? DefinitionsPresentation.Off("Ver en vivo") : ManagementPresentation.Button("Ver en vivo", "preset-live")) + " " + ManagementPresentation.Button("Detalle…", "preset-detail"));
         }
-        return new("Presets de " + Markup.Escape(scope) + "{pad}" + ManagementPresentation.Button("Combinación…", "author-selection"), rows);
+        return new("Presets de " + Markup.Escape(scope) + "{pad}" + ManagementPresentation.CombinationButton(combination), rows);
     }
 
     internal static Dictionary<string, string> PublishedValues(string? ini) => (ini ?? "").Split('\n')
@@ -114,16 +117,16 @@ internal static partial class DashboardCli
         static string Id(string name, RecipeValue value) => Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(value.Origin.File + "\n" + name)));
     }
 
-    internal static DefinitionsPresentation.Page ParametersPage(string scope, IReadOnlyList<DefinitionRow> definitions, string? selected, string filter)
+    internal static DefinitionsPresentation.Page ParametersPage(string scope, IReadOnlyList<DefinitionRow> definitions, string? selected, string filter, string combination = "Combinación", RecipeSelection? layers = null)
     {
         var rows = new List<string> { " " + ManagementPresentation.Button("filtro: " + (filter.Length == 0 ? "todos" : filter), "param-filter") + " " + Markup.Style("mut", definitions.Count + " parámetros"),
-            " " + Markup.Style("mut", "PARÁMETRO          TIPO      ÁMBITO     PREDET.") };
+            " " + Markup.Style("mut", "PARÁMETRO          TIPO      ÁMBITO     PREDET.  " + (layers is null ? "" : "CAPA")) };
         var chosen = definitions.FirstOrDefault(row => row.Id == selected) ?? definitions.FirstOrDefault();
         var index = chosen is null ? 0 : definitions.ToList().IndexOf(chosen);
         foreach (var item in definitions.Skip(index / 4 * 4).Take(4))
             rows.Add(" " + Markup.Style(item.Id == chosen?.Id ? "sel" : "nav", DashboardPresentation.Fit(item.Name, 18).PadRight(19), "param:" + item.Id) + Markup.Escape(
                 DashboardPresentation.Fit(item.Value.Get("type")?.Text ?? "any-of", 9).PadRight(10) +
-                DashboardPresentation.Fit(item.Value.Get("scope")?.Text ?? "ambos", 10).PadRight(11) + (item.Value.Get("default")?.Redacted()?.ToString() ?? "—")));
+                DashboardPresentation.Fit(item.Value.Get("scope")?.Text ?? "ambos", 10).PadRight(11) + DashboardPresentation.Fit(item.Value.Get("default")?.Redacted()?.ToString() ?? "—", 8).PadRight(9) + (layers is null ? "" : LayerMark(layers, item.Value.Origin.File))));
         if (definitions.Count > 4) rows.Add(" " + ManagementPresentation.Button("◂", "param-prev") + " " + ManagementPresentation.Button("▸", "param-next"));
         if (chosen is null) rows.Add(" " + Markup.Style("mut", "Sin definiciones efectivas para este filtro."));
         else
@@ -134,7 +137,7 @@ internal static partial class DashboardCli
             rows.Add(""); rows.Add(" " + Markup.Style("hi", name) + " " + Markup.Style("mut", DashboardPresentation.Fit(chosen.Value.Get("aliases")?.Items is { Count: > 0 } aliases ?
                 "alias " + string.Join(", ", aliases.Select(item => item.Redacted()?.ToString())) : "sin alias", Math.Max(0, detail - name.Length - 1))));
             rows.Add(" " + Markup.Escape(DashboardPresentation.Fit(chosen.Value.Get("description")?.Redacted()?.ToString() ?? "Sin descripción.", detail)));
-            rows.Add(" " + Markup.Style("mut", "origen ") + Markup.Escape(DashboardPresentation.Fit(Path.GetFileName(chosen.Value.Origin.File), detail - 7)));
+            rows.Add(" " + Markup.Style("mut", "origen ") + Markup.Escape(DashboardPresentation.Fit((layers is null ? "" : LayerMark(layers, chosen.Value.Origin.File) + " ") + Path.GetFileName(chosen.Value.Origin.File), detail - 7)));
             var uses = chosen.Uses.Length == 0 ? "sin asignaciones en la selección" : chosen.Uses.Length + ": " + string.Join(", ", chosen.Uses);
             rows.Add(" " + Markup.Style("mut", "usado por ") + Markup.Escape(DashboardPresentation.Fit(uses, detail - 10)));
         }
@@ -142,7 +145,7 @@ internal static partial class DashboardCli
             (chosen is null ? DefinitionsPresentation.Off("Editar") : ManagementPresentation.Button("Editar", "param-edit")) + " " +
             (chosen is null ? DefinitionsPresentation.Off("Quitar definición") : ManagementPresentation.Button("Quitar definición", "param-remove")));
         if (chosen is not null) rows.Add(" " + ManagementPresentation.Button("Detalle…", "param-detail"));
-        return new("Parámetros de " + Markup.Escape(scope) + "{pad}" + ManagementPresentation.Button("Combinación…", "author-selection"), rows);
+        return new("Parámetros de " + Markup.Escape(scope) + "{pad}" + ManagementPresentation.CombinationButton(combination), rows);
     }
 
     internal static string ParameterFile(EffectiveRecipe recipe) => recipe.Selection.Files
@@ -176,6 +179,9 @@ internal static partial class DashboardCli
         state.Plan = plans.ReadRecorded(selections);
         if (state.Plan is null) { state.Notice = "Todavía no hay un plan para esta combinación. Comprobar consulta las novedades y guarda el plan."; return; }
         try { _ = plans.ReadValid(selections); }
+        // The CLI message names the update command; the view says what happened and what to press.
+        catch (Coquena.Storage.StorageException error) when (error.Code == "stale-update-plan")
+        { state.Problem = "El plan quedó desactualizado: cambiaron la combinación o los recursos instalados desde que se comprobó. Volvé a pulsar Comprobar."; }
         catch (Exception error) when (ManagementError(error)) { state.Problem = error.Message; }
         var identity = state.Plan["created-at"]!.GetValue<string>() + state.Plan["combination-id"]!.GetValue<string>();
         if (identity == state.Identity) return;
@@ -184,16 +190,16 @@ internal static partial class DashboardCli
             state.Chosen.Add(UpdateSelector(item!));
     }
 
-    internal static DefinitionsPresentation.Page UpdatesPage(string scope, UpdateView state, IReadOnlyList<string> impact, bool busy = false)
+    internal static DefinitionsPresentation.Page UpdatesPage(string scope, UpdateView state, IReadOnlyList<string> impact, bool busy = false, string combination = "Combinación")
     {
         var rows = new List<string>();
-        if (busy) rows.Add(" " + Markup.Style("mut", "Operación en curso; la navegación conserva el trabajo."));
+        if (busy) rows.Add(" " + Markup.Style("warn", DashboardPresentation.Spinner() + " ") + Markup.Style("mut", "Trabajando… Podés cambiar de vista; la operación sigue."));
         if (state.Notice is { } notice) rows.AddRange(DashboardPresentation.Wrap(notice, 54).Take(3).Select(line => " " + Markup.Style("mut", line)));
         if (state.Problem is { } problem) rows.AddRange(DashboardPresentation.Wrap(problem, 54).Take(3).Select(line => " " + Markup.Style("warn", line)));
         if (state.Plan is { } plan)
         {
             var date = DateTimeOffset.TryParse(plan["created-at"]?.ToString(), out var created) ? created.ToLocalTime().ToString("dd/MM HH:mm") : "fecha no disponible";
-            rows.Add(" " + Markup.Style("mut", "plan " + date + (state.Problem is null ? " · ✓ vigente" : " · ▲ no aplicable")));
+            rows.Add(" " + Markup.Style("mut", "Comprobado el " + date + (state.Problem is null ? " · ✓ al día" : " · ▲ ya no se puede aplicar")));
             rows.Add(" " + Markup.Style("mut", "   RECURSO               ACTUAL    PROPUESTA  ESTADO"));
             var report = RecipeUpdatePlans.Report(plan)["resources"]!.AsArray();
             if (report.Count == 0) rows.Add(" " + Markup.Style("mut", "Sin recursos en este plan."));
@@ -201,20 +207,21 @@ internal static partial class DashboardCli
             for (var index = 0; index < report.Count; index++)
             {
                 var item = report[index]!;
-                var selectable = raw[index]?["sensitive"]?.GetValue<bool>() != true && item["status"]?.GetValue<string>() == "update-available" && item["upgrade-allowed"]?.GetValue<bool>() != false;
+                var selectable = state.Problem is null && raw[index]?["sensitive"]?.GetValue<bool>() != true && item["status"]?.GetValue<string>() == "update-available" && item["upgrade-allowed"]?.GetValue<bool>() != false;
                 var selector = selectable ? UpdateSelector(raw[index]!) : "";
-                rows.Add(" " + (selectable ? Markup.Style("nav", state.Chosen.Contains(selector) ? "[X]" : "[ ]", "update-toggle:" + Convert.ToHexString(System.Text.Encoding.UTF8.GetBytes(selector))) : Markup.Style("mut", " — ")) + " " +
-                    Markup.Escape(DashboardPresentation.Fit(item["kind"] + " " + item["key"], 21).PadRight(22) + Version(item["current"]).PadRight(10) + Version(item["proposed"]).PadRight(11)) +
+                rows.Add(" " + (selectable ? Markup.Style("nav", state.Chosen.Contains(selector) ? "☑" : "☐", "update-toggle:" + Convert.ToHexString(System.Text.Encoding.UTF8.GetBytes(selector))) : Markup.Style("mut", " — ")) + " " +
+                    Markup.Escape(DashboardPresentation.Fit(item["kind"] + " " + (item["alias"] ?? item["key"]), 21).PadRight(22) + Version(item["current"]).PadRight(10) + Version(item["proposed"]).PadRight(11)) +
                     Markup.Style(item["upgrade-allowed"]?.GetValue<bool>() == false ? "warn" : "mut", item["upgrade-allowed"]?.GetValue<bool>() == false ? "fijado" : UpdateStatus(item["status"]?.ToString())));
-                if (item["diagnostic"] is { } diagnostic) rows.Add("   " + Markup.Style("warn", diagnostic.ToString()));
+                if (item["diagnostic"] is { } diagnostic)
+                    rows.AddRange(DashboardPresentation.Wrap("▲ " + diagnostic, 52).Select(line => "   " + Markup.Style("warn", Markup.Escape(line))));
             }
         }
-        rows.Add(" " + (busy || state.Unprepared ? DefinitionsPresentation.Off("Comprobar") : ManagementPresentation.Button("Comprobar", "update-check")) + " " + (!busy && state.Plan is not null && state.Problem is null && state.Chosen.Count > 0 ?
+        rows.Add(" " + (busy ? DefinitionsPresentation.Off(DashboardPresentation.Spinner() + " Comprobar") : state.Unprepared ? DefinitionsPresentation.Off("Comprobar") : ManagementPresentation.Button("Comprobar", "update-check")) + " " + (!busy && state.Plan is not null && state.Problem is null && state.Chosen.Count > 0 ?
             ManagementPresentation.Button("Actualizar " + state.Chosen.Count, "update-apply") : DefinitionsPresentation.Off("Actualizar")) + " " + ManagementPresentation.Button("Descargas", "downloads"));
         rows.Add(""); rows.Add(" " + Markup.Style("hi", "Impacto en ejecución"));
-        rows.Add(" " + Markup.Style("mut", "Preparar no reinicia ni cambia snapshots activos."));
+        rows.Add(" " + Markup.Style("mut", "Actualizar no reinicia ni cambia los servicios que están en marcha."));
         rows.AddRange(impact.Select(text => " " + Markup.Escape(text)));
-        return new("Actualizaciones de " + Markup.Escape(scope) + "{pad}" + ManagementPresentation.Button("Combinación…", "author-selection"), rows);
+        return new("Actualizaciones de " + Markup.Escape(scope) + "{pad}" + ManagementPresentation.CombinationButton(combination), rows);
 
         static string Version(JsonNode? value) => DashboardPresentation.Fit(value is JsonObject ? value["release"]?.ToString() ?? value["commit"]?.ToString() ?? "—" : value?.ToString() ?? "—", 9);
     }
@@ -257,30 +264,33 @@ internal static partial class DashboardCli
     {
         var available = RecipeImportSelection.Create(source);
         var collisions = ExistingImportEntities(global, source);
-        using var dialog = new Dialog { Width = Math.Min(76, app.Screen.Width - 2), Height = Math.Min(22, app.Screen.Height - 2), BorderStyle = LineStyle.None, ShadowStyle = ShadowStyles.None };
-        dialog.Add(new Label { X = 1, Text = "Importar " + source.Name + " en Global" });
+        using var dialog = Modal(app, 76, 16 + Math.Clamp(collisions.Length, 1, 4), "Importar " + source.Name + " en Global");
         var checks = new Dictionary<string, CheckBox>();
         string[] categories = ["presets", "model", "params", "service"];
+        // Spanish captions for the CLI --select values, which stay unchanged.
+        var captions = new Dictionary<string, string> { ["presets"] = "Presets", ["model"] = "Modelos", ["params"] = "Parámetros", ["service"] = "Servicio" };
         for (var index = 0; index < categories.Length; index++)
         {
             var category = categories[index];
             var entries = available.Entities.Where(entity => category switch { "presets" => entity.Selector.StartsWith("preset:", StringComparison.Ordinal),
                 "model" => entity.Selector.StartsWith("model:", StringComparison.Ordinal) || entity.Selector.StartsWith("companion:", StringComparison.Ordinal),
                 "params" => entity.Selector.StartsWith("param:", StringComparison.Ordinal), _ => entity.Selector.StartsWith("service:", StringComparison.Ordinal) }).Select(entity => entity.Selector.Split(':', 2)[1]);
-            checks[category] = new CheckBox { X = 1, Y = 2 + index, Width = Dim.Fill(1), Text = category + " · " + string.Join(", ", entries), Enabled = available.Categories.Contains(category),
+            checks[category] = new CheckBox { X = 1, Y = index, Width = Dim.Fill(1), Text = captions[category] + (entries.Any() ? " · " + string.Join(", ", entries) : ""), Enabled = available.Categories.Contains(category),
                 Value = available.Categories.Contains(category) ? CheckState.Checked : CheckState.UnChecked };
             dialog.Add(checks[category]);
         }
-        dialog.Add(new Label { X = 1, Y = 7, Text = "Ya existen en Global (marcar autoriza reemplazo):" });
-        var list = new ListView { X = 1, Y = 8, Width = Dim.Fill(1), Height = 4 };
+        var details = new Button { X = 1, Y = 4, Text = " Detalle de categorías… ", NoDecorations = true, ShadowStyle = ShadowStyles.None };
+        dialog.Add(new Label { X = 1, Y = 6, Text = "Ya existen en Global; marcá las que querés reemplazar:" });
+        var list = new ListView { X = 1, Y = 7, Width = Dim.Fill(1), Height = Math.Clamp(collisions.Length, 1, 4) };
         var replacements = new HashSet<string>(StringComparer.Ordinal);
-        void Refresh() => list.SetSource(new ObservableCollection<string>(collisions.Select(entity => (replacements.Contains(entity) ? "[X] " : "[ ] ") + entity)));
-        var toggle = new Button { X = 1, Y = 12, Text = " Conservar / Reemplazar ", NoDecorations = true, ShadowStyle = ShadowStyles.None };
+        void Refresh() => list.SetSource(new ObservableCollection<string>(collisions.Length == 0 ? ["Ninguna; nada se reemplaza."]
+            : collisions.Select(entity => (replacements.Contains(entity) ? "☑ " : "☐ ") + entity)));
+        var toggle = new Button { X = 1, Y = Pos.Bottom(list), Enabled = collisions.Length > 0, Text = " Conservar / Reemplazar ", NoDecorations = true, ShadowStyle = ShadowStyles.None };
         toggle.Accepting += (_, args) => { args.Handled = true; if (list.SelectedItem is int row && row >= 0 && row < collisions.Length) { var entity = collisions[row]; if (!replacements.Add(entity)) replacements.Remove(entity); Refresh(); list.SelectedItem = row; } };
-        var asDefault = new CheckBox { X = 1, Y = 14, Text = "usar como servicio predeterminado", Enabled = available.Categories.Contains("service") };
-        var status = new Label { X = 1, Y = 16, Width = Dim.Fill(1), Height = 2, Text = HasDefaultGlobalService(global) ? "Sin autorización, una colisión incompatible detiene la importación."
-            : "Global no tiene servicio predeterminado: los presets requieren importar también el servicio." };
-        var details = new Button { X = 1, Y = 18, Text = " Detalle de categorías… ", NoDecorations = true, ShadowStyle = ShadowStyles.None };
+        var asDefault = new CheckBox { X = 1, Y = Pos.Bottom(toggle) + 1, Text = "usar como servicio predeterminado", Enabled = available.Categories.Contains("service") };
+        // Empty unless a condition already holds; errors of Importar replace it.
+        var status = new Label { X = 1, Y = Pos.Bottom(asDefault) + 1, Width = Dim.Fill(1), Height = 2, Text = HasDefaultGlobalService(global) ? ""
+            : "▲ Global no tiene servicio predeterminado: para importar presets, importá también el servicio." };
         details.Accepting += (_, args) => { args.Handled = true; Choose(app, "Entidades de la combinación de origen", available.Entities.Select(entity => entity.Selector).ToArray(), null); };
         dialog.Add(list, toggle, asDefault, status, details);
         dialog.AddButton(new Button { Text = " Cancelar ", NoDecorations = true, ShadowStyle = ShadowStyles.None });
@@ -318,16 +328,16 @@ internal static partial class DashboardCli
                      path.EndsWith(".yaml", StringComparison.OrdinalIgnoreCase) || path.EndsWith(".yml", StringComparison.OrdinalIgnoreCase) || Path.GetFileName(path).StartsWith(".env", StringComparison.Ordinal)))
             if (!entries.Any(entry => entry.Path.Equals(path, StringComparison.OrdinalIgnoreCase))) entries.Add((path, Path.GetFileName(path).StartsWith(".env", StringComparison.Ordinal), false));
         var newFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        using var dialog = new Dialog { Width = Math.Min(76, app.Screen.Width - 2), Height = Math.Min(21, app.Screen.Height - 2), BorderStyle = LineStyle.None, ShadowStyle = ShadowStyles.None };
-        var list = new ListView { X = 1, Y = 2, Width = Dim.Fill(1), Height = Dim.Fill(7) };
-        var status = new Label { X = 1, Y = Pos.AnchorEnd(4), Width = Dim.Fill(1), Height = 1, Text = "Se registra al usarla en Up o Iniciar. .env: preparación privada." };
+        using var dialog = Modal(app, 76, 19, "Nueva combinación · YAML en orden");
+        var list = new ListView { X = 1, Y = 0, Width = Dim.Fill(1), Height = Dim.Fill(7) };
+        var status = new Label { X = 1, Y = Pos.AnchorEnd(4), Width = Dim.Fill(1), Height = 1, Text = "Se guarda cuando la uses con Up o Iniciar. Los .env usan preparación privada." };
         var isPrivate = new CheckBox { X = 1, Y = Pos.AnchorEnd(3), Text = "preparación privada (referencias externas)",
             Value = CombinationIdentity.FromSelection(current, privateSelection).Private ? CheckState.Checked : CheckState.UnChecked };
         void Refresh()
         {
             var selected = list.SelectedItem ?? 0; var order = 0;
             list.SetSource(new ObservableCollection<string>(entries.Select(entry =>
-                (entry.Included ? "[X] " : "[ ] ") + (entry.Env ? ".env " : entry.Included ? (++order).ToString() + " · " : "— · ") +
+                (entry.Included ? "☑ " : "☐ ") + (entry.Env ? ".env " : entry.Included ? (++order).ToString() + " · " : "— · ") +
                 Path.GetRelativePath(current.Base, entry.Path) + (newFiles.Contains(entry.Path) ? " · nuevo" : ""))));
             list.SelectedItem = Math.Clamp(selected, 0, Math.Max(0, entries.Count - 1));
         }
@@ -354,7 +364,7 @@ internal static partial class DashboardCli
         Action("+ YAML…", 21, () => Add(false, false));
         Action("Nuevo…", 34, () => Add(true, false));
         Action("+ .env…", 46, () => Add(false, true));
-        dialog.Add(new Label { X = 1, Text = "Nueva combinación · YAML en orden" }, list, status, isPrivate);
+        dialog.Add(list, status, isPrivate);
         dialog.AddButton(new Button { Text = " Cancelar ", NoDecorations = true, ShadowStyle = ShadowStyles.None });
         CombinationChoice? result = null;
         var accept = new Button { Text = " Aceptar ", NoDecorations = true, ShadowStyle = ShadowStyles.None };
