@@ -311,7 +311,7 @@ public sealed class PresetPublication(ScopeStore consumer, ScopeStore target, st
     {
         var entries = expected.SelectMany(c => c!["presets"]!.AsArray()).ToArray();
         definitions ??= Catalog();
-        string Key(string key) => ParameterCatalog.Find(key, definitions)?.Name ?? key;
+        string Key(string key) => ParameterCatalog.Comparison(key, "", definitions).Key;
         var registered = entries.Select(e => e!["name"]!.GetValue<string>()).ToHashSet(StringComparer.Ordinal);
         if (observed.Select(p => p?["id"]?.GetValue<string>()).FirstOrDefault(id => id is not null && !registered.Contains(id)) is { } extra)
             return $"el servidor ofrece «{extra}», que Coquena no publicó.";
@@ -322,12 +322,20 @@ public sealed class PresetPublication(ScopeStore consumer, ScopeStore target, st
             if (found is null) return $"falta «{name}» en el servidor.";
             if (found["status"]?["preset"]?.GetValue<string>() is string actualIni && entry["ini"]?.GetValue<string>() is string expectedIni)
             {
-                var actual = IniValues(actualIni).ToDictionary(pair => Key(pair.Key), pair => pair.Value, StringComparer.Ordinal);
+                var actual = new Dictionary<string, string>(StringComparer.Ordinal);
+                foreach (var pair in IniValues(actualIni))
+                {
+                    var normalized = ParameterCatalog.Comparison(pair.Key, pair.Value, definitions);
+                    if (actual.TryGetValue(normalized.Key, out var duplicate) && duplicate != normalized.Value)
+                        return $"en «{name}», el servidor informa valores contradictorios para {normalized.Key}.";
+                    actual[normalized.Key] = normalized.Value;
+                }
                 foreach (var (key, value) in IniValues(expectedIni))
                 {
-                    if (!actual.TryGetValue(Key(key), out var current)) return $"en «{name}», el servidor no tiene {key} = {value}" +
+                    var normalized = ParameterCatalog.Comparison(key, value, definitions);
+                    if (!actual.TryGetValue(normalized.Key, out var current)) return $"en «{name}», el servidor no tiene {key} = {value}" +
                         (actual.Where(pair => pair.Value == value).Select(pair => pair.Key).FirstOrDefault() is { } other ? $" (tiene {other} = {value})." : ".");
-                    if (current != value) return $"en «{name}», {key} vale {current} en el servidor y {value} en la receta.";
+                    if (current != normalized.Value) return $"en «{name}», {key} vale {current} en el servidor y {value} en la receta.";
                 }
                 var prior = previous?.SelectMany(c => c!["presets"]!.AsArray()).SingleOrDefault(p => p!["name"]!.GetValue<string>() == name);
                 var wanted = IniValues(expectedIni).Keys.Select(Key).ToHashSet(StringComparer.Ordinal);

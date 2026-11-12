@@ -502,6 +502,8 @@ features:
       - src/Coquena/Configuration/ConfigurationManager.cs
       - src/Coquena/Configuration/ParameterManager.cs
       - src/Coquena/Configuration/ParameterCatalog.cs
+      - src/Coquena/Configuration/ServerParameterCatalog.g.cs
+      - tools/update-server-catalog.mjs
     tests:
       - tests/Coquena.Tests/ConfigurationTests.cs
       - tests/Coquena.Tests/ParameterTests.cs

@@ -6,17 +6,16 @@ namespace Coquena.Configuration;
 public sealed class ConfigurationException(string message) : Exception(message);
 public sealed record ParameterDefinition(string Name, string Type, string Application, string Destination,
     string Description, string[] Aliases, string? Default = null, string[]? Choices = null,
-    ParameterSupport[]? Support = null);
+    ParameterSupport[]? Support = null, string[]? NegativeAliases = null, string? Syntax = null, string? Source = null);
 public sealed record ParameterSupport(string? Variant = null, Guid? BackendId = null,
     string? From = null, string? Until = null, bool EvidenceOnly = false);
-public sealed record ParametersDocument(int SchemaVersion, ParameterDefinition[] Definitions);
+public sealed record ParametersDocument(int SchemaVersion, ParameterDefinition[] Definitions, string? CatalogRevision = null);
 
-// Hand-authored, bounded catalog: default evidence is official b11482.
-// Definitions with explicit Support retain their own upstream version bounds.
-// See specs/010-m1-config-presets-ini/README.md. Missing evidence is never rejection.
+// Complete pinned server documentation plus established Coquena metadata.
+// Documented syntax is not evidence of availability in an arbitrary installed build.
 public static partial class ParameterCatalog
 {
-    public static readonly ParameterDefinition[] Definitions =
+    private static readonly ParameterDefinition[] EstablishedDefinitions =
     [
         new("ctx-size", "integer", "model", "INI", "Contexto", ["c", "LLAMA_ARG_CTX_SIZE"]),
         new("threads", "integer", "model", "INI", "Hilos de generación", ["t", "LLAMA_ARG_THREADS"]),
@@ -46,19 +45,58 @@ public static partial class ParameterCatalog
         new("model", "reference", "model", "INI", "Ruta resuelta desde ModelId del preset", ["m", "LLAMA_ARG_MODEL"])
     ];
 
+    public static readonly ParameterDefinition[] Definitions = CompleteDefinitions();
+
+    private static ParameterDefinition[] CompleteDefinitions()
+    {
+        var upstream = ServerDefinitions().ToDictionary(d => d.Name, StringComparer.Ordinal);
+        foreach (var legacy in EstablishedDefinitions)
+        {
+            if (!upstream.TryGetValue(legacy.Name, out var current)) { upstream.Add(legacy.Name, legacy); continue; }
+            var negative = current.NegativeAliases ?? [];
+            upstream[legacy.Name] = current with
+            {
+                Type = legacy.Type, Application = legacy.Application, Destination = legacy.Destination,
+                Description = ParameterManager.Protected.Contains(legacy.Name) ? legacy.Description : current.Description,
+                Aliases = current.Aliases.Concat(legacy.Aliases).Except(negative, StringComparer.Ordinal).Distinct(StringComparer.Ordinal).ToArray(),
+                Default = legacy.Default, Support = legacy.Support,
+                Choices = legacy.Type == "enum" ? current.Choices : []
+            };
+        }
+        return upstream.Values.ToArray();
+    }
+
+    public static (string Key, string Value) Comparison(string key, string value, ParameterDefinition[] definitions)
+    {
+        var definition = Find(key, definitions);
+        var inverse = definition?.NegativeAliases?.Contains(key.TrimStart('-'), StringComparer.Ordinal) == true;
+        if (definition is null) return (key, value);
+        if (definition.Type is "boolean" or "flag" && (bool.TryParse(value, out var boolean) || value is "0" or "1"))
+        {
+            if (value is "0" or "1") boolean = value == "1";
+            value = (inverse ? !boolean : boolean) ? "true" : "false";
+        }
+        return (definition.Name, value);
+    }
+
+    public static string AssignmentValue(string key, string value, ParameterDefinition[] definitions) =>
+        Find(key, definitions)?.NegativeAliases?.Contains(key.TrimStart('-'), StringComparer.Ordinal) == true
+            ? Comparison(key, value, definitions).Value : value;
+
     [GeneratedRegex("^[a-zA-Z_][a-zA-Z0-9_.-]*$", RegexOptions.CultureInvariant)]
     private static partial Regex KeyPattern();
 
     public static ParameterDefinition? Find(string key, ParameterDefinition[]? definitions = null)
     {
         key = key.TrimStart('-');
-        return (definitions ?? Definitions).SingleOrDefault(d => d.Name == key || d.Aliases.Any(a => a.TrimStart('-') == key));
+        return (definitions ?? Definitions).SingleOrDefault(d => d.Name == key || d.Aliases.Any(a => a.TrimStart('-') == key) ||
+            d.NegativeAliases?.Contains(key, StringComparer.Ordinal) == true);
     }
 
     public static string Canonical(string key, ParameterDefinition[]? definitions = null)
     {
         key = key.TrimStart('-');
-        if (!KeyPattern().IsMatch(key) || key == "version")
+        if (!KeyPattern().IsMatch(key) || key == "version" && Find(key, definitions)?.Destination != "CLI")
             throw new ConfigurationException("Nombre de parámetro inválido o reservado por el INI.");
         return Find(key, definitions)?.Name ?? key;
     }

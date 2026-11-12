@@ -48,10 +48,11 @@ public sealed class ConfigurationManager(Home home, LocalStore? storage = null)
         foreach (var pair in values ?? [])
         {
             var key = ParameterCatalog.Canonical(pair.Key, definitions);
+            var value = ParameterCatalog.AssignmentValue(pair.Key, pair.Value, definitions);
             ParameterCatalog.ModelParameter(key, definitions);
-            if (ParameterCatalog.Find(key, definitions) is { } definition) ParameterManager.ValidateValue(definition, pair.Value);
-            else ParameterCatalog.Literal(pair.Value);
-            if (!result.TryAdd(key, pair.Value))
+            if (ParameterCatalog.Find(key, definitions) is { } definition) ParameterManager.ValidateValue(definition, value);
+            else ParameterCatalog.Literal(value);
+            if (!result.TryAdd(key, value))
                 throw new ConfigurationException($"Alias duplicados para {key}; corrija el documento sin perder valores.");
         }
         return result;
@@ -65,6 +66,7 @@ public sealed class ConfigurationManager(Home home, LocalStore? storage = null)
             var key = ParameterCatalog.Canonical(parameter, definitions);
             if (value is not null)
             {
+                value = ParameterCatalog.AssignmentValue(parameter, value, definitions);
                 ParameterCatalog.ModelParameter(key, definitions);
                 if (ParameterCatalog.Find(key, definitions) is { } definition) ParameterManager.ValidateValue(definition, value);
                 else ParameterCatalog.Literal(value);

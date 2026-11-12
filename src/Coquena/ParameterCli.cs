@@ -34,6 +34,8 @@ public static class ParameterCli
                 foreach (var d in selected)
                 {
                     output.WriteLine($"{d.Name} | {d.Type} | {d.Application}/{d.Destination} | {ParameterManager.Availability(d, backend, origin ?? "ggml", release)} | {d.Description} | alias: {string.Join(", ", d.Aliases)} | default: {d.Default ?? "sin default"} | values: {string.Join(", ", d.Choices ?? [])}");
+                    if (d.NegativeAliases is { Length: > 0 }) output.WriteLine("  formas negativas: " + string.Join(", ", d.NegativeAliases));
+                    if (d.Syntax is not null) output.WriteLine("  sintaxis upstream: " + d.Syntax);
                     foreach (var s in d.Support ?? [])
                     {
                         output.WriteLine($"  soporte: {(s.BackendId is { } local ? "backend " + local : s.Variant is null ? "general oficial" : "ggml/" + s.Variant)} | desde {s.From ?? "abierto"} | hasta {s.Until ?? "abierto"}{(s.EvidenceOnly ? " | evidencia inicial; otros builds desconocidos" : "")}");

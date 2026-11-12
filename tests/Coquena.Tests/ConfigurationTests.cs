@@ -208,7 +208,8 @@ internal static class ConfigurationTests
                 [companion.Files[0] with { LocalPath = relocatedPath }, companion.Files[1] with { LocalPath = relocatedSecond }] };
             store.Update(DocumentKind.Models, ContractJsonContext.Default.ModelsDocument, ContractValidation.Models, _ => new(1, [first, second, companion]));
             Check(manager.Compose(backend, [boundClone.Id]).Ini.Contains(home.PathFor(relocatedPath)), "rename and relocation resolve stable ID to current first shard");
-            manager.Parameters.Define(new("mmproj", "string", "model", "INI", "Projector path", ["mm"], Choices: [], Support: []));
+            manager.Parameters.ChangeDefinition("mmproj", d => d with { Type = "string", Application = "model", Destination = "INI",
+                Description = "Projector path", Aliases = ["mm"], Choices = [], Support = [] }, "fixture metadata", false, TextWriter.Null, () => true);
             manager.Bind("chat", "mm", companion.Name);
             using var impact = new StringWriter();
             manager.Parameters.ChangeDefinition("mmproj", d => d with { Aliases = [] }, "fixture edit", false, impact, () => true);
@@ -265,7 +266,7 @@ internal static class ConfigurationTests
             Check(Cli("preset", "show", "native-chat").Contains(second.Id.ToString()), "CLI shows persisted binding ID");
             Cli("preset", "clone", "native-chat", "native-bound-clone");
             Cli("preset", "unset", "native-chat", "model-draft");
-            Check(manager.View("native-bound-clone").Preset.Bindings!["model-draft"] == second.Id && manager.View("native-chat").Preset.Bindings!.Count == 0, "CLI unset removes source binding with clone preserved");
+            Check(manager.View("native-bound-clone").Preset.Bindings!["spec-draft-model"] == second.Id && manager.View("native-chat").Preset.Bindings!.Count == 0, "CLI alias unset removes source binding with canonical clone preserved");
             Cli("preset", "bind", "native-chat", "model", first.Name);
             BadCli("preset", "bind", "native-chat", "temperature", second.Name);
             Check(manager.View("native-clone").Preset.ModelId == first.Id && manager.View("native-rebound").Preset.ModelId == second.Id, "CLI clone persists selected model");

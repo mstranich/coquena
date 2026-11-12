@@ -29,8 +29,8 @@ public sealed class LlamaB11482ArgumentAdapter : IArgumentAdapter, IArgumentIniC
     public IArgumentIniCodec IniCodec => this;
     public bool Supports(string name, string scope, string destination) => destination == "cli"
         ? name is not ("load-on-startup" or "stop-timeout")
-        // The catalog is partial. The preset parser maps argument names generically;
-        // absence from our catalog is not evidence of incompatibility.
+        // The catalog describes a pinned official revision, not every fork/build.
+        // The preset parser also accepts representable names outside that snapshot.
         : ParameterCatalog.Find(name)?.Destination != "CLI";
     public bool Accumulates(string name, string destination) => false;
     public bool SupportsLineBreaks(string name, string destination) => false;
@@ -39,8 +39,11 @@ public sealed class LlamaB11482ArgumentAdapter : IArgumentAdapter, IArgumentIniC
         var definition = ParameterCatalog.Find(name);
         if (definition is null) return null;
         var emitted = definition.Name;
-        return definition.Type == "boolean"
-            ? new(emitted, destination == "cli" ? "flag" : "value", TrueValue: "true", FalseValue: "false")
+        var inverse = definition.NegativeAliases?.Contains(name, StringComparer.Ordinal) == true;
+        if (inverse && destination == "cli") emitted = name;
+        return definition.Type is "boolean" or "flag"
+            ? new(emitted, destination == "cli" ? "flag" : "value", TrueValue: inverse ? "false" : "true", FalseValue: inverse ? "true" : "false",
+                NegativeName: destination == "cli" ? inverse ? definition.Name : definition.NegativeAliases?.FirstOrDefault() : null)
             : new(emitted, "value");
     }
     public string Section(string name, RecipeOrigin origin)

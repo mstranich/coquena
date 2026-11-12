@@ -170,6 +170,25 @@ de la máquina de origen. Interfaz en [comandos](comandos.md#param).
 
 ## Origen del catálogo
 
+El catálogo integrado recoge el conjunto de opciones del
+[README oficial de llama-server](https://github.com/ggml-org/llama.cpp/blob/1d81992784448f66891d1bcde17852e920198f10/tools/server/README.md)
+en una revisión fijada, con nombres, aliases, sintaxis y descripciones.
+La revisión y su generador se conservan junto al código; no se consulta la red al
+arrancar, validar ni comparar una publicación. Las formas negativas se distinguen
+de los aliases equivalentes: `no-perf=true` representa `perf=false`.
+
+La comparación de publicación reconoce esas equivalencias sin exigir cambios en
+la receta ni en el catálogo global. Conserva la comprobación en el ámbito del
+consumidor correspondiente. La documentación de una opción no acredita su soporte
+en cualquier build o fork; los límites de soporte requieren evidencia propia.
+
+Un catálogo global guardado con una revisión anterior incorpora las definiciones
+integradas que le faltan y los aliases no conflictivos, conservando las definiciones
+personalizadas y las asignaciones existentes. La consulta no escribe archivos;
+la siguiente edición explícita del catálogo persiste la revisión resultante.
+Las eliminaciones explícitas de la revisión actual se conservan. Esta actualización
+no exige restablecer el catálogo ni importa schema global a las recetas.
+
 Documentación y ayuda del backend son evidencia para autoría manual/asistida.
 No presentar master como garantía para todos los releases.
 El metaschema y la emisión se describen abajo; no se presupone framework de plugins o IA integrada.
@@ -358,7 +377,7 @@ emisión son comprobaciones distintas.
 
 ## Emisión determinista
 
-El catálogo parcial del adaptador no es una lista cerrada de argumentos INI.
+El catálogo de la revisión documentada no es una lista cerrada de argumentos INI.
 Un argumento desconocido representable en modo permisivo y una regla explícita
 `emit.ini` pueden emitirse sin incorporarlos al catálogo integrado. Se conservan
 las restricciones conocidas de destino y el codec del build; emitir una clave

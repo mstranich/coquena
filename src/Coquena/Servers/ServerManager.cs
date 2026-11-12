@@ -148,6 +148,7 @@ public sealed class ServerManager(Home home, LocalStore? storage = null)
     {
         var definitions = new ParameterManager(home, store).Read().Definitions;
         var key = ParameterCatalog.Canonical(parameter, definitions);
+        if (value is not null) value = ParameterCatalog.AssignmentValue(parameter, value, definitions);
         var definition = ParameterCatalog.Find(key, definitions);
         if (definition?.Application != "server" || key == "models-preset")
             throw new ConfigurationException("Parámetro ajeno al catálogo de servidor o gestionado por Coquena.");

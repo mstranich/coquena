@@ -1,0 +1,81 @@
+// Reproduce the bundled server catalog from pinned upstream inputs, never at runtime.
+// node tools/update-server-catalog.mjs <README.md> <common/arg.cpp> <commit>
+import fs from 'node:fs';
+const [readmePath, parserPath, commit] = process.argv.slice(2);
+if (!/^[a-f0-9]{40}$/.test(commit ?? '')) throw new Error('A pinned upstream commit is required');
+const readme = fs.readFileSync(readmePath, 'utf8').split('<!-- HELP_END -->')[0];
+const parser = fs.readFileSync(parserPath, 'utf8');
+const blocks = parser.split('add_opt(common_arg(').slice(1);
+const legacy = new Set(['n-predict', 'n-gpu-layers', 'temperature']);
+const processOnly = new Set(('help usage version cache-list completion-bash list-devices host port reuse-port path cors-origins cors-methods cors-headers cors-credentials api-prefix ui-config ui-config-file ui-mcp-proxy tools tools-runtime mcp-servers-config mcp-servers-json agent ui connect connect-code api-key api-key-file ssl-key-file ssl-cert-file timeout sse-ping-interval threads-http metrics props slots slot-save-path media-path models-dir models-preset models-max models-memory-margin models-autoload sleep-idle-seconds log-prompts-dir log-disable log-file log-jsonl log-colors verbose verbosity log-prefix log-timestamps offline hf-token').split(' '));
+const seen = new Set();
+const rows = [];
+for (const line of readme.split(/\r?\n/).filter(l => l.startsWith('| `'))) {
+  const m = line.match(/^\| `(.+?)` \| (.*) \|$/);
+  if (!m) throw new Error('Unparsed option row: ' + line);
+  const syntax = m[1].replaceAll('\\|', '|');
+  const names = [...syntax.matchAll(/(?:^|, )(-{1,2}[A-Za-z0-9][A-Za-z0-9.-]*)/g)].map(m => m[1]);
+  if (!names.length) throw new Error('No names: ' + syntax);
+  const block = blocks.find(b => names.every(n => b.slice(0, b.indexOf('[](') < 0 ? b.length : b.indexOf('[](')).includes('"' + n + '"')));
+  if (!block) throw new Error('No parser evidence: ' + syntax);
+  const head = block.slice(0, block.indexOf('[](') < 0 ? block.length : block.indexOf('[]('));
+  const groups = [...head.matchAll(/\{\s*((?:"[^"\n]+"\s*,?\s*)+)\}/g)]
+    .map(m => [...m[1].matchAll(/"(-{1,2}[^" ]+)"/g)].map(m => m[1])).filter(a => a.length);
+  const negative = groups.length > 1 ? groups[1] : [];
+  const positive = names.filter(n => !negative.includes(n));
+  const canonical = positive.map(n => n.replace(/^-+/, '')).find(n => legacy.has(n)) ??
+    positive.find(n => n.startsWith('--'))?.slice(2);
+  if (!canonical) throw new Error('No canonical long name: ' + syntax);
+  const aliases = positive.map(n => n.replace(/^-+/, '')).filter(n => n !== canonical);
+  const environment = [...m[2].matchAll(/\(env: ([A-Z0-9_]+)\)/g)].map(m => m[1]);
+  aliases.push(...environment);
+  const description = m[2].replace(/<br\s*\/?\s*>/g, ' ').replace(/<[^>]*>/g, '')
+    .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1').replace(/[`\\]/g, '').replace(/\s+/g, ' ').trim();
+  const tail = syntax.slice(syntax.lastIndexOf(names.at(-1)) + names.at(-1).length).trim();
+  let type = negative.length ? 'boolean' : !tail ? 'flag' : 'string';
+  if (/common_params\s*&\s*\w+\s*,\s*int\s+\w+\s*\)/.test(block)) type = 'integer';
+  else if (/^[A-Z_]+$/.test(tail) && /std::sto(?:i|l|ul|ll|ull)\(/.test(block)) type = 'integer';
+  else if (/common_params\s*&\s*\w+\s*,\s*(?:float|double)\s+\w+\s*\)/.test(block) ||
+    /^[NFP]$/.test(tail) && /std::sto[fd]\(/.test(block)) type = 'decimal';
+  if (/common_params\s*&\s*\w+\s*,\s*bool\s+\w+\s*\)/.test(block)) type = 'boolean';
+  if (negative.length) type = 'boolean';
+  let choices = [];
+  const enumeration = tail.match(/^\{([^{}]+)\}$/);
+  if (enumeration && !enumeration[1].includes('..')) {
+    choices = enumeration[1].split(','); type = 'enum';
+  }
+  if (tail === '[on|off|auto]' || tail === '[on|off]') { choices = tail.slice(1, -1).split('|'); type = 'enum'; }
+  const allNames = [canonical, ...aliases, ...negative.map(n => n.replace(/^-+/, ''))];
+  for (const name of allNames) { if (seen.has(name)) throw new Error('Duplicate name: ' + name); seen.add(name); }
+  let defaultValue = null;
+  const defaultMatch = description.match(/\(default: ([^()]+)\)/);
+  if (defaultMatch) {
+    const candidate = defaultMatch[1].split(',')[0].trim();
+    if (type === 'integer' && /^-?\d+$/.test(candidate) || type === 'decimal' && /^-?\d+(?:\.\d+)?$/.test(candidate) ||
+        type === 'boolean' && /^(?:true|false|0|1)$/.test(candidate) || type === 'enum' && choices.includes(candidate)) defaultValue = candidate;
+  }
+  rows.push({ canonical, aliases, negative: negative.map(n => n.replace(/^-+/, '')), syntax, type, choices, defaultValue,
+    application: processOnly.has(canonical) ? 'server' : 'model', description });
+}
+const q = value => JSON.stringify(value).replaceAll('\\u2028', '\\u2028');
+const arr = values => '[' + values.map(q).join(', ') + ']';
+const source = `https://github.com/ggml-org/llama.cpp/blob/${commit}/tools/server/README.md`;
+const output = `// Generated by tools/update-server-catalog.mjs; do not edit by hand.
+// Source: ${source}
+// Option descriptions and syntax originate in llama.cpp (MIT license).
+// Copyright (c) 2023-2026 The ggml authors. See tools/llama.cpp-LICENSE.
+namespace Coquena.Configuration;
+
+public static partial class ParameterCatalog
+{
+    public const string ServerCatalogRevision = ${q(commit)};
+    public const int ServerOptionGroups = ${rows.length};
+    public const string ServerCatalogSource = ${q(source)};
+    private static ParameterDefinition[] ServerDefinitions() =>
+    [
+${rows.map(r => `        new(${q(r.canonical)}, ${q(r.type)}, ${q(r.application)}, ${q(r.application === 'server' ? 'CLI' : 'INI')}, ${q(r.description)}, ${arr(r.aliases)}, Default: ${q(r.defaultValue)}, Choices: ${arr(r.choices)}, Support: [], NegativeAliases: ${arr(r.negative)}, Syntax: ${q(r.syntax)}, Source: ServerCatalogSource),`).join('\n')}
+    ];
+}
+`;
+fs.writeFileSync('src/Coquena/Configuration/ServerParameterCatalog.g.cs', output);
+console.log(`Generated ${rows.length} groups, ${seen.size} names from ${commit}`);

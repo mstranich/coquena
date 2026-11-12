@@ -296,6 +296,18 @@ internal static class PresetPublicationTests
         catch (StorageException e) when (e.Code == "remote-composition-conflict")
         { Check(router.Reloads == unchangedReloads + 1, "own consumer drift still blocks before changing INI"); }
         router.TransformObservation = foreignObservation;
+        var speculative = Preset("coding/other") with { Ini = "[coding/other]\nmodel=fixture.gguf\nspec-draft-p-min=0.70\nspec-draft-model=draft.gguf\n" };
+        router.TransformObservation = observed =>
+        {
+            foreignObservation(observed);
+            var coding = observed.SingleOrDefault(p => p!["id"]!.GetValue<string>() == "coding/other");
+            if (coding is not null && coding["status"]!["args"]!.AsArray().Any(a => a?.GetValue<string>() == "--spec-draft-p-min"))
+                coding["status"]!["preset"] = "[coding/other]\nmodel=fixture.gguf\ndraft-p-min=0.70\nmodel-draft=draft.gguf\n";
+        };
+        Check((await Publish(manager, a.Recipe, [speculative])).Confirmed && (await Publish(manager, a.Recipe, [speculative])).Confirmed,
+            "real publication and repeated up accept backend speculative aliases without injected catalog");
+        await Publish(manager, a.Recipe, [Preset("coding/other")]);
+        router.TransformObservation = foreignObservation;
         var reloads = router.Reloads;
         await Publish(manager, a.Recipe, [Preset("coding/other")]);
         Check(router.Reloads == reloads, "identical contribution does not reload or warmup");
@@ -404,14 +416,16 @@ internal static class PresetPublicationTests
             { ["name"] = "test", ["expected-arguments"] = new JsonArray("--model", "new") }) }),
             new JsonArray(new JsonObject { ["id"] = "test", ["status"] = new JsonObject { ["args"] = new JsonArray("--model", "old") } })),
             "matching name alone never certifies a changed definition");
-        ParameterDefinition[] parameters = [.. ParameterCatalog.Definitions,
-            new("spec-draft-p-min", "number", "model", "INI", "Probabilidad mínima draft", ["draft-p-min"])];
+        ParameterDefinition[] parameters = ParameterCatalog.Definitions;
         JsonArray Composition(string ini) => new(new JsonObject { ["presets"] = new JsonArray(new JsonObject
             { ["name"] = "coding/q", ["ini"] = ini, ["expected-arguments"] = new JsonArray() }) });
         JsonArray Catalog(string preset) => new(new JsonObject { ["id"] = "coding/q", ["status"] = new JsonObject { ["preset"] = preset } });
         Check(PresetPublication.Mismatch(Composition("[coding/q]\nspec-draft-p-min = 0.70\n"), Catalog("[coding/q]\ndraft-p-min = 0.70\n"), definitions: parameters) is null &&
-            PresetPublication.Mismatch(Composition("[coding/q]\nspec-draft-p-min = 0.70\n"), Catalog("[coding/q]\ndraft-p-min = 0.70\n"), definitions: ParameterCatalog.Definitions) is not null,
-            "an alias of the parameter catalog is the same argument; an unknown name is a difference");
+            PresetPublication.Mismatch(Composition("[coding/q]\nspec-draft-model = draft.gguf\n"), Catalog("[coding/q]\nmodel-draft = draft.gguf\n"), definitions: parameters) is null,
+            "real bundled catalog recognizes official speculative probability and model aliases");
+        Check(PresetPublication.Mismatch(Composition("[coding/q]\nperf = false\n"), Catalog("[coding/q]\nno-perf = true\n"), definitions: parameters) is null &&
+            PresetPublication.Mismatch(Composition("[coding/q]\nperf = true\n"), Catalog("[coding/q]\nno-perf = true\n"), definitions: parameters) is not null,
+            "negative forms invert values rather than acting as same-polarity aliases");
         Check(PresetPublication.Mismatch(Composition("[coding/q]\nc = 4096\n"), Catalog("[coding/q]\nctx-size = 8192\n"), definitions: parameters) is { } changed &&
             changed.Contains("coding/q") && changed.Contains("8192") && changed.Contains("4096"),
             "a real difference names the preset, the argument and both values");

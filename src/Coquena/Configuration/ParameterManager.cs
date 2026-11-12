@@ -15,9 +15,43 @@ public sealed class ParameterManager(Home home, LocalStore? storage = null)
     {
         Type = d.Type switch { "number" => "decimal", "text" => "string", _ => d.Type },
         Aliases = d.Aliases.ToArray(),
-        Choices = [], Support = Protected.Contains(d.Name) ? [] : d.Support?.ToArray() ?? [new(From: "b11482", Until: "b11482", EvidenceOnly: true)]
-    }).ToArray());
-    internal ParametersDocument Read() => store.Read(DocumentKind.Parameters, Json.ParametersDocument, Validate) ?? Factory();
+        Choices = d.Choices?.ToArray() ?? [], NegativeAliases = d.NegativeAliases?.ToArray(),
+        Support = Protected.Contains(d.Name) ? [] : d.Support?.ToArray() ?? [new(From: "b11482", Until: "b11482", EvidenceOnly: true)]
+    }).ToArray(), ParameterCatalog.ServerCatalogRevision);
+    internal ParametersDocument Read()
+    {
+        var saved = store.Read(DocumentKind.Parameters, Json.ParametersDocument, Validate);
+        if (saved is null) return Factory();
+        if (saved.CatalogRevision == ParameterCatalog.ServerCatalogRevision) return saved;
+        // Add bundled knowledge to older catalogs without replacing user definitions,
+        // assignments or their support rules. Reads never write or initialize home.
+        var definitions = saved.Definitions.ToList();
+        var occupied = definitions.SelectMany(d => new[] { d.Name }.Concat(d.Aliases).Concat(d.NegativeAliases ?? []))
+            .Select(n => n.TrimStart('-')).ToHashSet(StringComparer.Ordinal);
+        foreach (var definition in Factory().Definitions)
+        {
+            var existing = definitions.FindIndex(d => d.Name == definition.Name);
+            if (existing >= 0)
+            {
+                var current = definitions[existing];
+                var aliases = definition.Aliases.Where(a => !occupied.Contains(a)).ToArray();
+                var negative = current.Type is "boolean" or "flag"
+                    ? (definition.NegativeAliases ?? []).Where(a => !occupied.Contains(a) || current.Aliases.Any(c => c.TrimStart('-') == a)).ToArray() : [];
+                definitions[existing] = current with { Aliases = current.Aliases.Where(a => !negative.Contains(a.TrimStart('-'), StringComparer.Ordinal)).Concat(aliases).ToArray(),
+                    NegativeAliases = (current.NegativeAliases ?? []).Concat(negative).ToArray(),
+                    Syntax = definition.Syntax, Source = definition.Source };
+                occupied.UnionWith(aliases); occupied.UnionWith(negative);
+            }
+            else if (!occupied.Contains(definition.Name))
+            {
+                var addition = definition with { Aliases = definition.Aliases.Where(a => !occupied.Contains(a)).ToArray(),
+                    NegativeAliases = (definition.NegativeAliases ?? []).Where(a => !occupied.Contains(a)).ToArray() };
+                definitions.Add(addition);
+                occupied.Add(addition.Name); occupied.UnionWith(addition.Aliases); occupied.UnionWith(addition.NegativeAliases ?? []);
+            }
+        }
+        return saved with { Definitions = definitions.ToArray(), CatalogRevision = ParameterCatalog.ServerCatalogRevision };
+    }
     public ParameterDefinition[] List() => store.Inspect(() => Read().Definitions);
     public ParameterDefinition? Find(string name) => ParameterCatalog.Find(name, List());
     public static long Build(string value)
@@ -35,17 +69,24 @@ public sealed class ParameterManager(Home home, LocalStore? storage = null)
         var keys = new HashSet<string>(StringComparer.Ordinal);
         foreach (var d in document.Definitions)
         {
-            if (d is null || d.Name is null || ParameterCatalog.Canonical(d.Name, []) != d.Name || d.Name.StartsWith('-') ||
+            if (d is null || d.Name is null || d.Name != "version" && ParameterCatalog.Canonical(d.Name, []) != d.Name || d.Name.StartsWith('-') ||
                 d.Description is null || d.Description.Any(char.IsControl) || d.Aliases is null || d.Choices is null || d.Support is null ||
                 d.Type is not ("integer" or "decimal" or "string" or "boolean" or "flag" or "enum" or "reference") ||
                 d.Type == "reference" && d.Name != "model" || d.Application is not ("model" or "server") || d.Destination is not ("CLI" or "INI"))
                 throw new ConfigurationException("Metadatos de definición inválidos.");
+            if (d.Name == "version" && (d.Application != "server" || d.Destination != "CLI"))
+                throw new ConfigurationException("version sólo describe una opción CLI del ejecutable.");
             if (!keys.Add(d.Name)) throw new ConfigurationException($"Nombre/alias duplicado: {d.Name}.");
             foreach (var alias in d.Aliases)
             {
                 if (string.IsNullOrEmpty(alias) || ParameterCatalog.Canonical(alias, []) != alias.TrimStart('-') || !keys.Add(alias.TrimStart('-')))
                     throw new ConfigurationException($"Alias inválido o duplicado: {alias}.");
             }
+            foreach (var alias in d.NegativeAliases ?? [])
+                if (string.IsNullOrEmpty(alias) || ParameterCatalog.Canonical(alias, []) != alias || !keys.Add(alias))
+                    throw new ConfigurationException($"Alias negativo inválido o duplicado: {alias}.");
+            if (d.NegativeAliases is { Length: > 0 } && d.Type is not ("boolean" or "flag"))
+                throw new ConfigurationException("Las formas negativas requieren un parámetro booleano.");
             if (d.Choices.Any(v => v is null) || d.Choices.Distinct(StringComparer.Ordinal).Count() != d.Choices.Length ||
                 d.Type == "enum" && d.Choices.Length == 0 || d.Type != "enum" && d.Choices.Length != 0)
                 throw new ConfigurationException("Enumeración inválida o vacía.");
@@ -265,6 +306,7 @@ public sealed class ParameterManager(Home home, LocalStore? storage = null)
             throw new ConfigurationException("Definición inexistente.");
         if (Protected.Contains(definition.Name)) throw new ConfigurationException($"Definición protegida: {definition.Name}.");
         var next = edit(definition);
+        if (next is not null && next.Type is not ("boolean" or "flag")) next = next with { NegativeAliases = [] };
         if (next is not null && next.Name != definition.Name) throw new ConfigurationException("No se cambia el nombre canónico.");
         var parameters = reset ?? old with { Definitions = old.Definitions.Where(d => d.Name != definition.Name).Concat(next is null ? [] : [next]).ToArray() };
         Validate(parameters);

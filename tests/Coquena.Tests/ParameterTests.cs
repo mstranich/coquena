@@ -18,7 +18,21 @@ internal static class ParameterTests
         using var report = new StringWriter();
         try
         {
-            Check(manager.List().Length == 24 && !Directory.Exists(root), "factory read does not initialize home");
+            Check(manager.List().Length == ParameterCatalog.ServerOptionGroups + 2 && !Directory.Exists(root), "complete factory read does not initialize home");
+            ParameterManager.Validate(ParameterManager.Factory());
+            foreach (var definition in ParameterManager.Factory().Definitions)
+            {
+                foreach (var alias in definition.Aliases)
+                    Check(ParameterCatalog.Find(alias)!.Name == definition.Name, "bundled alias resolves uniquely " + alias);
+                foreach (var negativeAlias in definition.NegativeAliases ?? [])
+                    Check(ParameterCatalog.Find(negativeAlias)!.Name == definition.Name &&
+                        ParameterCatalog.Comparison(negativeAlias, "true", ParameterCatalog.Definitions) == (definition.Name, "false"),
+                        "negative form resolves and inverts " + negativeAlias);
+            }
+            Check(manager.Find("draft-p-min")!.Name == "spec-draft-p-min" && manager.Find("model-draft")!.Name == "spec-draft-model",
+                "official speculative aliases included in real catalog");
+            Check(manager.Find("spec-draft-p-min")!.Default == "0.00" || manager.Find("spec-draft-p-min")!.Description.Contains("default: 0.00"), "upstream default retained");
+            Check(manager.Find("spec-draft-p-min")!.Support!.Length == 0, "current README does not invent support for historical builds");
             foreach (var (name, first, previous) in new[] { ("moe-cache-mib", "b11480", "b11479"), ("moe-cache-cpu-share", "b12191", "b12190") })
             {
                 var definition = manager.Find(name)!;
@@ -31,6 +45,22 @@ internal static class ParameterTests
             }
             Check(!manager.ChangeDefinition("ctx-size", d => d with { Description = "consulta" }, "descripción", true, report, () => throw new Exception("dry-run prompted")) && !Directory.Exists(root), "dry-run without home performs no writes");
             Check(!manager.Reset(true, report, () => throw new Exception("reset dry-run prompted")) && !Directory.Exists(root), "reset dry-run without home performs no writes");
+            var migrationHome = new Home(Path.Combine(root, "previous-catalog"));
+            var migrationStore = new LocalStore(migrationHome);
+            var oldDefinitions = ParameterManager.Factory().Definitions.Where(d => ParameterManager.Protected.Contains(d.Name) || d.Name == "ctx-size")
+                .Select(d => d.Name == "ctx-size" ? d with { Description = "custom context description" } : d)
+                .Concat([new ParameterDefinition("user-option", "string", "model", "INI", "user definition", ["user-alias", "--np"], Choices: [], Support: [])]).ToArray();
+            migrationStore.Update(DocumentKind.Parameters, json.ParametersDocument, ParameterManager.Validate, _ => new(1, oldDefinitions));
+            var savedBeforeRead = File.ReadAllBytes(migrationHome.PathFor("catalogs/parameters.json"));
+            var migrated = new ParameterManager(migrationHome);
+            Check(migrated.Find("draft-p-min")!.Name == "spec-draft-p-min" && migrated.Find("user-alias")!.Name == "user-option" &&
+                migrated.Find("ctx-size")!.Description == "custom context description" && migrated.Find("np")!.Name == "user-option",
+                "older catalog gains official definitions without overwriting customization or colliding with dashed aliases");
+            Check(File.ReadAllBytes(migrationHome.PathFor("catalogs/parameters.json")).SequenceEqual(savedBeforeRead), "catalog migration view does not write on read");
+            migrated.ChangeDefinition("user-option", d => d with { Description = "updated by user" }, "metadata", false, report);
+            Check(migrated.Read().CatalogRevision == ParameterCatalog.ServerCatalogRevision, "next explicit edit persists current catalog revision");
+            migrated.ChangeDefinition("spec-draft-p-min", _ => null, "remove", false, report, () => true);
+            Check(migrated.Find("draft-p-min") is null, "explicit removal from current catalog is not reintroduced by reads");
             var model = new ModelRecord(Guid.NewGuid(), "fixture/model:Q4", new("fixture/model", "main", new string('a', 40), [new("fixture.gguf", null)]),
                 [new("fixture.gguf", "models/fixture/model/fixture.gguf", 0)], []);
             var path = home.PathFor(model.Files[0].LocalPath); Directory.CreateDirectory(Path.GetDirectoryName(path)!); File.WriteAllBytes(path, ConfigurationTests.Fixture(null));
@@ -274,7 +304,7 @@ internal static class ParameterTests
             ResetCli(2); Check(State() == state, "reset requires interactive input even through CLI");
             using var appliedReport = new StringWriter();
             Check(manager.Reset(false, appliedReport, () => true) && appliedReport.ToString().StartsWith(resetImpact, StringComparison.Ordinal), "reset dry-run and real operation share impact");
-            Check(ContractJson.Write(new(1, manager.List()), json.ParametersDocument) == ContractJson.Write(ParameterManager.Factory(), json.ParametersDocument), "reset restores exact bundled factory catalog");
+            Check(ContractJson.Write(new(1, manager.List(), ParameterCatalog.ServerCatalogRevision), json.ParametersDocument) == ContractJson.Write(ParameterManager.Factory(), json.ParametersDocument), "reset restores exact bundled factory catalog");
             Check(!config.View("one").Own.ContainsKey("ctx-size") && config.View("two").Own["ctx-size"] == "2048" &&
                 config.View("one").Own["temperature"] == "0.4" && !config.View("one").Own.ContainsKey("toggle") &&
                 !config.View("two").Own.ContainsKey("temperature") &&

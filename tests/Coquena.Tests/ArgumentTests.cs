@@ -232,6 +232,11 @@ internal static class ArgumentTests
         }
         Check(ArgumentEmission.Ini(list, Preset(list), "p", adapter) == "[p]\nx=a\nx=b\n", "fixture codec repeat support");
         var official = new LlamaB11482ArgumentAdapter();
+        var negative = Read("presets: {p: {args: {no-perf: true}}}");
+        Check(ArgumentEmission.Ini(negative, Preset(negative), "p", official) == "[p]\nperf=false\n" &&
+            ArgumentEmission.Cli(negative, Preset(negative), official).SequenceEqual(["--no-perf"]), "negative official option preserves polarity in CLI and canonical INI");
+        var disabledNegative = Read("presets: {p: {args: {no-perf: false}}}");
+        Check(ArgumentEmission.Cli(disabledNegative, Preset(disabledNegative), official).SequenceEqual(["--perf"]), "false negative option emits positive CLI form");
         Write("moe.yaml", File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "llama-moe-cache.yaml")));
         EffectiveRecipe Moe(string args) => Read("presets: {p: {args: " + args + "}}", "moe.yaml");
         var moe = Moe("{moe-cache-mib: 4096, moe-cache-cpu-share: 0.25}");
