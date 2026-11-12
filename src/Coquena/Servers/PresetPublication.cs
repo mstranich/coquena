@@ -86,7 +86,7 @@ public sealed class PresetPublication(ScopeStore consumer, ScopeStore target, st
             if (!stopped && router is not null)
             {
                 var observed = await router.ObserveAsync(cancellation);
-                if (Mismatch(before, observed) is { } difference) throw Conflict(difference);
+                if (ConsumerMismatch(before, observed, owner, candidate: after) is { } difference) throw Conflict(difference);
                 var names = presets.Select(p => p.Name).ToHashSet(StringComparer.Ordinal);
                 var failures = observed.Where(p => names.Contains(p!["id"]!.GetValue<string>()) && p["status"]?["failed"]?.GetValue<bool>() == true)
                     .Select(p => p!["id"]!.GetValue<string>()).ToArray();
@@ -112,7 +112,7 @@ public sealed class PresetPublication(ScopeStore consumer, ScopeStore target, st
             try
             {
                 var observed = await router.ObserveAsync(cancellation);
-                if (Mismatch(before, observed) is { } difference) throw Conflict(difference);
+                if (ConsumerMismatch(before, observed, owner, candidate: after) is { } difference) throw Conflict(difference);
             }
             catch (Exception error) when (error is HttpRequestException || error is OperationCanceledException && !cancellation.IsCancellationRequested) { throw new StorageException("router-unreachable", "No se pudo consultar el catálogo del servidor."); }
             var activity = await router.ActivityAsync(affected, cancellation);
@@ -256,7 +256,8 @@ public sealed class PresetPublication(ScopeStore consumer, ScopeStore target, st
             do
             {
                 var observed = await router.ObserveAsync(cancellation);
-                if (Matches(expected, observed, operation["before"]!.AsArray()))
+                var owner = operation["consumer-id"]!.GetValue<string>();
+                if (ConsumerMismatch(expected, observed, owner, operation["before"]!.AsArray(), operation["after"]!.AsArray()) is null)
                 {
                     var affected = operation["affected"]!.AsArray().Select(n => n!.GetValue<string>()).ToHashSet(StringComparer.Ordinal);
                     var restoring = operation["restoring"]?.GetValue<bool>() == true || operation["failure-restoration"]?.GetValue<bool>() == true;
@@ -267,7 +268,8 @@ public sealed class PresetPublication(ScopeStore consumer, ScopeStore target, st
                     if (restoredFailure) failures = (operation["failed-entries"] ?? operation["affected"])!.AsArray().Select(n => n!.GetValue<string>()).ToArray();
                     Finish(recipeId, operation, expected, "observed"); return new(true, failures.Length != 0, failures, restoring);
                 }
-                if (operation["phase"]?.GetValue<string>() == "prepared" && Matches(operation["before"]!.AsArray(), observed))
+                if (operation["phase"]?.GetValue<string>() == "prepared" &&
+                    ConsumerMismatch(operation["before"]!.AsArray(), observed, owner, candidate: operation["after"]!.AsArray()) is null)
                 {
                     WriteIni(IniPath, Render(operation["before"]!.AsArray()));
                     Finish(recipeId, operation, operation["before"]!.AsArray(), "not-sent");
@@ -282,6 +284,24 @@ public sealed class PresetPublication(ScopeStore consumer, ScopeStore target, st
 
     public static bool Matches(JsonArray expected, JsonArray observed, JsonArray? previous = null, ParameterDefinition[]? definitions = null) =>
         Mismatch(expected, observed, previous, definitions) is null;
+
+    // Sharing a router does not share the consumer's validation scope. Include old
+    // and proposed names to detect incomplete withdrawal and occupied new names,
+    // but never validate another consumer's configuration or consult its catalog.
+    private string? ConsumerMismatch(JsonArray expected, JsonArray observed, string owner,
+        JsonArray? previous = null, JsonArray? candidate = null)
+    {
+        JsonArray Owned(JsonArray? composition) => new((composition ?? []).Where(c =>
+            c!["consumer-id"]!.GetValue<string>() == owner).Select(c => c!.DeepClone()).ToArray());
+        var ownExpected = Owned(expected);
+        var ownPrevious = Owned(previous);
+        var names = ownExpected.Concat(ownPrevious).Concat(Owned(candidate))
+            .SelectMany(c => c!["presets"]!.AsArray()).Select(p => p!["name"]!.GetValue<string>()).ToHashSet(StringComparer.Ordinal);
+        var ownObserved = new JsonArray(observed.Where(p => names.Contains(p?["id"]?.GetValue<string>() ?? ""))
+            .Select(p => p!.DeepClone()).ToArray());
+        return Mismatch(ownExpected, ownObserved, previous is null ? null : ownPrevious,
+            consumer.Context.IsGlobal ? Catalog() : ParameterCatalog.Definitions);
+    }
 
     // Why the server's catalog differs from the registered composition, in words a user
     // can act on; null when it matches. Argument names are compared through the aliases
@@ -334,11 +354,10 @@ public sealed class PresetPublication(ScopeStore consumer, ScopeStore target, st
         catch (Exception error) when (error is IOException or UnauthorizedAccessException or StorageException or ConfigurationException or ContractException)
         { return ParameterCatalog.Definitions; }
     }
-    // The server no longer serves what Coquena published; nothing is overwritten.
+    // Only a difference in this consumer can block its publication.
     private static StorageException Conflict(string difference) => new("remote-composition-conflict",
-        "Lo que el servidor tiene cargado no coincide con lo que Coquena publicó: " + difference +
-        " No se modificó nada. Si el servidor usa otro nombre para el mismo parámetro, agrégalo como alias en el catálogo" +
-        " (consulta «param show <parámetro> --global»); si alguien cambió el servidor a mano, reinícialo con «service restart».");
+        "La contribución de esta receta en el servidor no coincide con lo que Coquena publicó: " + difference +
+        " No se modificó nada. Revisa los argumentos de esta receta y la configuración que informa el servidor.");
 
     private static bool Subsequence(string[] wanted, string[] actual)
     {

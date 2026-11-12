@@ -227,7 +227,7 @@ features:
       - docs/design/persistencia-proyectos.md
 
   - id: scoped-preset-publication
-    intent: Combinar contribuciones de proyectos en servicios compartidos y reconciliar presets con protección y resultado remoto observable.
+    intent: Combinar contribuciones en servicios compartidos y comprobar publicación, retirada y recuperación sólo para el consumidor actual, preservando contribuciones ajenas.
     keywords: [up, down, apply, withdraw, target, global, self, INI, reload, warmup, consumer, stopped, published-name]
     entrypoints:
       - src/Coquena/PublicationCli.cs

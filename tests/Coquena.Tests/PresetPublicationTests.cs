@@ -270,11 +270,32 @@ internal static class PresetPublicationTests
                 "combination", recipe.RegisteredName, stopped, interactive, confirm ?? (_ => true), stopped ? null : router);
         var confirmed = await Publish(manager, a.Recipe, [Preset("coding/chat")]);
         Check(confirmed.Confirmed && router.Reloads == 1, "publish observes exact arguments after one reload");
-        await Publish(second, b.Recipe, [Preset("news/summary")]);
+        var newsPreset = Preset("news/summary") with { Ini = "[news/summary]\nmodel=fixture.gguf\nspec-draft-model=draft.gguf\n" };
+        await Publish(second, b.Recipe, [newsPreset]);
         Check(router.Catalog.Count == 2 && File.ReadAllText(manager.IniPath).Contains("coding/chat"), "second consumer combines with first");
+        router.TransformObservation = observed =>
+        {
+            var news = observed.SingleOrDefault(p => p!["id"]!.GetValue<string>() == "news/summary");
+            if (news is not null) news["status"]!["preset"] = "[news/summary]\nmodel=fixture.gguf\nmodel-draft=draft.gguf\n";
+            observed.Add((JsonNode)new JsonObject { ["id"] = "external/other", ["status"] = new JsonObject() });
+        };
+        var unchangedReloads = router.Reloads;
+        Check((await Publish(manager, a.Recipe, [Preset("coding/chat")])).Confirmed && router.Reloads == unchangedReloads,
+            "unchanged local consumer ignores foreign alias differences and unrelated observed entries");
         await Publish(manager, a.Recipe, [Preset("coding/other")]);
         Check(router.Catalog.Count == 2 && router.Catalog.Any(p => p!["id"]!.GetValue<string>() == "news/summary") &&
             !router.Catalog.Any(p => p!["id"]!.GetValue<string>() == "coding/chat"), "new combination replaces only current project contribution");
+        Check(File.ReadAllText(manager.IniPath).Contains(newsPreset.Ini), "foreign published definition preserved byte for byte despite observed normalization");
+        var foreignObservation = router.TransformObservation;
+        router.TransformObservation = observed =>
+        {
+            foreignObservation(observed);
+            observed.Single(p => p!["id"]!.GetValue<string>() == "coding/other")!["status"]!["preset"] = "[coding/other]\nmodel=changed.gguf\n";
+        };
+        try { await Publish(manager, a.Recipe, [Preset("coding/other")]); throw new Exception("expected own-scope conflict"); }
+        catch (StorageException e) when (e.Code == "remote-composition-conflict")
+        { Check(router.Reloads == unchangedReloads + 1, "own consumer drift still blocks before changing INI"); }
+        router.TransformObservation = foreignObservation;
         var reloads = router.Reloads;
         await Publish(manager, a.Recipe, [Preset("coding/other")]);
         Check(router.Reloads == reloads, "identical contribution does not reload or warmup");
@@ -306,6 +327,7 @@ internal static class PresetPublicationTests
             "warmup failure restores failed entry and preserves successful sibling without restart");
         await Publish(manager, a.Recipe, []);
         Check(router.Catalog.Count == 1 && router.Catalog[0]!["id"]!.GetValue<string>() == "news/summary", "down removes only current consumer");
+        router.TransformObservation = null;
         reloads = router.Reloads;
         await Publish(second, b.Recipe, [], stopped: true);
         Check(router.Reloads == reloads && File.ReadAllText(manager.IniPath) == "version=1\n", "stopped withdrawal updates next composition without HTTP");
@@ -509,7 +531,14 @@ internal static class PresetPublicationTests
         public int Reloads, Warmups;
         public bool LoseResponse, Reject, FailWarmup, Unavailable;
         public string? FailAfterReload;
-        public Task<JsonArray> ObserveAsync(CancellationToken cancellation) => Unavailable ? throw new HttpRequestException("offline") : Task.FromResult(Catalog.DeepClone().AsArray());
+        public Action<JsonArray>? TransformObservation;
+        public Task<JsonArray> ObserveAsync(CancellationToken cancellation)
+        {
+            if (Unavailable) throw new HttpRequestException("offline");
+            var observed = Catalog.DeepClone().AsArray();
+            TransformObservation?.Invoke(observed);
+            return Task.FromResult(observed);
+        }
         public Task<string?> ActivityAsync(string[] names, CancellationToken cancellation) => Task.FromResult<string?>("Actividad de prueba.");
         public Task<bool> ReloadAsync(CancellationToken cancellation)
         {
