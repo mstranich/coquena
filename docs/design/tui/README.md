@@ -59,7 +59,7 @@ Up o Iniciar, con el mismo código que la CLI. Olvidar no afecta a una instancia
 ni retira presets. Los archivos `.env` se editan como una pestaña más del Editor.
 
 Fuera de la TUI: la comparación de ejecuciones queda en manos del usuario (clonar un
-preset, modificarlo y observar) y se vincula con `benchmark`.
+preset, modificarlo y observar) y se vincula con `perf` y la pestaña Rendimiento.
 
 ## Organización
 

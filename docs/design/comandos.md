@@ -37,7 +37,7 @@ automáticamente. No guardar secretos expandidos en archivos compartidos.
 | up, down | Publicar/retirar conjunto de la receta seleccionada; no detener servicio. |
 | ps, logs | Observación general o por servicio, sin cambiar intención; ps admite -w/--watch. |
 | update, upgrade, verify, clean | Combinación o ámbito global explícito; no recorren YAML desconocidos. |
-| tui, web, benchmark | Operaciones comunes sobre ámbito/servicio seleccionados. |
+| tui, web, perf | Operaciones comunes sobre ámbito/servicio seleccionados. |
 
 `-g` es alias de `--global` para seleccionar el ámbito global.
 

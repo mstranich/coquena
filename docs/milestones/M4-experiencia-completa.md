@@ -1,6 +1,6 @@
 # M4 — Experiencia completa en Terminal UI
 
-**Estado:** abierto, con entregas incrementales y refinamiento de UX. La primera entrega de TUI se cerró en [066](../../specs/066-m3-tui-base/README.md), donde consta la evidencia disponible y sus límites. **Depende de:** [M3](M3-definiciones-declarativas.md).
+**Estado:** en cierre. Termina con las tarjetas 087–094; la última revisa el formato YAML de las recetas antes del uso diario. La primera entrega de TUI se cerró en [066](../../specs/066-m3-tui-base/README.md), donde consta la evidencia disponible y sus límites. **Depende de:** [M3](M3-definiciones-declarativas.md).
 
 ## Objetivo
 
@@ -98,6 +98,14 @@ La secuencia comienza por 066. Los IDs y directorios históricos no fijan orden.
 | 12 | [084](../../specs/084-m4-tui-recursos-mantenimiento/README.md) | Completar O, W, S, C y R: inventario, adquisición y mantenimiento sin autoría YAML ni hallazgos 009–011 | Base entregada 081 y 083; contratos de recursos de M3 |
 | 13 | [085](../../specs/085-m4-tui-recetas-editor/README.md) | Completar B, J, H e Y: recetas, inicialización, Editor YAML y conflictos de guardado, sin V ni L | Base entregada 081 y 083; contratos 045 y 071 |
 | 14 | [086](../../specs/086-m4-tui-presets-parametros-importacion-actualizaciones/README.md) | Completar P, Q y U e implementar L y V: presets, parámetros, actualizaciones, importación y nuevas combinaciones | Base entregada 081, 083, 084 y 085 |
+| 15 | [087](../../specs/087-m4-tui-descargas/README.md) | Descargas como pestaña única y categorizada | — |
+| 16 | [088](../../specs/088-m4-tui-notificaciones/README.md) | Notificaciones como pestaña desde la barra superior | — |
+| 17 | [089](../../specs/089-m4-tui-coherencia-consistencia/README.md) | Coherencia visual y de navegación entre vistas | — |
+| 18 | [090](../../specs/090-m4-tui-editor-mejoras/README.md) | Escritura y validación del YAML de recetas, schema y Editor básico | — |
+| 19 | [091](../../specs/091-m4-cli-salida-legible-espacio/README.md) | Salida legible de la CLI, progreso compacto y espacio usado | — |
+| 20 | [092](../../specs/092-m4-reproducir-monitor-limpieza/README.md) | Reproducir la coordinación entre monitor de descargas y limpieza | — |
+| 21 | [093](../../specs/093-incorporar-cache-moe/README.md) | Incorporar parámetros de caché MoE | — |
+| 22 | [094](../../specs/094-m4-cierre-formato-yaml/README.md) | Cierre: renombrar campos de la receta para uso diario | 090 |
 
 ### Vistas de la TUI trabajadas
 
@@ -137,12 +145,8 @@ M4 desarrolla y refina el alcance de TUI acordado sobre M3. La planificación de
 tarjetas debe mantener trazabilidad de las funcionalidades para que no se pierdan
 al dividir el trabajo; una pantalla no acredita por sí sola un flujo completo.
 
-El benchmarking local de rendimiento y consumo forma parte de la visión acordada.
-Al descomponer M3/M4 se ubicará su primera entrega; su entrega se acordará en tarjetas concretas sin condicionar el primer monitor a una plataforma formal de benchmarking.
-No se impone como condición de aceptación de M3 por este documento. Se reutiliza
-el procedimiento de peticiones/tokens/timings estudiado, sin exigir /metrics para
-tasas básicas. RAM/VRAM requiere instrumentación comprobada y compatible con
-Native AOT; no se exige concurrencia de gran escala en la primera aproximación.
+El benchmarking local de rendimiento y consumo no forma parte de M4: pasa a
+[M5](M5-rendimiento.md).
 
 La calculadora estimativa de recursos permanece como posibilidad futura, no como
 requisito automático de M4. Navegación entre proyectos tipo IDE no debe convertirse

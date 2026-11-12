@@ -8,7 +8,11 @@ The milestone documents are currently written in Spanish.
 | [M1](M1-servidor-local.md) | Local server: backends, models, and managed launches | Delivered |
 | [M2](M2-gestion-completa.md) | Complete catalog management | Delivered |
 | [M3](M3-definiciones-declarativas.md) | YAML recipes, global services, and projects | Delivered in 0.3.0 |
-| [M4](M4-experiencia-completa.md) | Terminal interface | Planned for the 0.4.x series |
+| [M4](M4-experiencia-completa.md) | Terminal interface | Closing in the 0.4.x series |
+| [M5](M5-rendimiento.md) | Performance: measure, compare, and tune on local hardware | Planned |
+
+After M5 there are no planned feature milestones: work focuses on fixes,
+stability, and the everyday experience.
 
 ## Later
 
