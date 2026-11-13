@@ -246,7 +246,7 @@ internal static class ModelSourceTests
             "BF16 header selected directly despite f16 filename, original path retained");
         var mismatch = new Interaction { IsInteractive = false };
         await Fails(() => menu.SelectAsync(ModelRequest.Parse("owner/repo#mmproj:F16"), mismatch), "interaction-required");
-        Check(mismatch.Messages.Any(m => m.Contains("No se sustituye")), "F16 request never substituted with BF16");
+        Check(mismatch.Messages.Any(m => m.Contains(Messages.NotSubstituted)), "F16 request never substituted with BF16");
         foreach (var id in Enumerable.Range(0, 42).Select(i => (uint)i).Where(i => ModelSelection.FileType(i) is not null))
         {
             var quant = ModelSelection.FileType(id)!;
@@ -275,7 +275,7 @@ internal static class ModelSourceTests
         found = await new ModelResolver(inspector).DiscoverAsync(new(Revision,
             Enumerable.Range(0, 20).Select(i => File($"unknown-{i}.gguf")).ToArray()), _ => { }, default,
             ModelRequest.Parse("owner/repo#mmproj:BF16"));
-        Check(inspector.Paths.Count == 8 && found.Diagnostics.Any(d => d.Contains("parcial/no concluyente")),
+        Check(inspector.Paths.Count == 8 && found.Diagnostics.Any(d => d.Contains("parcial")),
             "fallback for arbitrary names is bounded and reports incomplete exploration");
         inspector = new ConcreteInspector(32);
         found = await new ModelResolver(inspector).DiscoverAsync(new(Revision,

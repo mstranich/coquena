@@ -148,6 +148,6 @@ public static class ArgumentValidation
             else if (!backend.Capabilities.Contains(capability.Text!)) incompatible = true;
         }
         if (incompatible) throw definition.Error("argument-not-applicable", "validation", "El argumento no aplica al backend seleccionado.");
-        if (unknown) diagnostics.Add(new("argument-applicability-unknown", definition.Origin, "No se pudo comprobar toda la aplicabilidad declarada; no equivale a incompatibilidad."));
+        if (unknown) diagnostics.Add(new("argument-applicability-unknown", definition.Origin, "No se pudo comprobar si el parámetro aplica a este backend."));
     }
 }

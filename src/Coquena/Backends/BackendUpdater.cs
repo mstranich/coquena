@@ -37,7 +37,7 @@ public sealed class BackendUpdater(Home home, LocalStore? storage = null)
                 selector.StartsWith("ggml/", StringComparison.Ordinal) ? selector[5..] : selector;
             var parts = normalized.Split(':');
             if (parts.Length != 2 || parts[1] != "latest" || !BackendCatalog.ValidFamily(parts[0]))
-                throw new BackendException("invalid-latest-selector", "Use [ggml/|oficial/]cpu|vulkan|cuda@<mayor>:latest; pins y externos no se consultan.");
+                throw new BackendException("invalid-latest-selector", "Usar [ggml/|oficial/]cpu|vulkan|cuda@<mayor>:latest; pins y externos no se consultan.");
             variant = parts[0];
         }
         var snapshot = store.Inspect(() => (Backends: Backends().Where(b => Latest(b) &&

@@ -56,7 +56,7 @@ public sealed class BackendDirectoryManager(Home home, LocalStore? storage = nul
         foreach (var f in collisions) output.WriteLine($"Colisión: {f.Source} -> {f.Destination}");
         if (collisions.Length > 0)
         {
-            output.WriteLine($"La fusión destruirá el contenido anterior de {collisions.Length} archivo(s). ¿Autoriza todas las sobrescrituras informadas? [s/N]");
+            output.WriteLine(Messages.MergeOverwrite(collisions.Length));
             if (!overwrite()) { output.WriteLine("Cancelado; ubicación y archivos conservados."); return false; }
         }
         return store.Exclusive(() =>
@@ -208,5 +208,5 @@ public sealed class BackendDirectoryManager(Home home, LocalStore? storage = nul
     }
     private static string Snapshot(ConfigDocument config, BackendsDocument catalog) =>
         ContractJson.Write(config, Json.ConfigDocument) + "\n" + ContractJson.Write(catalog, Json.BackendsDocument);
-    private static void Stale() => throw new ConfigurationException("El catálogo, la configuración o los archivos cambiaron durante la elección; repita el comando para revisar el nuevo informe.");
+    private static void Stale() => throw new ConfigurationException("El catálogo, la configuración o los archivos cambiaron durante la elección; repetir el comando para revisar el nuevo informe.");
 }

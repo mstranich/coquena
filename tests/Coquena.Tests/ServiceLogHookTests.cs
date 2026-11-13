@@ -105,7 +105,7 @@ internal static class ServiceLogHookTests
             catch (RecipeException e) when (e.Code == "sensitive-hook-argument") { Check(true, "expanded secrets rejected before launching a hook"); }
             var timer = System.Diagnostics.Stopwatch.StartNew();
             await (hook with { Arguments = ["--start-failure-hook", capture, "hang"] }).NotifyAsync(service.ServiceId, Guid.NewGuid().ToString("D"), "failed", false, "fixture", output);
-            Check(timer.Elapsed < TimeSpan.FromSeconds(15) && output.ToString().Contains("No se completó"), "hook deadline is bounded and diagnosed");
+            Check(timer.Elapsed < TimeSpan.FromSeconds(15) && output.ToString().Contains(Messages.HookTimedOut), "hook deadline is bounded and diagnosed");
         }
         finally { lifecycle.Stop(service.ServiceId, () => true); Environment.SetEnvironmentVariable("COQUENA_HOOK_TEST_SECRET", null); }
         if (product is not null) await Native(product, app, root, port, Check);

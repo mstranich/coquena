@@ -115,7 +115,7 @@ internal static partial class DashboardCli
             DefinitionsPresentation.Off((busy == "down" ? spinner : "▼") + " Down") + " " +
             (chosen is null || busy is not null ? DefinitionsPresentation.Off("Importar") : ManagementPresentation.Button("Importar", "recipe-import")) + " " + DefinitionsPresentation.Off("Ver en vivo"));
         if (busy is not null)
-            rows.Add(" " + Markup.Style("warn", spinner + " ") + Markup.Style("mut", (busy == "down" ? "Deteniendo" : "Ejecutando Up") + "… Podés cambiar de vista; la operación sigue."));
+            rows.Add(" " + Markup.Style("warn", spinner + " ") + Markup.Style("mut", (busy == "down" ? "Deteniendo" : "Ejecutando Up") + "… Se puede cambiar de vista; la operación sigue."));
         return new("Recetas de " + Markup.Escape(scope) + (destination is null ? "" : " " + Markup.Style("mut", "→") + " " + Markup.Escape(destination)), rows);
 
         static string Pad(string text, int size) => DashboardPresentation.Fit(text, size - 1).PadRight(size);
@@ -311,8 +311,8 @@ internal static partial class DashboardCli
             Validation.Height = ValidationRows;
             Validation.Rows = Problems.Count != 0
                 ? Problems.Take(ValidationRows).Select((problem, i) => " " + Markup.Style("err", "✗") + " " + Markup.Style("nav", Markup.Escape(DashboardPresentation.Fit(
-                    (problem.Line is { } line ? System.IO.Path.GetFileName(problem.File) + " · línea " + line + " · " : "") + problem.Message, width - 4)), "problem:" + i)).ToArray()
-                : [Validated ? " " + Markup.Style("ok", "✓") + " " + Markup.Style("mut", "La combinación es válida con los borradores actuales.")
+                    (problem.Line is { } line ? Messages.AtLine(System.IO.Path.GetFileName(problem.File), line) : "") + problem.Message, width - 4)), "problem:" + i)).ToArray()
+                : [Validated ? " " + Markup.Style("ok", "✓") + " " + Markup.Style("mut", Messages.RecipeValid)
                 : " " + Markup.Style("mut", "Sin validar. Validar comprueba los borradores sin guardarlos.")];
         }
 

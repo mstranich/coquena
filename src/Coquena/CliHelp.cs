@@ -44,7 +44,9 @@ internal static class CliHelp
           import <receta.yaml>             Importar intención global sin iniciar
           update [--global]               Consultar novedades y guardar un plan
           upgrade [--global]              Aplicar propuestas válidas del plan vigente
-          clean [--dry-run|--yes]          Previsualizar y liberar recursos elegibles
+          usage (df)                       Ver espacio usado y liberable
+          prune [--global] [--dry-run|--yes]
+                                           Borrar lo que no se usa; alias clean
             --select referencia           Filtrar update/upgrade; opción repetible
           combination list | forget <id>   Consultar u olvidar combinaciones
           verify [--global] [--checksum] [--json]  Auditar recursos

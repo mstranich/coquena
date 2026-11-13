@@ -206,10 +206,10 @@ public static class ArgumentEmission
                   (definition.Choices is { Length: > 0 } ? "Valores admitidos por el backend: " + string.Join(", ", definition.Choices) + "."
                     : definition.Syntax is { Length: > 0 } syntax ? "Sintaxis del backend: " + syntax + "." : null) is { } known
                     ? known
-                    : "Consultá los valores admitidos por el backend.";
+                    : "Consultar los valores admitidos por el backend.";
             return item.Error("boolean-representation-required", "emission",
-                $"El argumento {argument.Name} recibió el booleano {item.Text}, pero aquí requiere un valor explícito. " +
-                $"{expected} Para escribir un valor de texto, usá comillas. Para conservar el booleano, definí {mapping} en emit.{destination} del schema.");
+                Messages.BooleanNeedsValue(argument.Name, item.Text) +
+                $"{expected} Para escribir un valor de texto, usar comillas. Para conservar el booleano, definir {mapping} en emit.{destination} del schema.");
         }
 
         string Scalar(RecipeValue item)

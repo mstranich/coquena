@@ -86,7 +86,7 @@ internal static class InitCli
         var updated = found ? pattern.Replace(text, SchemaComment) : SchemaComment + newline + text;
         if (updated == text) return null;
         File.WriteAllBytes(recipe, [.. bytes.AsSpan(0, offset), .. encoding.GetBytes(updated)]);
-        return found ? "Referencia al schema actualizada" : "Referencia al schema agregada";
+        return found ? Messages.SchemaReferenceUpdated : Messages.SchemaReferenceAdded;
     }
 
     private static void AddExclusions(string path, string[] rules)

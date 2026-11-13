@@ -126,10 +126,10 @@ internal static class ParameterTests
             Cli(0, "define", "choice", "--type", "enum", "--scope", "model", "--target", "ini", "--values", "a", "--values", "b", "--default", "a");
             config.Set("one", "choice", "a"); config.Set("two", "choice", "b");
             state = State(); var impact = Cli(0, "edit", "choice", "--values", "a", "--dry-run");
-            Check(impact.Contains("two") && impact.Contains(two.Id.ToString()) && impact.Contains("choice = b") && !impact.Contains("Eliminar | preset one"), "dry-run identifies only incompatible assignment");
+            Check(impact.Contains("two") && impact.Contains(two.Id.ToString()) && impact.Contains("choice = b") && !impact.Contains(Messages.RemoveEffect + " | preset one"), "dry-run identifies only incompatible assignment");
             Check(State() == state, "dry-run leaves documents unchanged");
             var redirected = home.PathFor("impact.txt"); File.WriteAllText(redirected, impact);
-            Check(!File.ReadAllText(redirected).Contains('\u001b') && File.ReadAllText(redirected).Contains("Después:"), "impact can be saved as plain text with requested definition");
+            Check(!File.ReadAllText(redirected).Contains('\u001b') && File.ReadAllText(redirected).Contains(Messages.AfterChange), "impact can be saved as plain text with requested definition");
             Check(!manager.ChangeDefinition("choice", d => d with { Choices = ["a"] }, "enumeración", false, report, () => false) && State() == state, "cancel preserves definition and assignments");
             var calls = 0;
             Check(manager.ChangeDefinition("choice", d => d with { Choices = ["a"] }, "enumeración", false, report, () => { calls++; return true; }) && calls == 1,
@@ -175,13 +175,13 @@ internal static class ParameterTests
             Cli(0, "support", "set", "custom");
             Check(Availability("custom", "b11483") == "no admitido", "specific range does not fall back to permissive general");
             var supportImpact = Cli(0, "support", "set", "custom", "ggml/cuda@13", "--from", "b12000", "--dry-run");
-            Check(supportImpact.Contains("Conservar/omitir con warning") && supportImpact.Contains("first") && supportImpact.Contains("second"), "support impact reports executions and preserved assignments");
+            Check(supportImpact.Contains(Messages.KeepEffect("omitir con warning")) && supportImpact.Contains("first") && supportImpact.Contains("second"), "support impact reports executions and preserved assignments");
             var supportCount = manager.Find("custom")!.Support!.Length;
             Cli(0, "support", "remove", "custom");
             Check(manager.Find("custom")!.Support!.Length == supportCount - 1 && config.View("one").Own.ContainsKey("custom"), "remove general preserves specifics and values");
             Cli(0, "support", "set", "custom", "--backend", backend.Id.ToString());
             store.Update(DocumentKind.Backends, json.BackendsDocument, ContractValidation.Backends, _ => new(1, [other]));
-            Check(Cli(0, "show", "custom").Contains("referencia local ausente"), "dangling ID diagnosed");
+            Check(Cli(0, "show", "custom").Contains(Messages.MissingLocalReference), "dangling ID diagnosed");
             Cli(0, "edit", "custom", "--description", "con referencia ausente");
             Cli(2, "support", "set", "custom", "--backend", backend.Id.ToString());
             Cli(2, "support", "set", "custom", "--backend", backend.Id.ToString(), "--until", "b1000");
@@ -296,7 +296,7 @@ internal static class ParameterTests
             var resetImpact = ResetCli(0, "--dry-run");
             Check(State() == state && resetImpact.Contains("invalid-integer") && resetImpact.Contains("Recuperar: temp") &&
                 resetImpact.Contains("first") && resetImpact.Contains("second"), "reset redirected impact covers restoration and multiple entities without writes");
-            Check(resetImpact.Contains("Conservar/disponibilidad desconocida") && resetImpact.Contains("2048"), "reset applicability change reports preserved assignment separately from cascade");
+            Check(resetImpact.Contains(Messages.KeepEffect("disponibilidad desconocida")) && resetImpact.Contains("2048"), "reset applicability change reports preserved assignment separately from cascade");
             ResetCli(2, "--unknown"); ResetCli(2, "--dry-run", "--dry-run");
             Check(State() == state, "reset invalid grammar preserves state");
             using var cancelled = new StringWriter();

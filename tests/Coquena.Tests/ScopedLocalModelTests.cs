@@ -216,16 +216,16 @@ internal static class ScopedLocalModelTests
         var added = await Run("model", "add", file, "--name", "fixture/native:Q4_0", "--base", folder, "--json", "--try-match");
         var list = await Run("model", "list", "--base", folder, "--json");
         Check(list![0]!["ownership"]!.GetValue<string>() == "external" && list[0]!["informative-match"] is null, "native add in noninteractive mode");
-        await Run("model", "remove", added!["resource-id"]!.GetValue<string>(), "--base", folder);
+        await Run("model", "remove", added!["resource-id"]!.GetValue<string>(), "--base", folder, "--json");
         Check(File.Exists(file), "native removal retains external bytes");
         var named = await Run("model", "add", file, "--name", "my-model", "--base", folder, "--json", "--try-match");
         list = await Run("model", "list", "--base", folder, "--json");
         Check(list![0]!["logical-key"]!.GetValue<string>() == "my-model", "native local registered name");
-        await Run("model", "remove", named!["resource-id"]!.GetValue<string>(), "--base", folder);
+        await Run("model", "remove", named!["resource-id"]!.GetValue<string>(), "--base", folder, "--json");
         var auxiliary = await Run("model", "companion", "add", file, "--name", "vision", "--type", "mmproj", "--base", folder, "--json");
         list = await Run("model", "companion", "list", "--base", folder, "--json");
         Check(list![0]!["companion-type"]!.GetValue<string>() == "mmproj", "native named companion keeps type");
-        await Run("model", "companion", "remove", auxiliary!["resource-id"]!.GetValue<string>(), "--base", folder);
+        await Run("model", "companion", "remove", auxiliary!["resource-id"]!.GetValue<string>(), "--base", folder, "--json");
         Check(File.Exists(file), "native local names never adopt bytes");
     }
 

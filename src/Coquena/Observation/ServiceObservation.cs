@@ -128,7 +128,7 @@ public sealed class ServiceObservation(ScopeStore store, HttpClient? client = nu
                                 entrySamples.Add(new(metric, value, Unit(metric), "/metrics?model; backend mean/cumulative; period not reported",
                                     "instance:" + instanceId + "/entry:" + name, DateTimeOffset.UtcNow));
                         }
-                        catch (Exception e) when (ObservationError(e)) { diagnostic = "Métricas no disponibles: " + e.GetType().Name; }
+                        catch (Exception e) when (ObservationError(e)) { diagnostic = "Métricas " + Messages.NotAvailable + ": " + e.GetType().Name; }
                     }
                     InferenceSnapshot? inference = null;
                     string? inferenceDiagnostic = null;
@@ -144,7 +144,7 @@ public sealed class ServiceObservation(ScopeStore store, HttpClient? client = nu
                         {
                             entrySamples.Clear();
                             inference = null;
-                            diagnostic = inferenceDiagnostic = "El hijo cambió durante la consulta; muestra descartada.";
+                            diagnostic = inferenceDiagnostic = Messages.ChildChanged;
                         }
                         else if (afterChild is { } verified)
                             entrySamples = entrySamples.Select(metric => metric with

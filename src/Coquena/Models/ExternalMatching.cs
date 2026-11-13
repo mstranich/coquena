@@ -10,7 +10,7 @@ public static class ExternalMatching
     {
         if (!interaction.IsInteractive)
         {
-            interaction.Show("Sin interacción: registro externo conservado sin emparejamiento.");
+            interaction.Show($"Sin interacción: registro externo conservado {Messages.NotPaired}.");
             return null;
         }
         using var budget = CancellationTokenSource.CreateLinkedTokenSource(cancellation);
@@ -21,7 +21,7 @@ public static class ExternalMatching
         var observed = GgufInspection.Inspect(local.Files[0].LocalPath, budget.Token);
         if (observed.Status != "complete")
         {
-            interaction.Show("Metadatos locales incompletos/no disponibles; registro conservado sin emparejamiento.");
+            interaction.Show($"Metadatos locales incompletos o {Messages.NotAvailable}; registro conservado {Messages.NotPaired}.");
             return null;
         }
         var candidates = ModelSelection.Discover(inventory).Variants
@@ -47,7 +47,7 @@ public static class ExternalMatching
         }
         string[] reasons = ["Repositorio y cuantización declarados; rol candidato por nombre remoto",
             "Mismo número de archivos y tamaños por parte; cabecera local sin contradicción conocida"];
-        interaction.Show("Equivalencia informativa: no certifica bytes, procedencia ni revisión; no habilita update/upgrade.");
+        interaction.Show($"Parece el mismo modelo que {revision.Repository}. Al ser un archivo propio, no se actualiza.");
         var options = candidates.Select(v => $"{revision.Repository}@{revision.Commit} | {string.Join(", ", v.Files.Select(f => f.Path))} | {string.Join("; ", reasons)}").Append("Cancelar emparejamiento").ToArray();
         var choice = await interaction.ChooseAsync(options, cancellation);
         if (choice is null || choice == candidates.Length) return null;

@@ -110,14 +110,14 @@ internal static class ManagementTests
             check(controls.Contains("resume:1:" + id) && controls.Contains("cancel:1:" + id) && controls.Contains("resume:1:" + other) &&
                 controls.Contains("cancel:1:" + other) && controls.Contains("pause:0:" + groups[0].Items[1].Id),
                 "every row acts on its own scope and operation; failed ones offer Reintentar and Cancelar");
-            check(downloadRows.IndexOf(downloadRows.First(row => Markup.Plain(row).Contains("✗ se cortó la conexión"))) >
+            check(downloadRows.IndexOf(downloadRows.First(row => Markup.Plain(row).Contains("✗ " + Messages.ConnectionCut))) >
                 downloadRows.IndexOf(downloadRows.First(row => Markup.Plain(row).Contains("❚❚ pausada"))), "failed transfers go after paused ones");
             check(downloadRows.All(row => Markup.Width(row) <= 80), "transfer rows fit 80 columns");
             check(Markup.Plain(DownloadsPresentation.Title(groups)) == "Descargas  4 activas · 1 pausada · 1 con error" &&
                 DownloadsPresentation.Indicator(groups.SelectMany(group => group.Items).ToArray()).StartsWith("⇣ 4 · 50% · ", StringComparison.Ordinal) &&
                 DownloadsPresentation.Indicator(groups.SelectMany(group => group.Items).ToArray()).EndsWith("/s", StringComparison.Ordinal) &&
-                Markup.Plain(DownloadsPresentation.Rows([], [])[0]).Trim() == "No hay descargas." &&
-                Markup.Plain(DownloadsPresentation.Title([])) == "Descargas" && DownloadsPresentation.Failure("model-transfer-interrupted") == "se cortó la descarga" && DownloadsPresentation.Failure("cleanup-pending") == "falló la descarga" && DownloadCli.ErrorLine("model-transfer-interrupted").StartsWith("Error: se cortó la descarga (model-transfer-interrupted).", StringComparison.Ordinal) && DownloadCli.ErrorLine("invalid-selector") == "Error: invalid-selector. Se conserva lo hecho hasta ahora." && DownloadCli.ErrorLine("transfer-cancelled") == "La descarga fue cancelada; no se instaló nada.",
+                Markup.Plain(DownloadsPresentation.Rows([], [])[0]).Trim() == Messages.NoDownloads &&
+                Markup.Plain(DownloadsPresentation.Title([])) == "Descargas" && DownloadsPresentation.Failure("model-transfer-interrupted") == Messages.TransferCut && DownloadsPresentation.Failure("cleanup-pending") == Messages.TransferFailed && DownloadCli.ErrorLine("model-transfer-interrupted").StartsWith(Messages.Error("model-transfer-interrupted", Messages.TransferCut), StringComparison.Ordinal) && DownloadCli.ErrorLine("invalid-selector").EndsWith("(invalid-selector).", StringComparison.Ordinal) && DownloadCli.ErrorLine("transfer-paused").Contains("(transfer-paused)") && DownloadCli.ErrorLine("transfer-cancelled") == Messages.DownloadCancelled,
                 "title, ⇣ indicator and empty tab");
             check(Markup.Plain(Markup.Fit(LivePresentation.Tabs(3, 1, 0, "⇣ 1 · 68%"), 80)).Contains(" ⇣ 1 · 68% ") &&
                 Markup.Parse(Markup.Fit(LivePresentation.Tabs(3, 1, 0, "⇣ 1 · 68%"), 80)).Any(span => span.Class == "sel" && span.Action == "downloads"),

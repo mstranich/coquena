@@ -175,7 +175,7 @@ internal static partial class DashboardCli
         {
             try
             {
-                if (list.SelectedItem is not int row || row < 0 || row >= backends.Count) throw new ArgumentException("Elegí un backend.");
+                if (list.SelectedItem is not int row || row < 0 || row >= backends.Count) throw new ArgumentException("Elegir un backend.");
                 if (string.IsNullOrWhiteSpace(name.Text)) throw new ArgumentException("Ingresá un nombre de servicio.");
                 if (!int.TryParse(port.Text, out var number)) throw new ArgumentException("Puerto inválido.");
                 var intent = backends[row].Intent;
@@ -287,7 +287,7 @@ internal static partial class DashboardCli
                 JsonNode? parsed;
                 try { parsed = JsonNode.Parse(value.Text); }
                 catch (System.Text.Json.JsonException) { parsed = JsonValue.Create(value.Text); }
-                if (parsed is JsonObject) throw new ArgumentException("Usá texto, número, true/false o una lista.");
+                if (parsed is JsonObject) throw new ArgumentException("Usar texto, número, true/false o una lista.");
                 arguments[key] = parsed;
                 status.Text = "Asignado al formulario; se guardará al crear el servicio.";
                 Refresh();

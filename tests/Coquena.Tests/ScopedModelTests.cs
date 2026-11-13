@@ -106,7 +106,7 @@ internal static class ScopedModelTests
             await Native("model", "unprotect", fresh.InstallationId, "--base", root);
             Check(JsonNode.Parse(await Native("model", "list", "-g", "--json")) is JsonArray { Count: 1 }, "native global inventory");
             var remoteBase = Path.Combine(root, "remote");
-            Check(JsonNode.Parse(await Native("model", "remove", selected.Name, "--base", remoteBase))!["complete"]!.GetValue<bool>(), "native removal");
+            Check(JsonNode.Parse(await Native("model", "remove", selected.Name, "--base", remoteBase, "--json"))!["complete"]!.GetValue<bool>(), "native removal");
             Check(JsonNode.Parse(await Native("model", "companion", "list", "--base", remoteBase, "--json")) is JsonArray { Count: 1 }, "native removal preserves companion");
         }
         Console.WriteLine($"Scoped models: {checks} checks passed.");

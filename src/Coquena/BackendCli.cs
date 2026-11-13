@@ -22,7 +22,7 @@ public static class BackendCli
         var system = args.Length == 2 && args[0] == "system" && args[1] == "probe";
         if (!system && !TryRemote(args, out _, out _))
         {
-            error.WriteLine("Error: argumentos inválidos. Uso: coquena system probe | backend remote [cpu|vulkan|cuda@<mayor>] [--release bNNNN|latest]. Consulte coquena --help.");
+            error.WriteLine("Error: argumentos inválidos. Uso: coquena system probe | backend remote [cpu|vulkan|cuda@<mayor>] [--release bNNNN|latest]. Ver coquena --help.");
             return 2;
         }
         HttpClient? client = null;
@@ -31,15 +31,15 @@ public static class BackendCli
             var hardware = (inspect ?? HardwareProbe.Inspect)();
             if (system)
             {
-                output.WriteLine($"Plataforma nativa: {hardware.Platform}");
+                output.WriteLine(Messages.NativePlatform(hardware.Platform));
                 output.WriteLine($"CPU: {Safe(hardware.Cpu)}");
-                output.WriteLine(hardware.MemoryBytes is ulong ram ? $"RAM física: {ByteSize.Format(ram)}" : "RAM física: desconocida");
-                foreach (var adapter in hardware.DisplayAdapters) output.WriteLine($"Adaptador: {Safe(adapter)} (el nombre no prueba aceleración)");
+                output.WriteLine(Messages.PhysicalRam(hardware.MemoryBytes is ulong ram ? ByteSize.Format(ram) : null));
+                foreach (var adapter in hardware.DisplayAdapters) output.WriteLine($"Adaptador: {Safe(adapter)}");
                 output.WriteLine($"CUDA: {hardware.Cuda.State} — {Safe(hardware.Cuda.Diagnostic)}");
                 if (hardware.CudaDriverVersion is int version) output.WriteLine($"Driver admite CUDA: {version / 1000}.{version % 1000 / 10}");
                 foreach (var device in hardware.CudaDevices) output.WriteLine($"Dispositivo CUDA: {Safe(device.Name)}, SM {device.ComputeCapability / 10}.{device.ComputeCapability % 10}");
                 output.WriteLine($"Vulkan: {hardware.Vulkan.State} — {Safe(hardware.Vulkan.Diagnostic)}");
-                output.WriteLine("Sondeo local; no valida un binario llama-server ni garantiza inferencia.");
+                output.WriteLine(Messages.ProbeLocalOnly);
                 return 0;
             }
             if (hardware.Platform != "win-x64")
@@ -59,20 +59,20 @@ public static class BackendCli
             output.WriteLine($"Origen oficial ggml-org/llama.cpp; filtro: {family ?? "automático"}, {release}.");
             if (resolution.Selected is { } selected)
             {
-                output.WriteLine($"{(family is null ? "Elección automática" : "Selección explícita")}: ggml/{selected.Variant}:{selected.Release} ({selected.Platform}) [{selected.Compatibility}]");
+                output.WriteLine($"{Messages.BackendChoice(family is not null)}: ggml/{selected.Variant}:{selected.Release} ({selected.Platform}) [{selected.Compatibility}]");
                 foreach (var artifact in selected.Artifacts) output.WriteLine($"Artefacto: {artifact.Name} ({(artifact.Size is long size ? ByteSize.Format(size) : "desconocido")})");
             }
             output.WriteLine("Alternativas consultadas (otros SO/arquitecturas se rechazan siempre):");
             foreach (var candidate in resolution.Alternatives)
                 output.WriteLine($"  ggml/{candidate.Variant}:{candidate.Release} {candidate.Platform} [{candidate.Compatibility}] — {Safe(candidate.Diagnostic)}");
-            output.WriteLine("Sólo consulta; no descarga, instala ni modifica la selección predeterminada.");
+            output.WriteLine(Messages.BackendQueryOnly);
             if (resolution.Selected is not null) return 0;
             throw new BackendException("no-candidate", "El release consultado no ofrece una selección válida dentro del filtro solicitado.");
         }
         catch (Exception e) when (e is BackendException or OperationCanceledException)
         {
             var code = e is BackendException b ? b.Code : "query-cancelled";
-            error.WriteLine($"Error: {code}. {Safe(e is BackendException ? e.Message : "Consulta cancelada; sin cambios locales.")} Consulte coquena --help.");
+            error.WriteLine($"Error: {code}. {Safe(e is BackendException ? e.Message : "Consulta cancelada; sin cambios locales.")} Ver coquena --help.");
             return 1;
         }
         finally { client?.Dispose(); }
@@ -85,25 +85,25 @@ public static class BackendCli
         string? path = null, name = null, familyDeclared = null, distribution = null;
         if (action == "register")
         {
-            if (args.Length < 7) { error.WriteLine("Error: argumentos inválidos. Consulte coquena --help."); return 2; }
+            if (args.Length < 7) { error.WriteLine("Error: argumentos inválidos. Ver coquena --help."); return 2; }
             path = args[2];
             for (var i = 3; i < args.Length; i += 2)
             {
-                if (i + 1 >= args.Length) { error.WriteLine("Error: argumentos inválidos. Consulte coquena --help."); return 2; }
+                if (i + 1 >= args.Length) { error.WriteLine("Error: argumentos inválidos. Ver coquena --help."); return 2; }
                 switch (args[i])
                 {
                     case "--name" when name is null: name = args[i + 1]; break;
                     case "--family" when familyDeclared is null: familyDeclared = args[i + 1]; break;
                     case "--distribution" when distribution is null: distribution = args[i + 1]; break;
-                    default: error.WriteLine("Error: argumentos inválidos. Consulte coquena --help."); return 2;
+                    default: error.WriteLine("Error: argumentos inválidos. Ver coquena --help."); return 2;
                 }
             }
-            if (name is null || familyDeclared is null) { error.WriteLine("Error: argumentos inválidos. Consulte coquena --help."); return 2; }
+            if (name is null || familyDeclared is null) { error.WriteLine("Error: argumentos inválidos. Ver coquena --help."); return 2; }
         }
         var remote = args.ToArray(); remote[1] = "remote";
         if ((action == "list" && args.Length != 2) || (action == "use" && args.Length is not (2 or 3)) ||
             (action == "install" && !TryRemote(remote, out _, out _)))
-        { error.WriteLine("Error: argumentos inválidos. Consulte coquena --help."); return 2; }
+        { error.WriteLine("Error: argumentos inválidos. Ver coquena --help."); return 2; }
         try
         {
             var installer = new BackendInstaller(Home.Resolve());
@@ -111,7 +111,6 @@ public static class BackendCli
             {
                 var registered = installer.RegisterAsync(path!, name!, familyDeclared!, distribution, cancellation).GetAwaiter().GetResult();
                 output.WriteLine($"Backend externo: {Safe(registered.Name!)} | {registered.Id:D} | {registered.Repository} | {registered.Variant}:{registered.Build} | {Safe(registered.ServerPath)}");
-                output.WriteLine("Distribución y familia declaradas; el sondeo no certifica procedencia ni aceleración.");
                 return 0;
             }
             if (action == "list")
@@ -156,13 +155,13 @@ public static class BackendCli
         {
             var code = e switch { DownloadException d => d.Code, BackendException b => b.Code,
                 StorageException s => s.Code, ContractException c => c.Code, _ => "installation-not-confirmed" };
-            error.WriteLine($"Error: {code}. Consulte coquena --help y download status."); return 1;
+            error.WriteLine($"Error: {code}. Ver coquena --help y download status."); return 1;
         }
     }
 
     private static int Upgrade(string[] args, TextWriter output, TextWriter error, CancellationToken cancellation)
     {
-        if (args.Length is not (2 or 3)) { error.WriteLine("Error: argumentos inválidos. Consulte coquena --help."); return 2; }
+        if (args.Length is not (2 or 3)) { error.WriteLine("Error: argumentos inválidos. Ver coquena --help."); return 2; }
         try
         {
             var home = Home.Resolve();
@@ -176,14 +175,14 @@ public static class BackendCli
             foreach (var result in results)
             {
                 output.WriteLine($"{result.Selector}: {result.State}{(result.OperationId is { } id ? $" | operación {id:D}" : "")}");
-                if (result.State == "failed") error.WriteLine($"Error: {result.Diagnostic}. Consulte coquena --help y download status.");
+                if (result.State == "failed") error.WriteLine($"Error: {result.Diagnostic}. Ver coquena --help y download status.");
             }
             if (results.Length == 0) output.WriteLine("Sin seguimientos latest oficiales registrados.");
             return results.Any(r => r.State is "failed" or "pending") ? 1 : 0;
         }
         catch (Exception e) when (e is BackendException or StorageException or ContractException or IOException or UnauthorizedAccessException or OperationCanceledException)
         {
-            error.WriteLine($"Error: {e.Message} Consulte coquena --help.");
+            error.WriteLine($"Error: {e.Message} Ver coquena --help.");
             return e is BackendException { Code: "invalid-latest-selector" } ? 2 : 1;
         }
     }
@@ -192,7 +191,7 @@ public static class BackendCli
         Func<HardwareContext>? inspect, OfficialBackendSource? source, CancellationToken cancellation)
     {
         if (args.Length is not (2 or 3))
-        { error.WriteLine("Error: argumentos inválidos. Uso: coquena backend update [selector-latest]. Consulte coquena --help."); return 2; }
+        { error.WriteLine("Error: argumentos inválidos. Uso: coquena backend update [selector-latest]. Ver coquena --help."); return 2; }
         try
         {
             using var client = new HttpClient(new HttpClientHandler { AllowAutoRedirect = false }) { Timeout = TimeSpan.FromSeconds(20) };
@@ -211,7 +210,7 @@ public static class BackendCli
             {
                 if (result.Persisted && result.Observation is { } observation) ShowUpdate(output, result.Selector, observation);
                 if (!result.Persisted || result.Observation?.State == "failed")
-                    error.WriteLine($"Error: {Safe(result.Selector)} — {Safe(result.Error ?? result.Observation!.Diagnostic)}. Consulte coquena --help.");
+                    error.WriteLine($"Error: {Safe(result.Selector)} — {Safe(result.Error ?? result.Observation!.Diagnostic)}. Ver coquena --help.");
             }
             if (results.Length == 0) output.WriteLine("Sin seguimientos latest oficiales registrados; pins y externos excluidos.");
             output.WriteLine("Consulta de metadatos; no descarga ni cambia el build instalado o las selecciones fijadas.");
@@ -221,7 +220,7 @@ public static class BackendCli
         {
             var code = e switch { BackendException b => b.Code, StorageException s => s.Code,
                 ContractException c => c.Code, OperationCanceledException => "query-cancelled", _ => "update-not-saved" };
-            error.WriteLine($"Error: {code}. Consulte coquena --help.");
+            error.WriteLine($"Error: {code}. Ver coquena --help.");
             return code == "invalid-latest-selector" ? 2 : 1;
         }
     }
@@ -230,7 +229,7 @@ public static class BackendCli
     {
         output.WriteLine($"{Safe(selector)} ({observation.Platform}) | instalado={observation.InstalledBuild} | consulta={observation.CheckedAt:O} | {observation.State} | {Safe(observation.Diagnostic)}");
         if (observation.Candidate is not { } candidate) return;
-        output.WriteLine($"  Candidato guardado: {candidate.Build} [{candidate.Compatibility}] — {Safe(candidate.Diagnostic)}");
+        output.WriteLine($"  {Messages.SavedCandidate(candidate.Build)} [{candidate.Compatibility}] — {Safe(candidate.Diagnostic)}");
         foreach (var artifact in candidate.Artifacts) output.WriteLine($"  Artefacto: {artifact.Path} ({(artifact.Size is long size ? ByteSize.Format(size) : "desconocido")})");
     }
 

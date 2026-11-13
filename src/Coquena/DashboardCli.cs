@@ -72,7 +72,7 @@ internal static partial class DashboardCli
         }
         if (args.Length != 0 || Console.IsInputRedirected || Console.IsOutputRedirected)
         {
-            error.WriteLine("Use coquena tui sin argumentos en una terminal interactiva.");
+            error.WriteLine("Usar coquena tui sin argumentos en una terminal interactiva.");
             return 2;
         }
 
@@ -186,6 +186,8 @@ internal static partial class DashboardCli
         int? publicationExit = null;
         string? operationLabel = null;
         string? operationVerb = null;
+        // Steps of the running publication, drawn with the same rows as the CLI.
+        StepProgress? operationSteps = null;
         ServiceSnapshot? selectedSnapshot = null;
         var inference = new InferenceTasks(preferences.InferenceHistory());
         string? preferredEntry = null, inferenceEntry = null;
@@ -381,6 +383,15 @@ internal static partial class DashboardCli
         window.KeyDown += (_, key) =>
         {
             if (page == Editing && key == Key.S.WithCtrl) { key.Handled = true; SaveDrafts(); Render(); return; }
+            // Esc on a tab quits; leaving stops the running work, so ask first.
+            if (key == Key.Esc && page is Live or Definitions or Settings or Notices or DownloadsPage &&
+                (operation is not null || managementJobs.Values.Any(job => !job.IsCompleted)))
+            {
+                key.Handled = true;
+                if (Query(app, "Salir", "Hay un proceso en curso; al salir se va a detener. ¿Salir de todos modos?", "Cancelar", "Salir") == 1)
+                    app.RequestStop(window);
+                return;
+            }
             // Tabs have no «Volver»: Esc only leaves subpages and the Editor.
             if (key != Key.Esc || page is Live or Definitions or Settings or Notices or DownloadsPage) return;
             key.Handled = true;
@@ -667,7 +678,7 @@ internal static partial class DashboardCli
             if (notice.Retry is { } retry)
             {
                 var row = notices.FindLastIndex(candidate => ReferenceEquals(candidate, notice));
-                if (managementJobs.ContainsKey(retry.Key)) { Query(app, "Operación en curso", "Ya hay una operación igual en curso. Esperá a que termine.", "Aceptar"); return; }
+                if (managementJobs.ContainsKey(retry.Key)) { Query(app, "Operación en curso", "Ya hay una operación igual en curso. Esperar a que termine.", "Aceptar"); return; }
                 if (row >= 0)
                 {
                     notices[row] = notice with { Retry = null };
@@ -722,7 +733,7 @@ internal static partial class DashboardCli
             var width = Math.Max(20, window.Viewport.Width - Right);
             leftTitle.Rows = [""];
             rightTitle.Rows = [" " + LivePresentation.ServiceHeader(target is null ? diagnostic : target.Name, selectedSnapshot,
-                operation is not null ? DashboardPresentation.Spinner() + " " + serviceNote : selectedSnapshot is null ? serviceNote : null, now)];
+                operation is not null ? DashboardPresentation.Spinner() + " " + (operationSteps?.Rows().LastOrDefault(s => s.State == StepState.Running)?.Label ?? serviceNote) : selectedSnapshot is null ? serviceNote : null, now)];
 
             var rows = new List<string>();
             var running = selectedSnapshot is { ProcessState: "alive", InstanceId: not null };
@@ -730,6 +741,10 @@ internal static partial class DashboardCli
             var controls = LivePresentation.Controls(running, stopped, operation is null && target is not null,
                 operation is not null && operationLabel == target?.Label ? operationVerb : null);
             if (controls.Length > 0) rows.Add(controls);
+            if (operation is not null && operationLabel == target?.Label && operationSteps?.Rows() is { Count: > 0 } stepRows)
+                foreach (var step in stepRows)
+                    rows.Add(" " + Markup.Style(step.State switch { StepState.Done => "ok", StepState.Failed => "err", _ => "warn" },
+                        Markup.Escape(StepProgress.Format(step, Glyphs.Unicode))));
 
             // Entry and task in focus.
             visibleTasks = target?.Service is { } service ? InferencePresentation.Rows(inference,
@@ -1157,7 +1172,7 @@ internal static partial class DashboardCli
 
         void ManagementJob(string key, Func<Task<string>> run)
         {
-            if (managementJobs.ContainsKey(key)) { Query(app, "Operación en curso", "Ya hay una operación igual en curso. Esperá a que termine.", "Aceptar"); return; }
+            if (managementJobs.ContainsKey(key)) { Query(app, "Operación en curso", "Ya hay una operación igual en curso. Esperar a que termine.", "Aceptar"); return; }
             managementJobs[key] = Task.Run(run, stop.Token);
             managementRuns[key] = run;
         }
@@ -1183,7 +1198,7 @@ internal static partial class DashboardCli
             {
                 if (action == "recipe-import")
                 {
-                    var combination = SelectedCombination(place) ?? throw new ArgumentException("Seleccioná una combinación.");
+                    var combination = SelectedCombination(place) ?? throw new ArgumentException("Seleccionar una combinación.");
                     var recipe = RecipeReader.Read(combination.Selection);
                     var global = ScopeContext.Global(Home.Resolve());
                     var form = ImportForm(app, recipe, global);
@@ -1212,8 +1227,9 @@ internal static partial class DashboardCli
                     ReadUpdates(context, selections, state);
                     if (action.StartsWith("update-toggle:", StringComparison.Ordinal))
                     {
-                        var selector = System.Text.Encoding.UTF8.GetString(Convert.FromHexString(action[14..]));
-                        if (!state.Chosen.Add(selector)) state.Chosen.Remove(selector);
+                        // One row may stand for the same installation in several intentions: toggle them together.
+                        var selectors = System.Text.Encoding.UTF8.GetString(Convert.FromHexString(action[14..])).Split('\n');
+                        if (selectors.All(state.Chosen.Contains)) state.Chosen.ExceptWith(selectors); else state.Chosen.UnionWith(selectors);
                         definitionPage = null; Render(); return;
                     }
                     if (action == "update-check")
@@ -1273,7 +1289,7 @@ internal static partial class DashboardCli
                 {
                     var items = PresetRows(context, AuthorSelections(place), snapshots);
                     var chosen = items.FirstOrDefault(item => item.Id == managedSelection.GetValueOrDefault(context.Root + "Presets")) ?? items.FirstOrDefault()
-                        ?? throw new ArgumentException("Seleccioná un preset.");
+                        ?? throw new ArgumentException("Seleccionar un preset.");
                     if (action is "preset-next" or "preset-prev")
                     { managedSelection[context.Root + "Presets"] = items[Math.Clamp(Array.IndexOf(items, chosen) + (action == "preset-next" ? 4 : -4), 0, items.Length - 1)].Id; }
                     else if (action == "preset-edit") { OpenEditor(chosen.Recipe.Selection, place.Scope.Name, AuthorPrivate(place, chosen.Recipe.Selection)); FocusOrigin(chosen.Value.Origin); return; }
@@ -1288,7 +1304,7 @@ internal static partial class DashboardCli
                             var fields = ResourceForm(app, "Clonar preset · " + chosen.Name, [("nuevo nombre", name)], "Abrir borrador");
                             if (fields is null) return;
                             name = fields[0].Trim();
-                            var reason = name.Length == 0 ? "Escribí un nombre para el preset nuevo."
+                            var reason = name.Length == 0 ? "Falta el nombre del preset nuevo."
                                 : chosen.Recipe.Root.Get("presets")?.Get(name) is not null ? "Ya existe un preset «" + name + "» en esta combinación." : null;
                             if (reason is null) break;
                             Query(app, "Clonar preset · nombre no válido", reason, "Aceptar");
@@ -1324,7 +1340,7 @@ internal static partial class DashboardCli
                 if (action.StartsWith("param-", StringComparison.Ordinal))
                 {
                     var selections = DefinitionSelections(place);
-                    if (selections.Length == 0) throw new ArgumentException("Seleccioná una intención existente.");
+                    if (selections.Length == 0) throw new ArgumentException("Seleccionar una intención existente.");
                     var key = context.Root + "Parámetros";
                     if (action == "param-filter")
                     {
@@ -1584,7 +1600,7 @@ internal static partial class DashboardCli
                     var backend = definitionView == "Backends";
                     var cached = resourceCache.GetValueOrDefault(context.Root + definitionView) ?? [];
                     var item = cached.SingleOrDefault(item => item.Id == managedSelection.GetValueOrDefault(context.Root + definitionView))
-                        ?? throw new ArgumentException("Seleccioná nuevamente el recurso.");
+                        ?? throw new ArgumentException("Seleccionar el recurso de nuevo.");
                     if (action is "resource-prev" or "resource-next")
                     {
                         var filter = resourceFilters.GetValueOrDefault(context.Root + definitionView) ?? "";
@@ -1635,7 +1651,7 @@ internal static partial class DashboardCli
                             {
                                 var current = Inventory(context, false).SingleOrDefault(row => row.Id == item.Id);
                                 if (current is null || !System.Text.Json.Nodes.JsonNode.DeepEquals(current.Resource, item.Resource))
-                                    throw new IOException("Cambió el recurso; revisá sus instalaciones y repetí la eliminación.");
+                                    throw new IOException("Cambió el recurso; revisar sus instalaciones y repetir la eliminación.");
                                 var result = new ScopedModels(context).Remove(item.ResourceId, item.Kind == "companion");
                                 if (!result.Complete) throw new IOException("Retirada pendiente: " + string.Join(", ", result.Pending));
                                 return Task.FromResult("Recurso retirado; liberado " + ByteSize.Format(result.FreedBytes));
@@ -1655,7 +1671,7 @@ internal static partial class DashboardCli
                 if (action is "recipe-edit" or "recipe-forget")
                 {
                     var chosen = AvailableCombinations(place).SingleOrDefault(item => item.Key == managedSelection.GetValueOrDefault(context.Root + "Recetas"))
-                        ?? throw new ArgumentException("Seleccioná nuevamente la combinación.");
+                        ?? throw new ArgumentException("Seleccionar la combinación de nuevo.");
                     if (action == "recipe-edit") { OpenEditor(chosen.Selection, place.Scope.Name, chosen.Private, combinationNewFiles.GetValueOrDefault(context.Root)); return; }
                     if (chosen.Id is not { } id) return;
                     if (Query(app, "Olvidar combinación · " + place.Scope.Name, chosen.Files + " · " + id[..6] +
@@ -1721,7 +1737,7 @@ internal static partial class DashboardCli
                 }
                 var registry = new RecipeRegistry(new ScopeStore(context));
                 var service = registry.Services().SingleOrDefault(service => service.ServiceId == selected)
-                    ?? throw new StorageException("service-conflict", "El servicio seleccionado ya no existe; volvé a seleccionarlo.");
+                    ?? throw new StorageException("service-conflict", "El servicio seleccionado ya no existe; seleccionarlo de nuevo.");
                 if (action == "live")
                 {
                     var targetIndex = targets.FindIndex(target => target.Service?.ServiceId == service.ServiceId && SameScope(target.Store.Context, context));
@@ -1770,7 +1786,7 @@ internal static partial class DashboardCli
                 {
                     foreach (var device in lastHardware.Devices)
                         adapters.Add((devices.TryGetValue(device.Id, out var known) ? $"GPU{known.Number}  " : "      ") +
-                            device.Name + " · " + (ComputeLabel(device.Id) ?? "cómputo sin confirmar"));
+                            device.Name + " · " + (ComputeLabel(device.Id) ?? "cómputo " + Messages.ComputeUnconfirmed));
                     notes.AddRange(lastHardware.Diagnostics);
                 }
                 systemDetail.Rows = SettingsPresentation.System(typeof(DashboardCli).Assembly.GetName().Version?.ToString(3) ?? "—",
@@ -2116,7 +2132,7 @@ internal static partial class DashboardCli
             {
                 // The action needs a valid recipe: the Editor shows what to fix, as the user left it.
                 if (recipeEditor.Validate() is { } first) recipeEditor.Reveal(first);
-                recipeEditor.Status = "sin cambios: corregí la receta primero";
+                recipeEditor.Status = "sin cambios: primero corregir la receta";
                 Render();
                 return;
             }
@@ -2273,6 +2289,7 @@ internal static partial class DashboardCli
             serviceNote = $"{action}…";
             operationVerb = action;
             publicationExit = null;
+            var steps = operationSteps = StepProgress.Silent();
             operationLabel = label;
             selectionEpoch++;
             operation = Task.Run<string?>(() =>
@@ -2287,7 +2304,7 @@ internal static partial class DashboardCli
                     await ScopedServiceCli.RunCandidateAsync(lifecycle, target, false, true, args.Contains("--private"),
                         stdout, stderr, models, stop.Token);
                     return 0;
-                }, stop.Token);
+                }, stop.Token, steps);
                 var args = new List<string> { action, "--project-directory", selection.Base };
                 if (usePrivateResources) args.Add("--private");
                 foreach (var file in selection.Files) args.AddRange(["--file", file]);

@@ -16,7 +16,7 @@ public sealed class BackendUpgrader(Home home, LocalStore? storage = null, Backe
         var actual = store.Read(DocumentKind.BackendUpdates, Json.BackendUpdatesDocument, ContractValidation.BackendUpdates)?.Updates
             .SingleOrDefault(o => o.Origin == expected.Origin && o.Variant == expected.Variant && o.Platform == expected.Platform);
         string Write(BackendUpdateObservation? o) => ContractJson.Write(new BackendUpdatesDocument(1, o is null ? [] : [o]), Json.BackendUpdatesDocument);
-        if (Write(actual) != Write(expected)) throw new DownloadException("stale-upgrade-plan", "La observación cambió; consulte update antes de reintentar.");
+        if (Write(actual) != Write(expected)) throw new DownloadException("stale-upgrade-plan", "La observación cambió; ejecutar update antes de reintentar.");
     }
     public async Task<BackendUpgradeResult[]> UpgradeAsync(string? selector,
         Func<OperationDocument, CancellationToken, Task<bool>> run, Action<string>? report = null, CancellationToken cancellation = default)
@@ -27,7 +27,7 @@ public sealed class BackendUpgrader(Home home, LocalStore? storage = null, Backe
             var value = selector.StartsWith("oficial/", StringComparison.Ordinal) ? selector[8..] : selector.StartsWith("ggml/", StringComparison.Ordinal) ? selector[5..] : selector;
             var parts = value.Split(':');
             if (parts.Length != 2 || parts[1] != "latest" || !BackendCatalog.ValidFamily(parts[0]))
-                throw new BackendException("invalid-latest-selector", "Use un selector oficial latest.");
+                throw new BackendException("invalid-latest-selector", "Usar un selector oficial latest.");
             variant = parts[0];
         }
         var snapshot = store.Inspect(() => (Records: Records().Where(b => b.Ownership == "managed" && b.Origin == "ggml" &&
@@ -48,7 +48,7 @@ public sealed class BackendUpgrader(Home home, LocalStore? storage = null, Backe
                     throw new BackendException("invalid-tracking-filter", "Filtro fuera de las familias/plataforma oficiales.");
                 var observation = snapshot.Updates.SingleOrDefault(o => o.Origin == baseline.Origin && o.Variant == baseline.Variant && o.Platform == baseline.Platform);
                 if (observation is null || observation.BackendId != baseline.Id || observation.InstalledBuild != baseline.Build)
-                    throw new BackendException("update-required", "Consulte update para el build actual.");
+                    throw new BackendException("update-required", "Ejecutar update para el build actual.");
                 if (observation.State == "unchanged") { results.Add(new(label, "unchanged")); continue; }
                 if (observation.Candidate is not { } candidate || observation.State != "available")
                     throw new BackendException("update-required", "La consulta no tiene candidato aplicable.");
@@ -72,7 +72,7 @@ public sealed class BackendUpgrader(Home home, LocalStore? storage = null, Backe
                         b.Variant == baseline.Variant && b.Platform == baseline.Platform) != 1) throw new DownloadException("stale-latest-plan", "El seguimiento cambió.");
                     if (new DownloadManager(home, store).SnapshotLocked().Any(o => o.BackendInstall?.Upgrade is { } u && u.Origin == baseline.Origin &&
                         u.Variant == baseline.Variant && u.Platform == baseline.Platform && o.State != "cancelled"))
-                        throw new DownloadException("upgrade-pending", "Reanude o cancele la operación existente.");
+                        throw new DownloadException("upgrade-pending", "Reanudar o cancelar la operación existente.");
                     if (previousTarget is not null)
                     {
                         if (records.SingleOrDefault(b => b.Id == previousTarget.Id) != previousTarget) throw new DownloadException("stale-install-plan", "La instalación cambió.");

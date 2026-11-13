@@ -42,13 +42,13 @@ public sealed class ResourceRemoval(Home home, LocalStore? storage = null)
                 if (ended) continue;
                 blockers.Add(instance.InstanceId.ToString("D"));
             }
-            catch (Coquena.Configuration.ConfigurationException) { blockers.Add(instance.InstanceId + " (identidad incierta)"); }
+            catch (Coquena.Configuration.ConfigurationException) { blockers.Add(instance.InstanceId + " (" + Messages.UncertainIdentity + ")"); }
         }
-        if (blockers.Count != 0) throw new StorageException("resource-in-use", "Detenga instancias: " + string.Join(", ", blockers));
+        if (blockers.Count != 0) throw new StorageException("resource-in-use", "Detener antes estas instancias: " + string.Join(", ", blockers));
         var operations = new DownloadManager(home, store).SnapshotLocked().Where(o => backend
             ? o.BackendInstall is { } b && (b.BackendId == id || b.PreviousLatest?.Id == id || b.Previous?.Id == id)
             : o.ModelInstall is { } m && (m.ModelId == id || m.Previous?.Id == id || m.ExternalPrevious?.Id == id)).ToArray();
-        if (operations.Length != 0) throw new StorageException("operation-pending", "Reanude o cancele operaciones: " + string.Join(", ", operations.Select(o => o.Id)));
+        if (operations.Length != 0) throw new StorageException("operation-pending", "Reanudar o cancelar antes estas operaciones: " + string.Join(", ", operations.Select(o => o.Id)));
     }
 
     public RemovalResult Model(string name, bool companion = false) => store.Exclusive(() =>
@@ -143,18 +143,18 @@ public sealed class ResourceRemoval(Home home, LocalStore? storage = null)
 
     public static int Cli(string[] args, TextWriter output, TextWriter error, bool backend, bool companion = false)
     {
-        if (args.Length != 1 || backend && !Guid.TryParse(args[0], out _)) { error.WriteLine("Error: argumentos inválidos. Consulte coquena --help."); return 2; }
+        if (args.Length != 1 || backend && !Guid.TryParse(args[0], out _)) { error.WriteLine("Error: argumentos inválidos. Ver coquena --help."); return 2; }
         try
         {
             var removal = new ResourceRemoval(Home.Resolve());
             var result = backend ? removal.Backend(Guid.Parse(args[0])) : removal.Model(args[0], companion);
-            output.WriteLine($"Espacio efectivamente liberado en este intento: {ByteSize.Format(result.FreedBytes)}.");
+            output.WriteLine($"{Messages.FreedThisAttempt}: {ByteSize.Format(result.FreedBytes)}.");
             foreach (var path in result.Deleted) output.WriteLine("Eliminado: " + path);
             foreach (var path in result.Pending) output.WriteLine("Pendiente: " + path);
-            output.WriteLine(result.External ? "Registro externo retirado; archivos conservados en disco." : result.Complete ? "Retirada completada." : "Retirada parcial; propiedad conservada. Reintente el mismo comando.");
+            output.WriteLine(result.External ? Messages.ExternalRemoved : result.Complete ? "Retirada completada." : "Retirada parcial; propiedad conservada. Repetir el mismo comando.");
             return result.Complete ? 0 : 1;
         }
         catch (Exception e) when (e is StorageException or ContractException or IOException or UnauthorizedAccessException or DownloadException or Coquena.Configuration.ConfigurationException)
-        { error.WriteLine("Error: " + e.Message + " Consulte coquena --help."); return 1; }
+        { error.WriteLine("Error: " + e.Message + " Ver coquena --help."); return 1; }
     }
 }

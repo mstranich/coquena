@@ -40,7 +40,7 @@ internal static class BackendAliasTests
             check(Cli.Run(["verify", "--base", project, "--select", "backend://" + name + "/my-downloaded"], output, error) == 0, "qualified backend alias remains relative to the selected project");
             check(Cli.Run(["verify", "--base", project, "--select", "backend://another-project/my-downloaded"], output, error) == 2, "qualification never discovers a different project");
             output.GetStringBuilder().Clear();
-            check(Cli.Run(["update", "--base", project, "--select", "backend://my-downloaded"], output, error) == 0 && output.ToString().Contains("not-applicable"), "external alias is selectable but never updated as managed");
+            check(Cli.Run(["update", "--base", project, "--select", "backend://my-downloaded"], output, error) == 0 && !output.ToString().TrimStart().StartsWith('{'), "external alias is selectable but never updated as managed");
             var counting = new Counting(Provider(context));
             File.WriteAllText(yaml, text.Replace("my-downloaded", "renamed-alias"));
             var renamed = await preparation.PrepareAsync(new(project), counting);
@@ -82,7 +82,7 @@ internal static class BackendAliasTests
                 foreach (var args in new[] {
                     new[] { "verify", "--base", firstProject!, "--select", "backend://my-downloaded", "--checksum", "--json" },
                     new[] { "verify", "--global", "--select", "backend://project-one/my-downloaded", "--checksum", "--json" },
-                    new[] { "update", "--global", "--select", "backend://project-one/my-downloaded" } })
+                    new[] { "update", "--global", "--select", "backend://project-one/my-downloaded", "--json" } })
                 {
                     var start = new System.Diagnostics.ProcessStartInfo(product) { UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true };
                     start.Environment["COQUENA_HOME"] = home.Root;

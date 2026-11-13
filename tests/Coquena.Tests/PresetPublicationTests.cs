@@ -516,7 +516,7 @@ internal static class PresetPublicationTests
         using var activityHandler = new ActivityHandler(); using var activityHttp = new HttpClient(activityHandler);
         var activityRouter = new LlamaPresetRouter(activityHttp, new Uri("http://fixture.invalid"));
         var activity = await activityRouter.ActivityAsync(["coding/chat"], default);
-        Check(activity is not null && activity.Contains("está atendiendo peticiones") && activity.Contains("coding/chat") && activityHandler.Requests.Any(p => p.Contains("autoload=false")) &&
+        Check(activity is not null && activity.Contains(Messages.ServerBusy) && activity.Contains("coding/chat") && activityHandler.Requests.Any(p => p.Contains("autoload=false")) &&
             activityHandler.Requests.All(p => !p.Contains("reload") && !p.Contains("/load")), "busy activity attribution uses only observational endpoints with autoload disabled");
         activityHandler.MissingSlots = true;
         try { await activityRouter.ActivityAsync(["coding/chat"], default); throw new Exception("Expected missing activity evidence to block publication"); }

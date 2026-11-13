@@ -174,7 +174,7 @@ public sealed class ParameterManager(Home home, LocalStore? storage = null)
     public void Define(ParameterDefinition definition) => store.Exclusive(() =>
     {
         var catalog = Read();
-        if (ParameterCatalog.Find(definition.Name, catalog.Definitions) is not null) throw new ConfigurationException("Definición ya existente; utilice param edit.");
+        if (ParameterCatalog.Find(definition.Name, catalog.Definitions) is not null) throw new ConfigurationException("Definición ya existente; usar param edit.");
         var next = catalog with { Definitions = [.. catalog.Definitions, definition] };
         Validate(next); ValidateLocalReferences(definition);
         var presets = store.Read(DocumentKind.Presets, Json.PresetsDocument, ContractValidation.Presets)?.Presets ?? [];
@@ -326,7 +326,7 @@ public sealed class ParameterManager(Home home, LocalStore? storage = null)
             {
                 if (next is null || !ConfigurationManager.CanBind(next))
                 {
-                    effects.Add($"Eliminar | preset {p.Name} | {p.Id:D} | {binding.Key} -> {binding.Value:D} | vínculo guardado; definición retirada/incompatible.");
+                    effects.Add($"{Messages.RemoveEffect} | preset {p.Name} | {p.Id:D} | {binding.Key} -> {binding.Value:D} | vínculo guardado; definición retirada/incompatible.");
                     bindings.Remove(binding.Key); removed = true; presetChanged = true;
                 }
                 else if (binding.Key != definition.Name)
@@ -339,7 +339,7 @@ public sealed class ParameterManager(Home home, LocalStore? storage = null)
             var modelId = p.ModelId;
             if (definition.Name == "model" && modelId is { } id && (next is null || next.Type != "reference" || next.Application != "model"))
             {
-                effects.Add($"Eliminar | preset {p.Name} | {p.Id:D} | model = {id:D} | referencia guardada ModelId; definición retirada/incompatible.");
+                effects.Add($"{Messages.RemoveEffect} | preset {p.Name} | {p.Id:D} | model = {id:D} | referencia guardada ModelId; definición retirada/incompatible.");
                 modelId = null; removed = true; presetChanged = true;
             }
             if (!p.Parameters.SequenceEqual(values)) presetChanged = true;
@@ -374,14 +374,14 @@ public sealed class ParameterManager(Home home, LocalStore? storage = null)
                 foreach (var preset in presets?.Presets.Where(p => s.PresetIds.Contains(p.Id)) ?? [])
                 {
                     foreach (var binding in (preset.Bindings ?? []).Where(b => Identity(b.Key) == definition.Name))
-                        if (ConfigurationManager.CanBind(next)) effects.Add($"Conservar/{emission} | preset {preset.Name} | {preset.Id:D} | {binding.Key} -> {binding.Value:D} | servidor {s.Name} | {s.Id:D} | backend {backend.Id:D}/{backend.Build}.");
+                        if (ConfigurationManager.CanBind(next)) effects.Add($"{Messages.KeepEffect(emission)} | preset {preset.Name} | {preset.Id:D} | {binding.Key} -> {binding.Value:D} | servidor {s.Name} | {s.Id:D} | backend {backend.Id:D}/{backend.Build}.");
                     foreach (var value in preset.Parameters.Where(v => Identity(v.Key) == definition.Name))
-                        if (Compatible(next, value.Value, "model")) effects.Add($"Conservar/{emission} | preset {preset.Name} | {preset.Id:D} | {value.Key} = {value.Value} | servidor {s.Name} | {s.Id:D} | backend {backend.Id:D}/{backend.Build}.");
+                        if (Compatible(next, value.Value, "model")) effects.Add($"{Messages.KeepEffect(emission)} | preset {preset.Name} | {preset.Id:D} | {value.Key} = {value.Value} | servidor {s.Name} | {s.Id:D} | backend {backend.Id:D}/{backend.Build}.");
                     if (definition.Name == "model" && preset.ModelId is { } resource && next.Type == "reference" && next.Application == "model")
-                        effects.Add($"Conservar/{emission} | preset {preset.Name} | {preset.Id:D} | model = {resource:D} | servidor {s.Name} | {s.Id:D} | backend {backend.Id:D}/{backend.Build}.");
+                        effects.Add($"{Messages.KeepEffect(emission)} | preset {preset.Name} | {preset.Id:D} | model = {resource:D} | servidor {s.Name} | {s.Id:D} | backend {backend.Id:D}/{backend.Build}.");
                 }
                 foreach (var value in original.Where(v => Identity(v.Key) == definition.Name))
-                    if (Compatible(next, value.Value, "server")) effects.Add($"Conservar/{emission} | servidor {s.Name} | {s.Id:D} | {value.Key} = {value.Value} | backend {backend.Id:D}/{backend.Build}.");
+                    if (Compatible(next, value.Value, "server")) effects.Add($"{Messages.KeepEffect(emission)} | servidor {s.Name} | {s.Id:D} | {value.Key} = {value.Value} | backend {backend.Id:D}/{backend.Build}.");
             }
             return s with { Parameters = values };
         }).ToArray();
@@ -392,7 +392,7 @@ public sealed class ParameterManager(Home home, LocalStore? storage = null)
             (backends is null ? "null" : ContractJson.Write(backends, Json.BackendsDocument));
         return new(parameters, presetChanged ? presets! with { Presets = newPresets! } : null,
             serverChanged ? servers! with { Servers = newServers! } : null, effects.ToArray(), signature, removed, description,
-            ["Antes: " + Describe(definition), "Después: " + (next is null ? "definición eliminada" : Describe(next))]);
+            ["Antes: " + Describe(definition), Messages.AfterChange + " " + (next is null ? "definición eliminada" : Describe(next))]);
 
         string Identity(string key) => ParameterCatalog.Canonical(key,
             reset is not null && ParameterCatalog.Find(key, old.Definitions) is null ? reset.Definitions : old.Definitions);
@@ -411,7 +411,7 @@ public sealed class ParameterManager(Home home, LocalStore? storage = null)
                     // Legacy documents may contain aliases. Persist the canonical key
                     // before changing aliases so the assignment keeps its identity.
                     result.Remove(value.Key);
-                    if (!result.TryAdd(definition.Name, value.Value)) throw new ConfigurationException("Asignaciones duplicadas por alias; corrija el documento antes de editar.");
+                    if (!result.TryAdd(definition.Name, value.Value)) throw new ConfigurationException("Asignaciones duplicadas por alias; corregir el documento antes de editar.");
                 }
             return result;
         }

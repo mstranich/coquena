@@ -16,6 +16,8 @@ if (args.Length == 5 && args[0] == "--internal-scoped-signal")
     catch { return 1; }
 }
 
+// Progress shares one live line; ordinary output closes it before writing.
+LiveLine.Install();
 // Commands stop on Ctrl+C even when the parent process launched Coquena ignoring it.
 WindowsServerProcess.AcceptInterrupt();
 return Cli.Run(args, Console.Out, Console.Error);

@@ -23,12 +23,12 @@ public static class ModelCli
             args.Length == 3 && args[0] == "verify" && args[2] == "--set-baseline" ||
             args.Length is 4 or 5 && args[0] == "add" && args[2] == "--name" &&
                 (args.Length == 4 || args[4] == "--try-match")))
-        { error.WriteLine("Error: argumentos de model inválidos. Consulte coquena --help."); return 2; }
+        { error.WriteLine("Error: argumentos de model inválidos. Ver coquena --help."); return 2; }
         try
         {
             // Validate before any local or remote side effects.
             var request = args[0] == "download" ? ModelRequest.Parse(args[1]) : null;
-            if (request is not null && companion != (request.CompanionType is not null)) throw new ModelSourceException("invalid-selector", "Use model download para principales y model companion download con #mmproj o #mtp para auxiliares.");
+            if (request is not null && companion != (request.CompanionType is not null)) throw new ModelSourceException("invalid-selector", "Usar model download para principales y model companion download con #mmproj o #mtp para auxiliares.");
             installer ??= new ModelInstaller(Home.Resolve());
             if (args[0] == "upgrade")
             {
@@ -43,7 +43,7 @@ public static class ModelCli
                     foreach (var unit in units)
                     {
                         if (stoppedUpgrade.IsCancellationRequested) break;
-                        if (unit.Ownership == "external") { output.WriteLine($"{unit.Name} | no aplica: externo."); continue; }
+                        if (unit.Ownership == "external") { output.WriteLine($"{unit.Name} | {Messages.ExternalNotApplicable}."); continue; }
                         if (unit.Update is not { State: "update-available", Plan: not null })
                         {
                             output.WriteLine($"{unit.Name} | {unit.Update?.State ?? "sin plan; ejecutar update"}");
@@ -66,7 +66,7 @@ public static class ModelCli
                             if (operationId is { } id) output.WriteLine($"coquena download resume {id:D}");
                         }
                     }
-                    if (units.Length == 0) output.WriteLine("Sin unidades registradas en el ámbito solicitado.");
+                    if (units.Length == 0) output.WriteLine(Messages.NoUnits);
                     return failed ? 1 : 0;
                 }
                 finally { Console.CancelKeyPress -= upgradeHandler; }
@@ -85,7 +85,7 @@ public static class ModelCli
                     foreach (var unit in units)
                     {
                         if (stoppedUpdate.IsCancellationRequested) { failed = true; break; }
-                        if (unit.Ownership == "external") { output.WriteLine($"{unit.Name} | no aplica: externo sin seguimiento."); continue; }
+                        if (unit.Ownership == "external") { output.WriteLine($"{unit.Name} | {Messages.ExternalNotApplicable} sin seguimiento."); continue; }
                         try
                         {
                             var checkedUnit = installer.Updates.CheckAsync(unit, source, interaction ?? new Interaction(output), stoppedUpdate.Token, inspector).GetAwaiter().GetResult();
@@ -102,7 +102,7 @@ public static class ModelCli
                         catch (Exception e) when (e is ModelSourceException or StorageException or ContractException or IOException or UnauthorizedAccessException)
                         { output.WriteLine($"{unit.Name} | error por unidad: {e.Message}"); failed = true; }
                     }
-                    if (units.Length == 0) output.WriteLine("Sin unidades registradas en el ámbito solicitado.");
+                    if (units.Length == 0) output.WriteLine(Messages.NoUnits);
                     return failed ? 1 : 0;
                 }
                 finally { Console.CancelKeyPress -= updateHandler; }
@@ -117,7 +117,7 @@ public static class ModelCli
             if (args[0] == "verify")
             {
                 var baseline = args.Length == 3;
-                if (baseline) output.WriteLine("Aviso: la base local sólo detecta cambios posteriores; no certifica procedencia ni corrección original.");
+                if (baseline) output.WriteLine("Se guardó la referencia actual; verify avisará si el archivo cambia.");
                 using var stoppedVerify = CancellationTokenSource.CreateLinkedTokenSource(cancellation);
                 ConsoleCancelEventHandler verifyHandler = (_, e) => { e.Cancel = true; stoppedVerify.Cancel(); };
                 Console.CancelKeyPress += verifyHandler;
@@ -150,10 +150,10 @@ public static class ModelCli
                             installer.SaveInformativeMatch(record, match);
                             output.WriteLine("Equivalencia informativa guardada; externo sin seguimiento ni upgrade.");
                         }
-                        else output.WriteLine("Alta local conservada sin emparejamiento.");
+                        else output.WriteLine($"Alta local conservada {Messages.NotPaired}.");
                     }
                     catch (Exception e) when (e is ModelSourceException or StorageException or ContractException or IOException or UnauthorizedAccessException or OperationCanceledException or HttpRequestException)
-                    { output.WriteLine($"Alta local conservada sin emparejamiento: {e.Message}"); }
+                    { output.WriteLine($"Alta local conservada {Messages.NotPaired}: {e.Message}"); }
                     finally { Console.CancelKeyPress -= matchHandler; }
                 }
                 return 0;
@@ -196,7 +196,7 @@ public static class ModelCli
                     cancellation: stopped.Token, finalize: installer.FinalizeAsync, beforeCancel: installer.CancelAsync).GetAwaiter().GetResult();
                 if (result is null)
                 {
-                    output.WriteLine($"{operation.Id:D}: {(installer.IsInstalled(operation.ModelInstall!.ModelId) ? "instalación" : "cancelación")} y limpieza completadas."); return 0;
+                    output.WriteLine($"{operation.Id:D}: {(installer.IsInstalled(operation.ModelInstall!.ModelId) ? "instalación" : "cancelación")} {Messages.CleanupCompleted}."); return 0;
                 }
                 if (result.State is "paused" or "failed") output.WriteLine($"coquena download resume {operation.Id:D}");
                 return result.State == "failed" ? 1 : 0;
@@ -207,7 +207,7 @@ public static class ModelCli
         {
             var code = e switch { ModelSourceException s => s.Code, DownloadException d => d.Code, StorageException s => s.Code,
                 ContractException c => c.Code, OperationCanceledException => "selection-interrupted", _ => "model-io-failed" };
-            error.WriteLine($"Error: {code}. {e.Message} Consulte coquena --help.");
+            error.WriteLine($"Error: {code}. {e.Message} Ver coquena --help.");
             if (active is { } id) output.WriteLine($"coquena download resume {id:D}");
             return 1;
         }

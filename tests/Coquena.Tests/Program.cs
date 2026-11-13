@@ -3,6 +3,15 @@ using Coquena;
 
 // Match the product's output contract, including fixture and failure diagnostics.
 Console.OutputEncoding = new System.Text.UTF8Encoding(false);
+// Any failing check that escapes a suite ends the process with exit code 1 and its
+// diagnostic. Native AOT would otherwise fail fast (0xC0000409) and Windows would keep
+// the run waiting on an error dialog that only means "a test failed".
+AppDomain.CurrentDomain.UnhandledException += (_, failure) =>
+{
+    Console.Error.WriteLine(failure.ExceptionObject);
+    Console.Error.Flush();
+    Environment.Exit(1);
+};
 // Preserve a failing exit code without sending ordinary assertion/setup failures
 // through Native AOT's unhandled-exception termination path and Windows dialogs.
 static async Task CheckedRun(Func<Task> run)
@@ -35,6 +44,7 @@ if (args is ["--dashboard-tests"])
             if (!condition) throw new Exception(message);
             checks++;
         }
+        Coquena.Tests.StepProgressTests.Run(Check);
         Coquena.Tests.ObservationTimelineTests.Run(Check);
         Coquena.Tests.InferenceTaskTests.Run(Check);
         Coquena.Tests.InferencePresentationTests.Run(Check);

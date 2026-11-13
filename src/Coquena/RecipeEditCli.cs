@@ -245,7 +245,7 @@ internal static class RecipeEditCli
         catch (Exception e) when (e is ArgumentException or IOException or UnauthorizedAccessException or ConfigurationException or StorageException or Backends.BackendException or Models.ModelSourceException)
         {
             error.WriteLine(e.Message);
-            if (e is ArgumentException) error.WriteLine("Consulte coquena --help para ver la sintaxis.");
+            if (e is ArgumentException) error.WriteLine("Ver la sintaxis con coquena --help.");
             return e is ArgumentException or Backends.BackendException or Models.ModelSourceException ? 2 : 7;
         }
     }

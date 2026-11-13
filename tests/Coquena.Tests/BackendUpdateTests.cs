@@ -166,7 +166,7 @@ internal static class BackendUpdateTests
                 using var output = new StringWriter(); using var error = new StringWriter();
                 using var handler = new Fixture(() => Page("b20", "cpu-x64", "cuda-12.4-x64")); using var client = new HttpClient(handler);
                 Check(BackendCli.Run(["backend", "update"], output, error, () => Hardware, new(client)) == 0 &&
-                    output.ToString().Contains("Candidato guardado: b20") && error.ToString().Length == 0, "CLI update all, durable candidate output and exit 0");
+                    output.ToString().Contains(Messages.SavedCandidate("b20")) && error.ToString().Length == 0, "CLI update all, durable candidate output and exit 0");
                 output.GetStringBuilder().Clear(); error.GetStringBuilder().Clear();
                 using var failed = new HttpClient(new Fixture(() => new(HttpStatusCode.ServiceUnavailable)));
                 Check(BackendCli.Run(["backend", "update", "cpu:latest"], output, error, () => Hardware, new(failed)) == 1 &&
@@ -196,7 +196,7 @@ internal static class BackendUpdateTests
                     return (process.ExitCode, stdout.GetAwaiter().GetResult() + stderr.GetAwaiter().GetResult());
                 }
                 var list = Native("backend", "list");
-                Check(list.Code == 0 && list.Output.Contains("Candidato guardado: b20") && list.Output.Contains("remote-status"), "native CLI reads candidate and failure after restart");
+                Check(list.Code == 0 && list.Output.Contains(Messages.SavedCandidate("b20")) && list.Output.Contains("remote-status"), "native CLI reads candidate and failure after restart");
                 Check(Native("backend", "update", "cpu:b9").Code == 2 && Native("backend", "update", "external").Code == 2, "native pin and external update rejection");
                 Check(Native("--help").Output.Contains("backend download --version"), "native help describes M3 download");
             }

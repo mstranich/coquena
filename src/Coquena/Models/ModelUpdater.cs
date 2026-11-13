@@ -44,7 +44,7 @@ public static class ModelUpdateComparer
             return new(unchanged ? "unchanged" : "update-available", unchanged ? "Contenido seleccionado sin cambios." :
                 "Cambios de contenido/rutas identificados en commit fijo.", unchanged ? null : plan, []);
         }
-        if (!complete) return new("query-failed", "Inventario incompleto; no prueba ausencia ni reubicación única.", null, []);
+        if (!complete) return new("query-failed", "No se pudo leer la lista completa de archivos del origen.", null, []);
         var exact = units.Where(u => u.Files.Length == followed.Files.Length && u.Files.Where((f, i) =>
             !Same(followed.Files[i].Identity, f.ToRemoteFile().Identity)).Any() == false).ToArray();
         if (exact.Length == 1) return new("update-available", "Reubicación exacta única del conjunto completo; reutilizar sin descarga.",
@@ -131,7 +131,7 @@ public sealed class ModelUpdater(Home home)
                     }).Append("Cancelar; conservar seguimiento sin resolver").ToArray();
                     var choice = await interaction.ChooseAsync(options, cancellation);
                     if (choice is >= 0 && choice < candidates.Length)
-                        result = new("update-available", "Destino elegido explícitamente; no prueba identidad retrospectiva.",
+                        result = new("update-available", "Archivos elegidos a mano.",
                             ModelUpdateComparer.Plan(original, revision, candidates[choice.Value], true, result.ExactCandidates,
                                 names.GetValueOrDefault(candidates[choice.Value].Files[0].Path)), []);
                     else if (choice is not null && choice != candidates.Length)

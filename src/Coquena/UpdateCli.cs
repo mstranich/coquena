@@ -16,17 +16,23 @@ public static class UpdateCli
         using var cancellation = new CancellationTokenSource();
         ConsoleCancelEventHandler handler = (_, e) => { e.Cancel = true; cancellation.Cancel(); };
         Console.CancelKeyPress += handler;
-        try { return RunAsync(args, output, cancellation.Token).GetAwaiter().GetResult(); }
+        try { return RunAsync(args, output, error, cancellation.Token).GetAwaiter().GetResult(); }
         catch (Exception e) when (e is ArgumentException or RecipeException or StorageException or ModelSourceException or BackendException or DownloadException or ContractException or IOException or UnauthorizedAccessException or OperationCanceledException)
         {
-            error.WriteLine("Error: " + (e switch { RecipeException r => r.Code, StorageException s => s.Code,
-                ModelSourceException m => m.Code, BackendException b => b.Code, DownloadException d => d.Code, ContractException c => c.Code, OperationCanceledException => "cancelled", ArgumentException => "invalid-selection", _ => "update-failed" }));
+            error.WriteLine(e switch
+            {
+                ArgumentException => Messages.UnknownOptions(args.Contains("upgrade") ? "upgrade" : "update"),
+                RecipeException r => Messages.Error(r.Code, r.Message), StorageException s => Messages.Error(s.Code, s.Message),
+                ModelSourceException m => Messages.Error(m.Code, m.Message), BackendException b => Messages.Error(b.Code, b.Message),
+                DownloadException d => Messages.Error(d.Code, d.Message), ContractException c => Messages.Error(c.Code, c.Message),
+                OperationCanceledException => Messages.Error("cancelled", "Se canceló"), _ => Messages.Error("update-failed", e.Message)
+            });
             return e is OperationCanceledException ? 130 : 2;
         }
         finally { Console.CancelKeyPress -= handler; }
     }
 
-    private static async Task<int> RunAsync(string[] args, TextWriter output, CancellationToken cancellation)
+    private static async Task<int> RunAsync(string[] args, TextWriter output, TextWriter error, CancellationToken cancellation)
     {
         var upgrade = false;
         for (var index = 0; index < args.Length; index++)
@@ -35,13 +41,13 @@ public static class UpdateCli
             if (args[index] == "upgrade") upgrade = true;
         }
         var files = new List<string>(); var env = new List<string>(); var selectors = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        string? directory = null; var seen = new HashSet<string>(); var global = false;
+        string? directory = null; var seen = new HashSet<string>(); var global = false; var json = false;
         if (args.Any(a => a is "--help" or "-h"))
-        { output.WriteLine($"{(upgrade ? "upgrade" : "update")} [-f archivo]... [--env-file archivo]... [--project-directory ruta] [--select referencia]...\n{(upgrade ? "upgrade" : "update")} --global [--select referencia]...\nReferencias: backend://variante, backend://alias, backend://proyecto/alias, model://clave, companion://clave"); return 0; }
+        { output.WriteLine($"{(upgrade ? "upgrade" : "update")} [-f archivo]... [--env-file archivo]... [--project-directory ruta] [--select referencia]... [--json]\n{(upgrade ? "upgrade" : "update")} --global [--select referencia]... [--json]\nReferencias: backend://variante, backend://alias, backend://proyecto/alias, model://clave, companion://clave"); return 0; }
         for (var i = 0; i < args.Length; i++)
         {
             var arg = args[i] switch { "-f" => "--file", "--base" => "--project-directory", "-g" => "--global", _ => args[i] };
-            if (arg is "update" or "upgrade" or "--private" or "--global") { if (!seen.Add(arg)) throw new ArgumentException(); global |= arg == "--global"; continue; }
+            if (arg is "update" or "upgrade" or "--private" or "--global" or "--json") { if (!seen.Add(arg)) throw new ArgumentException(); global |= arg == "--global"; json |= arg == "--json"; continue; }
             if (arg is not ("--file" or "--env-file" or "--project-directory" or "--select") || ++i == args.Length) throw new ArgumentException();
             switch (arg)
             {
@@ -62,8 +68,8 @@ public static class UpdateCli
             using var backendTransport = new OfficialArtifactTransport();
             var upgraded = await new RecipeUpgrade(context).ApplyAsync(selections, selectors, HardwareProbe.Inspect(),
                 modelTransport, backendTransport, new ScopedBackends(context).ValidateOfficial,
-                message => output.WriteLine(message), cancellation: cancellation);
-            output.WriteLine(upgraded.ToJsonString());
+                message => (json ? error : output).WriteLine(message), cancellation: cancellation);
+            if (json) output.WriteLine(upgraded.ToJsonString()); else UpdatePresentation.WriteUpgrade(upgraded, output);
             return upgraded["resources"]!.AsArray().Any(r => r!["upgrade-status"]!.GetValue<string>() == "blocked") ? 6 : 0;
         }
         using var client = HuggingFaceStore.CreateClient();
@@ -73,7 +79,8 @@ public static class UpdateCli
         var probe = new ResourceUpdateProbe(new(client), (family, token) => source.ResolveAsync(hardware, family, "latest", token), new ConsoleModelSelectionInteraction());
         var result = await new RecipeUpdatePlans(context).UpdateAsync(selections, selectors, probe, cancellation);
         // Local fingerprints and snapshots are not part of the CLI report.
-        output.WriteLine(RecipeUpdatePlans.Report(result).ToJsonString());
+        var report = RecipeUpdatePlans.Report(result);
+        if (json) output.WriteLine(report.ToJsonString()); else UpdatePresentation.WriteUpdate(report, output);
         return result["resources"]!.AsArray().Any(r => r!["status"]!.GetValue<string>() is not ("unchanged" or "update-available" or "not-applicable")) ? 6 : 0;
     }
 

@@ -73,11 +73,11 @@ public sealed class LinuxSystemMetrics(string procRoot = "/proc", string drmRoot
         }
         catch (Exception e) when (ReadError(e)) { diagnostics.Add("DRM no disponible: " + e.GetType().Name); }
         if (OperatingSystem.IsLinux()) devices.AddRange(Nvml(diagnostics));
-        if (devices.Count == 0) diagnostics.Add("GPU/VRAM no disponibles: sin dispositivos consultables por DRM/NVML; no implica ausencia de GPU.");
+        if (devices.Count == 0) diagnostics.Add("No se pudo leer el uso de la GPU.");
         var wsl = false;
         try { wsl = File.ReadAllText(Path.Combine(procRoot, "sys/kernel/osrelease")).Contains("microsoft", StringComparison.OrdinalIgnoreCase); }
         catch (Exception e) when (ReadError(e)) { diagnostics.Add("Entorno virtualizado no comprobable mediante procfs/osrelease."); }
-        if (wsl) diagnostics.Add("WSL2: CPU/RAM corresponden al entorno Linux virtualizado; GPU expuesta por el driver del host, con soporte parcial. No acredita Linux nativo ni consumo total del host.");
+        if (wsl) diagnostics.Add("WSL2: la GPU se ve a través del driver de Windows; algunas métricas faltan.");
         return new(wsl ? "linux-wsl" : "linux", start, DateTimeOffset.UtcNow, samples, devices, diagnostics);
     }
 

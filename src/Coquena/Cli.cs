@@ -33,7 +33,8 @@ public static class Cli
             return ScopedServiceCli.Run(args, output, error);
         if (prefix < args.Length && args[prefix] == "import") return ImportCli.Run(args, output, error);
         if (prefix < args.Length && args[prefix] == "verify") return VerifyCli.Run(args, output, error);
-        if (prefix < args.Length && args[prefix] is "clean" or "combination") return CleanupCli.Run(args, output, error);
+        if (prefix < args.Length && args[prefix] is "prune" or "clean" or "combination") return CleanupCli.Run(args, output, error);
+        if (prefix < args.Length && args[prefix] is "usage" or "df") return UsageCli.Run(args, output, error);
         if (prefix < args.Length && args[prefix] is "update" or "upgrade") return UpdateCli.Run(args, output, error);
         if (prefix < args.Length && (args[prefix] is "up" or "down" or "apply" or "withdraw" ||
             args[prefix] == "preset" && prefix + 1 < args.Length && args[prefix + 1] is "apply" or "withdraw"))
@@ -69,8 +70,7 @@ public static class Cli
             return 0;
         }
 
-        error.WriteLine("Error: comando o argumentos no reconocidos.");
-        error.WriteLine("Consulte coquena --help para ver las opciones disponibles.");
+        error.WriteLine(Messages.Error("unknown-command", Messages.UnknownCommand));
         return 2;
     }
 }

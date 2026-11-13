@@ -101,7 +101,7 @@ public sealed partial class WindowsSystemMetrics : ISystemMetrics
                     if (!samples.Any(s => s.Name == metric)) samples.Add(new(metric, null, "bytes", "PDH GPU Adapter Memory", "device:" + id,
                         now, UnavailableReason: "Contador no expuesto; no se deduce capacidad de uso o presupuesto."));
             }
-            if (devices.Count == 0) Diagnostics.Add("GPU/VRAM no disponibles: PDH no expone instancias; no implica ausencia de GPU.");
+            if (devices.Count == 0) Diagnostics.Add("No se pudo leer el uso de la GPU.");
             var inventory = WindowsGpuInventory.Read();
             foreach (var (id, item) in inventory)
             {

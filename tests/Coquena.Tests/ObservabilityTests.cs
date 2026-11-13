@@ -26,7 +26,7 @@ internal static class ObservabilityTests
         using var output = new StringWriter(); runtime.Ps(output, client);
         Check(output.ToString().Contains(instance.InstanceId.ToString()) && output.ToString().Contains("12.5") && output.ToString().Contains("=7"), "verified instance and throughput");
         Check(calls.SequenceEqual(new[] { "/models", "/metrics?model=chat&autoload=false" }), "router model and autoload disabled");
-        Check(output.ToString().Contains("tasas medias del backend, no por tarea ni instantáneas") && output.ToString().Contains("Período del bucket no informado"), "metric presentation distinguishes scope and unknown averaging period");
+        Check(output.ToString().Contains(Messages.MetricsScope) && output.ToString().Contains(Messages.BucketUnknown), "metric presentation distinguishes scope and unknown averaging period");
         var iniPath = home.PathFor(instance.IniPath); var ini = File.ReadAllText(iniPath);
         try
         {
@@ -39,10 +39,10 @@ internal static class ObservabilityTests
         foreach (var failure in new[] { "invalid", "bad-json", "http", "timeout" })
         {
             mode = failure; output.GetStringBuilder().Clear(); runtime.Ps(output, client);
-            Check(output.ToString().Contains(instance.InstanceId.ToString()) && output.ToString().Contains("no disponibles") && !output.ToString().Contains("=0"), "failure retains instance without numbers: " + failure);
+            Check(output.ToString().Contains(instance.InstanceId.ToString()) && output.ToString().Contains(Messages.NotAvailable) && !output.ToString().Contains("=0"), "failure retains instance without numbers: " + failure);
         }
         mode = "unloaded"; calls.Clear(); output.GetStringBuilder().Clear(); runtime.Ps(output, client);
-        Check(calls.Count == 1 && output.ToString().Contains("no cargado") && !output.ToString().Contains("=0"), "unloaded does not query metrics");
+        Check(calls.Count == 1 && output.ToString().Contains(Messages.ModelNotLoaded) && !output.ToString().Contains("=0"), "unloaded does not query metrics");
         var store = new LocalStore(home); var json = ContractJsonContext.Default;
         store.Update(DocumentKind.Instance, json.InstanceDocument, ContractValidation.Instance, _ => instance with { Metrics = false }, server: "default");
         calls.Clear(); output.GetStringBuilder().Clear(); runtime.Ps(output, client);

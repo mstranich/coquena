@@ -62,10 +62,10 @@ internal static class RemovalTests
             Check(File.Exists(neighbor) && File.Exists(paths.File(companion, companion.Files[0])), "neighbors and companion survive");
             Check(store.Read(DocumentKind.Presets, json.PresetsDocument, ContractValidation.Presets)!.Presets.All(p => p.ModelId == primary.Id), "presets unchanged");
             var reused = Managed(primary.Name, ["sub/new.gguf"]); SaveModels(reused, companion);
-            Check(new ConfigurationManager(home).View("p").Diagnostics.Any(d => d.Contains("referencia rota")), "reused name does not reconnect ID");
+            Check(new ConfigurationManager(home).View("p").Diagnostics.Any(d => d.Contains(Messages.BrokenReference)), "reused name does not reconnect ID");
             var retiredCompanion = removal.Model(companion.Name, true);
             Check(retiredCompanion.Complete && retiredCompanion.FreedBytes == 10 && File.Exists(neighbor), "shared companion removed independently");
-            Check(new ConfigurationManager(home).View("shared").Diagnostics.Any(d => d.Contains("referencia rota")), "shared binding remains broken");
+            Check(new ConfigurationManager(home).View("shared").Diagnostics.Any(d => d.Contains(Messages.BrokenReference)), "shared binding remains broken");
 
             var externalPath = Path.Combine(root, "external.gguf"); File.WriteAllBytes(externalPath, new byte[12]);
             var external = new ModelRecord(Guid.NewGuid(), "owner/external:Q4", null, [new("", externalPath, 12)], [], Ownership: "external");
@@ -145,7 +145,7 @@ internal static class RemovalTests
                 Check(Coquena.Cli.Run(["model", "remove"], output, error) == 2, "strict model CLI");
                 Check(Coquena.ModelCli.Run(["companion", "remove", reused.Name], output, error) == 1, "M2 API scopes companions");
                 SaveModels(reused);
-                Check(Coquena.ModelCli.Run(["remove", reused.Name], output, error) == 0 && output.ToString().Contains("Espacio efectivamente"), "M2 API bytes output");
+                Check(Coquena.ModelCli.Run(["remove", reused.Name], output, error) == 0 && output.ToString().Contains(Messages.FreedThisAttempt), "M2 API bytes output");
                 if (executable is not null)
                 {
                     SaveModels(external);
@@ -157,7 +157,7 @@ internal static class RemovalTests
                     using var process = ModelEngineProcess.Start(info)!;
                     var stdout = process.StandardOutput.ReadToEndAsync(); var stderr = process.StandardError.ReadToEndAsync();
                     if (!process.WaitForExit(10000)) { process.Kill(true); throw new Exception("Published removal timed out"); }
-                    Check(process.ExitCode == 0 && stdout.Result.Contains("archivos conservados") && stderr.Result.Length == 0 && File.Exists(externalPath), "published CLI external removal");
+                    Check(process.ExitCode == 0 && stdout.Result.Contains(Messages.ExternalRemoved) && stderr.Result.Length == 0 && File.Exists(externalPath), "published CLI external removal");
                 }
             }
             finally { Environment.SetEnvironmentVariable("COQUENA_HOME", before); }

@@ -136,7 +136,7 @@ public sealed class ServiceLogReader(ScopeStore store, string serviceId)
                 catch (Exception e) when (e is IOException or UnauthorizedAccessException)
                 {
                     if (diagnostic != e.GetType().Name)
-                    { output.WriteLine("\n[Logs] Archivo no disponible; se reintentará sin controlar el servicio."); diagnostic = e.GetType().Name; }
+                    { output.WriteLine("\n[Logs] " + Messages.LogFileUnavailable); diagnostic = e.GetType().Name; }
                     stream?.Dispose(); stream = null;
                     if (current is not null) seen.Add(current);
                 }

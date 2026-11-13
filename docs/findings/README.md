@@ -22,3 +22,4 @@ después de evaluar los hallazgos.
 | [013: Estado, navegación y resultados en la TUI](013-estado-navegacion-tui.md) | Volver desde Notificaciones, fila resaltada y resultados sólo como aviso; reproduce el «Volver» de 010. |
 | [014: Procedencia de presets y filtros de actualización](014-procedencia-y-filtros-autoria.md) | P atribuye el preset a la última capa; Comprobar pide filtros como texto libre. |
 | [015: Descargas de otros proyectos sin navegación](015-descargas-otros-proyectos.md) | Decisión del usuario: Descargas muestra sólo Global y el proyecto actual; falta navegar a otros proyectos. |
+| [016: Elegir una cuantización tras una espera impide descargar](016-seleccion-cuantizacion-expira.md) | Defecto señalado por el usuario; mecanismo confirmado en el código, sin reproducir con un repositorio real. |

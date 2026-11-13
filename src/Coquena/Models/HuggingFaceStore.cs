@@ -212,14 +212,14 @@ public sealed class HuggingFaceStore(HttpClient client)
                         foreach (Match reset in resets)
                         {
                             if (!int.TryParse(reset.Groups[1].Value, out var seconds))
-                                throw Error("remote-rate-limit", "Espera RateLimit fuera de límites; reintente más tarde.");
+                                throw Error("remote-rate-limit", "Espera RateLimit fuera de límites; reintentar más tarde.");
                             if (TimeSpan.FromSeconds(seconds) > wait) wait = TimeSpan.FromSeconds(seconds);
                         }
                     }
                     if (wait < TimeSpan.Zero) wait = TimeSpan.Zero;
                     if (attempt >= 2 || wait > TimeSpan.FromSeconds(5))
                         throw Error(response.StatusCode == HttpStatusCode.TooManyRequests ? "remote-rate-limit" : "remote-unavailable",
-                            $"Consulta no completada; reintente más tarde (espera indicada: {Math.Ceiling(wait.TotalSeconds)} s).");
+                            $"Consulta no completada; reintentar más tarde (espera indicada: {Math.Ceiling(wait.TotalSeconds)} s).");
                     await Task.Delay(wait, budget.Token); continue;
                 }
                 if (response.StatusCode == HttpStatusCode.NotFound)

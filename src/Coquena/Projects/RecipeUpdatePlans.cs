@@ -94,7 +94,7 @@ public sealed class RecipeUpdatePlans(ScopeContext context)
     {
         var state = store.Read();
         var plan = state.Documents.GetValueOrDefault(PathName)?["data"]?["plans"]?[PlanId(selections)]?.AsObject()
-            ?? throw new StorageException("update-plan-required", "Ejecute update para esta selección.");
+            ?? throw new StorageException("update-plan-required", "Ejecutar update para esta selección.");
         var recipes = selections.Select(s => RecipeReader.Read(s)).ToArray();
         if (plan["scope-id"]?.GetValue<string>() != state.ScopeId || plan["intent-hmac"]!.GetValue<string>() != Fingerprint(ReadKey(), recipes, Inputs(recipes)))
             throw new StorageException("stale-update-plan", "Cambió la intención; se requiere un update nuevo.");
@@ -133,7 +133,7 @@ public sealed class RecipeUpdatePlans(ScopeContext context)
     {
         var path = context.PathFor("local/intent.key");
         if (!File.Exists(path) || File.ReadAllBytes(path) is not { Length: 32 } key)
-            throw new StorageException("update-preparation-required", "Prepare la combinación antes de consultar un plan; falta la identidad local de intención.");
+            throw new StorageException("update-preparation-required", "Preparar la combinación antes de consultar un plan; falta la identidad local de intención.");
         return key;
     }
     // The --select references a user can choose for these selections: one per declared resource,
@@ -195,7 +195,7 @@ public sealed class RecipeUpdatePlans(ScopeContext context)
         {
             if (!ReadKey().SequenceEqual(key) || inputs.Any(p => !File.ReadAllBytes(p.Key).SequenceEqual(p.Value)) ||
                 Fingerprint(key, selections.Select(s => RecipeReader.Read(s)).ToArray(), inputs) != fingerprint)
-                throw new StorageException("stale-update-plan", "Cambió la intención; ejecute update nuevamente.");
+                throw new StorageException("stale-update-plan", "Cambió la intención; ejecutar update de nuevo.");
         };
     }
 }

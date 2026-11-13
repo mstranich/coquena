@@ -101,10 +101,10 @@ public sealed class ScopeTransfers
         var resource = operation.ResourceKind switch
         {
             "backend" => "Backend",
-            "companion" => "Companion",
+            "companion" => "Auxiliar",
             _ => "Modelo"
         };
-        Console.Error.WriteLine($"{resource} {operation.Name} · {message}");
+        LiveLine.Update($"{resource} {operation.Name} · {message}");
     }
 
     public Task ControlAsync(Guid id, bool cancel, CancellationToken cancellation = default)

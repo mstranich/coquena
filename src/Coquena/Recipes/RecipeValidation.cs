@@ -60,7 +60,7 @@ internal static partial class RecipeValidation
             {
                 // The parser stops here: nothing after this point of the file was checked.
                 var problem = Diagnostic(error, captured);
-                problems.Add(error.Code == "yaml-syntax" ? problem with { Message = problem.Message + " El resto del archivo no se pudo validar." } : problem);
+                problems.Add(error.Code == "yaml-syntax" ? problem with { Message = problem.Message + Messages.RestNotValidated } : problem);
                 broken.Add(file);
             }
         }
@@ -73,7 +73,7 @@ internal static partial class RecipeValidation
         {
             foreach (var (problem, references) in removed.Values.Where(entry => entry.References > 0))
                 problems[problem] = problems[problem] with { Message = problems[problem].Message +
-                    (references == 1 ? " (y 1 referencia a esta entrada)" : $" (y {references} referencias a esta entrada)") };
+                    Messages.ReferencesToEntry(references) };
             return problems.Count == 0 ? new(recipe, blocks ?? [], problems) : new(null, [], problems);
         }
 

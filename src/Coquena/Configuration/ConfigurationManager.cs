@@ -53,7 +53,7 @@ public sealed class ConfigurationManager(Home home, LocalStore? storage = null)
             if (ParameterCatalog.Find(key, definitions) is { } definition) ParameterManager.ValidateValue(definition, value);
             else ParameterCatalog.Literal(value);
             if (!result.TryAdd(key, value))
-                throw new ConfigurationException($"Alias duplicados para {key}; corrija el documento sin perder valores.");
+                throw new ConfigurationException($"Alias duplicados para {key}; corregir el documento sin perder valores.");
         }
         return result;
     }
@@ -244,13 +244,13 @@ public sealed class ConfigurationManager(Home home, LocalStore? storage = null)
             var model = models.SingleOrDefault(m => m.Id == p.ModelId);
             var diagnostics = new List<string>();
             var boundResources = new Dictionary<string, string>();
-            if (model is null) diagnostics.Add(p.ModelId is null ? "Preset sin asignación de modelo." : $"Modelo ausente: {p.ModelId:D}; referencia rota.");
+            if (model is null) diagnostics.Add(p.ModelId is null ? "Preset sin asignación de modelo." : $"Modelo ausente: {p.ModelId:D}; {Messages.BrokenReference}.");
             else Inspect(model, "model", diagnostics);
             foreach (var binding in Bindings(p, definitions))
             {
                 var resource = models.SingleOrDefault(m => m.Id == binding.Value);
                 boundResources[binding.Key] = resource?.Name ?? "ausente";
-                if (resource is null) diagnostics.Add($"{binding.Key}: recurso {binding.Value:D} ausente; referencia rota.");
+                if (resource is null) diagnostics.Add($"{binding.Key}: recurso {binding.Value:D} ausente; {Messages.BrokenReference}.");
                 else Inspect(resource, binding.Key, diagnostics);
             }
             return new PresetView(p, model, NormalizeValues(p.Parameters, definitions), NormalizeValues(p.Parameters, definitions), diagnostics.ToArray(), boundResources);
@@ -259,9 +259,9 @@ public sealed class ConfigurationManager(Home home, LocalStore? storage = null)
 
     private GgufUnit Inspect(ModelRecord resource, string parameter, List<string> diagnostics)
     {
-        if (resource.RemovalPending) diagnostics.Add($"{parameter}: {resource.Name}: retirada parcial pendiente; no servible.");
+        if (resource.RemovalPending) diagnostics.Add($"{parameter}: {resource.Name}: retirada parcial pendiente; {Messages.NotServable}.");
         var inspection = GgufInspection.InspectPaths(resource.Files.Select(f => new ModelPaths(home).File(resource, f)).ToArray());
-        if (inspection.Status != "complete") diagnostics.Add($"{parameter}: {resource.Name}: {inspection.Status}; no servible.");
+        if (inspection.Status != "complete") diagnostics.Add($"{parameter}: {resource.Name}: {inspection.Status}; {Messages.NotServable}.");
         return inspection;
     }
 
@@ -286,7 +286,7 @@ public sealed class ConfigurationManager(Home home, LocalStore? storage = null)
         foreach (var id in presetIds)
         {
             var preset = presets.SingleOrDefault(p => p.Id == id)
-                ?? throw new ConfigurationException($"Preset ausente: {id:D}; referencia rota.");
+                ?? throw new ConfigurationException($"{Messages.MissingPreset(id.ToString("D"))}; {Messages.BrokenReference}.");
             PresetName(preset.Name);
             ModelReference();
             var model = models.SingleOrDefault(m => m.Id == preset.ModelId)
@@ -304,7 +304,7 @@ public sealed class ConfigurationManager(Home home, LocalStore? storage = null)
                 var availability = ParameterManager.Availability(definition, backend);
                 if (availability == "no admitido")
                 {
-                    diagnostics.Add($"{preset.Name}: {binding.Key} no admitido; se omite con warning y se conserva el vínculo.");
+                    diagnostics.Add($"{preset.Name}: {binding.Key} {Messages.Unsupported}; se omite con warning y se conserva el vínculo.");
                     continue;
                 }
                 var resource = models.SingleOrDefault(m => m.Id == binding.Value)

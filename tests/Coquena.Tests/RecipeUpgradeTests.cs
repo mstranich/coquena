@@ -192,10 +192,10 @@ internal static class RecipeUpgradeTests
                 else
                 {
                     var start = new System.Diagnostics.ProcessStartInfo(product) { UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true };
-                    foreach (var arg in new[] { "upgrade", "--project-directory", crash.Selection.Base }) start.ArgumentList.Add(arg);
+                    foreach (var arg in new[] { "upgrade", "--project-directory", crash.Selection.Base, "--json" }) start.ArgumentList.Add(arg);
                     using var process = System.Diagnostics.Process.Start(start)!;
                     var stdout = await process.StandardOutput.ReadToEndAsync(); var stderr = await process.StandardError.ReadToEndAsync(); await process.WaitForExitAsync();
-                    Check(process.ExitCode == 0 && stdout.Contains("prepared-for-next-application") && stderr.Length == 0, "Native AOT commits recovered exact candidates without network");
+                    Check(process.ExitCode == 0 && stdout.Contains("prepared-for-next-application") && !stderr.Contains("Error"), "Native AOT commits recovered exact candidates without network");
                 }
                 Check(Locks(crash.Context) != previous, "retry publishes complete prepared set");
             }

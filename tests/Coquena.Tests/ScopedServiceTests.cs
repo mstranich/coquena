@@ -30,11 +30,15 @@ internal static class ScopedServiceTests
         {
             var beforeShow = store.Read().Revision;
             using var shown = new StringWriter(); using var showError = new StringWriter();
-            Check(Cli.Run(["server", "self", "show", "--project-directory", root], shown, showError) == 0, "show resolves project service without preparing missing backend");
+            Check(Cli.Run(["server", "self", "show", "--json", "--project-directory", root], shown, showError) == 0, "show resolves project service without preparing missing backend");
             var detail = JsonNode.Parse(shown.ToString())!;
             Check(detail["service-id"]!.GetValue<string>() == service.ServiceId && detail["scope"]!.GetValue<string>() == "project" && !detail["default"]!.GetValue<bool>(), "show reports registered identity and scope");
             Check(detail["definition"]!["server"]!["args"]!["api-key"]!.GetValue<string>() == "<redacted>" && !shown.ToString().Contains("private-show-fixture"), "show redacts sensitive expansions");
             Check(store.Read().Revision == beforeShow && registry.Resources().Length == 0, "show does not publish state or acquire resources");
+            using var readable = new StringWriter();
+            Check(Cli.Run(["server", "self", "show", "--project-directory", root], readable, new StringWriter()) == 0 &&
+                readable.ToString().Contains("service-id: " + service.ServiceId) && !readable.ToString().TrimStart().StartsWith('{') &&
+                !readable.ToString().Contains("private-show-fixture"), "show without --json is readable and redacted");
         }
         finally { Environment.SetEnvironmentVariable("COQUENA_SHOW_SECRET", previousSecret); }
         var lifecycle = new ScopedServiceProcess(store, Console.Out);

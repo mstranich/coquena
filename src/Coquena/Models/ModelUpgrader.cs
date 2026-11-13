@@ -18,14 +18,14 @@ public sealed partial class ModelInstaller
     {
         foreach (var op in new DownloadManager(home, store).SnapshotLocked())
             if ((op.ModelInstall?.Previous ?? op.ModelInstall?.ExternalPrevious) is { } previous && ids.Contains(previous.Id))
-                throw new Coquena.Configuration.ConfigurationException($"{(op.ModelInstall!.ExternalPrevious is null ? "Upgrade" : "Transición")} pendiente {op.Id:D} de {previous.Name}; reanude o cancele antes de iniciar.");
+                throw new Coquena.Configuration.ConfigurationException($"{Messages.PendingUpgrade(op.ModelInstall!.ExternalPrevious is not null)} {op.Id:D} de {previous.Name}; reanudar o cancelar antes de iniciar.");
     }
 
     internal static void CheckUpgradeMutation(Home home, LocalStore store, Guid id)
     {
         ResourceRemoval.CheckPending(home, store, [id]);
         if (new DownloadManager(home, store).SnapshotLocked().Any(op => (op.ModelInstall?.Previous ?? op.ModelInstall?.ExternalPrevious)?.Id == id))
-            throw new ModelSourceException("upgrade-pending", "Reanude o cancele la operación antes de modificar el registro.");
+            throw new ModelSourceException("upgrade-pending", "Reanudar o cancelar la operación antes de modificar el registro.");
     }
 
     private void CheckUsage(ModelRecord previous)

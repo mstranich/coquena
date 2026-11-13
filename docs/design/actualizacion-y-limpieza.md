@@ -106,7 +106,7 @@ o pesos. Sin advertencia especial de pérdida de recuperación; sí informar esp
 que queda recuperable y comando para limpiarlo. Referencias independientes y activo
 permanecen protegidos. Retirar intención no ejecuta borrado espontáneo.
 
-Verbo clean y confirmación no interactiva se definen en [comandos](comandos.md).
+Verbo prune (alias clean) y confirmación no interactiva se definen en [comandos](comandos.md).
 No inferir borrado sin confirmación.
 
 ## Referencias entre consumidores y pins

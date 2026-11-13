@@ -173,7 +173,7 @@ internal static class ModelUpgradeTests
             servers.EnsureInitial(); new Coquena.Backends.BackendInstaller(f.Home).Use("cpu:latest");
             config.Create(baseline.Name, "chat"); servers.Presets(null, ["chat"], true);
             try { new ServerRuntime(f.Home).Start(null, true, TextWriter.Null); throw new Exception("start must block"); }
-            catch (ConfigurationException e) { Check(e.Message.Contains("Upgrade pendiente"), "start reservation under writer lease"); }
+            catch (ConfigurationException e) { Check(e.Message.Contains(Messages.PendingUpgrade(false)), "start reservation under writer lease"); }
             Check(!File.Exists(f.Home.PathFor("run/default/instance.json")), "no process publication during upgrade");
             var presetBefore = File.ReadAllBytes(f.Home.PathFor("catalogs/presets.json"));
             Check(await f.Run(op, new Transport(next, new string('b', 40))) is null, "upgrade after blocked start");
@@ -255,7 +255,7 @@ internal static class ModelUpgradeTests
             Check(records.Single(m => m.Id == baseline.Id).Selection!.Commit == new string('a', 40), "global blocked principal retained");
             Check(records.Single(m => m.Id == auxiliary.Id).Selection!.Commit == new string('b', 40) && transport.Calls == 1, "global continues companion after failure");
             Check(File.ReadAllBytes(extPath).SequenceEqual(old[0]) && records.Single(m => m.Id == external.Id).Ownership == "external", "global excludes external");
-            Check(output.ToString().Contains("no aplica: externo"), "global explains external exclusion");
+            Check(output.ToString().Contains(Messages.ExternalNotApplicable), "global explains external exclusion");
         }
         using (var f = new Fixture())
         {
@@ -282,7 +282,7 @@ internal static class ModelUpgradeTests
             info.ArgumentList.Add("model"); info.ArgumentList.Add("upgrade"); info.Environment["COQUENA_HOME"] = f.Home.Root;
             using var process = ModelEngineProcess.Start(info)!;
             var output = await process.StandardOutput.ReadToEndAsync(); var error = await process.StandardError.ReadToEndAsync(); await process.WaitForExitAsync();
-            Check(process.ExitCode == 0 && error.Length == 0 && output.Contains("Sin unidades"), "published CLI upgrade");
+            Check(process.ExitCode == 0 && error.Length == 0 && output.Contains(Messages.NoUnits), "published CLI upgrade");
         }
         Console.WriteLine($"OK: {checks} comprobaciones upgrade modelos.");
     }

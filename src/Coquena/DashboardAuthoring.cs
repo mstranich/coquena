@@ -173,7 +173,7 @@ internal static partial class DashboardCli
         if (!plans.Prepared)
         {
             (state.Plan, state.Unprepared) = (null, true);
-            state.Notice = "La combinación todavía no se preparó. Usala en Up o Iniciar para poder comprobar novedades.";
+            state.Notice = Messages.CombinationNotPrepared;
             return;
         }
         state.Plan = plans.ReadRecorded(selections);
@@ -181,7 +181,7 @@ internal static partial class DashboardCli
         try { _ = plans.ReadValid(selections); }
         // The CLI message names the update command; the view says what happened and what to press.
         catch (Coquena.Storage.StorageException error) when (error.Code == "stale-update-plan")
-        { state.Problem = "El plan quedó desactualizado: cambiaron la combinación o los recursos instalados desde que se comprobó. Volvé a pulsar Comprobar."; }
+        { state.Problem = Messages.UpdatePlanStale; }
         catch (Exception error) when (ManagementError(error)) { state.Problem = error.Message; }
         var identity = state.Plan["created-at"]!.GetValue<string>() + state.Plan["combination-id"]!.GetValue<string>();
         if (identity == state.Identity) return;
@@ -193,25 +193,33 @@ internal static partial class DashboardCli
     internal static DefinitionsPresentation.Page UpdatesPage(string scope, UpdateView state, IReadOnlyList<string> impact, bool busy = false, string combination = "Combinación")
     {
         var rows = new List<string>();
-        if (busy) rows.Add(" " + Markup.Style("warn", DashboardPresentation.Spinner() + " ") + Markup.Style("mut", "Trabajando… podés cambiar de vista mientras sigue."));
+        if (busy) rows.Add(" " + Markup.Style("warn", DashboardPresentation.Spinner() + " ") + Markup.Style("mut", "Trabajando… se puede cambiar de vista mientras sigue."));
         if (state.Notice is { } notice) rows.AddRange(DashboardPresentation.Wrap(notice, 54).Take(3).Select(line => " " + Markup.Style("mut", line)));
         if (state.Problem is { } problem) rows.AddRange(DashboardPresentation.Wrap(problem, 54).Take(3).Select(line => " " + Markup.Style("warn", line)));
         if (state.Plan is { } plan)
         {
             var date = DateTimeOffset.TryParse(plan["created-at"]?.ToString(), out var created) ? created.ToLocalTime().ToString("dd/MM HH:mm") : "fecha no disponible";
-            rows.Add(" " + Markup.Style("mut", "Comprobado el " + date + (state.Problem is null ? " · ✓ al día" : " · ▲ ya no se puede aplicar")));
+            rows.Add(" " + Markup.Style("mut", "Comprobado el " + date + (state.Problem is null ? " · ✓ al día" : "")));
             rows.Add(" " + Markup.Style("mut", "   RECURSO               ACTUAL    PROPUESTA  ESTADO"));
             var report = RecipeUpdatePlans.Report(plan)["resources"]!.AsArray();
             if (report.Count == 0) rows.Add(" " + Markup.Style("mut", "Sin recursos en este plan."));
             var raw = plan["resources"]!.AsArray();
-            for (var index = 0; index < report.Count; index++)
+            // With every intention selected, one installation shared by several intentions is
+            // reported once per intention; it is shown as a single row.
+            var groups = Enumerable.Range(0, report.Count).GroupBy(i => (raw[i]?["kind"]?.ToString(),
+                raw[i]?["resource-id"]?.ToString() ?? "#" + i, raw[i]?["installation-id"]?.ToString(),
+                raw[i]?["proposed"]?.ToJsonString(), raw[i]?["status"]?.ToString())).Select(g => g.ToArray());
+            foreach (var group in groups)
             {
+                var index = group[0];
                 var item = report[index]!;
-                var selectable = state.Problem is null && raw[index]?["sensitive"]?.GetValue<bool>() != true && item["status"]?.GetValue<string>() == "update-available" && item["upgrade-allowed"]?.GetValue<bool>() != false;
-                var selector = selectable ? UpdateSelector(raw[index]!) : "";
-                rows.Add(" " + (selectable ? Markup.Style("nav", state.Chosen.Contains(selector) ? "☑" : "☐", "update-toggle:" + Convert.ToHexString(System.Text.Encoding.UTF8.GetBytes(selector))) : Markup.Style("mut", " — ")) + " " +
+                var selectable = state.Problem is null && group.All(i => raw[i]?["sensitive"]?.GetValue<bool>() != true) && item["status"]?.GetValue<string>() == "update-available" && item["upgrade-allowed"]?.GetValue<bool>() != false;
+                var selectors = selectable ? group.Select(i => UpdateSelector(raw[i]!)).Distinct().ToArray() : [];
+                var selector = string.Join("\n", selectors);
+                rows.Add(" " + (selectable ? Markup.Style("nav", selectors.All(state.Chosen.Contains) ? "☑" : "☐", "update-toggle:" + Convert.ToHexString(System.Text.Encoding.UTF8.GetBytes(selector))) : Markup.Style("mut", " — ")) + " " +
                     Markup.Escape(DashboardPresentation.Fit(item["kind"] + " " + (item["alias"] ?? item["key"]), 21).PadRight(22) + Version(item["current"]).PadRight(10) + Version(item["proposed"]).PadRight(11)) +
                     Markup.Style(item["upgrade-allowed"]?.GetValue<bool>() == false ? "warn" : "mut", item["upgrade-allowed"]?.GetValue<bool>() == false ? "fijado" : UpdateStatus(item["status"]?.ToString())));
+                if (group.Length > 1) rows.Add("   " + Markup.Style("mut", Messages.UsedByIntentions(group.Length)));
                 if (item["diagnostic"] is { } diagnostic)
                     rows.AddRange(DashboardPresentation.Wrap("▲ " + diagnostic, 52).Select(line => "   " + Markup.Style("warn", Markup.Escape(line))));
             }
@@ -219,7 +227,7 @@ internal static partial class DashboardCli
         rows.Add(" " + (busy ? DefinitionsPresentation.Off(DashboardPresentation.Spinner() + " Comprobar") : state.Unprepared ? DefinitionsPresentation.Off("Comprobar") : ManagementPresentation.Button("Comprobar", "update-check")) + " " + (!busy && state.Plan is not null && state.Problem is null && state.Chosen.Count > 0 ?
             ManagementPresentation.Button("Actualizar " + state.Chosen.Count, "update-apply") : DefinitionsPresentation.Off("Actualizar")) + " " + ManagementPresentation.Button("Descargas", "downloads"));
         rows.Add(""); rows.Add(" " + Markup.Style("hi", "Impacto en ejecución"));
-        rows.Add(" " + Markup.Style("mut", "Actualizar no reinicia ni cambia servicios activos."));
+        rows.Add(" " + Markup.Style("mut", Messages.UpdateImpact));
         rows.AddRange(impact.Select(text => " " + Markup.Escape(text)));
         return new("Actualizaciones de " + Markup.Escape(scope) + "{pad}" + ManagementPresentation.CombinationButton(combination), rows);
 
@@ -280,7 +288,7 @@ internal static partial class DashboardCli
             dialog.Add(checks[category]);
         }
         var details = new Button { X = 1, Y = 4, Text = " Detalle de categorías… ", NoDecorations = true, ShadowStyle = ShadowStyles.None };
-        dialog.Add(new Label { X = 1, Y = 6, Text = "Ya existen en Global; marcá las que querés reemplazar:" });
+        dialog.Add(new Label { X = 1, Y = 6, Text = "Ya existen en Global; marcar las que se reemplazan:" });
         var list = new ListView { X = 1, Y = 7, Width = Dim.Fill(1), Height = Math.Clamp(collisions.Length, 1, 4) };
         var replacements = new HashSet<string>(StringComparer.Ordinal);
         void Refresh() => list.SetSource(new ObservableCollection<string>(collisions.Length == 0 ? ["Ninguna; nada se reemplaza."]
@@ -301,7 +309,7 @@ internal static partial class DashboardCli
             try
             {
                 var selected = string.Join(',', checks.Where(pair => pair.Value.Value == CheckState.Checked).Select(pair => pair.Key));
-                if (selected.Length == 0) throw new ArgumentException("Seleccioná al menos una categoría.");
+                if (selected.Length == 0) throw new ArgumentException("Seleccionar al menos una categoría.");
                 // Presets are published to a Global service: without one the import would fail after confirming.
                 if (checks["presets"].Value == CheckState.Checked && checks["service"].Value != CheckState.Checked && !HasDefaultGlobalService(global))
                     throw new ArgumentException("Los presets requieren un servicio global predeterminado: importá también el servicio o crealo en Global › Servicio.");
@@ -354,7 +362,7 @@ internal static partial class DashboardCli
             var path = Path.GetFullPath(fields[0], current.Base);
             if (entries.Any(entry => entry.Path.Equals(path, StringComparison.OrdinalIgnoreCase))) throw new ArgumentException("El archivo ya está en la lista.");
             if (create && File.Exists(path) || !create && !File.Exists(path)) throw new ArgumentException(create ? "El archivo ya existe." : "No existe el archivo.");
-            if (!env && !path.EndsWith(".yaml", StringComparison.OrdinalIgnoreCase) && !path.EndsWith(".yml", StringComparison.OrdinalIgnoreCase)) throw new ArgumentException("Elegí un archivo YAML.");
+            if (!env && !path.EndsWith(".yaml", StringComparison.OrdinalIgnoreCase) && !path.EndsWith(".yml", StringComparison.OrdinalIgnoreCase)) throw new ArgumentException("Elegir un archivo YAML.");
             if (!Directory.Exists(Path.GetDirectoryName(path))) throw new ArgumentException("No existe la carpeta destino.");
             entries.Add((path, env, true)); if (create) newFiles.Add(path);
         }
@@ -373,7 +381,7 @@ internal static partial class DashboardCli
             try
             {
                 var yaml = entries.Where(entry => !entry.Env && entry.Included).Select(entry => entry.Path).ToArray();
-                if (yaml.Length == 0) throw new ArgumentException("Seleccioná al menos un YAML.");
+                if (yaml.Length == 0) throw new ArgumentException("Seleccionar al menos un YAML.");
                 var selection = new RecipeSelection(current.Base, yaml, current.Base, entries.Where(entry => entry.Env && entry.Included).Select(entry => entry.Path));
                 result = new(selection, newFiles.Where(path => yaml.Contains(path, StringComparer.OrdinalIgnoreCase)).ToHashSet(StringComparer.OrdinalIgnoreCase),
                     CombinationIdentity.FromSelection(selection, isPrivate.Value == CheckState.Checked).Private);

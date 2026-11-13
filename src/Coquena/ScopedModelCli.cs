@@ -58,18 +58,21 @@ public static class ScopedModelCli
                 var resourceId = resource["resource-id"]!.GetValue<string>(); var installationId = installation["installation-id"]!.GetValue<string>();
                 if (action == "baseline")
                 {
-                    output.WriteLine(verifier.SetBaselineAsync(resourceId, installationId).GetAwaiter().GetResult().ToJsonString());
+                    var baseline = verifier.SetBaselineAsync(resourceId, installationId).GetAwaiter().GetResult();
+                    output.WriteLine(json ? baseline.ToJsonString() : Messages.BaselineSet(value!));
                     return 0;
                 }
                 var report = verifier.VerifyAsync([new(value!, companion ? "companion" : "model", resourceId, installationId)], checksum: checksum).GetAwaiter().GetResult();
-                output.WriteLine(report.Resources.ToJsonString()); return report.Verified ? 0 : 6;
+                if (json) output.WriteLine(report.Resources.ToJsonString()); else VerifyCli.WriteReport(report, checksum, output);
+                return report.Verified ? 0 : 6;
             }
             if (action == "add")
             {
                 var added = models.AddExternal(value!, name!, companion, type: type,
                     projectName: !global && File.Exists(selection!.Files[0]) ? RecipeReader.ProjectName(selection) : null);
-                output.WriteLine(new JsonObject { ["resource-id"] = added.ResourceId, ["installation-id"] = added.InstallationId,
+                if (json) output.WriteLine(new JsonObject { ["resource-id"] = added.ResourceId, ["installation-id"] = added.InstallationId,
                     ["ownership"] = "external", ["provenance-certified"] = false }.ToJsonString());
+                else output.WriteLine(Messages.ExternalAdded(name!, added.InstallationId));
                 if (tryMatch)
                 {
                     using var matchClient = source is null ? HuggingFaceStore.CreateClient() : null;
@@ -85,8 +88,9 @@ public static class ScopedModelCli
                 if (value is not null && File.Exists(context.PathFor("local/state.json"))) value = models.ResolveKey(value, companion);
                 if (value?.StartsWith(recipe.Name + "/", StringComparison.Ordinal) == true) value = value[(recipe.Name.Length + 1)..];
                 var entries = recipe.Root.Get(companion ? "companions" : "models");
-                if (value is null) output.WriteLine(entries?.Redacted()?.ToJsonString() ?? "{}");
-                else output.WriteLine(entries?.Get(value)?.Redacted()?.ToJsonString() ?? throw new ModelSourceException("unknown-alias", "Alias inexistente."));
+                var shown = value is null ? entries?.Redacted() ?? new JsonObject()
+                    : entries?.Get(value)?.Redacted() ?? throw new ModelSourceException("unknown-alias", "Alias inexistente.");
+                if (json) output.WriteLine(shown.ToJsonString()); else TextTree.Write(shown, output);
                 return 0;
             }
             if (action is "show" or "list")
@@ -95,7 +99,8 @@ public static class ScopedModelCli
                 if (value is not null) resources = new JsonArray(resources.Where(r => r!["resource-id"]?.GetValue<string>() == value ||
                     r["logical-key"]!.GetValue<string>().Equals(value, StringComparison.OrdinalIgnoreCase) ||
                     r["identity"]?.GetValue<string>().Equals(value, StringComparison.OrdinalIgnoreCase) == true).Select(r => r!.DeepClone()).ToArray());
-                if (json || action == "show") output.WriteLine(resources.ToJsonString());
+                if (json) output.WriteLine(resources.ToJsonString());
+                else if (action == "show") TextTree.Write(resources, output);
                 else
                 {
                     foreach (var resource in resources)
@@ -115,14 +120,20 @@ public static class ScopedModelCli
                 if (!models.List(companion).Any(r => r!["installations"]!.AsArray().Any(i => i!["installation-id"]!.GetValue<string>() == value)))
                     throw new ModelSourceException("unknown-installation", "Instalación inexistente en esta categoría.");
                 models.Protect(value!, action == "protect");
-                output.WriteLine(new JsonObject { ["installation-id"] = value, ["protected"] = action == "protect", ["references-preserved"] = true }.ToJsonString());
+                if (json) output.WriteLine(new JsonObject { ["installation-id"] = value, ["protected"] = action == "protect", ["references-preserved"] = true }.ToJsonString());
+                else output.WriteLine(Messages.ProtectionChanged(value!, action == "protect"));
                 return 0;
             }
             if (action == "remove")
             {
                 var result = models.Remove(value!, companion);
-                output.WriteLine(new JsonObject { ["complete"] = result.Complete, ["freed-bytes"] = result.FreedBytes,
+                if (json) output.WriteLine(new JsonObject { ["complete"] = result.Complete, ["freed-bytes"] = result.FreedBytes,
                     ["pending"] = new JsonArray(result.Pending.Select(p => (JsonNode?)JsonValue.Create(p)).ToArray()) }.ToJsonString());
+                else
+                {
+                    output.WriteLine(Messages.PruneFreed(result.FreedBytes));
+                    foreach (var pending in result.Pending) output.WriteLine(Messages.RemovePending(pending));
+                }
                 return result.Complete ? 0 : 1;
             }
             using var client = source is null ? HuggingFaceStore.CreateClient() : null;
@@ -151,7 +162,8 @@ public static class ScopedModelCli
                     if (json) output.WriteLine(ContractJson.Write(operation, ContractJsonContext.Default.OperationDocument));
                     else DownloadCli.Show(operation, output);
                 }, cancellation: stopped.Token, replaceExternal: replace).GetAwaiter().GetResult();
-                output.WriteLine(new JsonObject { ["resource-id"] = result.ResourceId, ["installation-id"] = result.InstallationId }.ToJsonString());
+                if (json) output.WriteLine(new JsonObject { ["resource-id"] = result.ResourceId, ["installation-id"] = result.InstallationId }.ToJsonString());
+                else output.WriteLine(Messages.ModelReady(selected.Name, result.InstallationId));
                 return 0;
             }
             finally { Console.CancelKeyPress -= handler; }
@@ -165,7 +177,7 @@ public static class ScopedModelCli
             return e is OperationCanceledException ? 130 : e is ArgumentException || code is "invalid-selector" or "unknown-resource" or "unknown-alias" or "unknown-installation" ? 2 : 1;
         }
     }
-    private static int Invalid(TextWriter error) { error.WriteLine("Error: argumentos de model inválidos. Consulte coquena --help."); return 2; }
+    private static int Invalid(TextWriter error) { error.WriteLine("Error: argumentos de model inválidos. Ver coquena --help."); return 2; }
     private sealed class SelectionInteraction(TextWriter output, bool interactive, bool structured) : IModelSelectionInteraction
     {
         public bool IsInteractive => interactive && !structured;

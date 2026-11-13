@@ -86,14 +86,20 @@ public static class ImportCli
         }
         bool Confirm(string message)
         {
-            output.WriteLine(message); output.WriteLine("¿Querés aplicar los cambios ahora? [a] Aplicar / [c] Cancelar");
+            output.WriteLine(message); output.WriteLine("¿Aplicar los cambios ahora? [a] Aplicar / [c] Cancelar");
             return Console.ReadLine()?.Trim().Equals("a", StringComparison.OrdinalIgnoreCase) == true;
         }
         var result = await new RecipeImporter(context).ImportAsync(source, resources, select, replace, force, asDefault,
             interactive: interaction?.IsInteractive ?? !Console.IsInputRedirected, confirm: confirm ?? Confirm, router: Router, cancellation: cancellation);
-        output.WriteLine(result.ReconciledOnly ? "Se observó la operación anterior sin reenviar reload. Repetir import para aplicar una nueva candidata o completar remanentes." : result.Confirmed ? "Intención importada; presets seleccionados confirmados o conservados para el próximo inicio. Servicio no iniciado." :
+        output.WriteLine(result.ReconciledOnly ? "Se observó la operación anterior sin reenviar reload. Repetir import para aplicar una nueva candidata o completar remanentes." : result.Confirmed ? Messages.ImportDone(Categories(select)) :
             "Intención importada; publicación incompleta. Pendientes: " + string.Join(", ", result.Pending));
         if (result.Confirmed && result.Pending.Length != 0) output.WriteLine("Se conservan remanentes anteriores no seleccionados: " + string.Join(", ", result.Pending));
         return result.ExitCode != 0 ? result.ExitCode : result.Confirmed ? 0 : result.WarmupFailed ? 8 : 9;
     }
+
+    // Categories imported: all without --select; a selector such as preset:x counts as its category.
+    internal static string[] Categories(string? select) => select is null ? ["service", "presets", "model", "params"] :
+        select.Split(",", StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
+            .Select(s => s.Split(":")[0] switch { "preset" => "presets", "companion" => "model", "param" => "params", var c => c })
+            .Distinct().ToArray();
 }

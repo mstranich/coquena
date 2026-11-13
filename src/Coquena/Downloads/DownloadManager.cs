@@ -253,7 +253,7 @@ public sealed class DownloadManager(Home home, LocalStore? storage = null)
         using var lease = Lease(id);
         var value = Read(id); Paths(value);
         if (value.Phase == "cancelling-publication")
-            throw new DownloadException("cancel-required", "Publicación en reversión; repita download cancel para completar limpieza.");
+            throw new DownloadException("cancel-required", "Publicación en reversión; repetir download cancel para completar la limpieza.");
         if (value.State == "completed" && !(finalize is not null && value.Phase == "cleanup"))
             throw new DownloadException("cleanup-pending", "Operación terminada pendiente de limpieza del consumidor.");
         if (value.State == "cancelled") throw new DownloadException("cleanup-pending", "Cancelar para completar limpieza pendiente.");

@@ -50,7 +50,7 @@ internal static class InferenceObservationTests
         handler.ReplaceDuringMetrics = true;
         sample = await observer.CaptureAsync(service, observeInference: true);
         entry = sample.Entries.Single();
-        check(entry.Metrics.Count == 0 && entry.Inference is null && entry.InferenceDiagnostic?.Contains("hijo cambió") == true,
+        check(entry.Metrics.Count == 0 && entry.Inference is null && entry.InferenceDiagnostic == Messages.ChildChanged,
             "replacement during the metrics query discards mixed-generation metrics and tasks");
         check(handler.ReadOnly, "all inference queries use GET without reload or autoload");
     }

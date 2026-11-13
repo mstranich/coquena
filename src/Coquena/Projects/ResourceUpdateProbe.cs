@@ -62,7 +62,7 @@ public sealed class ResourceUpdateProbe(HuggingFaceStore models,
                     var choice = await interaction.ChooseAsync(candidates.Select(u => string.Join(", ", u.Files.Select(f => f.Path)))
                         .Append("Cancelar; conservar selección sin resolver").ToArray(), cancellation);
                     if (choice is >= 0 && choice < candidates.Length)
-                        comparison = new("update-available", "Destino elegido explícitamente; no acredita sucesión.",
+                        comparison = new("update-available", "Archivos elegidos a mano.",
                             ModelUpdateComparer.Plan(original, revision, candidates[choice.Value], true, true), []);
                     else if (choice is not null && choice != candidates.Length) throw new ArgumentException("Selección inválida.");
                 }

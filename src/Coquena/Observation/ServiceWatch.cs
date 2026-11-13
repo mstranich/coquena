@@ -62,7 +62,7 @@ public sealed class ServiceWatch(ScopeStore store, ServiceIdentity service, Reci
                         streamCancellation.Dispose(); streamCancellation = null; stream = null;
                     }
                     if (snapshot.InstanceId != instance)
-                        transition = $"Tramo nuevo: {instance ?? "ninguna"} → {snapshot.InstanceId ?? "ninguna"}; sin continuidad entre instancias.";
+                        transition = $"{Messages.NewInstanceSpan}: {instance ?? "ninguna"} → {snapshot.InstanceId ?? "ninguna"}; sin continuidad entre instancias.";
                     else if (!live) transition = "Instancia detenida, no verificable o terminada; esperando al mismo servicio.";
                     instance = snapshot.InstanceId;
                     Volatile.Write(ref events, "sin conexión: " + snapshot.ProcessState);

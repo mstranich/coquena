@@ -41,7 +41,7 @@ public static class ScopedServiceCli
             if (command.Action == "start" && command.Selector == "default")
                 PublicationCli.EnsureGlobalAsync(ScopeContext.Global(home), output).GetAwaiter().GetResult();
             var target = Resolve(command, home);
-            if (command.Action == "show") return Show(target, output);
+            if (command.Action == "show") return Show(target, output, command.Json);
             if (!target.Context.IsGlobal) new ProjectIndex(home).Refresh(new ScopeStore(target.Context));
             return Operate(command, target, output, error);
         }
@@ -74,7 +74,7 @@ public static class ScopedServiceCli
             if (tail[i] is "--global" or "-g") { selection.Add(tail[i]); tail.RemoveAt(i); }
             else if (tail[i] is "--service" or "--file" or "--env-file" or "--base" or "--project-directory")
             {
-                if (i + 1 == tail.Count) throw new ArgumentException("Opción de logs sin valor. Consulte coquena --help.");
+                if (i + 1 == tail.Count) throw new ArgumentException("Opción de logs sin valor. Ver coquena --help.");
                 selection.AddRange(tail.GetRange(i, 2)); tail.RemoveRange(i, 2);
             }
             else i++;
@@ -87,7 +87,7 @@ public static class ScopedServiceCli
             "show" => tail.Count == 2 && !follow && Guid.TryParseExact(tail[1], "D", out _),
             _ => false
         };
-        if (!valid) throw new ArgumentException("Argumentos de logs inválidos. Consulte coquena --help.");
+        if (!valid) throw new ArgumentException("Argumentos de logs inválidos. Ver coquena --help.");
         selection.Add("logs");
         var command = ServiceCommand.Parse(selection.ToArray());
         var target = Resolve(command, Home.Resolve());
@@ -138,7 +138,7 @@ public static class ScopedServiceCli
         return 0;
     }
 
-    private static int Show(Target target, TextWriter output)
+    private static int Show(Target target, TextWriter output, bool json)
     {
         var recipe = RecipeReader.Read(target.Selection);
         var state = new ScopeStore(target.Context).Read();
@@ -150,7 +150,8 @@ public static class ScopedServiceCli
             ["default"] = target.Context.IsGlobal && state.State?["data"]?["aliases"]?["default"]?.GetValue<string>() == target.Service.ServiceId,
             ["definition"] = recipe.Root.Get("service")?.Redacted()
         };
-        output.WriteLine(result.ToJsonString(new System.Text.Json.JsonSerializerOptions { WriteIndented = true }));
+        if (json) output.WriteLine(result.ToJsonString(new System.Text.Json.JsonSerializerOptions { WriteIndented = true }));
+        else TextTree.Write(result, output);
         return 0;
     }
 

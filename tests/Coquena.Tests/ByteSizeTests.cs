@@ -56,7 +56,7 @@ internal static class ByteSizeTests
             var hardware = new HardwareContext("win-x64", "fixture", 16UL * 1024 * 1024 * 1024,
                 [], null, [], new("unknown", "fixture"), new("unknown", "fixture"));
             Check(BackendCli.Run(["system", "probe"], output, error, () => hardware) == 0 &&
-                output.ToString().Contains("RAM física: 16 GiB"), "RAM CLI");
+                output.ToString().Contains(Messages.PhysicalRam("16 GiB")), "RAM CLI");
         }
         var repositoryFile = new RepositoryFile("tiny-Q4_0.gguf", 1610612736, new string('a', 40), null, null);
         var variant = ModelSelection.Variant(new([repositoryFile]),

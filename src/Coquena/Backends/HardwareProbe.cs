@@ -146,7 +146,7 @@ public static unsafe partial class HardwareProbe
                 }
             }
             return compatible.Count > 0
-                ? new("compatible", $"Vulkan 1.2, GPU, cola compute y almacenamiento de 16 bits: {string.Join(", ", compatible)}. Sondeo básico; no garantiza inferencia del binario concreto.")
+                ? new("compatible", $"Vulkan 1.2, GPU, cola compute y almacenamiento de 16 bits: {string.Join(", ", compatible)}. Compatible según una comprobación básica.")
                 : new("incompatible", "Ninguna GPU Vulkan enumerada satisface el sondeo básico (1.2, compute y almacenamiento de 16 bits).");
         }
         catch (Exception e) when (e is DllNotFoundException or EntryPointNotFoundException or BadImageFormatException)

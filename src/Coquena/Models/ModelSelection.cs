@@ -69,12 +69,12 @@ public sealed class ModelSelectionMenu(HuggingFaceStore store, IRemoteGgufInspec
         var variants = discovered.Variants.Where(v => v.CompanionType == request.CompanionType &&
             (request.Quantization is null || v.Quantization.Equals(request.Quantization, StringComparison.OrdinalIgnoreCase))).ToArray();
         if (variants.Length == 0) interaction.Show(request.Quantization is null ?
-            "No se resolvieron GGUF seleccionables para la unidad solicitada; revisar los diagnósticos de exploración." : "Cuantización solicitada inexistente o no seleccionable según la exploración; puede ser parcial/no concluyente. No se sustituye.");
+            "No se resolvieron GGUF seleccionables para la unidad solicitada; revisar los diagnósticos de exploración." : "Cuantización solicitada inexistente o no seleccionable según la exploración; " + Messages.PartialExploration + ". " + Messages.NotSubstituted + "");
         if (request.Quantization is not null && variants.Length == 1)
             return await ValidateSelection(variants[0]);
         if (!interaction.IsInteractive)
             throw new ModelSourceException("interaction-required", "La selección necesita entrada interactiva; no se eligió ni creó trabajo.");
-        var options = variants.Select(v => "Descargar " + v.Label).Concat(["Mostrar README", "Cancelar"]).ToArray();
+        var options = variants.Select(v => Messages.DownloadVariant(v.Label)).Concat(["Mostrar README", "Cancelar"]).ToArray();
         while (true)
         {
             cancellation.ThrowIfCancellationRequested();

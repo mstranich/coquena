@@ -38,7 +38,7 @@ public sealed partial class BackendInstaller(Home home, LocalStore? storage = nu
         if (Coquena.Configuration.ParameterManager.Official(repository)) repository = "ggml-org/llama.cpp";
         if (!Regex.IsMatch(repository, @"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$", RegexOptions.CultureInvariant) ||
             repository.Split('/').Any(p => p is "." or ".."))
-            throw new BackendException("invalid-distribution", "Use un repositorio propietario/nombre.");
+            throw new BackendException("invalid-distribution", "Usar un repositorio propietario/nombre.");
         var path = Path.GetFullPath(server);
         if (!File.Exists(path)) throw new BackendException("backend-absent", "Ejecutable ausente.");
         var version = await (probe ?? ProbeAsync)(path, cancellation);
@@ -350,7 +350,7 @@ public sealed partial class BackendInstaller(Home home, LocalStore? storage = nu
         catch (Exception e) when (e is IOException or UnauthorizedAccessException or StorageException or DownloadException)
         {
             Save(operation with { State = "completed", Phase = "cleanup", Diagnostic = "cleanup-pending" });
-            throw new DownloadException("cleanup-pending", "Backend publicado; limpieza pendiente. Reanude el GUID.");
+            throw new DownloadException("cleanup-pending", "Backend publicado; limpieza pendiente; reanudar la operación.");
         }
     }
 

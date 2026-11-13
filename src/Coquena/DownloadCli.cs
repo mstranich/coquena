@@ -15,7 +15,7 @@ public static class DownloadCli
     {
         if (!Valid(args))
         {
-            error.WriteLine("Error: opciones no válidas para download. Consulte coquena --help."); return 2;
+            error.WriteLine("Error: opciones no válidas para download. Ver coquena --help."); return 2;
         }
         try
         {
@@ -80,7 +80,7 @@ public static class DownloadCli
                 {
                     var installed = installer is not null && installer.Published(operation) ||
                         modelInstaller is not null && modelInstaller.Published(operation);
-                    output.WriteLine($"{id:D}: {(installed ? "instalación y limpieza completadas" : "cancelación y limpieza completadas")}."); return 0;
+                    output.WriteLine($"{id:D}: {(installed ? "instalación " : "cancelación ") + Messages.CleanupCompleted}."); return 0;
                 }
                 if (result.State is "paused" or "failed") output.WriteLine($"coquena download resume {id:D}");
                 return result.State == "failed" ? 1 : 0;
@@ -91,7 +91,7 @@ public static class DownloadCli
         {
             var code = e switch { DownloadException d => d.Code, StorageException s => s.Code,
                 ContractException c => c.Code, ModelSourceException m => m.Code, OperationCanceledException => "control-not-confirmed", _ => "local-io-failed" };
-            error.WriteLine($"Error: {code}. No se confirmó la operación; revise download status. Consulte coquena --help.");
+            error.WriteLine($"Error: {code}. No se confirmó la operación; ver download status. Ver coquena --help.");
             return 1;
         }
     }
@@ -104,11 +104,12 @@ public static class DownloadCli
     // Keeps the code for diagnosis and says what happened when it is a known transfer problem.
     internal static string ErrorLine(string code)
     {
-        if (code == "transfer-cancelled") return "La descarga fue cancelada; no se instaló nada.";
+        if (code == "transfer-cancelled") return Messages.DownloadCancelled;
+        if (code == "transfer-paused") return Messages.Error(code, "Descarga pausada. Lo descargado se conserva; para reanudarla, ver coquena download list");
         var text = Coquena.Observation.DownloadsPresentation.Failure(code);
-        return text == "falló la descarga" || text == code
-            ? $"Error: {code}. Se conserva lo hecho hasta ahora."
-            : $"Error: {text} ({code}). Lo descargado se conserva; para reanudarla, consulte coquena download list.";
+        return text == Messages.TransferFailed || text == code
+            ? Messages.Error(code, "La descarga no terminó. Lo descargado se conserva; para reanudarla, ver coquena download list")
+            : $"Error: {text} ({code}). Lo descargado se conserva; para reanudarla, ver coquena download list.";
     }
 
     internal static void Show(OperationDocument value, TextWriter output)
@@ -125,7 +126,7 @@ public static class DownloadCli
         if (value.Diagnostic is not null) output.WriteLine($"  Diagnóstico: {value.Diagnostic}");
         if (value.Diagnostic?.StartsWith("checkpoint-write-failed-", StringComparison.Ordinal) == true)
         {
-            output.WriteLine("  Falló la escritura del checkpoint local; no es un rechazo HTTP ni un diagnóstico de red.");
+            output.WriteLine("  No se pudo guardar el avance de la descarga en el disco.");
             if (value.Diagnostic.EndsWith("0x80070497", StringComparison.Ordinal))
                 output.WriteLine("  Windows no pudo retirar el archivo de estado al reemplazarlo (ERROR_UNABLE_TO_REMOVE_REPLACED, 1175).");
         }
@@ -134,6 +135,6 @@ public static class DownloadCli
             output.WriteLine($"  Último incidente ({incident.At:O}): {incident.Reason} | archivo {incident.FileIndex + 1} | offset {incident.Offset} bytes");
             output.WriteLine($"  Fallos consecutivos: {incident.ConsecutiveFailures} | límite de reintentos: {incident.RetryLimit} | espera prevista: {incident.WaitMilliseconds} ms");
         }
-        if (value.Phase == "resource-validation") output.WriteLine("  Bytes transferidos; pendiente validación y publicación del recurso. No instalado.");
+        if (value.Phase == "resource-validation") output.WriteLine(value.State == "running" ? "  Verificando los archivos descargados." : "  Archivos descargados; falta verificarlos.");
     }
 }

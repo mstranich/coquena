@@ -52,7 +52,7 @@ internal static class DownloadsPresentation
             }
         }
         rows.AddRange(problems.Select(problem => " " + Style("warn", "▲ " + problem)));
-        if (rows.Count == 0) rows.Add(" " + Style("mut", "No hay descargas."));
+        if (rows.Count == 0) rows.Add(" " + Style("mut", Messages.NoDownloads));
         return rows;
     }
 
@@ -109,8 +109,8 @@ internal static class DownloadsPresentation
     // Engine diagnostics are codes; a person reads what happened instead.
     public static string Failure(string? diagnostic) => diagnostic switch
     {
-        null or "" => "falló la descarga",
-        "connection-interrupted" or "response-stream-failed" or "headers-timeout" or "read-timeout" => "se cortó la conexión",
+        null or "" => Messages.TransferFailed,
+        "connection-interrupted" or "response-stream-failed" or "headers-timeout" or "read-timeout" => Messages.ConnectionCut,
         "http-failed" => "el servidor rechazó la descarga",
         "not-found" => "el archivo ya no está disponible",
         "size-mismatch" or "remote-hash-mismatch" or "partial-integrity-failed" or "prepared-integrity-failed" or "checkpoint-integrity-failed"
@@ -118,8 +118,8 @@ internal static class DownloadsPresentation
         "transfer-io-failed" => "no se pudo escribir en el disco",
         "executor-interrupted" => "la descarga se detuvo inesperadamente",
         "transfer-cancelled" => "la descarga fue cancelada",
-        _ when diagnostic.EndsWith("-transfer-interrupted", StringComparison.Ordinal) => "se cortó la descarga",
-        _ when diagnostic.All(c => c is >= 'a' and <= 'z' or >= '0' and <= '9' or '-') => "falló la descarga",
+        _ when diagnostic.EndsWith("-transfer-interrupted", StringComparison.Ordinal) => Messages.TransferCut,
+        _ when diagnostic.All(c => c is >= 'a' and <= 'z' or >= '0' and <= '9' or '-') => Messages.TransferFailed,
         _ => diagnostic
     };
 

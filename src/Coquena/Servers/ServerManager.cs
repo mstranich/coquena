@@ -80,7 +80,7 @@ public sealed class ServerManager(Home home, LocalStore? storage = null)
             {
                 if (instance.ServerId != record.Id)
                     throw new ConfigurationException($"Identidad incierta de instancia {instance.InstanceId:D}; servidor distinto, no se retira.");
-                throw new ConfigurationException($"Detenga instancia {instance.InstanceId:D} antes de retirar el servidor.");
+                throw new ConfigurationException($"Detener la instancia {instance.InstanceId:D} antes de retirar el servidor.");
             }
         }
         var catalog = Catalog(); var config = Config();
@@ -94,7 +94,7 @@ public sealed class ServerManager(Home home, LocalStore? storage = null)
     private static int NextPort(ServersDocument catalog)
     {
         var maximum = catalog.Servers.Length == 0 ? 9930 : catalog.Servers.Max(s => s.Parameters["port"].GetInt32());
-        if (maximum >= 65535) throw new ConfigurationException("Puerto máximo 65535: indique un puerto explícito; sin cambios.");
+        if (maximum >= 65535) throw new ConfigurationException("Puerto máximo 65535: indicar un puerto explícito; sin cambios.");
         return maximum + 1;
     }
     private static void CheckPort(ServersDocument catalog, int port, Guid? except = null)
@@ -179,7 +179,7 @@ public sealed class ServerManager(Home home, LocalStore? storage = null)
     {
         var presets = store.Read(DocumentKind.Presets, Json.PresetsDocument, ContractValidation.Presets)?.Presets ?? [];
         var ids = names.Select(n => presets.SingleOrDefault(p => p.Name.Equals(n, StringComparison.OrdinalIgnoreCase))?.Id
-            ?? throw new ConfigurationException($"Preset ausente: {n}.")).ToArray();
+            ?? throw new ConfigurationException($"{Messages.MissingPreset(n)}.")).ToArray();
         return record with { PresetIds = add ? record.PresetIds.Concat(ids).Distinct().ToArray() : record.PresetIds.Except(ids).ToArray() };
     });
     private BackendRecord Resolve(BackendSelection? selection, BackendRecord[] backends)
@@ -207,7 +207,7 @@ public sealed class ServerManager(Home home, LocalStore? storage = null)
         {
             var model = models.SingleOrDefault(m => m.Id == preset.ModelId);
             if (model is null) diagnostics.Add($"Modelo ausente: {preset.ModelId:D} en {preset.Name}.");
-            else if (model.Files.Any(f => !File.Exists(new Coquena.Models.ModelPaths(home).File(model, f)))) diagnostics.Add($"Archivo de modelo ausente en {preset.Name}.");
+            else if (model.Files.Any(f => !File.Exists(new Coquena.Models.ModelPaths(home).File(model, f)))) diagnostics.Add($"{Messages.MissingModelFile} en {preset.Name}.");
         }
         var effective = new Dictionary<string, JsonElement> { ["host"] = Text("127.0.0.1"), ["metrics"] = Scalar("true") };
         foreach (var pair in record.Parameters) effective[pair.Key] = pair.Value;

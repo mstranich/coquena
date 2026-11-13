@@ -125,7 +125,7 @@ internal static class AuthoringDashboardTests
             DashboardCli.ReadUpdates(ScopeContext.Project(freshFile), [new RecipeSelection(Path.GetDirectoryName(freshFile)!)], fresh);
             var freshSpans = DashboardCli.UpdatesPage("fresh", fresh, []).Rows.SelectMany(Markup.Parse).ToArray();
             check(fresh.Unprepared && fresh.Problem is null && !freshSpans.Any(span => span.Action == "update-check") &&
-                  string.Join(" ", freshSpans.Select(span => span.Text)).Contains("todavía no se preparó"), "U disables Comprobar on an unprepared combination and explains it");
+                  fresh.Notice == Messages.CombinationNotPrepared, "U disables Comprobar on an unprepared combination and explains it");
             var noServiceGlobal = ScopeContext.Global(new Home(Path.Combine(root, "no-service-home")));
             check(!DashboardCli.HasDefaultGlobalService(noServiceGlobal), "L detects a Global scope without default service before importing presets");
 
@@ -135,6 +135,17 @@ internal static class AuthoringDashboardTests
             using var client = HuggingFaceStore.CreateClient();
             var probe = new ResourceUpdateProbe(new(client), (_, _) => throw new Exception("unexpected network"), new Quiet());
             await new RecipeUpdatePlans(context).UpdateAsync([selection], new HashSet<string>(), probe);
+            // One installation shared by two intentions is one row; its box covers both selectors.
+            var shared = new DashboardCli.UpdateView { Plan = JsonNode.Parse("""
+                {"created-at":"2026-11-10T20:24:01Z","resources":[
+                {"kind":"backend","key":"backend","alias":"svc","recipe":"one","resource-id":"r","installation-id":"i","status":"update-available","current":{"release":"b1"},"proposed":{"release":"b2"}},
+                {"kind":"backend","key":"backend","alias":"svc","recipe":"two","resource-id":"r","installation-id":"i","status":"update-available","current":{"release":"b1"},"proposed":{"release":"b2"}}]}
+                """)!.AsObject() };
+            var sharedSpans = DashboardCli.UpdatesPage("Global", shared, []).Rows.SelectMany(Markup.Parse).ToArray();
+            var toggles = sharedSpans.Where(span => span.Action?.StartsWith("update-toggle:", StringComparison.Ordinal) == true).ToArray();
+            check(toggles.Length == 1 && System.Text.Encoding.UTF8.GetString(Convert.FromHexString(toggles[0].Action![14..])).Split('\n')
+                .ToHashSet().SetEquals(["backend://one/svc", "backend://two/svc"]) &&
+                sharedSpans.Any(span => span.Text.Contains(Messages.UsedByIntentions(2))), "a shared installation is one row that selects every intention");
             var state = new DashboardCli.UpdateView();
             DashboardCli.ReadUpdates(context, [selection], state);
             check(state.Problem is null && state.Plan is not null && state.Chosen.Count == 0, "U reads a current plan without inventing proposals");

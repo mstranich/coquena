@@ -365,7 +365,7 @@ public sealed class PresetPublication(ScopeStore consumer, ScopeStore target, st
     // Only a difference in this consumer can block its publication.
     private static StorageException Conflict(string difference) => new("remote-composition-conflict",
         "La contribución de esta receta en el servidor no coincide con lo que Coquena publicó: " + difference +
-        " No se modificó nada. Revisa los argumentos de esta receta y la configuración que informa el servidor.");
+        " No se modificó nada. Revisar los argumentos de esta receta y la configuración que informa el servidor.");
 
     private static bool Subsequence(string[] wanted, string[] actual)
     {

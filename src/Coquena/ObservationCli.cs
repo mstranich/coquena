@@ -14,7 +14,7 @@ public static class ObservationCli
         {
             var ps = Array.IndexOf(args, "ps");
             if (ps < 0 || args.Count(a => a == "ps") != 1 || args.Count(a => a is "-w" or "--watch") > 1)
-                throw new ArgumentException("Use ps [-w|--watch] con una selección de servicio válida.");
+                throw new ArgumentException("Usar ps [-w|--watch] con una selección de servicio válida.");
             var watch = args.Any(a => a is "-w" or "--watch");
             var options = args.Where((a, i) => i != ps && a is not ("-w" or "--watch")).ToArray();
             // Use the same selector and recipe rules as service logs, without
@@ -111,7 +111,7 @@ public static class ObservationCli
             finally { Console.CancelKeyPress -= handler; }
         }
         catch (OperationCanceledException) { return 130; }
-        catch (Exception e) when (ServiceObservation.ObservationError(e)) { error.WriteLine("Error: " + e.Message + " Consulte coquena --help."); return 2; }
+        catch (Exception e) when (ServiceObservation.ObservationError(e)) { error.WriteLine("Error: " + e.Message + " Ver coquena --help."); return 2; }
     }
 
     public static async Task<int> WatchAsync(
@@ -140,7 +140,7 @@ public static class ObservationCli
                 if (discover is not null && discoveryClock.Elapsed >= TimeSpan.FromSeconds(5))
                 { Add(discover()); discoveryClock.Restart(); }
                 using var frame = new StringWriter(CultureInfo.InvariantCulture);
-                frame.WriteLine($"Observación | Ctrl+C: cerrar observador | {DateTimeOffset.UtcNow:O}");
+                frame.WriteLine($"{Messages.ObservationFrame} | Ctrl+C: cerrar observador | {DateTimeOffset.UtcNow:O}");
                 lock (sync)
                 {
                     if (hardware is not null)

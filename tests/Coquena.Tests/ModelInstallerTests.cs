@@ -209,7 +209,7 @@ internal static class ModelInstallerTests
                 if (stage == ModelInstallStage.AfterMove && executable is not null)
                 {
                     var result = ResumeM2(installer.Downloads, op.Id);
-                    Check(result.Code == 0 && result.Output.Contains("y limpieza completadas"), "published CLI recovers fixed model without network: " + result.Code + " " + result.Output);
+                    Check(result.Code == 0 && result.Output.Contains(Messages.CleanupCompleted), "published CLI recovers fixed model without network: " + result.Code + " " + result.Output);
                 }
                 else Check(await Run(installer, failed!, new NoNetwork()) is null, "recovered publication no HTTP");
                 Check(installer.List().Single(m => m.Record.Id == op.ModelInstall!.ModelId).Availability == "available" && !Directory.Exists(home.PathFor($"downloads/{op.Id:D}")), "recovery all shards + catalog + cleanup");

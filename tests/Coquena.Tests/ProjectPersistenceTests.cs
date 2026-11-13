@@ -212,7 +212,7 @@ internal static class ProjectPersistenceTests
             File.WriteAllText(recipeFile, originalRecipe.Replace(apphost.Replace('\\', '/'), Path.Combine(root, "missing.exe").Replace('\\', '/')));
             using (var failedOutput = new StringWriter()) using (var failedError = new StringWriter())
                 Require(Coquena.Cli.Run(["service", "self", "restart", "-d", "--private", "--project-directory", cliFolder], failedOutput, failedError) == 0 &&
-                    failedError.ToString().Contains("sigue funcionando con la anterior"), "restart CLI informa candidata fallida y disponibilidad conservada con warning");
+                    failedError.ToString().Contains(Messages.RecoveryKeptPrevious("").Split(';')[1].Trim().TrimEnd('.')), "restart CLI informa candidata fallida y disponibilidad conservada con warning");
             var cliStore = new ScopeStore(ScopeContext.Project(recipeFile));
             var own = new RecipeRegistry(cliStore).FindProjectService([recipeFile]);
             Require(new Coquena.Servers.ScopedServiceProcess(cliStore).Reconcile(own.ServiceId), "fallo CLI conserva instancia anterior");

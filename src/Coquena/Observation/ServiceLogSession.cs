@@ -158,7 +158,7 @@ internal sealed class ServiceLogSession
                 }
                 catch (OperationCanceledException) when (cancellation.IsCancellationRequested) { }
                 catch (Exception error) when (ServiceObservation.ObservationError(error))
-                { lock (gate) if (history == buffer) historicalState = "No disponible · " + error.Message; }
+                { lock (gate) if (history == buffer) historicalState = Messages.LogUnavailable + " · " + error.Message; }
                 finally { lock (gate) if (historyStop == cancellation) historyStop = null; cancellation.Dispose(); }
             });
         }

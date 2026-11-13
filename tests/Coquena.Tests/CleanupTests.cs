@@ -150,6 +150,29 @@ internal static class CleanupTests
         Check(cleanup.Preview().Items.Any(i => i.InstallationId == published), "confirmed withdrawal releases historical operation reference");
         cleanup.Apply(cleanup.Preview());
         Check(!File.Exists(PathOf(published)) && PresetPublication.CurrentIni(target, service.ServiceId).Contains("two/chat"), "cleanup preserves sibling contribution");
+        // usage: every inventoried installation, classified with prune's own rule.
+        var reclaimable = Add();
+        Directory.CreateDirectory(ScopeContext.Global(home).PathFor("logs"));
+        File.WriteAllBytes(ScopeContext.Global(home).PathFor("logs/one.log"), new byte[512]);
+        var survey = new ResourceCleanup(context, home).Survey();
+        var own = survey.Scopes.Single(s => s.Scope.Root == context.Root);
+        Check(own.Resources.Single(r => r.Name == reclaimable).Status == UsageStatus.Free && own.Free == 1024, "usage marks unreferenced, unprotected installations as free");
+        Check(own.Resources.Single(r => r.Name == protectedId).Status == UsageStatus.Protected && own.Resources.Single(r => r.Name == explicitId).Status == UsageStatus.Protected,
+            "usage keeps protected installations out of the free total");
+        Check(survey.Scopes.Single(s => s.Scope.IsGlobal).Logs == 512 && survey.Scopes.Any(s => s.Scope.Base == other), "usage separates global logs and includes known projects");
+        var usageText = new StringWriter(); UsageCli.Write(survey, context, usageText);
+        // Data, not wording: every scope by its folder and every free item by its name.
+        Check(usageText.ToString().Contains(project) && usageText.ToString().Contains(home.Root) && usageText.ToString().Contains(other) &&
+            usageText.ToString().Contains(reclaimable), "usage shows every scope and lists free items");
+        usageText = new StringWriter(); UsageCli.Write(survey, null, usageText);
+        Check(usageText.ToString().Contains(home.Root) && usageText.ToString().Contains(other), "usage without project still shows known scopes");
+        cleanup.Apply(cleanup.Preview());
+        Check(!File.Exists(PathOf(reclaimable)), "prune frees what usage reported");
+        // Consulting never creates folders.
+        var fresh = Path.Combine(root, "fresh"); Directory.CreateDirectory(fresh); File.WriteAllText(Path.Combine(fresh, "coquena.yaml"), "models: {}\n");
+        var freshContext = ScopeContext.Project(Path.Combine(fresh, "coquena.yaml"));
+        Check(new ResourceCleanup(freshContext, home).Preview().Items.Count == 0 && new ResourceCleanup(freshContext, home).Survey().Scopes.All(s => s.Scope.Root != freshContext.Root) &&
+            !Directory.Exists(freshContext.Root), "prune preview and usage create nothing in a project without files");
         if (executable is not null)
         {
             (int Code, string Text) Invoke(params string[] arguments)
@@ -163,7 +186,10 @@ internal static class CleanupTests
                 return (process.ExitCode, output.GetAwaiter().GetResult() + error.GetAwaiter().GetResult());
             }
             var native = Add();
-            Check(Invoke("clean", "--project-directory", project, "--dry-run").Code == 0 && File.Exists(PathOf(native)), "AOT dry run preserves bytes");
+            Check(Invoke("prune", "--project-directory", project, "--dry-run").Code == 0 && File.Exists(PathOf(native)), "AOT dry run preserves bytes");
+            var usage = Invoke("usage", "--project-directory", project);
+            Check(usage.Code == 0 && usage.Text.Contains(project) && usage.Text.Contains(home.Root), "AOT usage reports both scopes");
+            Check(Invoke("df", "--global").Code == 2, "AOT usage has no --global");
             var backend = Add(true, kind: "backend");
             var backendPath = context.PathFor("backends/installations/" + backend + "/weights.gguf");
             Check(Invoke("backend", "remove", backend, "--global").Code == 2 && File.Exists(backendPath), "AOT remove rejects foreign IDs");
@@ -172,8 +198,8 @@ internal static class CleanupTests
             Check(Invoke("runtime", "remove", backend, "--base", project).Code == 0 && !File.Exists(backendPath) &&
                 File.Exists(PathOf(native)), "AOT targeted removal preserves other eligible resources");
             Check(Invoke("clean", "--project-directory", project).Code == 3 && File.Exists(PathOf(native)), "AOT redirected input requires confirmation");
-            var response = Invoke("clean", "--project-directory", project, "--yes");
-            Check(response.Code == 0 && response.Text.Contains("Liberado:") && !File.Exists(PathOf(native)), "AOT confirmed cleanup");
+            var response = Invoke("prune", "--project-directory", project, "--yes");
+            Check(response.Code == 0 && response.Text.Contains(Messages.PruneFreed(1024)) && !File.Exists(PathOf(native)), "AOT confirmed cleanup");
             Check(Invoke("clean", "--project-directory", project, "--force").Code == 2, "AOT rejects force");
             Check(Invoke("combination", "list", "--project-directory", project).Code == 0, "AOT lists combinations");
             var nativeCombination = new string('b', 64);

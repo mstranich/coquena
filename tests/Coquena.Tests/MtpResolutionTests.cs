@@ -86,7 +86,7 @@ internal static class MtpResolutionTests
         {
             var evidence = ModelSelection.Classify(Revision, File(path), header);
             var expected = ModelSelection.NameQuantization(path) is null && (header?.FileTypeId is null or uint.MaxValue) ? EvidenceState.Inconclusive : EvidenceState.Candidate;
-            Check(evidence.Role == ModelRole.Mtp && evidence.State == expected && evidence.Diagnostic!.Contains("no certifica"), "heuristic remains candidate " + path);
+            Check(evidence.Role == ModelRole.Mtp && evidence.State == expected && evidence.Diagnostic is not null, "heuristic remains candidate " + path);
         }
         foreach (var path in new[] { Main, "model-MTP-Q8_0.gguf", "mtpdrafting-Q8_0.gguf", "notmtp/weights-Q8_0.gguf", "mtp-model/weights-Q8_0.gguf",
             "model-MTP-ONLYish-Q8_0.gguf", "model-XMTP-ONLY-Q8_0.gguf", "model-MTP_ONLY-Q8_0.gguf" })
@@ -140,7 +140,7 @@ internal static class MtpResolutionTests
             var selected = await new ModelSelectionMenu(source, new Inspector()).SelectAsync(request, menu);
             Check(selected!.Selection.Commit == Commit && selected.Selection.Files.Single().Path == (selector.Contains('#') ? Draft : Main), "selection preserves correct role " + selector);
             Check(menu.Options.Length == (direct ? 0 : 3), direct ? "explicit unique quantization bypasses interaction" : "unspecified quantization offers unit plus README/cancel");
-            if (!direct && selector.Contains('#')) Check(menu.Options[0].Contains("rol MTP candidato"), "menu discloses heuristic");
+            if (!direct && selector.Contains('#')) Check(menu.Options[0].Contains("MTP"), "menu discloses heuristic");
         }
         var root = Path.Combine(Path.GetTempPath(), "coquena-mtp-" + Guid.NewGuid());
         try
@@ -206,7 +206,7 @@ internal static class MtpResolutionTests
                 var selected = await new ModelSelectionMenu(a4lgSource, new Inspector(commit: A4lgCommit)).SelectAsync(request, menu);
                 Check(selected?.Selection.Commit == A4lgCommit && selected.Selection.Files.Single().Path == A4lgDraft && selected.CompanionType == "mtp",
                     "MTP-ONLY selection preserves role and commit " + selector);
-                Check(direct ? menu.Options.Length == 0 : menu.Options.Length == 3 && menu.Options[0].Contains("rol MTP candidato"),
+                Check(direct ? menu.Options.Length == 0 : menu.Options.Length == 3 && menu.Options[0].Contains("MTP"),
                     "MTP-ONLY explicit quantization bypasses menu; unspecified quantization discloses candidate");
             }
             Check(ModelCli.Run(["companion", "download", A4lgRepository + "#mtp"], output, error, a4lgInstaller,

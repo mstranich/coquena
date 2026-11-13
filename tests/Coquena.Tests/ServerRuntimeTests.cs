@@ -220,7 +220,7 @@ internal static class ServerRuntimeTests
             var byName = runtime.Start("other", true, output).Instance; live.Add(byName); Wait(() => Log(byName).Contains("ready"));
             Check(Cli(["server", "other", "stop"]).Code == 0 && runtime.Recover("other") is null, "named stop resolves its sole instance");
             var alreadyStopped = Cli(["server", "other", "stop"]);
-            Check(alreadyStopped.Code == 0 && alreadyStopped.Out.Contains("sin instancia activa"), "named stop is idempotent for stopped server");
+            Check(alreadyStopped.Code == 0 && alreadyStopped.Out.Contains(Messages.NoActiveInstance), "named stop is idempotent for stopped server");
             Check(Cli(["server", "missing", "stop"]).Code == 1, "missing named server is diagnosed");
 
             store.Update(DocumentKind.Models, json.ModelsDocument, ContractValidation.Models, _ => new(1, [modelWithPlan]));
@@ -312,7 +312,7 @@ internal static class ServerRuntimeTests
             Reject(() => runtime.Stop(restarted.InstanceId, output), "uncertain identity blocks stop");
             Reject(() => runtime.StopServer("default", output), "uncertain identity blocks named stop too");
             Check(ProcessAlive(restarted.Pid) && File.Exists(home.PathFor(restarted.IniPath)), "uncertainty leaves process and files untouched");
-            Check(Cli(["server", "ps"]).Out.Contains("identidad incierta") && ProcessAlive(restarted.Pid), "ps diagnoses uncertain identity without process action");
+            Check(Cli(["server", "ps"]).Out.Contains(Messages.UncertainIdentity) && ProcessAlive(restarted.Pid), "ps diagnoses uncertain identity without process action");
             store.Update(DocumentKind.Instance, json.InstanceDocument, ContractValidation.Instance, _ => restarted, server: "default");
             runtime.Stop(restarted.InstanceId, output);
 
@@ -389,16 +389,16 @@ internal static class ServerRuntimeTests
                 InstanceDocument? active = null;
                 try
                 {
-                    Wait(() => { active = Read(); return active is not null && ReadText(capture).Contains("[Primer plano]") && Log(active).Contains("ready"); });
+                    Wait(() => { active = Read(); return active is not null && ReadText(capture).Contains(Messages.ForegroundHint) && Log(active).Contains("ready"); });
                     live.Add(active!);
-                    Send(controller, controllerId); Wait(() => ReadText(capture).Contains("[Ctrl+C recibido]"));
-                    Check(ReadText(capture).Contains("segundo Ctrl+C") && ReadText(capture).Contains("10 s"), "foreground label and first key acknowledgment: " + ReadText(capture));
+                    Send(controller, controllerId); Wait(() => ReadText(capture).Contains(Messages.CtrlCReceived));
+                    Check(ReadText(capture).Contains(Messages.ForegroundHint) && ReadText(capture).Contains(Messages.CtrlCReceived), "foreground label and first key acknowledgment: " + ReadText(capture));
                     if (twice)
                     {
                         Wait(() => Log(active!).Contains("received Ctrl+C"));
                         var elapsed = Stopwatch.StartNew(); Send(controller, controllerId);
                         Wait(() => !ProcessAlive(controller.Pid), 3000);
-                        Check(elapsed.Elapsed.TotalSeconds < 3 && ReadText(capture).Contains("Segundo Ctrl+C recibido"), "second Ctrl+C immediately forces closure");
+                        Check(elapsed.Elapsed.TotalSeconds < 3 && ReadText(capture).Contains(Messages.SecondCtrlC), "second Ctrl+C immediately forces closure");
                     }
                     else { Wait(() => !ProcessAlive(controller.Pid)); Check(Log(active!).Contains("graceful exit"), "first Ctrl+C stops foreground gracefully"); }
                     Check(!ProcessAlive(active!.Pid) && Read() is null && !File.Exists(home.PathFor(active.IniPath)), "foreground cleanup confirmed");

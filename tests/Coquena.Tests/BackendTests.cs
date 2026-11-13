@@ -121,8 +121,8 @@ internal static class BackendTests
             Check(result.Selected?.Variant == "cuda@13" && fixture.Calls.Single().EndsWith("/tags/b10009"), "explicit release endpoint only");
             using var output = new StringWriter(); using var error = new StringWriter();
             var code = BackendCli.Run(["backend", "remote", "cuda@13", "--release", "b10009"], output, error, Unknown, source);
-            Check(code == 0 && error.ToString().Length == 0 && output.ToString().Contains("Selección explícita") && output.ToString().Contains("[unknown]"), "CLI explicit unknown diagnostics");
-            Check(output.ToString().Contains("no descarga, instala") && !output.ToString().Contains("digest"), "consultation only no backend hash");
+            Check(code == 0 && error.ToString().Length == 0 && output.ToString().Contains(Messages.BackendChoice(true)) && output.ToString().Contains("[unknown]"), "CLI explicit unknown diagnostics");
+            Check(output.ToString().Contains(Messages.BackendQueryOnly) && !output.ToString().Contains("digest"), "consultation only no backend hash");
         }
         using (var fixture = new Fixture(path => path.Contains("?per_page") ? Page(Release("b5", "cpu-arm64")) : path.EndsWith("/tags/b3") ? Ok(older with { Tag = "b3", Assets = Release("b3", "cpu-x64").Assets }) : new(HttpStatusCode.NotFound)))
         using (var client = new HttpClient(fixture))
@@ -180,7 +180,7 @@ internal static class BackendTests
         using (var output = new StringWriter())
         using (var error = new StringWriter())
         {
-            Check(BackendCli.Run(["system", "probe"], output, error, Unknown) == 0 && output.ToString().Contains("unknown") && output.ToString().Contains("no valida un binario") && error.ToString().Length == 0, "system probe missing evidence honest");
+            Check(BackendCli.Run(["system", "probe"], output, error, Unknown) == 0 && output.ToString().Contains("unknown") && output.ToString().Contains(Messages.ProbeLocalOnly) && error.ToString().Length == 0, "system probe missing evidence honest");
         }
         using (var fixture = new Fixture(_ => throw new Exception("Unsupported platform must not query provider")))
         using (var client = new HttpClient(fixture))
@@ -196,7 +196,7 @@ internal static class BackendTests
             using var process = Process.Start(start) ?? throw new Exception("Native system did not start");
             var stdout = process.StandardOutput.ReadToEndAsync(); var stderr = process.StandardError.ReadToEndAsync();
             if (!process.WaitForExit(30_000)) { process.Kill(true); throw new Exception("Native system timeout"); }
-            Check(process.ExitCode == 0 && (await stdout).Contains("Plataforma nativa: win-x64") && (await stderr).Length == 0, "published system process real probes");
+            Check(process.ExitCode == 0 && (await stdout).Contains(Messages.NativePlatform("win-x64")) && (await stderr).Length == 0, "published system process real probes");
         }
         Console.WriteLine($"OK: {checks} comprobaciones de backends (fixtures sin binarios/pesos, metadatos simulados)." );
     }

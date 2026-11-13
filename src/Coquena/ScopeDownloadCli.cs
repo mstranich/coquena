@@ -91,7 +91,7 @@ public static class ScopeDownloadCli
                     var published = transfers.Published(selected);
                     var candidate = RecipeUpgrade.Pending(new ScopeStore(context).Read().Documents, id)?["candidate"] is not null;
                     if (json) output.WriteLine(new JsonObject { ["operation-id"] = id.ToString("D"), ["state"] = candidate ? "prepared-for-upgrade" : published ? "completed" : "cancelled" }.ToJsonString());
-                    else output.WriteLine($"{id:D}: {(candidate ? "candidata preparada; ejecute upgrade para publicar el conjunto" : published ? "instalación publicada y limpieza completada" : "cancelación y limpieza completadas")}.");
+                    else output.WriteLine($"{id:D}: {(candidate ? "candidata preparada; ejecutar upgrade para publicar el conjunto" : published ? "instalación publicada y limpieza completada" : "cancelación y limpieza completadas")}.");
                 }
                 return result?.State == "failed" ? 1 : 0;
             }
@@ -109,6 +109,6 @@ public static class ScopeDownloadCli
             return e is BackendException ? code == "invalid-selection" ? 2 : 5 : 1;
         }
     }
-    private static int Invalid(TextWriter error) { error.WriteLine("Error: opciones no válidas para download. Consulte coquena --help."); return 2; }
+    private static int Invalid(TextWriter error) { error.WriteLine("Error: opciones no válidas para download. Ver coquena --help."); return 2; }
     private static JsonObject Structured(OperationDocument operation) => JsonNode.Parse(ContractJson.Write(operation, ContractJsonContext.Default.OperationDocument))!.AsObject();
 }

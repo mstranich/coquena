@@ -142,7 +142,7 @@ internal static class DefinitionsPresentation
         var shown = Math.Max(0, room - 6);
         rows.AddRange(items.Take(shown).Select(item => "  " + Escape(Cell(item.Name, 22) + Cell(item.Type, 9) + Cell(item.Application, 10) + (item.Default ?? "—"))));
         if (items.Count == 0) rows.Add(" " + Style("mut", "Sin definiciones."));
-        else if (items.Count > shown) rows.Add(" " + Style("mut", $"… {items.Count - shown} más"));
+        else if (items.Count > shown) rows.Add(" " + Style("mut", Messages.MoreRows(items.Count - shown)));
         rows.Add("");
         rows.Add(" " + Off("Definir…") + " " + Off("Editar") + " " + Off("Quitar definición"));
         return new("Parámetros de " + Escape(scope), rows);
@@ -152,7 +152,7 @@ internal static class DefinitionsPresentation
     public static Page Updates(string scope, DateTimeOffset? planned, IReadOnlyList<Update> items)
     {
         var rows = new List<string>();
-        if (planned is null) rows.Add(" " + Style("mut", "Sin plan de actualización registrado."));
+        if (planned is null) rows.Add(" " + Style("mut", Messages.NoUpdatePlan));
         else
         {
             rows.Add(" " + Style("mut", "    " + Cell("RECURSO", 22) + Cell("ACTUAL", 12) + Cell("PROPUESTA", 11) + "ESTADO"));
@@ -178,7 +178,7 @@ internal static class DefinitionsPresentation
             ["", " " + Style("btnf", " Inicializar ", "init"), "", " " + Style("mut", "Crea el archivo de configuración de esta carpeta (coquena.yaml) con el nombre " + folder + ".")]);
 
     public static Page Inaccessible(string name) =>
-        new(Escape(name), ["", " " + Style("err", "✗") + " " + Style("mut", "La ruta del proyecto ya no se puede resolver.")]);
+        new(Escape(name), ["", " " + Style("err", "✗") + " " + Style("mut", Messages.ProjectPathGone)]);
 
     public static Page Problem(string title, string message) =>
         new(Escape(title), ["", " " + Style("err", "✗") + " " + Escape(message)]);

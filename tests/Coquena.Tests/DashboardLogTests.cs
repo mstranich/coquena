@@ -81,7 +81,7 @@ internal static class DashboardLogTests
             await Wait(() => !first.Historical && Has(first, "LIVE-WHILE-HISTORY"), "return to current includes lines captured during history");
             File.Delete(a);
             first.SelectHistory(Path.GetFileNameWithoutExtension(a));
-            await Wait(() => first.Status.Contains("No disponible"), "retained registry entry with removed file shows unavailable");
+            await Wait(() => first.Status.Contains(Messages.LogUnavailable), "retained registry entry with removed file shows unavailable");
             first.Current();
             using (var cancelled = new CancellationTokenSource())
             {
@@ -93,11 +93,11 @@ internal static class DashboardLogTests
             await Wait(() => Has(first, "Archivo truncado") && Has(first, "TRUNC"), "truncation visible and capture resumes");
             var unavailable = Register(one, "RESTORED-ACCESS\n");
             File.Delete(unavailable);
-            await Wait(() => first.Status.Contains("Archivo no disponible"), "unavailable live file is reported without blocking capture");
+            await Wait(() => first.Status.Contains(Messages.LogFileUnavailable.Split(';')[0]), "unavailable live file is reported without blocking capture");
             File.WriteAllText(unavailable, "RESTORED-ACCESS\n");
             await Wait(() => Has(first, "RESTORED-ACCESS"), "missing live file recovers on bounded retry");
             for (var i = 0; i < 20; i++) first.SelectHistory(Path.GetFileNameWithoutExtension(b));
-            await Wait(() => first.Status.Contains("No disponible"), "foreign historical instance rejected under rapid selection");
+            await Wait(() => first.Status.Contains(Messages.LogUnavailable), "foreign historical instance rejected under rapid selection");
             first.Current();
             registry.RemoveStoppedService(one.ServiceId);
             registry.EnsureProjectService(["one.yaml"], "one");

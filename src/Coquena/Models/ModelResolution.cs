@@ -87,7 +87,7 @@ public static class ModelSelection
         {
             state = EvidenceState.Candidate;
             diagnostic = (diagnostic is null ? "" : diagnostic + " ") +
-                "Rol auxiliar MTP candidato por nombre/carpeta; cabecera no certifica rol ni compatibilidad.";
+                "Parece un auxiliar MTP por su nombre.";
         }
         if (label is null && state != EvidenceState.Conflict)
         {
@@ -128,7 +128,7 @@ public static class ModelSelection
         var total = unit.Files.Aggregate(0m, (sum, f) => sum + f.Size);
         return new(first.PublisherLabel!, type,
             $"{first.PublisherLabel} — {string.Join(", ", unit.Files.Select(f => f.Path))} — {ByteSize.Format(total)} — {first.Source}/{first.State}" +
-                (first.Role == ModelRole.Mtp ? " — rol MTP candidato por nombre/carpeta; compatibilidad no certificada" : ""), unit.Files)
+                (first.Role == ModelRole.Mtp ? " — parece un auxiliar MTP por su nombre" : ""), unit.Files)
             { Evidence = evidence };
     }
     public static ModelCandidates Discover(RepositoryInventory inventory)

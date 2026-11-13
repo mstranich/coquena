@@ -83,13 +83,13 @@ internal static class RecipeEditorTests
             check(located is { Line: > 1 } && yaml.ErrorLines.SetEquals([located.Line!.Value]) && File.ReadAllText(recipe).Contains("0.7"),
                 "Validar locates the error in the tab and does not write");
             editor.Render(80);
-            check(editor.Validation.Rows.Count == 1 && Markup.Plain(editor.Validation.Rows[0]).Contains("línea " + located!.Line) &&
+            check(editor.Validation.Rows.Count == 1 && Markup.Plain(editor.Validation.Rows[0]).Contains(Messages.AtLine(System.IO.Path.GetFileName(located!.File), located.Line!.Value)) &&
                   Markup.Plain(editor.Tabs.Rows[0]).Contains("coquena.yaml ●"), "the tab shows the draft and the validation row its line");
             DashboardCli.RecipeEditorPage.Load(yaml, File.ReadAllBytes(recipe));
             check(!yaml.Modified && yaml.Changed is null && yaml.ErrorLines.Count == 0, "No reloads the disk and discards the draft");
             var valid = editor.Validate();
             editor.Render(80);
-            check(valid is null && Markup.Plain(editor.Validation.Rows[0]).Contains("válida"), "a valid combination says so");
+            check(valid is null && Markup.Plain(editor.Validation.Rows[0]).Contains(Messages.RecipeValid), "a valid combination says so");
             editor.Close();
             check(editor.Files.Count == 0 && editor.Selection is null, "closing releases the tabs");
             File.Delete(env);

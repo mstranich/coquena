@@ -196,7 +196,7 @@ internal static class ConfigurationTests
             catch (IOException) { checks++; }
             Check(File.ReadAllText(home.PathFor("catalogs/presets.json")) == bindingSnapshot, "clone write failure does not publish a partial clone");
             File.Delete(home.PathFor(companion.Files[1].LocalPath));
-            Check(manager.View("chat").Diagnostics.Any(d => d.Contains("no servible")), "view diagnoses missing companion shard and retains preset");
+            Check(manager.View("chat").Diagnostics.Any(d => d.Contains(Messages.NotServable)), "view diagnoses missing companion shard and retains preset");
             Reject(() => manager.Compose(backend, [chat.Id]), "missing companion shard blocks composition");
             File.WriteAllBytes(home.PathFor(companion.Files[1].LocalPath), Fixture(1));
             var relocatedPath = "models/fixture/renamed/proj-00001-of-00002.gguf";
@@ -217,11 +217,11 @@ internal static class ConfigurationTests
             manager.Parameters.ChangeDefinition("mmproj", d => d with { Support = [new(From: "b11483")] }, "fixture edit", false, impact, () => true);
             File.Delete(home.PathFor(relocatedSecond));
             var omitted = manager.Compose(backend, [chat.Id]);
-            Check(!omitted.Ini.Contains("mmproj =") && !omitted.ResourceIds.Contains(companion.Id) && omitted.Diagnostics.Any(d => d.Contains("no admitido")), "unsupported binding omitted before file checks with stored ID retained");
+            Check(!omitted.Ini.Contains("mmproj =") && !omitted.ResourceIds.Contains(companion.Id) && omitted.Diagnostics.Any(d => d.Contains(Messages.Unsupported)), "unsupported binding omitted before file checks with stored ID retained");
             File.WriteAllBytes(home.PathFor(relocatedSecond), Fixture(1));
             manager.Parameters.ChangeDefinition("mmproj", d => d with { Support = [] }, "fixture edit", false, impact, () => true);
             store.Update(DocumentKind.Models, ContractJsonContext.Default.ModelsDocument, ContractValidation.Models, _ => new(1, [first, second]));
-            Check(manager.View("chat").Diagnostics.Any(d => d.Contains("referencia rota")), "missing ID retained with diagnostic");
+            Check(manager.View("chat").Diagnostics.Any(d => d.Contains(Messages.BrokenReference)), "missing ID retained with diagnostic");
             Reject(() => manager.Compose(backend, [chat.Id]), "broken companion reference rejects composition");
             var replacementCompanion = companion with { Id = Guid.NewGuid() };
             store.Update(DocumentKind.Models, ContractJsonContext.Default.ModelsDocument, ContractValidation.Models, _ => new(1, [first, second, replacementCompanion]));
@@ -239,7 +239,7 @@ internal static class ConfigurationTests
             manager.ChangeModel("chat", first.Name);
             store.Update(DocumentKind.Models, ContractJsonContext.Default.ModelsDocument, ContractValidation.Models,
                 _ => new(1, [first with { Id = Guid.NewGuid() }, second]));
-            Check(manager.View("chat").Diagnostics.Single().Contains("referencia rota"), "same name cannot repair removed ID");
+            Check(manager.View("chat").Diagnostics.Single().Contains(Messages.BrokenReference), "same name cannot repair removed ID");
             Reject(() => manager.Compose(backend, [chat.Id, coding.Id]), "broken model rejects entire composition");
             store.Update(DocumentKind.Models, ContractJsonContext.Default.ModelsDocument, ContractValidation.Models, _ => new(1, [first, second]));
             File.Delete(home.PathFor(first.Files[1].LocalPath));

@@ -3,7 +3,7 @@ namespace Coquena;
 // Parse without opening a scope: invalid syntax must have no persistent effects.
 internal sealed record ServiceCommand(
     string Action, string? Selector, List<string> Files, List<string> EnvFiles,
-    string? BasePath, bool Global, bool Detached, bool Private)
+    string? BasePath, bool Global, bool Detached, bool Private, bool Json = false)
 {
     internal static ServiceCommand Parse(string[] args)
     {
@@ -12,7 +12,7 @@ internal sealed record ServiceCommand(
         var envFiles = new List<string>();
         var seen = new HashSet<string>(StringComparer.Ordinal);
         string? basePath = null, service = null;
-        bool global = false, detached = false, isPrivate = false, endOptions = false;
+        bool global = false, detached = false, isPrivate = false, endOptions = false, json = false;
         for (var i = 0; i < args.Length; i++)
         {
             if (endOptions) { positionals.Add(args[i]); continue; }
@@ -23,9 +23,10 @@ internal sealed record ServiceCommand(
             if (option == "--") { endOptions = true; continue; }
             switch (option)
             {
-                case "--global": case "--private": case "-d":
+                case "--global": case "--private": case "-d": case "--json":
                     if (!seen.Add(option)) throw Invalid();
                     if (option == "--global") global = true;
+                    else if (option == "--json") json = true;
                     else if (option == "--private") isPrivate = true;
                     else detached = true;
                     break;
@@ -69,8 +70,9 @@ internal sealed record ServiceCommand(
             selector = service ?? (positionals.Count == 2 ? positionals[0] : "default");
             if (global && selector == "self") throw Invalid();
         }
-        return new(action, selector, files, envFiles, basePath, global, detached, isPrivate);
+        if (json && action != "show") throw Invalid();
+        return new(action, selector, files, envFiles, basePath, global, detached, isPrivate, json);
     }
 
-    private static ArgumentException Invalid() => new("Argumentos de service inválidos. Consulte coquena --help.");
+    private static ArgumentException Invalid() => new("Argumentos de service inválidos. Ver coquena --help.");
 }

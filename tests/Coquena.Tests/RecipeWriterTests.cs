@@ -86,7 +86,7 @@ internal static class RecipeWriterTests
             // References to an entry set aside are consequences: counted on its problem, not listed.
             var derived = RecipeValidation.Check(single, new Dictionary<string, byte[]> { [file] = Encoding.UTF8.GetBytes(
                 "name: demo\nargs-mode: strict\narg-defs:\n  definitions:\n    context: 5\npresets:\n  a:\n    args:\n      context: 1\n  b:\n    args:\n      context: 2\n") }).Problems;
-            check(derived.Count == 1 && derived[0].Line == 5 && derived[0].Message.EndsWith("(y 2 referencias a esta entrada)", StringComparison.Ordinal),
+            check(derived.Count == 1 && derived[0].Line == 5 && derived[0].Message.EndsWith(Messages.ReferencesToEntry(2), StringComparison.Ordinal),
                 "references to a removed definition are not reported as new problems: " + RecipeValidation.Describe(derived));
 
             // A point edit reports every problem of the result, not only the first.
@@ -100,13 +100,13 @@ internal static class RecipeWriterTests
             var projectRecipe = Path.Combine(project, "coquena.yaml");
             File.WriteAllBytes(projectRecipe, [0xef, 0xbb, 0xbf, .. Encoding.UTF8.GetBytes("name: demo\r\n# yaml-language-server: $schema=./old.json\r\n")]);
             var initOutput = new StringWriter();
-            check(InitCli.Run([project], initOutput, TextWriter.Null) == 0 && initOutput.ToString().Contains("Referencia al schema actualizada", StringComparison.Ordinal) &&
+            check(InitCli.Run([project], initOutput, TextWriter.Null) == 0 && initOutput.ToString().Contains(Messages.SchemaReferenceUpdated, StringComparison.Ordinal) &&
                   File.ReadAllBytes(projectRecipe).SequenceEqual((byte[])[0xef, 0xbb, 0xbf, .. Encoding.UTF8.GetBytes("name: demo\r\n" + InitCli.SchemaComment + "\r\n")]),
                 "init replaces an old schema reference keeping BOM and line endings");
             File.WriteAllText(projectRecipe, "name: demo\n");
             initOutput.GetStringBuilder().Clear();
             check(InitCli.Run([project], initOutput, TextWriter.Null) == 0 && File.ReadAllText(projectRecipe) == InitCli.SchemaComment + "\nname: demo\n" &&
-                  initOutput.ToString().Contains("Referencia al schema agregada", StringComparison.Ordinal) && !initOutput.ToString().Contains("Schema actualizado", StringComparison.Ordinal),
+                  initOutput.ToString().Contains(Messages.SchemaReferenceAdded, StringComparison.Ordinal) && !initOutput.ToString().Contains("Schema actualizado", StringComparison.Ordinal),
                 "init adds a missing reference and leaves an identical schema alone");
             initOutput.GetStringBuilder().Clear();
             check(InitCli.Run([project], initOutput, TextWriter.Null) == 0 && !initOutput.ToString().Contains("Referencia", StringComparison.Ordinal), "a current project reports no changes");
@@ -121,7 +121,7 @@ internal static class RecipeWriterTests
                 "verify --json lists the recipe problems: " + json);
 
             var broken = RecipeValidation.Check(single, new Dictionary<string, byte[]> { [file] = Encoding.UTF8.GetBytes("name: demo\npresets:\n  a: [\n") }).Problems;
-            check(broken.Count == 1 && broken[0].Code == "yaml-syntax" && broken[0].Line > 1 && broken[0].Message.EndsWith("El resto del archivo no se pudo validar.", StringComparison.Ordinal), "a YAML syntax error is reported once with its line");
+            check(broken.Count == 1 && broken[0].Code == "yaml-syntax" && broken[0].Line > 1 && broken[0].Message.EndsWith(Messages.RestNotValidated, StringComparison.Ordinal), "a YAML syntax error is reported once with its line");
             try { RecipeEdit.Copy(single, new Dictionary<string, byte[]> { [file] = Encoding.UTF8.GetBytes(twoErrors) }, ["presets", "c"]); check(false, "clone over an invalid recipe"); }
             catch (RecipeException error) { check(error.Phase == "validate" && error.Detail.Split('\n').Length == 2, "clone requires a valid recipe and lists its problems"); }
 

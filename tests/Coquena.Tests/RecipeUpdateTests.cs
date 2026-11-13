@@ -230,15 +230,23 @@ internal static class RecipeUpdateTests
         {
             Environment.SetEnvironmentVariable("COQUENA_HOME", home.Root);
             using var output = new StringWriter(); using var error = new StringWriter();
-            check(Cli.Run(["update", "--global", "--select", "model://fixture/repository:Q4_0"], output, error) == 0 && output.ToString().Contains("not-applicable"), "global CLI resolves canonical model without querying external origin");
+            check(Cli.Run(["update", "--global", "--select", "model://fixture/repository:Q4_0", "--json"], output, error) == 0 && output.ToString().Contains("not-applicable"), "global CLI resolves canonical model without querying external origin");
             check(!output.ToString().Contains("hmac"), "CLI report excludes private plan fingerprints");
+            // Readable output is decided by codes; the wording is free to change or be translated.
+            var update = UpdatePresentation.UpdateSummary(JsonNode.Parse("""{"resources":[{"kind":"backend","key":"backend","status":"update-available","current":{"release":"b6100"},"proposed":{"release":"b6123"}},{"kind":"model","key":"chat","status":"query-failed"}]}""")!.AsObject());
+            check(update is { Code: "updates-available", Count: 1 } && update.Lines[0] is { Code: "update-available", From: "b6100", To: "b6123" } &&
+                update.Lines[1].Code == "query-failed", "update summary lists every resource with its code");
+            var upgrade = UpdatePresentation.UpgradeSummary(JsonNode.Parse("""{"applied":0,"resources":[{"kind":"backend","key":"backend","status":"update-available","upgrade-allowed":false,"upgrade-status":"blocked"}]}""")!.AsObject());
+            check(upgrade is { Code: "none-applied", Count: 0 } && upgrade.Lines.Single().Code == "fixed-version", "upgrade summary explains a fixed version");
+            var rendered = new StringWriter(); UpdatePresentation.WriteUpgrade(JsonNode.Parse("""{"applied":1,"resources":[]}""")!.AsObject(), rendered);
+            check(rendered.ToString().Length > 0 && !rendered.ToString().Contains('{'), "upgrade renders text, not JSON");
             var revision = store.Read().Revision;
             check(Cli.Run(["update", "--global", "--select", "backend://cuda@12"], output, error) == 2 && store.Read().Revision == revision, "unmatched global variant never broadens query");
             check(Cli.Run(["update", "--global", "--private"], output, error) == 2, "global rejects private project context");
             if (product is not null)
             {
-                foreach (var args in new[] { new[] { "update", "--global", "--select", "model://fixture/repository:Q4_0" },
-                    new[] { "update", "--project-directory", root, "--select", "model://a" } })
+                foreach (var args in new[] { new[] { "update", "--global", "--select", "model://fixture/repository:Q4_0", "--json" },
+                    new[] { "update", "--project-directory", root, "--select", "model://a", "--json" } })
                 {
                     var start = new System.Diagnostics.ProcessStartInfo(product) { UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true };
                     start.Environment["COQUENA_HOME"] = home.Root;

@@ -150,7 +150,7 @@ internal static class ModelUpdateTests
             Save(original, companion, mtp, external); handler.OriginalOld = false; handler.Paths = ["old-Q4_0.gguf", "mmproj-BF16.gguf", "mtp-BF16.gguf"];
             using var output = new StringWriter(); using var error = new StringWriter();
             Check(ModelCli.Run(["update"], output, error, new ModelInstaller(home), source, interaction: noMenu) == 0 &&
-                output.ToString().Contains("no aplica") && updater.Scope(null, true).All(m => m.Update!.State == "update-available"), "global CLI includes companions and external skipped");
+                output.ToString().Contains(Messages.ExternalNotApplicable) && updater.Scope(null, true).All(m => m.Update!.State == "update-available"), "global CLI includes companions and external skipped");
             Check(System.IO.File.ReadAllText(installedPath) == "fixture untouched bytes" && Directory.GetDirectories(home.PathFor("downloads")).Length == 0, "no byte changes or transfer operations");
             var invalid = Read() with { Update = Read().Update! with { Plan = Read().Update!.Plan! with { Target = Read().Update!.Plan!.Target with { Commit = "main" } } } };
             try { ContractValidation.Model(invalid); throw new Exception("Expected mutable commit rejection"); }
@@ -183,7 +183,7 @@ internal static class ModelUpdateTests
                 using var process = ModelEngineProcess.Start(start)!;
                 var stdout = process.StandardOutput.ReadToEndAsync(); var stderr = process.StandardError.ReadToEndAsync();
                 await process.WaitForExitAsync();
-                Check(process.ExitCode == 0 && (await stdout).Contains("no aplica") && (await stderr).Length == 0, "published CLI external scope");
+                Check(process.ExitCode == 0 && (await stdout).Contains(Messages.ExternalNotApplicable) && (await stderr).Length == 0, "published CLI external scope");
             }
         }
         finally { if (Directory.Exists(root)) Directory.Delete(root, true); }

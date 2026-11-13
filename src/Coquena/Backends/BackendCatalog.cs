@@ -32,7 +32,7 @@ public static partial class BackendCatalog
         var match = BuildPattern().Match(release);
         return match.Success && long.TryParse(match.Groups[1].Value, NumberStyles.None,
             CultureInfo.InvariantCulture, out var number) ? number :
-            throw new BackendException("invalid-release", "Use latest o un release oficial bNNNN.");
+            throw new BackendException("invalid-release", "Usar latest o un release oficial bNNNN.");
     }
 
     public static bool ValidFamily(string? family) => family is null or "cpu" or "vulkan" ||
@@ -105,9 +105,9 @@ public static partial class BackendCatalog
         var minimumSm = major == 13 ? 75 : 50;
         var devices = hardware.CudaDevices.Where(d => d.ComputeCapability >= minimumSm).ToArray();
         if (devices.Length == 0) return new("incompatible", $"Ninguna GPU detectada es lo bastante reciente para CUDA {major} (requiere capacidad de cómputo {minimumSm / 10}.{minimumSm % 10} o superior).");
-        if (driver / 1000 < major) return new("incompatible", $"El driver de NVIDIA instalado admite hasta CUDA {driver / 1000}.{driver % 1000 / 10} y este backend necesita CUDA {major}. Actualiza el driver o elige otra variante.");
+        if (driver / 1000 < major) return new("incompatible", $"El driver de NVIDIA instalado admite hasta CUDA {driver / 1000}.{driver % 1000 / 10} y este backend necesita CUDA {major}. Actualizar el driver o elegir otra variante.");
         if (driver < major * 1000 + minor * 10)
-            return new("unknown", $"El driver de NVIDIA instalado admite CUDA {driver / 1000}.{driver % 1000 / 10} y este backend usa CUDA {major}.{minor}. Puede funcionar, pero no está garantizado; si falla al cargar un modelo, actualiza el driver de NVIDIA.");
+            return new("unknown", $"El driver de NVIDIA instalado admite CUDA {driver / 1000}.{driver % 1000 / 10} y este backend usa CUDA {major}.{minor}. Puede funcionar, pero no está garantizado; si falla al cargar un modelo, actualizar el driver de NVIDIA.");
         if (devices.All(d => d.ComputeCapability >= 100) && major == 12 && minor < 8)
             return new("unknown", $"Las GPU de arquitectura Blackwell necesitan CUDA 12.8 o superior y este backend usa CUDA {major}.{minor}; puede no funcionar.");
         if (devices.All(d => d.ComputeCapability > 121))

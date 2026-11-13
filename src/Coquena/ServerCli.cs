@@ -107,9 +107,9 @@ public static class ServerCli
             return 0;
         }
         catch (Exception e) when (e is ConfigurationException or DownloadException or BackendException or StorageException or ContractException or IOException or UnauthorizedAccessException or System.ComponentModel.Win32Exception)
-        { error.WriteLine($"Error: {e.Message} Consulte coquena --help."); return 1; }
+        { error.WriteLine($"Error: {e.Message} Ver coquena --help."); return 1; }
 
-        int Invalid() { error.WriteLine("Error: comando server o argumentos no reconocidos. Consulte coquena --help."); return 2; }
+        int Invalid() { error.WriteLine("Error: comando server o argumentos no reconocidos. Ver coquena --help."); return 2; }
         void Print(ServerRecord record) => output.WriteLine($"Servidor {record.Name} ({record.Id:D}); puerto {record.Parameters["port"].GetInt32()}.");
         void Show(ServerView view, bool presetsOnly = false)
         {

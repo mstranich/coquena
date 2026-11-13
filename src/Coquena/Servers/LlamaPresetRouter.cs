@@ -43,7 +43,7 @@ public sealed class LlamaPresetRouter(HttpClient client, Uri endpoint) : IPreset
                 var slots = JsonNode.Parse(await response.Content.ReadAsStringAsync(cancellation)) as JsonArray;
                 if (slots is null || slots.Any(s => s?["is_processing"]?.GetValue<bool>() is null)) throw new Storage.StorageException("router-activity-unavailable", unknown);
                 if (slots.Any(s => s?["is_processing"]?.GetValue<bool>() == true))
-                    return "El servidor está atendiendo peticiones. Aplicar los cambios ahora puede interrumpirlas." + affected;
+                    return Messages.ServerBusy + affected;
             }
             return null;
         }

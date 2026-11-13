@@ -123,12 +123,12 @@ public sealed partial class ServerRuntime
                 foreach (var model in snapshot.Models)
                 {
                     if (!statuses.TryGetValue(model, out var status)) { output.WriteLine($"Modelo {model}: ausente en router."); continue; }
-                    if (status != "loaded") { output.WriteLine($"Modelo {model}: {status}; sin métricas (modelo no cargado)."); continue; }
+                    if (status != "loaded") { output.WriteLine($"Modelo {model}: {status}; sin métricas (modelo {Messages.ModelNotLoaded})."); continue; }
                     try
                     {
                         var metrics = ParseMetrics(Fetch(client, new(address, $"metrics?model={Uri.EscapeDataString(model)}&autoload=false"), deadline.Token));
                         output.WriteLine($"Modelo {model}: " + string.Join("; ", metrics.Select(pair => $"{pair.Key}={pair.Value.ToString(CultureInfo.InvariantCulture)}")));
-                        output.WriteLine("  Fuente: /metrics de esta entrada; contadores/tiempos acumulados del proceso del modelo, actividad/cola puntuales y tasas medias del backend, no por tarea ni instantáneas. Período del bucket no informado; no se calcula total de tasas.");
+                        output.WriteLine("  Fuente: /metrics de esta entrada; contadores/tiempos acumulados del proceso del modelo, actividad/cola puntuales y " + Messages.MetricsScope + ". " + Messages.BucketUnknown + "; no se calcula total de tasas.");
                     }
                     catch (Exception e) when (MetricError(e)) { output.WriteLine($"Modelo {model}: métricas no disponibles: {e.Message}"); }
                 }

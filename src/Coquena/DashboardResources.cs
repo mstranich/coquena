@@ -28,7 +28,7 @@ internal static partial class DashboardCli
         // While Verificar or Limpiar runs, both actions are disabled and the spinner shows the wait.
         string Act(string text, string action) => busy ? DefinitionsPresentation.Off(text) : ManagementPresentation.Button(text, action);
         var rows = new List<string>();
-        if (busy) rows.Add(" " + Markup.Style("warn", DashboardPresentation.Spinner() + " ") + Markup.Style("mut", "Trabajando… podés cambiar de vista mientras sigue."));
+        if (busy) rows.Add(" " + Markup.Style("warn", DashboardPresentation.Spinner() + " ") + Markup.Style("mut", "Trabajando… se puede cambiar de vista mientras sigue."));
         rows.Add(" " + Act("Verificar", "maintenance-verify") + " " + Markup.Style("mut", "definición y recursos seleccionados"));
         if (state.Verification is not null) rows.AddRange(state.Verification.Split('\n').Select(row => " " + Escape(row)));
         rows.Add(""); rows.Add(" " + Act("Limpiar…", "maintenance-preview") + " " + Markup.Style("mut", "recursos propios sin referencias"));
@@ -36,7 +36,7 @@ internal static partial class DashboardCli
         {
             rows.Add(" " + Markup.Style("mut", "RECURSO / INSTALACIÓN                 TAMAÑO"));
             foreach (var item in plan.Items) rows.Add(" " + Escape(item.Kind + " " + item.InstallationId) + " " + Escape(ByteSize.Format(item.Bytes)));
-            foreach (var diagnostic in plan.Diagnostics) rows.Add(" " + Markup.Style("warn", "Conservado: " + diagnostic));
+            foreach (var note in plan.Diagnostics) rows.Add(" " + Markup.Style("warn", Markup.Escape(Messages.PruneKept(note.Name, note.Code))));
             if (plan.Items.Count == 0) rows.Add(" " + Markup.Style("mut", "Sin instalaciones elegibles."));
             rows.Add(" " + Markup.Style("hi", "Recuperable: " + ByteSize.Format(plan.Bytes)));
             if (plan.Items.Count > 0) rows.Add(" " + Act("Eliminar conjunto…", "maintenance-clean"));
@@ -133,13 +133,13 @@ internal static partial class DashboardCli
             new Label { X = 1, Y = 3, Text = "nombre" }, name,
             new Label { X = 1, Y = 5, Text = "tipo" }, type,
             new Label { X = 1, Y = 7, Width = Dim.Fill(1), Text = "alta: registrar en inventario; conservar archivos externos" }, match,
-            new Label { X = 1, Y = 10, Width = Dim.Fill(1), Text = "Matching: usá un nombre usuario/repositorio[:cuantización]." }, problem);
+            new Label { X = 1, Y = 10, Width = Dim.Fill(1), Text = "Matching: usar un nombre usuario/repositorio[:cuantización]." }, problem);
         dialog.AddButton(new Button { Text = " Cancelar ", NoDecorations = true, ShadowStyle = ShadowStyles.None });
         var add = new Button { Text = " Agregar ", NoDecorations = true, ShadowStyle = ShadowStyles.None };
         add.Accepting += (_, args) =>
         {
             if (string.IsNullOrWhiteSpace(path.Text) || string.IsNullOrWhiteSpace(name.Text))
-            { problem.Text = "Indicá archivo y nombre."; args.Handled = true; }
+            { problem.Text = "Falta el archivo o el nombre."; args.Handled = true; }
         };
         dialog.AddButton(add);
         if (string.IsNullOrEmpty(Environment.GetEnvironmentVariable("NO_COLOR")))
@@ -160,12 +160,12 @@ internal static partial class DashboardCli
             string.Join("\n", resource["files"]!.AsArray().Select(file => "  " + file!["path"] + ": " + file["status"]))));
 
     private static string CleanupText(CleanupResult result) => "Liberado: " + ByteSize.Format(result.FreedBytes) +
-        (result.Diagnostics.Count == 0 ? "" : "\n▲ " + string.Join("\n", result.Diagnostics));
+        (result.Diagnostics.Count == 0 ? "" : "\n▲ " + string.Join("\n", result.Diagnostics.Select(n => Messages.PruneFailed(n.Name, n.Code))));
 
     private static string[] ResourceDetails(InventoryRow item, ScopeContext context)
     {
         var rows = new List<string> { item.Label, "Ámbito: " + (context.IsGlobal ? "Global" : context.Base),
-            "Propiedad: " + (item.External ? "externa; no certifica procedencia" : "gestionada"),
+            "Propiedad: " + (item.External ? "externa" : "gestionada"),
             "Instalación: " + item.Id, "Recurso: " + item.ResourceId };
         foreach (var file in item.Installation["files"] as JsonArray ?? [])
             rows.Add((file?["path"]?.ToString() ?? "—") + " · " + (file?["size"] is { } size ? ByteSize.Format(size.GetValue<long>()) : "tamaño desconocido"));
@@ -175,7 +175,7 @@ internal static partial class DashboardCli
             rows.AddRange((verification["files"] as JsonArray ?? []).Select(file => file!["path"] + ": " + file["status"]));
         }
         else rows.Add("Sin auditoría registrada.");
-        if (item.Resource["informative-match"] is not null) rows.Add("Correspondencia HF informativa; no certifica identidad ni procedencia.");
+        if (item.Resource["informative-match"] is not null) rows.Add($"Parece el mismo modelo que {item.Resource["informative-match"]?["candidate"]?["repository"]}. Al ser un archivo propio, no se actualiza.");
         rows.AddRange(item.References.Select(reference => "Referencia local: " + reference));
         return rows.ToArray();
     }
@@ -270,7 +270,7 @@ internal static partial class DashboardCli
             {
                 rows.Add(" " + Markup.Style("mut", "disponibilidad ") + Escape(installation["observed-availability"]?.ToString() ?? "sin observación") +
                     " · " + Escape(installation["integrity-status"]?.ToString() ?? "integridad sin observación"));
-                rows.Add(" " + Markup.Style("mut", "origen / revisión ") + Escape(selection?["repository"]?.ToString() ?? (current.External ? "externo; procedencia no certificada" : "—")) +
+                rows.Add(" " + Markup.Style("mut", "origen / revisión ") + Escape(selection?["repository"]?.ToString() ?? (current.External ? "externo" : "—")) +
                     " · " + Escape(selection?["commit"]?.ToString() ?? "—"));
             }
             else rows.Add(" " + Markup.Style("mut", "compatibilidad ") + Escape(BackendCompatibility(current, hardware)));
@@ -286,7 +286,7 @@ internal static partial class DashboardCli
     }
     private static string BackendCompatibility(InventoryRow item, HardwareContext? hardware)
     {
-        if (item.External) return "externo; no certificada";
+        if (item.External) return "externo";
         if (hardware is null) return "sondeo no disponible";
         var warnings = new List<string>();
         try

@@ -53,8 +53,8 @@ internal static class DefinitionsPresentationTests
         check(recipes.Contains("● actual") && recipes.Contains("privada") && recipes.Contains(" ▲ Up ") &&
               pages[0].Rows.SelectMany(Markup.Parse).Where(span => span.Text.Contains("Up")).All(span => span.Class == "off"),
             "recipes mark the current and private combinations and show Up disabled");
-        check(Markup.Plain(pages[5].Rows[^3]).Contains("más"), "a long parameter list says how many rows are left out");
-        check(Markup.Plain(View.Updates("x", null, []).Rows[0]).Contains("Sin plan"), "without a recorded plan updates say so");
+        check(Markup.Plain(pages[5].Rows[^3]).Contains(Messages.MoreRows(0).Split(' ')[^1]), "a long parameter list says how many rows are left out");
+        check(Markup.Plain(View.Updates("x", null, []).Rows[0]).Contains(Messages.NoUpdatePlan), "without a recorded plan updates say so");
     }
 
     // Real reads over an isolated home and project: every view opens and nothing is written.
@@ -86,7 +86,7 @@ internal static class DefinitionsPresentationTests
             var written = after.Except(before).Where(item => !item.path.EndsWith(".lock", StringComparison.Ordinal)).ToArray();
             check(written.Length == 0, "reading every view writes nothing but the locks of the CLI reads: " + string.Join(", ", written.Select(item => item.path)));
             var gone = new DashboardCli.DefinitionsSource.Place(new("gone", false, false, false, true), null, null);
-            check(Markup.Plain(source.Read(gone, "Recetas", [], new Dictionary<int, ServiceSnapshot>(), 20, 56).Rows[1]).Contains("ya no se puede resolver"),
+            check(Markup.Plain(source.Read(gone, "Recetas", [], new Dictionary<int, ServiceSnapshot>(), 20, 56).Rows[1]).Contains(Messages.ProjectPathGone),
                 "an inaccessible project says so instead of reading");
         }
         finally { try { Directory.Delete(root, true); } catch (IOException) { } }

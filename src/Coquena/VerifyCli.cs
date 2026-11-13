@@ -33,12 +33,11 @@ public static class VerifyCli
         finally { Console.CancelKeyPress -= handler; }
     }
 
-    private static void WriteReport(VerificationReport report, bool checksum, TextWriter output)
+    internal static void WriteReport(VerificationReport report, bool checksum, TextWriter output)
     {
         var checksumRan = checksum && report.Resources.All(resource => resource!["mode"]!.GetValue<string>() == "checksum");
-        var mode = checksumRan ? "SHA-256" : "auditoría rápida, sin comparar SHA-256";
-        if (checksum && !checksumRan) output.WriteLine("SHA-256 omitido. Corregí los problemas del catálogo y repetí verify --checksum.");
-        output.WriteLine($"{(report.Verified ? "All OK" : "Hay recursos para revisar")} ({mode}, {report.Resources.Count} recursos).");
+        if (checksum && !checksumRan) output.WriteLine("SHA-256 omitido. Corregir los problemas del catálogo y repetir verify --checksum.");
+        output.WriteLine(report.Verified ? Messages.VerifyAllOk(report.Resources.Count, checksumRan) : Messages.VerifyProblems(report.Resources.Count, checksumRan));
         foreach (var resource in report.Resources)
         {
             var status = resource!["status"]!.GetValue<string>();
@@ -51,25 +50,11 @@ public static class VerifyCli
             }
             if (resource["known-failures"] is JsonObject failures)
                 foreach (var failure in failures)
-                    output.WriteLine($"    Fallo pendiente ({(failure.Key switch { "$unit" => "estructura", "$integrity" => "integridad", _ => failure.Key })}). Revisá el recurso y repetí con --checksum.");
+                    output.WriteLine($"    Fallo pendiente ({(failure.Key switch { "$unit" => "estructura", "$integrity" => "integridad", _ => failure.Key })}). Revisar el recurso y repetir con --checksum.");
         }
     }
 
-    private static string Describe(string status, bool checksum) => status switch
-    {
-        "verified" => "SHA-256 coincide",
-        "quick-ok" => "Auditoría rápida OK",
-        "unavailable" => "Recurso no disponible. Revisá la referencia en la receta y prepará la instalación.",
-        "missing-file" => "Falta el archivo. Revisá la ruta en la receta o volvé a descargar el recurso gestionado.",
-        "read-error" => "No se pudo leer. Revisá los permisos y si otro proceso tiene bloqueado el archivo.",
-        "changed-during-read" => "El archivo cambió durante la lectura. Esperá a que termine la escritura y repetí verify.",
-        "invalid-structure" => "Estructura GGUF inválida o incompleta. Revisá las partes seleccionadas en la receta.",
-        "no-reference" => "Sin referencia SHA-256. Revisá el origen y registrá una referencia si corresponde.",
-        "mismatch" => checksum ? "SHA-256 distinto de la referencia. Recuperá los bytes originales."
-            : "Tamaño distinto del registrado. Revisá que el archivo esté completo.",
-        "known-integrity-failure" => "Fallo de integridad pendiente. Recuperá el recurso y comprobalo con --checksum.",
-        _ => status
-    };
+    private static string Describe(string status, bool checksum) => Messages.VerifyStatus(status, checksum);
 
     internal static async Task<int> RunAsync(string[] args, TextWriter output, CancellationToken cancellation)
     {

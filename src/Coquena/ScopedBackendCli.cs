@@ -15,7 +15,7 @@ public static class ScopedBackendCli
         Func<HardwareContext, string, string, CancellationToken, Task<BackendResolution>>? resolve = null,
         IDownloadTransport? transport = null, Func<string, CancellationToken, Task<string>>? probe = null)
     {
-        if (args.Length == 0) { output.WriteLine("backend (alias runtime): show, list, download, protect, unprotect, remove. Consulte coquena --help."); return 0; }
+        if (args.Length == 0) { output.WriteLine("backend (alias runtime): show, list, download, protect, unprotect, remove. Ver coquena --help."); return 0; }
         var action = args[0];
         if (action is not ("show" or "list" or "download" or "protect" or "unprotect" or "remove")) return Invalid(error);
         try
@@ -73,9 +73,9 @@ public static class ScopedBackendCli
                     return exists ? 3 : 2;
                 }
                 var result = cleanup.Apply(plan);
-                foreach (var diagnostic in result.Diagnostics) error.WriteLine(diagnostic);
+                foreach (var note in result.Diagnostics) error.WriteLine(Messages.PruneFailed(note.Name, note.Code));
                 if (json) output.WriteLine(new JsonObject { ["freed-bytes"] = result.FreedBytes }.ToJsonString());
-                else output.WriteLine($"Liberado: {ByteSize.Format(result.FreedBytes)}.");
+                else output.WriteLine(Messages.PruneFreed(result.FreedBytes));
                 return result.Diagnostics.Count == 0 ? 0 : 7;
             }
             if (action == "show")
@@ -95,7 +95,8 @@ public static class ScopedBackendCli
                     _ = BackendIntent.FromRecipe(recipe);
                     value = recipe.Root.Get("service")!.Get("backend")!.Redacted()!;
                 }
-                output.WriteLine(value.ToJsonString()); return 0;
+                if (json) output.WriteLine(value.ToJsonString()); else TextTree.Write(value, output);
+                return 0;
             }
             if (action == "list")
             {
@@ -113,9 +114,9 @@ public static class ScopedBackendCli
             if (action is "protect" or "unprotect")
             {
                 backends.Protect(installation!, action == "protect");
-                output.WriteLine(new JsonObject { ["installation-id"] = installation, ["protected"] = action == "protect",
+                if (json) output.WriteLine(new JsonObject { ["installation-id"] = installation, ["protected"] = action == "protect",
                     ["references-preserved"] = true }.ToJsonString());
-                if (!json) output.WriteLine("Se conservan las referencias de intención, activo y recuperación; no se borran archivos.");
+                else output.WriteLine(Messages.ProtectionChanged(installation!, action == "protect"));
                 return 0;
             }
             using var official = transport is null ? new OfficialArtifactTransport() : null;
@@ -126,8 +127,9 @@ public static class ScopedBackendCli
             {
                 var prepared = backends.DownloadAsync(intent!, (inspect ?? HardwareProbe.Inspect)(), transport ?? official!,
                     force: force, warning: message => error.WriteLine(message), cancellation: stopped.Token).GetAwaiter().GetResult();
-                output.WriteLine(new JsonObject { ["resource-id"] = prepared.ResourceId, ["installation-id"] = prepared.InstallationId,
+                if (json) output.WriteLine(new JsonObject { ["resource-id"] = prepared.ResourceId, ["installation-id"] = prepared.InstallationId,
                     ["build"] = prepared.Build, ["variant"] = prepared.Variant, ["ownership"] = prepared.Ownership }.ToJsonString());
+                else output.WriteLine(Messages.BackendReady(prepared.Variant, prepared.Build, prepared.InstallationId));
                 return 0;
             }
             finally { Console.CancelKeyPress -= handler; }
@@ -137,7 +139,7 @@ public static class ScopedBackendCli
         {
             var code = e switch { BackendException b => b.Code, RecipeException r => r.Code, StorageException s => s.Code,
                 DownloadException d => d.Code, ContractException c => c.Code, _ => "backend-preparation-failed" };
-            error.WriteLine(e is DownloadException ? DownloadCli.ErrorLine(code) : $"Error: {code}. Consulte coquena --help.");
+            error.WriteLine(e is DownloadException ? DownloadCli.ErrorLine(code) : $"Error: {code}. Ver coquena --help.");
             if (e is OperationCanceledException) return 130;
             if (code is "backend-incompatible" or "unsupported-platform" or "no-candidate") return 5;
             if (code is "backend-integrity-invalid") return 6;
@@ -148,5 +150,5 @@ public static class ScopedBackendCli
             return 7;
         }
     }
-    private static int Invalid(TextWriter error) { error.WriteLine("Error: argumentos de backend inválidos. Consulte coquena --help."); return 2; }
+    private static int Invalid(TextWriter error) { error.WriteLine("Error: argumentos de backend inválidos. Ver coquena --help."); return 2; }
 }

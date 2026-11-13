@@ -89,7 +89,7 @@ internal static class WatchTests
             await Until(() => samples.Any(s => s.Snapshot!.ProcessState != "alive"));
             var second = await lifecycle.StartAsync(service.ServiceId, plan with { LogPath = Path.Combine(root, "fixture-second.log") });
             await Until(() => samples.Any(s => s.Snapshot!.InstanceId == second));
-            Check(second != first && samples.Any(s => s.Snapshot!.InstanceId == second && s.Transition?.Contains("Tramo nuevo") == true), "restart separates instance identity and reconnects to same service");
+            Check(second != first && samples.Any(s => s.Snapshot!.InstanceId == second && s.Transition?.StartsWith(Messages.NewInstanceSpan) == true), "restart separates instance identity and reconnects to same service");
             Check(handler.Requests.All(path => path == "/health" || path == "/models" || path == "/models/sse"), "only observation GET endpoints; no loads or conversations");
             if (product is not null)
             {
@@ -104,7 +104,7 @@ internal static class WatchTests
                     try { await Task.Delay(3500); Check(!child.HasExited, "native " + flag + " remains an observer"); }
                     finally { if (!child.HasExited) child.Kill(); await child.WaitForExitAsync(); }
                     var output = await text;
-                    Check(output.Split("Observación |").Length >= 3 && output.Contains("Servicio fixture") && !output.Contains('\u001b'), "native redirected " + flag + " emits multiple snapshots without escapes: " + await errors);
+                    Check(output.Split(Messages.ObservationFrame + " |").Length >= 3 && output.Contains("Servicio fixture") && !output.Contains('\u001b'), "native redirected " + flag + " emits multiple snapshots without escapes: " + await errors);
                 }
             }
             await stop.CancelAsync();

@@ -38,7 +38,7 @@ internal static class ImportedRecipeEdits
                 documents[relative] = ProjectDocuments.Create("recipe-intention", 1, new System.Text.Json.Nodes.JsonObject { ["text"] = "", ["path-bases"] = new System.Text.Json.Nodes.JsonObject() });
             }
             if (!overwrite && (observed[draft.Key] is { } projection ? !projection.AsSpan().SequenceEqual(original) : known || original.Length != 0))
-                throw new StorageException("intention-conflict", "Cambió la intención global; revisá los cambios antes de guardar.");
+                throw new StorageException("intention-conflict", "Cambió la intención global; revisar los cambios antes de guardar.");
             captured[draft.Key] = draft.Value;
             documents[relative]["data"]!["text"] = RecipeYaml.ReadText(draft.Key, false, draft.Value);
         }

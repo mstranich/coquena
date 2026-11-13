@@ -95,7 +95,7 @@ internal static class ServerTests
                 Check(manager.Compose(null).Presets.Ini.Contains(movedPath), "server composition resolves relocated model path");
                 Check(CliTest(["show"], 0).Contains("chat"), "CLI show after relocation");
                 File.Move(movedPath, movedPath + ".absent");
-                Check(manager.View(null).Diagnostics.Any(d => d.Contains("Archivo de modelo ausente")), "relocated missing file diagnosed");
+                Check(manager.View(null).Diagnostics.Any(d => d.Contains(Messages.MissingModelFile)), "relocated missing file diagnosed");
                 Reject(() => manager.Compose(null), "relocated missing file blocks composition");
                 File.Move(movedPath + ".absent", movedPath);
                 Check(new ModelDirectoryManager(home).Change(null, TextWriter.Null, () => "s", () => true), "return managed model to default");
@@ -108,7 +108,7 @@ internal static class ServerTests
             Check(manager.View("lts").Diagnostics.Length == 0 && manager.Compose("lts").Presets.Ini.Contains(externalPath), "external principal resolves absolute path");
             Check(CliTest(["lts", "show"], 0).Contains("external-model") && CliTest(["list"], 0).Contains("lts"), "CLI external show/list");
             File.Move(externalPath, externalPath + ".absent");
-            Check(manager.View("lts").Diagnostics.Any(d => d.Contains("Archivo de modelo ausente")), "missing external diagnosed without unsafe-path error");
+            Check(manager.View("lts").Diagnostics.Any(d => d.Contains(Messages.MissingModelFile)), "missing external diagnosed without unsafe-path error");
             Reject(() => manager.Compose("lts"), "missing external blocks composition");
             File.Move(externalPath + ".absent", externalPath);
             manager.Presets("lts", [externalPreset.Name], false);
@@ -134,7 +134,7 @@ internal static class ServerTests
             manager.Compose(null, (b, ids) => { seen = b.Id == backend.Id && ids.SequenceEqual(new[] { chat.Id, code.Id }); return new("injected", [], []); });
             Check(seen, "injected composition receives full selection");
             config.Remove("code");
-            Check(manager.View(null).Diagnostics.Any(d => d.Contains("Preset ausente")), "show missing preset");
+            Check(manager.View(null).Diagnostics.Any(d => d.Contains(Messages.MissingPreset("").TrimEnd(' ', ':'))), "show missing preset");
             Reject(() => manager.Compose(null), "no omitted broken preset");
             File.Delete(path);
             manager.Presets(null, ["chat"], false);

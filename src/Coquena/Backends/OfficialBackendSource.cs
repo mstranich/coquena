@@ -50,7 +50,7 @@ public sealed class OfficialBackendSource(HttpClient client)
                 if (result.Selected is not null) return result;
             }
             if (number <= MaxBuildProbes) return result;
-            throw new BackendException("discovery-limit", $"Sin selección en {MaxBuildProbes} builds; búsqueda incompleta. Consulte un release explícito; no se afirma que no existan candidatos anteriores.");
+            throw new BackendException("discovery-limit", $"Sin selección en {MaxBuildProbes} builds; búsqueda incompleta. Indicar un release explícito.");
         }
         catch (Exception e) when (e is HttpRequestException or IOException)
         { throw new BackendException("remote-unavailable", "No se pudo consultar GitHub; no se resolvió ninguna selección."); }

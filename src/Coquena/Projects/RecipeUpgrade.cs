@@ -44,7 +44,7 @@ public sealed class RecipeUpgrade(ScopeContext context, Action? transferReserved
         foreach (var filter in filters)
         {
             var matched = observations.Where(o => Matches(filter, o)).ToArray();
-            if (matched.Length == 0) throw new ArgumentException("El selector no pertenece al plan vigente; ejecute update.");
+            if (matched.Length == 0) throw new ArgumentException("El selector no pertenece al plan vigente; ejecutar update.");
             filter.CheckAmbiguity(matched.Select(o => Request(o).ProjectName));
         }
         var chosen = observations.Where(o => filters.Length == 0 || filters.Any(f => Matches(f, o))).ToArray();
@@ -125,7 +125,7 @@ public sealed class RecipeUpgrade(ScopeContext context, Action? transferReserved
                 var pending = await transfers.RunAsync(operation, observation["kind"]!.GetValue<string>() == "backend" ? backends :
                     new ReuseTransport(context, observation, Resource(observation)!, models),
                     cancellation: cancellation);
-                if (pending is not null) throw new DownloadException(pending.Diagnostic ?? "upgrade-incomplete", "Preparación incompleta; reintente upgrade con el mismo plan.");
+                if (pending is not null) throw new DownloadException(pending.Diagnostic ?? (pending.State == "paused" ? "transfer-paused" : "upgrade-incomplete"), "Preparación incompleta; repetir upgrade con el mismo plan.");
             }
         }
         // Candidates resumed by download are still checked as a complete set here.

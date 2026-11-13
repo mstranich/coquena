@@ -45,7 +45,7 @@ public static class ParameterCli
                         {
                             configuration ??= new(Home.Resolve());
                             try { _ = configuration.Backend(referenced); }
-                            catch (ConfigurationException) { output.WriteLine($"  referencia local ausente: {referenced:D}; no se reasigna por nombre."); }
+                            catch (ConfigurationException) { output.WriteLine($"  {Messages.MissingLocalReference}: {referenced:D}; no se reasigna por nombre."); }
                         }
                     }
                 }
@@ -120,7 +120,7 @@ public static class ParameterCli
             return 0;
         }
         catch (Exception e) when (e is ConfigurationException or ContractException or StorageException or IOException or UnauthorizedAccessException)
-        { error.WriteLine($"Error: {e.Message} Consulte coquena --help."); return 2; }
+        { error.WriteLine($"Error: {e.Message} Ver coquena --help."); return 2; }
     }
     private static Dictionary<string, List<string>> Parse(string[] args, int start, string[] values, string[] switches)
     {

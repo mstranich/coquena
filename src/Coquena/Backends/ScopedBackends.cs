@@ -193,7 +193,7 @@ public sealed class ScopedBackends(ScopeContext context,
         warning?.Invoke($"Operación de backend: {operation.Id:D}");
         progress?.Invoke(operation);
         var pending = await transfers.RunAsync(operation.Id, transport, progress: progress, cancellation: cancellation);
-        if (pending is not null) throw new DownloadException(pending.Diagnostic ?? "backend-preparation-incomplete", "Preparación no completada; conserve el GUID para reanudar.");
+        if (pending is not null) throw new DownloadException(pending.Diagnostic ?? (pending.State == "paused" ? "transfer-paused" : "backend-preparation-incomplete"), "Preparación no completada.");
         var installationId = operation.ScopePublication!.InstallationId.ToString("D");
         // Someone cancelled the transfer (TUI or download cancel): nothing was installed.
         if (!List().Any(resource => resource!["installations"]!.AsArray().Any(i => i!["installation-id"]!.GetValue<string>() == installationId)))
@@ -241,7 +241,7 @@ public sealed class ScopedBackends(ScopeContext context,
             .Where(r => r!["kind"]!.GetValue<string>() == "backend" && r["ownership"]!.GetValue<string>() == "managed")
             .SelectMany(r => r!["installations"]!.AsArray())
             .SingleOrDefault(i => i!["installation-id"]!.GetValue<string>() == installationId) : null;
-        if (installation is null) throw new BackendException("unknown-installation", "Seleccione el UUID de una instalación gestionada del ámbito.");
+        if (installation is null) throw new BackendException("unknown-installation", "Indicar el ID de una instalación gestionada del ámbito.");
         installation["protected"] = value;
         store.Commit(snapshot.Revision, docs);
     }
@@ -254,7 +254,7 @@ public sealed class ScopedBackends(ScopeContext context,
         {
             warning?.Invoke("Backend incompatible: " + candidate.Diagnostic);
             if (!force) throw new BackendException("backend-incompatible", "Preparación detenida; --force permite intentar con advertencia.");
-            warning?.Invoke("--force: se continúa con el backend incompatible; no acredita ejecución.");
+            warning?.Invoke("⚠ Se usa un backend que podría no funcionar en este equipo (--force).");
         }
         else if (candidate.Compatibility != "compatible") warning?.Invoke("Aviso: " + candidate.Diagnostic);
     }
@@ -288,7 +288,7 @@ public sealed class ScopedBackends(ScopeContext context,
         if (installation["availability"]?.GetValue<string>() == "missing")
             throw new BackendException(ownership == "managed" ? "backend-installation-absent" : "backend-absent", "Falta la instalación seleccionada.");
         if (installation["availability"]?.GetValue<string>() != "available")
-            throw new BackendException("backend-unavailable", "La instalación no está disponible; no se infiere corrupción de sus bytes.");
+            throw new BackendException("backend-unavailable", "La instalación no está disponible.");
         string executable; string? build = null; string? variant = null;
         if (ownership == "external") executable = Path.GetFullPath(installation["executable"]!.GetValue<string>(), context.Base);
         else

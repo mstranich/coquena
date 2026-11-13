@@ -210,7 +210,7 @@ public sealed partial class ScopedModels(ScopeContext context)
             externalPrevious: resource?["ownership"]?.GetValue<string>() == "external" ? resource.AsObject() : null);
         progress?.Invoke(operation);
         var result = await Transfers.RunAsync(operation.Id, transport, progress, cancellation);
-        if (result is not null) throw new DownloadException(result.State == "failed" ? "model-transfer-failed" : "model-transfer-interrupted",
+        if (result is not null) throw new DownloadException(result.State == "failed" ? "model-transfer-failed" : result.State == "paused" && result.Diagnostic is null ? "transfer-paused" : "model-transfer-interrupted",
             $"Operación {result.Id:D}: {result.Diagnostic ?? result.State}" +
             (result.LastIncident is { } incident ? $" ({incident.Reason}, offset {incident.Offset} bytes, {incident.ConsecutiveFailures} fallos consecutivos)" : "") +
             $". Consultar download status {result.Id:D} o continuar con download resume {result.Id:D} en el mismo ámbito.");

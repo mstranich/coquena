@@ -20,6 +20,11 @@ Distinguir errores de configuración, consulta remota, compatibilidad, integrida
 transferencia y ejecución. Informar acciones posibles sin cambiar intención
 automáticamente. No guardar secretos expandidos en archivos compartidos.
 
+La salida es texto para personas. Los comandos que devuelven datos o resultados
+(`show`, `list`, `download`, `add`, `remove`, `protect`, `verify`, `baseline`,
+`combination list`, `update`, `upgrade`) aceptan `--json` para obtener la misma
+información con forma estable para scripts; sin ese flag nunca imprimen JSON.
+
 ## Mapa por comando
 
 ### Ámbito y destino del estado
@@ -36,7 +41,8 @@ automáticamente. No guardar secretos expandidos en archivos compartidos.
 | service/server start, stop, restart | Proceso del servicio seleccionado; no publicación de un consumidor. |
 | up, down | Publicar/retirar conjunto de la receta seleccionada; no detener servicio. |
 | ps, logs | Observación general o por servicio, sin cambiar intención; ps admite -w/--watch. |
-| update, upgrade, verify, clean | Combinación o ámbito global explícito; no recorren YAML desconocidos. |
+| update, upgrade, verify, prune | Combinación o ámbito global explícito; no recorren YAML desconocidos. `clean` es alias de prune. |
+| usage (df) | Consulta del espacio usado por el proyecto, si hay uno, y por el ámbito global; no admite `--global`. |
 | tui, web, perf | Operaciones comunes sobre ámbito/servicio seleccionados. |
 
 `-g` es alias de `--global` para seleccionar el ámbito global.
@@ -59,7 +65,8 @@ Ps y el dashboard sí agregan observación de servicios conocidos, sin mutar inv
 | update | Consultar novedades y guardar plan; pin fijo no cambia. |
 | upgrade | Aplicar plan vigente; pin fijo exige cambiar intención a latest. |
 | verify | Auditar y guardar resultados locales; no reparar. |
-| clean | Previsualizar elegibles y borrar sólo tras confirmación o `--yes`. |
+| prune | Previsualizar elegibles y borrar sólo tras confirmación o `--yes`. |
+| usage | Medir el espacio por ámbito y por tipo, e indicar cuánto liberaría prune; no borra. |
 
 ### Responsabilidades de los comandos
 
@@ -330,11 +337,12 @@ preset apply|withdraw <clave>
 apply|withdraw <clave>
 ps [--service <nombre|default|self>] [-w|--watch]
 logs [list|follow|show <log-id>] [-f]
-update [--select <recurso>]...
-upgrade [--select <recurso>]...
+update [--select <recurso>]... [--json]
+upgrade [--select <recurso>]... [--json]
 verify [--select <recurso>]...
 verify --global [--select <recurso>]... [--include-unused]
-clean [--dry-run|--yes]
+usage [-f <archivo>] [--project-directory <carpeta>]
+prune [--global] [--dry-run|--yes]
 combination list|forget <combination-id>
 download list|show|pause|resume|cancel [<operation-id>]
 backend show|set|download|list|remove|protect|unprotect
@@ -388,6 +396,9 @@ una candidata, pero no publica por sí solo las resoluciones del conjunto. El re
 informa disponibilidad para próxima ejecución o aplicación, sin reiniciar servicios.
 La presencia de recursos bloqueados se informa con código de salida 6, aunque las
 propuestas válidas hayan quedado preparadas y publicadas localmente.
+Update y upgrade muestran por defecto un resumen legible: una línea por recurso con
+su estado y, si hay novedad, la versión actual y la propuesta. `--json` muestra el
+informe completo como datos; en ese modo los avisos de progreso van a la salida de error.
 
 En proyecto, verify comprueba la receta completa de la combinación elegida y los
 recursos que utiliza; `--select` permite limitar esos recursos. No admite
@@ -447,11 +458,26 @@ definición. `param set <nombre> <campo> <valor-yaml>` modifica un campo y
 confirmación o `--yes`. Remove nunca implica
 cascada de archivos ajenos. Opciones de campos específicos siguen sus canónicos.
 
-Clean sin opciones previsualiza y pregunta; sin interacción sólo previsualiza y
+Prune sin opciones previsualiza y pregunta; sin interacción sólo previsualiza y
 diagnostica falta de confirmación. Dry-run nunca borra; yes autoriza el conjunto
-mostrado sólo si su revisión sigue vigente. No existe clean --force.
+mostrado sólo si su revisión sigue vigente. No existe prune --force. `clean` es alias
+de prune, con la misma gramática.
+Usage (alias df) recorre los inventarios de todos los ámbitos que Coquena conoce:
+el proyecto de la carpeta, si tiene receta, el global y los proyectos registrados.
+Mide cada instalación por sus archivos, estén donde estén, y la clasifica con la
+misma regla que prune: está libre si no está protegida ni la referencia una receta,
+un preset, un servicio, un plan o una descarga sin terminar. Muestra cada ámbito por
+separado, con modelos, auxiliares, backends, descargas sin terminar y logs, la lista
+de lo libre y cuánto liberaría prune en ese ámbito. Los archivos externos se cuentan
+pero nunca son libres. Un proyecto registrado que no se puede leer se informa, y lo
+libre del resto se presenta con esa advertencia. Usage y la vista previa de prune
+no crean carpetas ni archivos de estado.
+Up, down, apply y withdraw muestran sus pasos (validar la receta, iniciar el
+servicio, preparar backend y modelos, publicar los presets) con el mismo progreso
+en la CLI y en la TUI. Cada paso muestra su detalle sólo si falla; `--verbose`
+lo muestra siempre.
 `backend remove <id-instalación>` retira una instalación gestionada elegible
-del ámbito elegido. Usa las mismas protecciones que clean. Un ID ajeno al
+del ámbito elegido. Usa las mismas protecciones que prune. Un ID ajeno al
 ámbito es una selección inválida. Una instalación protegida requiere
 `backend unprotect` antes de retirarla.
 Logs sin subcomando lee salida reciente; -f equivale a follow y no es --file en

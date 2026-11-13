@@ -110,7 +110,7 @@ internal static class ExternalMatchingTests
                 using var process = ModelEngineProcess.Start(start)!; process.StandardInput.Close();
                 var stdout = process.StandardOutput.ReadToEndAsync(); var stderr = process.StandardError.ReadToEndAsync();
                 if (!process.WaitForExit(20000)) { process.Kill(true); throw new Exception("Native match timeout"); }
-                Check(process.ExitCode == 0 && stdout.Result.Contains("sin emparejamiento") && stderr.Result.Length == 0, "native noninteractive add");
+                Check(process.ExitCode == 0 && stdout.Result.Contains(Messages.NotPaired) && stderr.Result.Length == 0, "native noninteractive add");
                 Check(new ModelInstaller(new Home(start.Environment["COQUENA_HOME"]!)).List().Single().Record.Selection is null, "native external persisted");
             }
             Console.WriteLine($"OK: {checks} comprobaciones de emparejamiento externo.");

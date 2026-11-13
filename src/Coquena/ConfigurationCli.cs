@@ -123,7 +123,7 @@ public static class ConfigurationCli
         }
         catch (Exception exception) when (exception is ConfigurationException or ContractException or StorageException or IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
         {
-            error.WriteLine($"Error: {exception.Message} Consulte coquena --help.");
+            error.WriteLine($"Error: {exception.Message} Ver coquena --help.");
             return 2;
         }
     }

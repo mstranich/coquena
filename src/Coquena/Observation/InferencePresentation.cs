@@ -46,7 +46,7 @@ internal static class InferencePresentation
             $"Ámbito {id.Scope} · servicio {id.Service}\nInstancia {id.Instance}\n" +
             $"Hijo {id.Pid}/{id.Creation} · slot {id.Slot} · tarea {id.Task} · tramo {id.FirstObserved}\n" +
             $"{Phase(task)} · última lectura {at.ToLocalTime():HH:mm:ss.fff}\n" +
-            (task.End is null ? "Tarea observada activa" : "Últimos valores observados; resultado de la petición sin confirmar") + "\n" +
+            (task.End is null ? "Tarea observada activa" : "Últimos valores observados; " + Messages.RequestUnconfirmed) + "\n" +
             $"Prompt {task.Last.Prompt} tk · caché {task.Last.Cached} tk · salida {task.Last.Decoded} tk\n" +
             $"Contexto del slot {task.Last.Context?.ToString() ?? "n/d"} tk · especulación {task.Last.Speculative?.ToString() ?? "n/d"}\n" +
             $"Límite de predicción {task.Last.PredictLimit?.ToString() ?? "n/d"} · no predice longitud final\n" +
@@ -57,7 +57,7 @@ internal static class InferencePresentation
             "Media: suma de deltas / tiempo de los intervalos medibles de cada fase.\n" +
             "Pico observado: máximo de esas tasas; excluye huecos y transiciones.\n" +
             "Tiempo: suma de intervalos medibles, no latencia completa de la petición.\n" +
-            "Progreso %, ETA y TTFT: n/d · fuente sin denominador/tiempo inicial acreditado.\n" +
+            "Progreso %, ETA y TTFT: n/d · fuente " + Messages.NoProgressDenominator + "/tiempo inicial acreditado.\n" +
             "Salida restante y separación razonamiento/respuesta: n/d · fuente no disponible.\n" +
             "Curvas de sesión: hasta 24 columnas de 2 s; · sin lectura, sin interpolación.";
     }

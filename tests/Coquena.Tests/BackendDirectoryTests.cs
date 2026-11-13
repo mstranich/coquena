@@ -74,7 +74,7 @@ internal static class BackendDirectoryTests
             var collideState = State(home);
             using var report = new StringWriter();
             Check(!manager.Change("../combined", report, () => "s", () => false), "one overwrite confirmation cancels entire transfer");
-            Check(report.ToString().Contains("COPYING") && report.ToString().Contains("ggml.dll") && report.ToString().Contains("destruirá") &&
+            Check(report.ToString().Contains("COPYING") && report.ToString().Contains("ggml.dll") && report.ToString().Contains(Messages.MergeOverwriteQuestion) &&
                 State(home) == collideState && File.ReadAllText(Path.Combine(bDest, "licenses", "COPYING")) == "previous license", "complete collision report without mutation");
             var confirmations = 0;
             Check(manager.Change("../combined", TextWriter.Null, () => "s", () => { confirmations++; return true; }), "merge all managed installations from multiple roots");

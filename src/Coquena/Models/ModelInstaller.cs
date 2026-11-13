@@ -437,7 +437,7 @@ public sealed partial class ModelInstaller(Home home, LocalStore? storage = null
         catch (Exception e) when (e is IOException or UnauthorizedAccessException or StorageException or DownloadException)
         {
             Save(operation with { State = "completed", Phase = "cleanup", Diagnostic = "cleanup-pending" });
-            throw new DownloadException("cleanup-pending", "Modelo publicado; limpieza pendiente. Reanude el GUID.");
+            throw new DownloadException("cleanup-pending", "Modelo publicado; limpieza pendiente; reanudar la operación.");
         }
     }
 }

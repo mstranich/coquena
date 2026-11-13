@@ -20,8 +20,8 @@ public sealed class ServerInterrupt(TextWriter output)
     {
         var presses = Interlocked.Increment(ref count);
         output.WriteLine(presses == 1
-            ? "[Ctrl+C recibido] Deteniendo servidor; máximo 10 s. Pulse Ctrl+C otra vez para forzar el cierre inmediato."
-            : "[Cierre forzado] Segundo Ctrl+C recibido; cerrando inmediatamente.");
+            ? Messages.CtrlCReceived
+            : Messages.SecondCtrlC);
         output.Flush();
     }
 }
@@ -179,7 +179,7 @@ public sealed partial class ServerRuntime(Home home, LocalStore? storage = null)
         if (instance is null)
         {
             store.Exclusive(() => { RetainLogs(server.Name, null, output); return true; });
-            output.WriteLine($"[Detenido] Servidor {server.Name}: sin instancia activa.");
+            output.WriteLine($"[Detenido] Servidor {server.Name}: {Messages.NoActiveInstance}.");
             output.Flush(); return;
         }
         StopLocked(server.Name, instance.InstanceId, output, interrupt);
@@ -259,7 +259,7 @@ public sealed partial class ServerRuntime(Home home, LocalStore? storage = null)
         using var stream = new FileStream(home.PathFor(instance.LogPath), FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
         using var reader = new StreamReader(stream, Encoding.UTF8, true, 4096);
         var buffer = new char[4096];
-        output.WriteLine("[Primer plano] Ctrl+C: parada ordenada (10 s); segundo Ctrl+C: cierre forzado inmediato."); output.Flush();
+        output.WriteLine(Messages.ForegroundHint); output.Flush();
         while (!ended && !WindowsServerProcess.Exited(process!))
         {
             Drain();

@@ -53,6 +53,6 @@ public sealed record StartFailureHook(string Command, string[] Arguments)
         }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException or
             System.ComponentModel.Win32Exception or OperationCanceledException or InvalidOperationException)
-        { diagnostics?.WriteLine("[Hook] No se completó la notificación de fallo de inicio; el resultado del servicio se conserva."); }
+        { diagnostics?.WriteLine(Messages.HookTimedOut); }
     }
 }

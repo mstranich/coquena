@@ -273,7 +273,7 @@ internal static class ResolutionTests
             var selected = await new ModelSelectionMenu(new(metadata),inspector).SelectAsync(ModelRequest.Parse(selector),menu);
             Check(selected!.Selection.Commit == Commit && selected.Selection.Files.Length == 1 && selected.Selection.Files[0].Path == "gemma-4-26B_q4_0-it.gguf", "both Google selectors pinned principal only");
             Check(selector.Contains(':') ? menu.Menus.Count == 0 :
-                menu.Menus.Count == 2 && menu.Menus.All(m=>m.Length==3 && m[0].StartsWith("Descargar Q4_0")), "explicit selector skips menu; implicit keeps README");
+                menu.Menus.Count == 2 && menu.Menus.All(m=>m.Length==3 && m[0].StartsWith(Messages.DownloadVariant("Q4_0"))), "explicit selector skips menu; implicit keeps README");
             Check(rangeHandler.Calls == 1, "only requested principal header read, no unrelated companion");
         }
     }

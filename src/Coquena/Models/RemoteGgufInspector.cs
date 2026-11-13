@@ -61,7 +61,7 @@ public sealed class RemoteGgufInspector : IRemoteGgufInspector, IDisposable
         catch (GgufException e) { throw new ModelSourceException("gguf-" + e.Code, e.Message); }
         catch (DownloadException e) { throw new ModelSourceException(e.Code, e.Message); }
         catch (OperationCanceledException) when (!cancellation.IsCancellationRequested)
-        { throw new ModelSourceException("inspection-timeout", "Tiempo de inspección agotado; no implica ausencia de variante."); }
+        { throw new ModelSourceException("inspection-timeout", "El origen tardó demasiado en responder; repetir más tarde."); }
         catch (Exception e) when (e is IOException or HttpRequestException)
         { throw new ModelSourceException("inspection-network", "Lectura remota interrumpida."); }
     }

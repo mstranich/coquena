@@ -68,7 +68,7 @@ internal static class ResourceVerificationTests
         Check(Cli.Run(["verify", "--base", root, "--select", "model://unknown"], output, error) == 2, "unknown selector fails without auditing all resources");
         Check(Cli.Run(["verify", "--base", root, "--select", "model://local"], output, error) == 0, "valid resource URI filters the project scope");
         Check(Cli.Run(["verify", "--base", root], output, error) == 0, "CLI audits selected local resource without preparing");
-        Check(output.ToString().Contains("All OK") && output.ToString().Contains("Auditoría rápida OK"), "verify shows a human-readable summary by default");
+        Check(output.ToString().Contains(Messages.VerifyAllOkPrefix) && output.ToString().Contains(Messages.VerifyStatus("quick-ok", false)), "verify shows a human-readable summary by default");
         output.GetStringBuilder().Clear();
         Check(Cli.Run(["verify", "--base", root, "--json"], output, error) == 0 &&
             JsonNode.Parse(output.ToString())!["valid"]!.GetValue<bool>() && JsonNode.Parse(output.ToString())!["resources"]![0]!["status"]!.GetValue<string>() == "quick-ok", "JSON distinguishes quick audit from checksum");
@@ -77,7 +77,7 @@ internal static class ResourceVerificationTests
         error.GetStringBuilder().Clear();
         File.WriteAllText(yaml, original + "      flash-attn: true\n");
         Check(Cli.Run(["verify", "--base", root], output, error) == 2 &&
-            error.ToString().Contains("flash-attn recibió el booleano true") && (error.ToString().Contains("on, off, auto") || error.ToString().Contains("[on|off|auto]")) && !error.ToString().Contains("Flash Attention") && error.ToString().Contains("emit.ini") &&
+            error.ToString().Contains(Messages.BooleanNeedsValue("flash-attn", "true").Trim()) && (error.ToString().Contains("on, off, auto") || error.ToString().Contains("[on|off|auto]")) && !error.ToString().Contains("Flash Attention") && error.ToString().Contains("emit.ini") &&
             store.Read().Revision == revisionBeforeInvalid, "verify rejects non-emittable preset arguments before recording observations");
         File.WriteAllText(yaml, "presets: [");
         Check(Cli.Run(["verify", "--base", root], output, error) == 2 && store.Read().Revision == revisionBeforeInvalid, "invalid YAML is revalidated before observations and has no persistent resource effect");
@@ -103,7 +103,7 @@ internal static class ResourceVerificationTests
             output.GetStringBuilder().Clear();
             Check(Cli.Run(["verify", "--global"], output, error) == 0 && !output.ToString().Contains("global-model"), "global default excludes unreferenced catalog installation");
             output.GetStringBuilder().Clear();
-            Check(Cli.Run(["verify", "--global", "--select", "model://global-model"], output, error) == 0 && output.ToString().Contains("All OK"), "global selector can explicitly audit an unused resource");
+            Check(Cli.Run(["verify", "--global", "--select", "model://global-model"], output, error) == 0 && output.ToString().Contains(Messages.VerifyAllOkPrefix), "global selector can explicitly audit an unused resource");
             var canonicalFile = Path.Combine(root, "canonical-weights.gguf"); File.WriteAllBytes(canonicalFile, bytes);
             var canonical = new ScopedModels(globalContext).AddExternal(canonicalFile, "fixture/repository:Q4_0");
             await globalVerifier.SetBaselineAsync(canonical.ResourceId, canonical.InstallationId);
@@ -128,7 +128,7 @@ internal static class ResourceVerificationTests
         var unprepared = Path.Combine(root, "unprepared"); Directory.CreateDirectory(unprepared);
         File.Copy(file, Path.Combine(unprepared, "weights.gguf")); File.WriteAllText(Path.Combine(unprepared, "coquena.yaml"), original);
         output.GetStringBuilder().Clear();
-        Check(Cli.Run(["verify", "--base", unprepared], output, error) == 6 && output.ToString().Contains("Sin referencia SHA-256"), "unregistered local bytes are read without implicit certification");
+        Check(Cli.Run(["verify", "--base", unprepared], output, error) == 6 && output.ToString().Contains(Messages.VerifyStatus("no-reference", false)), "unregistered local bytes are read without implicit certification");
         Check(!new ScopedModels(ScopeContext.Project(Path.Combine(unprepared, "coquena.yaml"))).List().Any(), "audit does not register ownership or resources");
         Check(File.ReadAllText(Path.Combine(unprepared, ".coquena", ".gitignore")).Contains("/local/"), "unprepared recipe verification excludes local observations from Git");
         using (var locked = new FileStream(file, FileMode.Open, FileAccess.ReadWrite, FileShare.None))
@@ -174,11 +174,11 @@ internal static class ResourceVerificationTests
             start.Environment["COQUENA_HOME"] = Path.Combine(root, "home");
             using var process = System.Diagnostics.Process.Start(start)!;
             var stdout = await process.StandardOutput.ReadToEndAsync(); var stderr = await process.StandardError.ReadToEndAsync(); await process.WaitForExitAsync();
-            Check(process.ExitCode == 0 && stdout.Contains("All OK") && stderr.Length == 0, "published Native AOT executes full verification");
+            Check(process.ExitCode == 0 && stdout.Contains(Messages.VerifyAllOkPrefix) && stderr.Length == 0, "published Native AOT executes full verification");
             start.ArgumentList.Add("--checksum");
             using var healthyChecksum = System.Diagnostics.Process.Start(start)!;
             var healthyChecksumOut = await healthyChecksum.StandardOutput.ReadToEndAsync(); var healthyChecksumErr = await healthyChecksum.StandardError.ReadToEndAsync(); await healthyChecksum.WaitForExitAsync();
-            Check(healthyChecksum.ExitCode == 0 && healthyChecksumOut.Contains("All OK") && healthyChecksumErr.Length == 0, "published Native AOT with --checksum succeeds on valid files");
+            Check(healthyChecksum.ExitCode == 0 && healthyChecksumOut.Contains(Messages.VerifyAllOkPrefix) && healthyChecksumErr.Length == 0, "published Native AOT with --checksum succeeds on valid files");
             File.AppendAllText(file, "native corruption");
             using var corrupt = System.Diagnostics.Process.Start(start)!;
             var corruptOut = await corrupt.StandardOutput.ReadToEndAsync(); var corruptError = await corrupt.StandardError.ReadToEndAsync(); await corrupt.WaitForExitAsync();
@@ -194,7 +194,7 @@ internal static class ResourceVerificationTests
             foreach (var arg in new[] { "verify", "--global", "--select", "model://fixture/repository:Q4_0" }) globalStart.ArgumentList.Add(arg);
             using var globalProcess = System.Diagnostics.Process.Start(globalStart)!;
             var globalOut = await globalProcess.StandardOutput.ReadToEndAsync(); var globalError = await globalProcess.StandardError.ReadToEndAsync(); await globalProcess.WaitForExitAsync();
-            Check(globalProcess.ExitCode == 0 && globalOut.Contains("All OK") && globalOut.Contains("fixture/repository:Q4_0") && !globalOut.Contains("global-model") && globalError.Length == 0,
+            Check(globalProcess.ExitCode == 0 && globalOut.Contains(Messages.VerifyAllOkPrefix) && globalOut.Contains("fixture/repository:Q4_0") && !globalOut.Contains("global-model") && globalError.Length == 0,
                 "published Native AOT verifies exactly the model chosen by canonical URI");
         }
         Console.WriteLine($"Resource verification: {checks} checks passed.");
