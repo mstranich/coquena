@@ -115,6 +115,8 @@ de presets seleccionados. Incluir descargas no utilizadas exige opción explíci
 No descarga/repara ni modifica intención/resoluciones; no tiene --fix. Resultados
 por recurso se persisten localmente. Sin hash de referencia se informa falta de
 evidencia, no se certifican bytes.
+Al inspeccionar cabeceras, completa los metadatos de arquitectura y expertos que
+falten en el índice local según [verificación](actualizacion-y-limpieza.md#verificación-y-bloqueos).
 
 Up valida YAML/esquema/requisitos y fallos conocidos; no hace la auditoría de verify
 ni recalcula hashes de gigabytes. Preparar faltantes no es auditar todo el disco.

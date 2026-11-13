@@ -58,8 +58,9 @@ cada vez que se usa `-f`. Desde la TUI, una combinación nueva se registra al us
 Up o Iniciar, con el mismo código que la CLI. Olvidar no afecta a una instancia activa
 ni retira presets. Los archivos `.env` se editan como una pestaña más del Editor.
 
-Fuera de la TUI: la comparación de ejecuciones queda en manos del usuario (clonar un
-preset, modificarlo y observar) y se vincula con `perf` y la pestaña Rendimiento.
+La comparación manual permite clonar un preset, modificarlo y observar. Herramientas
+ofrece Chat para la prueba rápida y Ajuste fino MoE para obtener una recomendación
+guardable en la receta; ambas operaciones están disponibles mediante `tool`.
 
 ## Organización
 

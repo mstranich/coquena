@@ -184,6 +184,20 @@ opciones/default y dependencias cuando el validador las soporte.
 Sin schema mantener editor genérico de args. La CLI también permite mantener coherencia.
 No convertir configuración de parámetros en requisito diario para usar el panel.
 
+## Laboratorio de rendimiento
+
+Chat es una categoría dentro de Herramientas. El botón Chat en En vivo lleva a
+ella con el servicio y preset enfocados, conservando su identidad publicada.
+El modelo se consulta a través del preset, sin una selección independiente.
+
+El [laboratorio interactivo](benchmarking.md#laboratorio-interactivo) organiza la
+prueba alrededor del preset elegido en el árbol servicio → proyecto → preset,
+con el modelo como información de ese preset. La conversación,
+el campo de mensaje y la observación de la respuesta comparten el recorrido con
+las métricas de En vivo, reorganizadas para seguir ese experimento. El diseño
+distingue los datos de la petición, la actividad de la entrada y los recursos
+compartidos. Las reglas de fuentes, identidad y datos ausentes siguen vigentes.
+
 ## Borradores y guardado
 
 Cada sesión/instancia TUI o Web que edita conserva copia de origen y borrador vinculado
