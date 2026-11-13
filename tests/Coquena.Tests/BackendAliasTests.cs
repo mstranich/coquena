@@ -30,7 +30,7 @@ internal static class BackendAliasTests
             using (var unpreparedOutput = new StringWriter())
             using (var unpreparedError = new StringWriter())
                 check(Cli.Run(["verify", "--base", project, "--select", "backend://my-downloaded", "--json"], unpreparedOutput, unpreparedError) == 6 &&
-                    JsonNode.Parse(unpreparedOutput.ToString())!.AsArray().Single()!["status"]!.GetValue<string>() == "no-reference",
+                    JsonNode.Parse(unpreparedOutput.ToString())!["resources"]!.AsArray().Single()!["status"]!.GetValue<string>() == "no-reference",
                     "unprepared external alias is known but cannot be certified without a baseline");
             var prepared = await preparation.PrepareAsync(new(project), Provider(context));
             var backend = prepared.Resources.Single();
@@ -75,7 +75,7 @@ internal static class BackendAliasTests
                 "ambiguous global alias is rejected before querying or replacing a plan");
             output.GetStringBuilder().Clear();
             check(Cli.Run(["verify", "--global", "--select", "backend://project-one/my-downloaded", "--checksum", "--json"], output, error) == 0 &&
-                JsonNode.Parse(output.ToString())!.AsArray().Single()!["status"]!.GetValue<string>() == "verified", "qualified global alias verifies one imported external backend");
+                JsonNode.Parse(output.ToString())!["resources"]!.AsArray().Single()!["status"]!.GetValue<string>() == "verified", "qualified global alias verifies one imported external backend");
             output.GetStringBuilder().Clear();
             check(Cli.Run(["verify", "--base", firstProject!, "--select", "backend://my-downloaded"], output, error) == 0, "global name collisions do not affect project-relative selection");
             if (product is not null)
@@ -90,7 +90,7 @@ internal static class BackendAliasTests
                     using var process = System.Diagnostics.Process.Start(start)!;
                     var stdout = await process.StandardOutput.ReadToEndAsync(); var stderr = await process.StandardError.ReadToEndAsync(); await process.WaitForExitAsync();
                     check(process.ExitCode == 0 && stderr.Length == 0 && (args[0] == "update" ? stdout.Contains("not-applicable") :
-                        JsonNode.Parse(stdout)!.AsArray().Single()!["status"]!.GetValue<string>() == "verified"), "published product resolves backend aliases in project and imported global scopes");
+                        JsonNode.Parse(stdout)!["resources"]!.AsArray().Single()!["status"]!.GetValue<string>() == "verified"), "published product resolves backend aliases in project and imported global scopes");
                 }
         }
         finally { Environment.SetEnvironmentVariable("COQUENA_HOME", previous); }

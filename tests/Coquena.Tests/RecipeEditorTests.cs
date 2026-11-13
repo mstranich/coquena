@@ -23,7 +23,8 @@ internal static class RecipeEditorTests
             check(place.Context is null && place.Folder == folder && DefinitionsPresentation.Views(place.Scope).SequenceEqual(["Receta"]),
                 "a folder without recipe keeps its path for Inicializar");
             check(DefinitionsPresentation.NoRecipe("nuevo").Rows.SelectMany(Markup.Parse).Any(span => span.Action == "init"), "J enables Inicializar");
-            check(InitCli.Run([folder], TextWriter.Null, TextWriter.Null) == 0 && File.ReadAllText(Path.Combine(folder, "coquena.yaml")) == "{}\n",
+            check(InitCli.Run([folder], TextWriter.Null, TextWriter.Null) == 0 && File.ReadAllText(Path.Combine(folder, "coquena.yaml")) == InitCli.SchemaComment + "\n" &&
+                  File.Exists(Path.Combine(folder, ".coquena", InitCli.SchemaFile)),
                 "Inicializar creates the recipe as coquena init");
             place = source.Places().Single(item => item.Scope.Here);
             check(place.Context is not null && place.Scope.HasRecipe, "after Inicializar the folder shows its recipe");
@@ -42,9 +43,9 @@ internal static class RecipeEditorTests
             var recipe = Path.Combine(folder, "coquena.yaml");
             var opened = File.ReadAllBytes(recipe);
             var selection = combinations[0].Selection;
-            check(RecipeDrafts.Validate(selection, new Dictionary<string, byte[]>()) is null, "the recipe on disk is valid");
+            check(RecipeDrafts.Validate(selection, new Dictionary<string, byte[]>()).Count == 0, "the recipe on disk is valid");
             var invalid = Encoding.UTF8.GetBytes("name: nuevo\npresets:\n  a: [\n");
-            var problem = RecipeDrafts.Validate(selection, new Dictionary<string, byte[]> { [recipe] = invalid });
+            var problem = RecipeDrafts.Validate(selection, new Dictionary<string, byte[]> { [recipe] = invalid }).SingleOrDefault();
             check(problem is { Line: > 1 } && problem.File == recipe, "an invalid draft is reported with its line");
             check(File.ReadAllBytes(recipe).SequenceEqual(opened), "validating does not write the file");
 
@@ -79,13 +80,13 @@ internal static class RecipeEditorTests
             check(yaml.Modified && yaml.Changed == (5, 5), "editing one line marks only that line as changed");
             yaml.View.Text = "name: nuevo\npresets:\n  a: [\n";
             var located = editor.Validate();
-            check(located is { Line: > 1 } && yaml.ErrorLine == located.Line && File.ReadAllText(recipe).Contains("0.7"),
+            check(located is { Line: > 1 } && yaml.ErrorLines.SetEquals([located.Line!.Value]) && File.ReadAllText(recipe).Contains("0.7"),
                 "Validar locates the error in the tab and does not write");
             editor.Render(80);
             check(editor.Validation.Rows.Count == 1 && Markup.Plain(editor.Validation.Rows[0]).Contains("línea " + located!.Line) &&
                   Markup.Plain(editor.Tabs.Rows[0]).Contains("coquena.yaml ●"), "the tab shows the draft and the validation row its line");
             DashboardCli.RecipeEditorPage.Load(yaml, File.ReadAllBytes(recipe));
-            check(!yaml.Modified && yaml.Changed is null && yaml.ErrorLine is null, "No reloads the disk and discards the draft");
+            check(!yaml.Modified && yaml.Changed is null && yaml.ErrorLines.Count == 0, "No reloads the disk and discards the draft");
             var valid = editor.Validate();
             editor.Render(80);
             check(valid is null && Markup.Plain(editor.Validation.Rows[0]).Contains("válida"), "a valid combination says so");

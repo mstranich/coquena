@@ -375,7 +375,9 @@ internal static class ParameterTests
         string Cli(int expected, params string[] args)
         {
             string stdout, stderr; int code;
-            if (executable is null)
+            // The product reaches the global catalog only as `param --global list|show|edit`;
+            // other catalog verbs are exercised in process.
+            if (executable is null || args[0] is not ("list" or "show" or "edit"))
             {
                 using var output = new StringWriter(); using var error = new StringWriter();
                 code = ParameterCli.Run(args, output, error, manager, config, () => throw new ConfigurationException("Se requiere entrada interactiva."));
@@ -385,7 +387,7 @@ internal static class ParameterTests
             {
                 var start = new ProcessStartInfo(executable) { UseShellExecute = false, RedirectStandardInput = true, RedirectStandardOutput = true, RedirectStandardError = true };
                 start.Environment["COQUENA_HOME"] = root;
-                start.ArgumentList.Add("param"); foreach (var arg in args) start.ArgumentList.Add(arg);
+                start.ArgumentList.Add("param"); start.ArgumentList.Add("--global"); foreach (var arg in args) start.ArgumentList.Add(arg);
                 using var process = Process.Start(start)!; process.StandardInput.Close();
                 var output = process.StandardOutput.ReadToEndAsync(); var error = process.StandardError.ReadToEndAsync();
                 if (!process.WaitForExit(10000)) { process.Kill(true); throw new Exception("Parameter CLI timeout"); }

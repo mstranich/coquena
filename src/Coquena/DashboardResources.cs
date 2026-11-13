@@ -28,7 +28,7 @@ internal static partial class DashboardCli
         // While Verificar or Limpiar runs, both actions are disabled and the spinner shows the wait.
         string Act(string text, string action) => busy ? DefinitionsPresentation.Off(text) : ManagementPresentation.Button(text, action);
         var rows = new List<string>();
-        if (busy) rows.Add(" " + Markup.Style("warn", DashboardPresentation.Spinner() + " ") + Markup.Style("mut", "Trabajando… Podés cambiar de vista; la operación sigue."));
+        if (busy) rows.Add(" " + Markup.Style("warn", DashboardPresentation.Spinner() + " ") + Markup.Style("mut", "Trabajando… podés cambiar de vista mientras sigue."));
         rows.Add(" " + Act("Verificar", "maintenance-verify") + " " + Markup.Style("mut", "definición y recursos seleccionados"));
         if (state.Verification is not null) rows.AddRange(state.Verification.Split('\n').Select(row => " " + Escape(row)));
         rows.Add(""); rows.Add(" " + Act("Limpiar…", "maintenance-preview") + " " + Markup.Style("mut", "recursos propios sin referencias"));

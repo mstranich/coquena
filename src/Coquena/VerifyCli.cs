@@ -19,27 +19,18 @@ public static class VerifyCli
         {
             var code = e switch { RecipeException r => r.Code, StorageException s => s.Code, ModelSourceException m => m.Code,
                 Coquena.Backends.BackendException b => b.Code, OperationCanceledException => "cancelled", ArgumentException => "invalid-selection", _ => "verification-io-error" };
-            error.WriteLine(e is RecipeException ? $"Error en la receta: {e.Message}" : $"Error: {code}. La verificación no se completó.");
+            // With --json, an invalid recipe is reported as data on the output, like a report.
+            if (e is RecipeProblemsException problems && args.Contains("--json")) { output.WriteLine(problems.ToJson().ToJsonString()); return 2; }
+            error.WriteLine(e switch
+            {
+                RecipeException { Phase: "validate" } invalid => RecipeValidation.Message(invalid),
+                RecipeException => $"Error en la receta: {e.Message}",
+                _ => $"Error: {code}. La verificación no se completó."
+            });
             return e is OperationCanceledException ? 130 : e is ArgumentException or RecipeException or ModelSourceException or Coquena.Backends.BackendException || code == "ambiguous-resource-selector" ? 2 :
                 code.Contains("conflict", StringComparison.Ordinal) ? 3 : 7;
         }
         finally { Console.CancelKeyPress -= handler; }
-    }
-
-    private static IReadOnlyList<ValidatedArgumentBlock> ValidateRecipe(EffectiveRecipe recipe)
-    {
-        var blocks = ArgumentValidation.Validate(recipe);
-        var adapter = new LlamaB11482ArgumentAdapter();
-        foreach (var block in blocks)
-        {
-            if (block.Scope == "preset" && recipe.PresetEnabled(block.Key))
-                _ = ArgumentEmission.Ini(recipe, block, block.Key, adapter, _ => "prepared-resource");
-            else if (block.Scope == "server")
-                _ = ArgumentEmission.Cli(recipe, block,
-                    Coquena.Backends.BackendIntent.FromRecipe(recipe).Executable is null ? adapter : null,
-                    _ => "prepared-resource");
-        }
-        return blocks;
     }
 
     private static void WriteReport(VerificationReport report, bool checksum, TextWriter output)
@@ -127,8 +118,7 @@ public static class VerifyCli
             }
             foreach (var service in new RecipeRegistry(new ScopeStore(context)).Services())
             {
-                var recipe = RecipeReader.Read(new RecipeImporter(context).ServiceSelection(service.ServiceId));
-                var blocks = ValidateRecipe(recipe); _ = ModelIntent.FromRecipe(recipe);
+                var (recipe, blocks) = RecipeValidation.Require(new RecipeImporter(context).ServiceSelection(service.ServiceId));
                 foreach (var request in CombinationPreparation.Requests(recipe, blocks))
                     AddRequest(recipe, request, true);
             }
@@ -137,7 +127,7 @@ public static class VerifyCli
                 var common = state.Documents.ContainsKey("recipe.yaml") ? new[] { context.PathFor("recipe.yaml") } : [];
                 var saved = new RecipeSelection(context.Base, common.Append(context.PathFor(document.Key)), context.Base)
                     { ImportedScope = context, FilterUnusedModels = true };
-                var recipe = RecipeReader.Read(saved); var blocks = ValidateRecipe(recipe); _ = ModelIntent.FromRecipe(recipe);
+                var (recipe, blocks) = RecipeValidation.Require(saved);
                 foreach (var request in CombinationPreparation.Requests(recipe, blocks))
                     AddRequest(recipe, request, true);
             }
@@ -162,8 +152,8 @@ public static class VerifyCli
         }
         else
         {
-            var recipe = RecipeReader.Read(selection!);
-            var blocks = ValidateRecipe(recipe); _ = ModelIntent.FromRecipe(recipe);
+            // The recipe goes first: YAML and structure, then resources and, if asked, SHA-256.
+            var (recipe, blocks) = RecipeValidation.Require(selection!);
             if (recipe.Root.Get("service") is not null) _ = Coquena.Backends.BackendIntent.FromRecipe(recipe);
             foreach (var request in CombinationPreparation.Requests(recipe, blocks))
                 AddRequest(recipe, request, privateSelection);
@@ -183,7 +173,8 @@ public static class VerifyCli
         }
         if (filters.Length > 0) selected = selected.Where(s => filters.Any(f => Matches(f, s))).ToList();
         var report = await new ResourceVerification(context).VerifyAsync(selected, checksum: checksum, cancellation: cancellation);
-        if (json) output.WriteLine(report.Resources.ToJsonString());
+        // One shape for every outcome: the recipe is valid here; resources carry their status.
+        if (json) output.WriteLine(new JsonObject { ["valid"] = true, ["resources"] = report.Resources.DeepClone() }.ToJsonString());
         else WriteReport(report, checksum, output);
         return report.Verified ? 0 : 6;
     }

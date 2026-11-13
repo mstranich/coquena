@@ -33,9 +33,9 @@ internal static class AuthoringDashboardTests
             var selection = new RecipeSelection(root);
             var inputs = new Dictionary<string, byte[]>(StringComparer.OrdinalIgnoreCase) { [file] = File.ReadAllBytes(file) };
             var recipe = RecipeReader.Read(selection);
-            var proposed = RecipeEdit.Propose(selection, inputs, file, ["presets", "copy"], RecipeEditCli.Render(recipe.SourceRoot.Get("presets")!.Get("assistant")!));
+            var proposed = RecipeEdit.Propose(selection, inputs, file, ["presets", "copy"], RecipeEdit.Copy(selection, inputs, ["presets", "assistant"]));
             check(File.ReadAllText(file) == yaml && Encoding.UTF8.GetString(proposed).Contains("# untouched header"), "cloning proposes a draft without writing or dropping neighboring comments");
-            check(RecipeDrafts.Validate(selection, new Dictionary<string, byte[]> { [file] = proposed }) is null, "cloned preset passes shared validation");
+            check(RecipeDrafts.Validate(selection, new Dictionary<string, byte[]> { [file] = proposed }).Count == 0, "cloned preset passes shared validation");
             var presets = DashboardCli.PresetRows(ScopeContext.Project(file), [selection], new Dictionary<int, ServiceSnapshot>());
             var presetPage = DashboardCli.PresetsPage("fixture", presets, presets[0].Id, 56);
             var actions = presetPage.Rows.SelectMany(Markup.Parse).Select(span => span.Action).ToArray();
@@ -72,7 +72,7 @@ internal static class AuthoringDashboardTests
             check(stressPresets.Length == 6 && DashboardCli.PresetsPage("s", stressPresets, stressPresets[5].Id, 56).Rows.SelectMany(Markup.Parse).Any(span => span.Action == "preset:" + stressPresets[5].Id),
                 "P pages to the selected preset beyond the first four");
 
-            try { RecipeEdit.Propose(selection, inputs, file, ["arg-defs", "definitions", "context"], "{type: string}"); check(false, "incompatible type accepted"); }
+            try { RecipeEdit.Propose(selection, inputs, file, ["arg-defs", "definitions", "context"], RecipeWriter.Map(("type", RecipeWriter.String("string")))); check(false, "incompatible type accepted"); }
             catch (RecipeException) { check(File.ReadAllText(file) == yaml, "incompatible schema keeps the saved assignments and file"); }
 
             var newFile = Path.Combine(root, "override.yaml");
@@ -88,7 +88,7 @@ internal static class AuthoringDashboardTests
             var emptyGlobal = ScopeContext.Global(new Home(Path.Combine(root, "empty-home")));
             var emptyPath = emptyGlobal.PathFor("recipe.yaml");
             var emptyInputs = new Dictionary<string, byte[]> { [emptyPath] = [] };
-            var firstSchema = RecipeEdit.Propose(new RecipeSelection(emptyGlobal.Base, [emptyPath], emptyGlobal.Base), emptyInputs, emptyPath, ["arg-defs", "definitions", "custom"], "{type: string}");
+            var firstSchema = RecipeEdit.Propose(new RecipeSelection(emptyGlobal.Base, [emptyPath], emptyGlobal.Base), emptyInputs, emptyPath, ["arg-defs", "definitions", "custom"], RecipeWriter.Map(("type", RecipeWriter.String("string"))));
             check(!File.Exists(emptyPath), "first global schema remains a draft before explicit save");
             ImportedRecipeEdits.Save(emptyGlobal, emptyInputs, new Dictionary<string, byte[]> { [emptyPath] = firstSchema });
             check(new ScopeStore(emptyGlobal).Read().Documents.ContainsKey("recipe.yaml") && File.Exists(emptyPath), "first global schema is created through a generation on explicit save");

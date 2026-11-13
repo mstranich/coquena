@@ -120,4 +120,10 @@ memoria dedicada y compartida. Hardware ampliado (D) se abre desde esa barra.
   vista que queda detrás y de otro modal superpuesto. Ningún modal tapa la barra inferior
   de recursos.
 - El Editor usa `Terminal.Gui.Editor` (aprobado): pestañas por archivo, deshacer,
-  numeración y buscar/reemplazar. YAML necesita una definición de resaltado propia.
+  numeración y buscar/reemplazar. YAML necesita una definición de resaltado propia,
+  que cubre el estilo de bloque y el de flujo (`{…}`, `[…]`).
+- Validar usa la misma validación que `verify` sobre lo que el usuario ve, borradores
+  incluidos, y lista todos los problemas que puede localizar; cada uno lleva a su
+  línea. Las acciones de autoría que copian o modifican la receta (como Clonar)
+  exigen antes una combinación válida: si no lo es, no cambian nada y el Editor
+  muestra los problemas tal como el usuario dejó los borradores.

@@ -71,6 +71,8 @@ public sealed unsafe partial class WindowsServerProcess : IDisposable
                 var environment = Marshal.StringToHGlobalUni(string.Join('\0', variables.OrderBy(p => p.Key, StringComparer.OrdinalIgnoreCase).Select(p => p.Key + "=" + p.Value)) + "\0\0");
                 try
                 {
+                    // The child inherits whether Ctrl+C is ignored: it must be able to stop gracefully.
+                    AcceptInterrupt();
                     if (!CreateProcessW(executable, command, 0, 0, true, 0x80000 | 0x10 | 0x4 | 0x400, environment,
                         Path.GetDirectoryName(executable), ref start, out var info)) throw Error("Iniciar backend");
                     return new(info, job, lifetime);
@@ -192,6 +194,14 @@ public sealed unsafe partial class WindowsServerProcess : IDisposable
         using var verified = Verified(instance, out _);
         if (verified is not null) Force(instance, verified);
     }
+    // Ctrl+C is how Coquena stops what it starts and how the user stops a command. A process
+    // launched by a parent that ignores Ctrl+C inherits that state and so do its children;
+    // re-enabling it here keeps Ctrl+C working in Coquena and in the servers it creates.
+    internal static void AcceptInterrupt()
+    {
+        if (OperatingSystem.IsWindows()) _ = SetConsoleCtrlHandler(0, false);
+    }
+
     public static int Signal(InstanceDocument instance)
     {
         using var verified = Verified(instance, out _);

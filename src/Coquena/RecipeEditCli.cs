@@ -101,7 +101,7 @@ internal static class RecipeEditCli
             if (family is "preset" or "param" && name is null) throw Invalid();
             var file = selection.Files[^1];
             string[] path;
-            string value;
+            EditNode value;
             if (family == "backend")
             {
                 var options = Options(positional, 1, null, "--version", "--variant", "--executable");
@@ -109,9 +109,9 @@ internal static class RecipeEditCli
                 var alias = recipe.SourceRoot.Get("service")?.Get("backend")?.Get("name");
                 if (action != "set" || !(options.Keys.ToHashSet().SetEquals(["--version", "--variant"]) ||
                     options.Keys.ToHashSet().SetEquals(["--executable"]))) throw Invalid();
-                var fields = options.ToDictionary(p => p.Key[2..], p => RecipeEdit.Quote(p.Value), StringComparer.Ordinal);
-                if (alias is not null) fields.Add("name", Render(alias));
-                value = Map(fields);
+                var fields = options.Select(p => KeyValuePair.Create(p.Key[2..], RecipeWriter.String(p.Value))).ToList();
+                if (alias is not null) fields.Add(KeyValuePair.Create("name", RecipeWriter.From(alias)));
+                value = new EditMap(fields);
             }
             else if (family == "model")
             {
@@ -138,24 +138,24 @@ internal static class RecipeEditCli
                     return 0;
                 }
                 if (!companion && fields.ContainsKey("--type")) throw Invalid();
-                var definition = current?.Fields.ToDictionary(p => p.Key, p => Render(p.Value), StringComparer.Ordinal)
-                    ?? new Dictionary<string, string>(StringComparer.Ordinal);
+                var definition = current?.Fields.ToDictionary(p => p.Key, p => RecipeWriter.From(p.Value), StringComparer.Ordinal)
+                    ?? new Dictionary<string, EditNode>(StringComparer.Ordinal);
                 if (current is { Kind: RecipeKind.String } && weights.Count == 0 &&
                     !(fields.ContainsKey("--repository") && fields.ContainsKey("--quantization")))
                 {
                     var shorthand = RecipeStructure.ShortModel(current);
-                    string Part(string text) => Render(new(RecipeKind.String, current.Origin, text, current.Style));
+                    EditNode Part(string text) => RecipeWriter.From(new(RecipeKind.String, current.Origin, text, current.Style));
                     definition["repository"] = Part(shorthand.Repository);
                     definition["quantization"] = Part(shorthand.Quantization);
                 }
                 if (weights.Count != 0 && !fields.ContainsKey("--repository"))
-                    foreach (var field in new[] { "repository", "revision", "quantization" }) definition[field] = "null";
-                if (fields.ContainsKey("--repository") && weights.Count == 0) definition["files"] = "null";
+                    foreach (var field in new[] { "repository", "revision", "quantization" }) definition[field] = EditNode.Null;
+                if (fields.ContainsKey("--repository") && weights.Count == 0) definition["files"] = EditNode.Null;
                 if (fields.ContainsKey("--quantization") && weights.Count != 0) throw Invalid();
-                if (weights.Count != 0) { definition["files"] = "[" + string.Join(", ", weights.Select(RecipeEdit.Quote)) + "]"; definition["quantization"] = "null"; }
-                foreach (var field in fields) definition[field.Key[2..]] = RecipeEdit.Quote(field.Value);
+                if (weights.Count != 0) { definition["files"] = new EditSequence(weights.Select(RecipeWriter.String).ToArray()); definition["quantization"] = EditNode.Null; }
+                foreach (var field in fields) definition[field.Key[2..]] = RecipeWriter.String(field.Value);
                 if (definition.Count == 0) throw Invalid();
-                value = Map(definition);
+                value = new EditMap(definition.ToArray());
             }
             else if (family == "preset")
             {
@@ -169,25 +169,26 @@ internal static class RecipeEditCli
                             throw Invalid();
                         if (literal.Items.Any(item => ArgumentValidation.Reference(recipe, item, false, true) is not null))
                             throw literal.Error("literal-list-reference", "edit", "El formato no admite referencias escritas como texto literal dentro de una lista.");
-                        value = literal.Kind == RecipeKind.String ? "{literal: " + Literal(literal) + "}" : Literal(literal);
+                        value = literal.Kind == RecipeKind.String ? RecipeWriter.Map(("literal", Literal(literal))) : Literal(literal);
                         break;
                     case "bind" when positional.Count == 4:
                         if (!positional[3].StartsWith("model://", StringComparison.Ordinal) &&
                             !positional[3].StartsWith("companion://", StringComparison.Ordinal)) throw Invalid();
                         path = ["presets", name!, "args", PresetArgument(positional[2])];
-                        value = RecipeEdit.Quote(positional[3]);
+                        value = RecipeWriter.String(positional[3]);
                         break;
                     case "unset" when positional.Count == 3 && presets?.ContainsKey(name!) == true:
                         path = ["presets", name!, "args", PresetArgument(positional[2])];
-                        value = "null";
+                        value = new EditRemove(2);
                         break;
                     case "remove" when positional.Count == 2 && presets?.ContainsKey(name!) == true:
                         path = ["presets", name!];
-                        value = "null";
+                        value = new EditRemove();
                         break;
                     case "clone" when positional.Count == 3 && presets?.ContainsKey(positional[2]) != true:
                         path = ["presets", positional[2]];
-                        value = Render(recipe.SourceRoot.Get("presets")?.Get(name!) ?? throw Invalid());
+                        if (recipe.SourceRoot.Get("presets")?.Get(name!) is null) throw Invalid();
+                        value = RecipeEdit.Copy(selection, inputs, ["presets", name!]);
                         break;
                     default: throw Invalid();
                 }
@@ -202,23 +203,23 @@ internal static class RecipeEditCli
                 {
                     case "define" when positional.Count == 2 && definitionFile is not null:
                         var definition = new RecipeYaml(definitionFile).Read();
-                        value = Render(definition);
+                        value = RecipeWriter.From(definition);
                         break;
                     case "remove" when positional.Count == 2 && existing is not null:
-                        value = "null";
+                        value = new EditRemove();
                         break;
                     case "set" when positional.Count == 4 && existing is not null:
                     case "unset" when positional.Count == 3 && existing is not null:
                         if (existing!.Origin.File.Equals(file, StringComparison.OrdinalIgnoreCase))
                         {
                             path = [..path, positional[2]];
-                            value = action == "unset" ? "null" : Render(ParseValue(positional[3]));
+                            value = action == "unset" ? new EditRemove(3) : RecipeWriter.From(ParseValue(positional[3]));
                             break;
                         }
-                        var fields = existing.Fields.ToDictionary(p => p.Key, p => Render(p.Value), StringComparer.Ordinal);
+                        var fields = existing.Fields.ToDictionary(p => p.Key, p => RecipeWriter.From(p.Value), StringComparer.Ordinal);
                         if (action == "unset") fields.Remove(positional[2]);
-                        else fields[positional[2]] = Render(ParseValue(positional[3]));
-                        value = Map(fields);
+                        else fields[positional[2]] = RecipeWriter.From(ParseValue(positional[3]));
+                        value = new EditMap(fields.ToArray());
                         break;
                     default: throw Invalid();
                 }
@@ -238,7 +239,7 @@ internal static class RecipeEditCli
         }
         catch (RecipeException e)
         {
-            error.WriteLine(e.Message);
+            error.WriteLine(RecipeValidation.Message(e));
             return e.Code == "edit-conflict" ? 3 : 2;
         }
         catch (Exception e) when (e is ArgumentException or IOException or UnauthorizedAccessException or ConfigurationException or StorageException or Backends.BackendException or Models.ModelSourceException)
@@ -270,25 +271,12 @@ internal static class RecipeEditCli
         return value;
     }
 
-    private static string Literal(RecipeValue value) => value.Kind switch
+    // A literal keeps `$` as text: lists are written item by item with that protection.
+    private static EditNode Literal(RecipeValue value) => value.Kind switch
     {
-        RecipeKind.String => RecipeEdit.Quote(value.Text!),
-        RecipeKind.Sequence => "[" + string.Join(", ", value.Items.Select(item => item.Kind == RecipeKind.String ? PreserveString(item.Text!) : Literal(item))) + "]",
-        _ => Render(value)
+        RecipeKind.String => RecipeWriter.String(value.Text!),
+        RecipeKind.Sequence => new EditSequence(value.Items.Select(item => item.Kind == RecipeKind.String
+            ? new EditScalar(RecipeWriter.Uninterpolated(item.Text!)) : Literal(item)).ToArray()),
+        _ => RecipeWriter.From(value)
     };
-
-    internal static string Render(RecipeValue value) => value.Kind switch
-    {
-        RecipeKind.Map when value.Get("literal") is { } literal && value.Fields.Count == 1 => "{literal: " + Literal(literal) + "}",
-        RecipeKind.Map => Map(value.Fields.ToDictionary(p => p.Key, p => Render(p.Value), StringComparer.Ordinal)),
-        RecipeKind.Sequence => "[" + string.Join(", ", value.Items.Select(Render)) + "]",
-        RecipeKind.String when value.Style is RecipeStyle.SingleQuoted or RecipeStyle.Block => PreserveString(value.Text!),
-        _ => value.ToString()
-    };
-
-    private static string PreserveString(string text) =>
-        RecipeEdit.Quote(text.Replace("$", "$$", StringComparison.Ordinal));
-
-    private static string Map(IEnumerable<KeyValuePair<string, string>> values) =>
-        "{" + string.Join(", ", values.Select(p => RecipeEdit.Quote(p.Key) + ": " + p.Value)) + "}";
 }

@@ -399,8 +399,7 @@ features:
       - src/Coquena/Recipes/RecipeReader.cs
     implementation:
       - src/Coquena/Recipes/RecipeYaml.cs
-      - src/Coquena/Recipes/RecipeEdit.cs
-      - src/Coquena/RecipeEditCli.cs
+      - src/Coquena/Recipes/RecipeShape.cs
       - src/Coquena/Recipes/RecipeVariables.cs
       - src/Coquena/Recipes/RecipeStructure.cs
       - src/Coquena/Recipes/RecipeValue.cs
@@ -409,6 +408,28 @@ features:
     references:
       - docs/design/formato-proyecto.md
       - docs/design/definiciones-declarativas.md
+
+  - id: recipe-writing-validation
+    intent: Escribir ediciones puntuales en bloque conservando el archivo, clonar copiando texto, borrar o anular según la capa, y validar una combinación con varios diagnósticos para Editor, autoría y verify.
+    keywords: [edit, clone, remove, unset, block, flow, null, validate, diagnostics, verify, schema, editor, highlighting]
+    entrypoints:
+      - src/Coquena/RecipeEditCli.cs
+      - src/Coquena/Recipes/RecipeValidation.cs
+    implementation:
+      - src/Coquena/Recipes/RecipeEdit.cs
+      - src/Coquena/Recipes/RecipeWriter.cs
+      - src/Coquena/Recipes/RecipeShape.cs
+      - src/Coquena/Recipes/RecipeDrafts.cs
+      - src/Coquena/DashboardEditor.cs
+      - src/Coquena/VerifyCli.cs
+    tests:
+      - tests/Coquena.Tests/RecipeWriterTests.cs
+      - tests/Coquena.Tests/RecipeEditorTests.cs
+      - tests/Coquena.Tests/AuthoringDashboardTests.cs
+    references:
+      - docs/design/comandos.md
+      - docs/design/tui/README.md
+      - specs/090-m4-tui-editor-mejoras/README.md
       - docs/design/servicios-recetas.md
       - docs/design/comandos.md
 
@@ -533,12 +554,13 @@ features:
       - docs/design/observabilidad.md
 
   - id: recipe-init
-    intent: Inicializar una receta mínima y sus exclusiones Git.
-    keywords: [init, recipe, gitignore]
+    intent: Inicializar una receta mínima que referencia el schema generado, el schema y las exclusiones Git.
+    keywords: [init, recipe, gitignore, schema, yaml-language-server]
     entrypoints:
       - src/Coquena/Cli.cs
     implementation:
       - src/Coquena/InitCli.cs
+      - src/Coquena/Recipes/RecipeShape.cs
     references:
       - docs/design/formato-proyecto.md
       - specs/072-m3-init/README.md

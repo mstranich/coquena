@@ -64,25 +64,15 @@ internal static class ServerRemovalTests
                     Check(clean.Read(DocumentKind.Config, json.ConfigDocument, ContractValidation.Config)!.DefaultServerId is null, "next writer does not restore removed designation");
                 }
             }
-            Console.WriteLine($"OK: {checks} comprobaciones de retirada de servidores" + (executable is null ? "." : " con CLI nativa."));
+            Console.WriteLine($"OK: {checks} comprobaciones de retirada de servidores.");
         }
         finally { if (Directory.Exists(root)) Directory.Delete(root, true); }
 
         int Cli(Home home, string[] args)
         {
-            if (executable is null)
-            {
-                using var output = new StringWriter(); using var error = new StringWriter();
-                return ServerCli.Run(args, output, error, new ServerManager(home));
-            }
-            var start = new ProcessStartInfo(executable) { UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true };
-            var variables = start.Environment.ToArray(); start.Environment.Clear();
-            foreach (var group in variables.GroupBy(v => v.Key, StringComparer.OrdinalIgnoreCase)) start.Environment[group.Key] = group.Last().Value;
-            start.Environment["COQUENA_HOME"] = home.Root;
-            start.ArgumentList.Add("server"); foreach (var arg in args) start.ArgumentList.Add(arg);
-            using var process = Process.Start(start)!; var stdout = process.StandardOutput.ReadToEndAsync(); var stderr = process.StandardError.ReadToEndAsync();
-            if (!process.WaitForExit(10000)) { process.Kill(true); throw new Exception("server remove CLI timeout"); }
-            stdout.GetAwaiter().GetResult(); stderr.GetAwaiter().GetResult(); return process.ExitCode;
+            // The catalog server CLI is not reachable from the product; it runs in process.
+            using var output = new StringWriter(); using var error = new StringWriter();
+            return ServerCli.Run(args, output, error, new ServerManager(home));
         }
         void Check(bool condition, string message) { checks++; if (!condition) throw new Exception("Server removal: " + message); }
     }

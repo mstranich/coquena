@@ -474,9 +474,24 @@ excluidos por defecto. Compartir una resolución no comparte éxito local.
 
 `coquena init` crea como mínimo `coquena.yaml`, `.coquena/` y su `.gitignore`, y
 complementa las exclusiones del proyecto sin reemplazar reglas existentes. La receta
-mínima puede ser `{}`: define un proyecto editable, no uno listo para iniciar.
+creada contiene sólo un comentario que referencia el schema
+(`# yaml-language-server: $schema=./.coquena/recipe.schema.json`): un documento
+vacío define un proyecto editable, no uno listo para iniciar.
 No descarga, inicia ni ejecuta Git init. Preserva archivos existentes e informa
 conflictos; repetirlo no reinicia estado ni sobrescribe definiciones.
+
+Repetir `init` deja el proyecto como lo espera la versión instalada de Coquena, sin
+preguntar e informando cada cambio: completa `.coquena/` y las exclusiones,
+reemplaza el schema si difiere, y en una receta existente reemplaza toda línea
+`# yaml-language-server: $schema=…` por la referencia actual o la agrega como primera
+línea si no tiene ninguna. El resto de la receta, su BOM y sus finales de línea no
+cambian.
+
+`.coquena/recipe.schema.json` es el JSON Schema de la receta, generado a partir de
+las mismas reglas estructurales con que Coquena lee las capas. Sirve a editores y
+agentes; no se edita a mano. No cubre las reglas entre
+campos ni las del catálogo de parámetros: la validación de Coquena sigue siendo
+la referencia.
 
 Índices, resoluciones, inventarios, directorios de recursos y registros de ejecución
 se materializan cuando hacen falta. Init no fabrica `resolved.json`, `last-good.json`

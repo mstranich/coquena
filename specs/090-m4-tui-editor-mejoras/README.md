@@ -1,5 +1,5 @@
 ---
-status: draft
+status: complete
 created: 2026-11-11
 priority: medium
 tags:
@@ -7,10 +7,17 @@ tags:
 - tui
 - dashboard
 created_at: 2026-11-11T13:45:36.844634100Z
-updated_at: 2026-11-11T13:45:44.515240200Z
+updated_at: 2026-11-13T01:57:48.280435900Z
+completed_at: 2026-11-13T01:57:48.280435900Z
 transitions:
 - status: draft
   at: 2026-11-11T13:45:44.289589500Z
+- status: planned
+  at: 2026-11-12T12:43:21.817818700Z
+- status: in-progress
+  at: 2026-11-12T12:43:21.901022400Z
+- status: complete
+  at: 2026-11-13T01:57:48.280435900Z
 ---
 # Escritura y validación del YAML de recetas, y Editor básico
 
@@ -84,19 +91,49 @@ ni IDEs, pero lo poco que hace lo hace bien. Entrega de
 
 ## Por concretar
 
-- [ ] Nombre exacto del schema en `.coquena` y si se regenera al actualizar Coquena.
+- [x] Schema en `.coquena/recipe.schema.json`. Cada `coquena init` lo reemplaza si
+      difiere y actualiza o agrega la referencia `$schema` de la receta, sin preguntar.
 
 ## Criterios de aceptación (borrador)
 
-- [ ] Pruebas de escritura con flujo, bloque, comentarios y BOM; mismo resultado
-      desde CLI y TUI; ninguna inserción en bloque genera llaves.
-- [ ] Pruebas de clonar (copia textual, reindentado, entre capas) y de eliminar
-      (misma capa y capa heredada).
-- [ ] `verify`, Validar y la precondición de clonar usan el mismo validador.
-- [ ] Pruebas con varios errores en una receta: se informan todos los que no
-      sean de sintaxis; un error de sintaxis se informa con su línea.
-- [ ] Prueba de concordancia entre el schema generado y el lector.
-- [ ] `init` crea la receta sin `{}` y con la referencia al schema; un editor
-      con soporte YAML la valida.
-- [ ] Revisión visual del resaltado y de la lista de diagnósticos.
-- [ ] Publicación Native AOT y ejecución del binario.
+- [x] Pruebas de escritura con flujo, bloque, comentarios, CRLF y BOM; CLI y TUI
+      comparten `RecipeEdit`; ninguna inserción en bloque genera llaves.
+- [x] Pruebas de clonar (copia textual con comentarios, mapa en flujo) y de eliminar
+      (misma capa, último preset, capa heredada, último argumento).
+- [x] `verify`, Validar, las ediciones puntuales y la precondición de clonar usan
+      `RecipeValidation` e informan todos los problemas.
+- [x] Pruebas con varios errores en una receta, con líneas correctas tras apartar
+      una entrada y referencias derivadas contadas junto a su causa; un error de
+      sintaxis se informa con su línea.
+- [x] Concordancia entre el schema generado y el lector (mismas formas en `RecipeShape`).
+- [x] `init` crea la receta sin `{}` y con la referencia al schema; repetido,
+      actualiza schema y referencia conservando BOM y finales de línea.
+- [x] Un editor con soporte YAML detecta el schema tras `init` (VS Code, revisión manual).
+- [x] Revisión visual en la TUI del Editor (revisión manual).
+- [x] Publicación Native AOT (win-x64) y ejecución del binario.
+
+## Evidencia
+
+- Suite administrada completa (`Coquena.Tests` sin argumentos): sale con 0.
+- `--dashboard-tests`: 249 comprobaciones, incluidas las del escritor, validación,
+  schema, resaltado, Editor, autoría e `init`.
+- `--recipe-tests` 323 y `--argument-tests` 182 comprobaciones.
+- Se actualizaron tres pruebas previas que fallaban: orden de vistas del ámbito
+  global, ancho de las filas de Actualizaciones (textos acortados) y el texto del
+  catálogo de llama-server en `verify`.
+- `dotnet publish -c Release -r win-x64` sin advertencias; con el binario: `init`,
+  `param define`, `preset set`, `preset clone`, `preset remove` escriben en bloque;
+  `init` repetido actualiza la referencia al schema; `verify` informa varios
+  problemas con línea, cuenta referencias derivadas y sale con 2; `verify --json`
+  devuelve siempre un objeto: `{"valid": true, "resources": [...]}` o
+  `{"valid": false, "problems": [...]}` con salida 2.
+- Un error de sintaxis YAML agrega «El resto del archivo no se pudo validar.».
+- Suite contra el binario publicado (`Coquena.Tests` Native AOT con `coquena.exe`
+  Native AOT): sale con 0. Se actualizaron pruebas que usaban comandos de M1 que la CLI
+  ya no tiene (`preset create`, catálogo de parámetros sin `--global`) o un fixture
+  que suponía que `coquena --version` fallaba.
+- Ctrl+C: Coquena reactiva la interrupción al iniciar y antes de lanzar servidores,
+  porque el estado «ignorar Ctrl+C» se hereda del proceso padre; `--runtime-tests` 95.
+- Los errores de argumentos en ediciones ya no repiten la ubicación en el mensaje.
+- Los mensajes de argumentos no representables usan datos del catálogo (valores o
+  sintaxis del backend), no su descripción libre, que depende del idioma de origen.

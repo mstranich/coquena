@@ -29,7 +29,7 @@ public static class ArgumentValidation
         void Inspect(RecipeValue value, string scope, string key, string mode)
         {
             try { failures.AddRange(Block(recipe, candidate, value, scope, key, mode, backend).Diagnostics); }
-            catch (RecipeException e) { failures.Add(new(e.Code, e.Origin, e.Message)); }
+            catch (RecipeException e) { failures.Add(new(e.Code, e.Origin, e.Detail)); }
         }
         if (recipe.Root.Get("service")?.Get("server") is { } server) Inspect(server, "server", "service", server.Get("args-mode")?.Text ?? recipe.ArgsMode);
         foreach (var preset in recipe.Root.Get("presets")?.Fields ?? new Dictionary<string, RecipeValue>())

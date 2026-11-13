@@ -15,8 +15,10 @@ namespace Coquena;
 
 internal static partial class DashboardCli
 {
-    // Highlighting for recipes: keys, scalar values and comments. Own definition, the package has no YAML.
-    private const string YamlHighlighting = """
+    // Highlighting for recipes: keys, scalar values, flow punctuation and comments, in block
+    // and flow style ({…}, […]). Own definition, the package has no YAML. Rule order matters:
+    // at one position the first rule that matches wins, so keys go before values.
+    internal const string YamlHighlighting = """
         <SyntaxDefinition name="YAML" extensions=".yaml;.yml" xmlns="http://icsharpcode.net/sharpdevelop/syntaxdefinition/2008">
           <Color name="Comment" foreground="#88929A" />
           <Color name="Key" foreground="#EAEBED" />
@@ -25,17 +27,18 @@ internal static partial class DashboardCli
           <RuleSet>
             <Span color="Comment" begin="(?&lt;=^|\s)\#" />
             <Rule color="Marker">^\s*-(?=\s|$)</Rule>
-            <Rule color="Key">[^\s:\#'"][^:\#]*?(?=:(\s|$))</Rule>
-            <Rule color="Value">(?&lt;=:\s+)[^\#\s][^\#]*?(?=\s*(\#|$))</Rule>
-            <Rule color="Value">(?&lt;=^\s*-\s+)[^\#\s][^\#]*?(?=\s*(\#|$))</Rule>
             <Rule color="Value">(?&lt;==)[^\#]*$</Rule>
+            <Rule color="Key">[^\s:\#'"{}\[\],][^:\#{}\[\],]*?(?=:(\s|$))</Rule>
+            <Rule color="Value">"(?:[^"\\]|\\.)*"|'(?:[^']|'')*'</Rule>
+            <Rule color="Marker">[{}\[\],]</Rule>
+            <Rule color="Value">(?&lt;=(:|^\s*-|[\[,])\s*)[^\#\s{}\[\],][^\#{}\[\],]*?(?=\s*([\#,}\]]|$))</Rule>
           </RuleSet>
         </SyntaxDefinition>
         """;
 
     private static IHighlightingDefinition? yamlDefinition;
 
-    private static IHighlightingDefinition YamlDefinition()
+    internal static IHighlightingDefinition YamlDefinition()
     {
         if (yamlDefinition is not null) return yamlDefinition;
         using var reader = XmlReader.Create(new StringReader(YamlHighlighting));
@@ -128,19 +131,19 @@ internal static partial class DashboardCli
         public bool Existed { get; set; } = true;
         public string[] OpenedLines { get; set; } = [];
         public (int First, int Last)? Changed { get; set; }
-        public int? ErrorLine { get; set; }
+        public HashSet<int> ErrorLines { get; } = [];
         public string Name => System.IO.Path.GetFileName(Path);
         public bool Modified => !Existed || !RecipeDrafts.Encode(View.Text, Opened).AsSpan().SequenceEqual(Opened);
     }
 
-    // Marks the changed block and the line of the last validation error with a background.
+    // Marks the changed block and the lines of the last validation problems with a background.
     internal sealed class LineMarks(EditorFile file, bool useColor) : IVisualLineTransformer
     {
         public void Transform(CellVisualLine line)
         {
             if (!useColor) return;
             var number = line.DocumentLine.LineNumber;
-            Color? background = number == file.ErrorLine ? new Color("#4A2226")
+            Color? background = file.ErrorLines.Contains(number) ? new Color("#4A2226")
                 : file.Changed is { } changed && number >= changed.First && number <= changed.Last ? Palette.Card : null;
             if (background is not { } color) return;
             foreach (var element in line.Elements) element.Attribute = new Attribute(element.Attribute.Foreground, color);
@@ -164,7 +167,10 @@ internal static partial class DashboardCli
         public bool Private { get; private set; }
         public bool RequireValidSave { get; set; }
         public ScopeContext? ImportedContext { get; set; }
-        public RecipeDrafts.Diagnostic? Problem { get; set; }
+        public IReadOnlyList<RecipeDiagnostic> Problems { get; private set; } = [];
+        public RecipeDiagnostic? Problem => Problems.FirstOrDefault();
+        // Rows the problem list takes under the text: one per problem, up to a few.
+        public int ValidationRows => Math.Clamp(Problems.Count, 1, 5);
         public bool Validated { get; set; }
         public string? Status { get; set; }
 
@@ -175,7 +181,7 @@ internal static partial class DashboardCli
             Tools = new Canvas(useColor) { Y = 2, Height = 1, ZoneName = "z1", Interactive = true };
             Host = new View { X = 0, Y = 3, Width = Dim.Fill(), CanFocus = true };
             ValidationTitle = new Canvas(useColor) { Height = 1, ZoneName = "hd" };
-            Validation = new Canvas(useColor) { Height = 1 };
+            Validation = new Canvas(useColor) { Height = 1, Interactive = true };
         }
 
         public IEnumerable<View> Views => [Tabs, Tools, Host, ValidationTitle, Validation];
@@ -229,7 +235,7 @@ internal static partial class DashboardCli
             file.View.Document.UndoStack.MarkAsOriginalFile();
             file.OpenedLines = text.Split('\n');
             file.Changed = null;
-            file.ErrorLine = null;
+            file.ErrorLines.Clear();
         }
 
         // Changed block between the common prefix and suffix of opened and current lines.
@@ -258,7 +264,7 @@ internal static partial class DashboardCli
         {
             foreach (var file in Files) { Host.Remove(file.View); file.View.Dispose(); }
             Files.Clear();
-            (Selection, Problem, Validated, Status, Current) = (null, null, false, null, 0);
+            (Selection, Problems, Validated, Status, Current) = (null, [], false, null, 0);
             RequireValidSave = false;
             ImportedContext = null;
         }
@@ -266,19 +272,25 @@ internal static partial class DashboardCli
         public IReadOnlyDictionary<string, byte[]> Drafts() =>
             Files.ToDictionary(file => file.Path, file => RecipeDrafts.Encode(file.View.Text, file.Opened), StringComparer.OrdinalIgnoreCase);
 
-        // Runs the core checks over the drafts and moves the caret to the error when it has a line.
-        public RecipeDrafts.Diagnostic? Validate()
+        // Runs the shared validation over the drafts and marks the line of every problem.
+        public RecipeDiagnostic? Validate()
         {
-            foreach (var file in Files) file.ErrorLine = null;
-            Problem = RecipeDrafts.Validate(Selection!, Drafts());
+            foreach (var file in Files) { file.ErrorLines.Clear(); file.View.SetNeedsDraw(); }
+            Problems = RecipeDrafts.Validate(Selection!, Drafts());
             Validated = true;
-            if (Problem is { Line: { } line } problem &&
-                Files.FindIndex(file => file.Path.Equals(problem.File, StringComparison.OrdinalIgnoreCase)) is var at and >= 0)
-            {
-                Files[at].ErrorLine = line;
-                Files[at].View.SetNeedsDraw();
-            }
+            foreach (var problem in Problems)
+                if (problem.Line is { } line && Files.FindIndex(file => file.Path.Equals(problem.File, StringComparison.OrdinalIgnoreCase)) is var at and >= 0)
+                    Files[at].ErrorLines.Add(line);
             return Problem;
+        }
+
+        // Shows the file of a problem with the caret on its line.
+        public void Reveal(RecipeDiagnostic problem)
+        {
+            if (problem.Line is not { } line || Files.FindIndex(file => file.Path.Equals(problem.File, StringComparison.OrdinalIgnoreCase)) is not (var at and >= 0)) return;
+            Show(at);
+            var document = Files[at].View.Document!;
+            Files[at].View.CaretOffset = document.GetLineByNumber(Math.Clamp(line, 1, document.LineCount)).Offset;
         }
 
         public void Render(int width)
@@ -294,11 +306,13 @@ internal static partial class DashboardCli
                 (ImportedContext is null ? Button("▲ Up", "up") : DefinitionsPresentation.Off("▲ Up")) + " " +
                 (ImportedContext is null ? Button("▼ Down", "down") : DefinitionsPresentation.Off("▼ Down")) + "   " + Button("Copiar", "copy") + " " + Button("Cortar", "cut") + " " + Button("Pegar", "paste") +
                 "{pad}" + Button("Cerrar", "close") + " "];
-            ValidationTitle.Rows = [" Validación"];
-            Validation.Rows = [Problem is { } problem
-                ? " " + Markup.Style("err", "✗") + " " + Markup.Escape(DashboardPresentation.Fit(
-                    (problem.Line is { } line ? System.IO.Path.GetFileName(problem.File) + " · línea " + line + " · " : "") + problem.Message, width - 4))
-                : Validated ? " " + Markup.Style("ok", "✓") + " " + Markup.Style("mut", "La combinación es válida con los borradores actuales.")
+            ValidationTitle.Rows = [" Validación" + (Problems.Count > 1 ? Markup.Style("mut", " · " + Problems.Count + " problemas" +
+                (Problems.Count > ValidationRows ? ", se muestran " + ValidationRows : "")) : "")];
+            Validation.Height = ValidationRows;
+            Validation.Rows = Problems.Count != 0
+                ? Problems.Take(ValidationRows).Select((problem, i) => " " + Markup.Style("err", "✗") + " " + Markup.Style("nav", Markup.Escape(DashboardPresentation.Fit(
+                    (problem.Line is { } line ? System.IO.Path.GetFileName(problem.File) + " · línea " + line + " · " : "") + problem.Message, width - 4)), "problem:" + i)).ToArray()
+                : [Validated ? " " + Markup.Style("ok", "✓") + " " + Markup.Style("mut", "La combinación es válida con los borradores actuales.")
                 : " " + Markup.Style("mut", "Sin validar. Validar comprueba los borradores sin guardarlos.")];
         }
 

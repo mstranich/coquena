@@ -9,11 +9,12 @@ public enum RecipeKind { Null, String, Integer, Number, Boolean, Map, Sequence }
 public enum RecipeStyle { Plain, Quoted, SingleQuoted, Block }
 public sealed record RecipeOrigin(string File, int Line, int Column, string Path);
 
-public sealed class RecipeException(string code, string phase, RecipeOrigin origin, string detail)
+public class RecipeException(string code, string phase, RecipeOrigin origin, string detail)
     : Exception($"{origin.File}:{origin.Line}:{origin.Column} {origin.Path} [{phase}/{code}] {detail}")
 {
     public string Code { get; } = code;
     public string Phase { get; } = phase;
+    public string Detail { get; } = detail;
     public RecipeOrigin Origin { get; } = origin;
 }
 

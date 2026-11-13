@@ -201,8 +201,11 @@ public static class ArgumentEmission
             var mapping = item.Text == "true" ? "true-value" : "false-value";
             var expected = argument.Definition?.Get("enum") is { } choices
                 ? $"Valores declarados en el schema: {string.Join(", ", choices.Items.Select(choice => choice.Text))}."
-                : adapter is LlamaB11482ArgumentAdapter && ParameterCatalog.Find(argument.Name) is { } definition
-                    ? definition.Description + "."
+                // Catalog data, never its free description: that text comes from the backend's help.
+                : adapter is LlamaB11482ArgumentAdapter && ParameterCatalog.Find(argument.Name) is { } definition &&
+                  (definition.Choices is { Length: > 0 } ? "Valores admitidos por el backend: " + string.Join(", ", definition.Choices) + "."
+                    : definition.Syntax is { Length: > 0 } syntax ? "Sintaxis del backend: " + syntax + "." : null) is { } known
+                    ? known
                     : "Consultá los valores admitidos por el backend.";
             return item.Error("boolean-representation-required", "emission",
                 $"El argumento {argument.Name} recibió el booleano {item.Text}, pero aquí requiere un valor explícito. " +

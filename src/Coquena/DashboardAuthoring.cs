@@ -193,7 +193,7 @@ internal static partial class DashboardCli
     internal static DefinitionsPresentation.Page UpdatesPage(string scope, UpdateView state, IReadOnlyList<string> impact, bool busy = false, string combination = "Combinación")
     {
         var rows = new List<string>();
-        if (busy) rows.Add(" " + Markup.Style("warn", DashboardPresentation.Spinner() + " ") + Markup.Style("mut", "Trabajando… Podés cambiar de vista; la operación sigue."));
+        if (busy) rows.Add(" " + Markup.Style("warn", DashboardPresentation.Spinner() + " ") + Markup.Style("mut", "Trabajando… podés cambiar de vista mientras sigue."));
         if (state.Notice is { } notice) rows.AddRange(DashboardPresentation.Wrap(notice, 54).Take(3).Select(line => " " + Markup.Style("mut", line)));
         if (state.Problem is { } problem) rows.AddRange(DashboardPresentation.Wrap(problem, 54).Take(3).Select(line => " " + Markup.Style("warn", line)));
         if (state.Plan is { } plan)
@@ -219,7 +219,7 @@ internal static partial class DashboardCli
         rows.Add(" " + (busy ? DefinitionsPresentation.Off(DashboardPresentation.Spinner() + " Comprobar") : state.Unprepared ? DefinitionsPresentation.Off("Comprobar") : ManagementPresentation.Button("Comprobar", "update-check")) + " " + (!busy && state.Plan is not null && state.Problem is null && state.Chosen.Count > 0 ?
             ManagementPresentation.Button("Actualizar " + state.Chosen.Count, "update-apply") : DefinitionsPresentation.Off("Actualizar")) + " " + ManagementPresentation.Button("Descargas", "downloads"));
         rows.Add(""); rows.Add(" " + Markup.Style("hi", "Impacto en ejecución"));
-        rows.Add(" " + Markup.Style("mut", "Actualizar no reinicia ni cambia los servicios que están en marcha."));
+        rows.Add(" " + Markup.Style("mut", "Actualizar no reinicia ni cambia servicios activos."));
         rows.AddRange(impact.Select(text => " " + Markup.Escape(text)));
         return new("Actualizaciones de " + Markup.Escape(scope) + "{pad}" + ManagementPresentation.CombinationButton(combination), rows);
 

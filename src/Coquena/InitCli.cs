@@ -2,6 +2,9 @@ namespace Coquena;
 
 internal static class InitCli
 {
+    internal const string SchemaFile = "recipe.schema.json";
+    internal const string SchemaComment = "# yaml-language-server: $schema=./.coquena/" + SchemaFile;
+
     public static int Run(string[] args, TextWriter output, TextWriter error)
     {
         if (args is ["--help" or "-h"])
@@ -36,15 +39,29 @@ internal static class InitCli
                 ["/local/", "/combinations/*/local/", "/models/", "/backends/",
                  "/downloads/", "/tmp/", "/logs/"]);
 
+            // Init brings the project to this version: the generated schema and the recipe's
+            // reference to it are replaced without asking, and each change is reported.
+            var schema = Path.Combine(metadata, SchemaFile);
+            if (Directory.Exists(schema)) throw new IOException($"Se esperaba un archivo en {schema}.");
+            var schemaText = Recipes.RecipeShape.Schema().ToJsonString(new System.Text.Json.JsonSerializerOptions { WriteIndented = true }) + "\n";
+            var schemaExisted = File.Exists(schema);
+            if (!schemaExisted || File.ReadAllText(schema) != schemaText)
+            {
+                File.WriteAllText(schema, schemaText);
+                output.WriteLine((schemaExisted ? "Schema actualizado: " : "Schema creado: ") + schema);
+            }
+
             if (File.Exists(recipe))
             {
                 output.WriteLine($"Receta existente conservada: {recipe}");
+                if (Reference(recipe) is { } change) output.WriteLine(change + ": " + recipe);
                 return 0;
             }
 
+            // Only a comment: the reader takes it as an empty recipe and editors find the schema.
             using (var file = new FileStream(recipe, FileMode.CreateNew, FileAccess.Write))
             {
-                file.Write("{}\n"u8);
+                file.Write(System.Text.Encoding.UTF8.GetBytes(SchemaComment + "\n"));
             }
             output.WriteLine($"Receta creada: {recipe}");
             return 0;
@@ -54,6 +71,22 @@ internal static class InitCli
             error.WriteLine($"Error al inicializar: {exception.Message}");
             return 1;
         }
+    }
+
+    // Replaces every schema reference line with the current one, or adds it as the first
+    // line; the rest of the file, its BOM and line endings stay. Null when nothing changed.
+    private static string? Reference(string recipe)
+    {
+        var bytes = File.ReadAllBytes(recipe);
+        var (encoding, offset) = Recipes.RecipeYaml.TextEncoding(bytes, false);
+        var text = encoding.GetString(bytes, offset, bytes.Length - offset);
+        var newline = text.Contains("\r\n", StringComparison.Ordinal) ? "\r\n" : "\n";
+        var pattern = new System.Text.RegularExpressions.Regex(@"^[ \t]*#[ \t]*yaml-language-server:[ \t]*\$schema=[^\r\n]*", System.Text.RegularExpressions.RegexOptions.Multiline);
+        var found = pattern.IsMatch(text);
+        var updated = found ? pattern.Replace(text, SchemaComment) : SchemaComment + newline + text;
+        if (updated == text) return null;
+        File.WriteAllBytes(recipe, [.. bytes.AsSpan(0, offset), .. encoding.GetBytes(updated)]);
+        return found ? "Referencia al schema actualizada" : "Referencia al schema agregada";
     }
 
     private static void AddExclusions(string path, string[] rules)

@@ -208,9 +208,15 @@ internal static class InstallerTests
                 operation = native.Create(Candidate([Server("2")], "b2"), "b2");
                 Check((await Run(native, operation, new([Server("2")])))?.Diagnostic == "version-start-failed", "non-executable fails actual native probe");
                 await native.Downloads.ControlAsync(operation.Id, true, beforeCancel: native.CancelAsync);
-                var nonzero = Zip(("llama-server.exe", File.ReadAllBytes(executable)));
-                operation = native.Create(Candidate([nonzero], "b3"), "b3");
-                Check((await Run(native, operation, new([nonzero])))?.Diagnostic == "version-exit-failed", "nonzero exit fails actual native probe");
+                // Same native fixture, forced to exit nonzero after printing its version.
+                var nonzero = Zip(("llama-server.exe", binary));
+                Environment.SetEnvironmentVariable("COQUENA_FIXTURE_EXIT", "3");
+                try
+                {
+                    operation = native.Create(Candidate([nonzero], "b3"), "b3");
+                    Check((await Run(native, operation, new([nonzero])))?.Diagnostic == "version-exit-failed", "nonzero exit fails actual native probe");
+                }
+                finally { Environment.SetEnvironmentVariable("COQUENA_FIXTURE_EXIT", null); }
                 await native.Downloads.ControlAsync(operation.Id, true, beforeCancel: native.CancelAsync);
             }
             Console.WriteLine($"OK: {checks} comprobaciones de instalación/reinstalación de backends.");

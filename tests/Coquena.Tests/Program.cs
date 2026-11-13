@@ -46,6 +46,7 @@ if (args is ["--dashboard-tests"])
         Coquena.Tests.SettingsPresentationTests.RunStore(Check);
         await Coquena.Tests.ManagementTests.Run(Check);
         await Coquena.Tests.ResourceDashboardTests.Run(Check);
+        Coquena.Tests.RecipeWriterTests.Run(Check);
         await Coquena.Tests.RecipeEditorTests.Run(Check);
         await Coquena.Tests.AuthoringDashboardTests.Run(Check);
         await Coquena.Tests.InferenceObservationTests.Run(Check);
@@ -264,7 +265,7 @@ if (args.Length is 1 or 2 && args[0] == "--server-tests")
     return;
 }
 
-if (args.Length == 1 && args[0] == "--version") { Console.WriteLine($"version: {Environment.GetEnvironmentVariable("COQUENA_FIXTURE_BUILD") ?? "1"} (abcdef)"); return; }
+if (args.Length == 1 && args[0] == "--version") { Console.WriteLine($"version: {Environment.GetEnvironmentVariable("COQUENA_FIXTURE_BUILD") ?? "1"} (abcdef)"); Environment.Exit(int.TryParse(Environment.GetEnvironmentVariable("COQUENA_FIXTURE_EXIT"), out var fixtureExit) ? fixtureExit : 0); }
 if (args.Length is 1 or 2 && args[0] == "--local-integrity-tests")
 {
     await Coquena.Tests.LocalIntegrityTests.Run(args.Length == 2 ? Path.GetFullPath(args[1]) : null);

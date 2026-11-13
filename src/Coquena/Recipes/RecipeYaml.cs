@@ -9,6 +9,8 @@ internal sealed class RecipeYaml(string file, byte[]? captured = null)
     internal const int MaxBytes = 16 * 1024 * 1024;
     internal Dictionary<string, (ParsingEvent Start, ParsingEvent End)>? Spans { get; init; }
     internal Dictionary<string, Scalar>? FirstKeys { get; init; }
+    // Key scalar of each mapping entry, by the entry's path.
+    internal Dictionary<string, Scalar>? KeySpans { get; init; }
     private int nodes;
     private IParser parser = null!;
 
@@ -91,7 +93,9 @@ internal sealed class RecipeYaml(string file, byte[]? captured = null)
                 if (keyNode.Kind != RecipeKind.String) throw keyNode.Error("yaml-key-type", "yaml", "La clave debe ser string.");
                 if (key.Value == "<<") throw Fail("yaml-merge-key", key, path, "Merge keys no admitidas.");
                 if (fields.ContainsKey(key.Value)) throw Fail("duplicate-key", key, path, "Clave duplicada.");
-                fields.Add(key.Value, Node(path + "[" + System.Text.Json.Nodes.JsonValue.Create(key.Value)!.ToJsonString() + "]", depth + 1));
+                var child = path + "[" + System.Text.Json.Nodes.JsonValue.Create(key.Value)!.ToJsonString() + "]";
+                KeySpans?.Add(child, key);
+                fields.Add(key.Value, Node(child, depth + 1));
             }
             Spans?.Add(path, (mapping, parser.Current!));
             parser.MoveNext();

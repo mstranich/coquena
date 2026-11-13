@@ -255,8 +255,8 @@ internal static class ConfigurationTests
             Check(replacement.Id != coding.Id, "recreate never reuses ID");
             Reject(() => manager.Compose(backend, [coding.Id]), "old references stay broken");
 
-            // Every documented operation exercised via managed CLI or published executable,
-            // with a fresh process for each call to prove source-generated persistence.
+            // Catalog operations through the catalog CLI; `config` also through the published
+            // executable, with a fresh process for each call to prove source-generated persistence.
             Cli("preset", "create", first.Name, "native-chat");
             Cli("preset", "create", second.Name, "native-code");
             Cli("preset", "set", "native-chat", "c", "2048");
@@ -319,7 +319,9 @@ internal static class ConfigurationTests
         string Invoke(string[] arguments, int expected)
         {
             string stdout, stderr; int code;
-            if (executable is null)
+            // The product routes `preset` and `param` to recipe editing; the catalog CLI is
+            // reached from the executable only through `config`.
+            if (executable is null || arguments[0] != "config")
             {
                 using var output = new StringWriter(); using var error = new StringWriter();
                 code = ConfigurationCli.Run(arguments[0], arguments[1..], output, error, manager);

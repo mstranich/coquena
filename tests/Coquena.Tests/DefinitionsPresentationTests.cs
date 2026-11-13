@@ -27,7 +27,7 @@ internal static class DefinitionsPresentationTests
         check(rows[0] == " ▸ Global" && rows[1] == " ▾ código · aquí" && rows[2] == "  Recetas" && rows.Contains(" ✗ cli-project"),
             "scope headers show collapsed, expanded, here and inaccessible");
         check(tree.All(node => Markup.Width(View.TreeRow(node, scopes, 1, true)) == View.TreeWidth), "the selected tree row fills the column");
-        check(View.Views(scopes[0]).SequenceEqual(["Servicios", "Presets", "Modelos", "Backends", "Parámetros", "Actualizaciones", "Mantenimiento"]) &&
+        check(View.Views(scopes[0]).SequenceEqual(["Backends", "Servicios", "Modelos", "Parámetros", "Presets", "Actualizaciones", "Mantenimiento"]) &&
               View.Views(scopes[4]).SequenceEqual(["Receta"]) && View.Views(scopes[3]).Length == 0,
             "Global, a recipe, a folder without recipe and an inaccessible path offer their views");
 

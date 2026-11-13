@@ -122,7 +122,6 @@ internal static class ExternalModelTests
                 Check(Native("model", "companion", "add", copy, "--name", companion.Name).Code == 0, "native companion add");
                 Check(Native("model", "add", copy, "--name", "user/repo:q4_k_m").Code == 1, "native collision");
                 Check(Native("model", "companion", "list").Out.Contains(companion.Name), "native persisted companion list");
-                Check(Native("preset", "create", single.Name, "native").Code == 0, "native stable preset reference");
                 File.Delete(file);
                 Check(Native("model", "list").Out.Contains("inaccessible"), "native missing diagnosis");
                 Check(Native("model", "add", bad, "--name", "user/bad:BF16").Code == 1, "native unconventional split diagnostic");

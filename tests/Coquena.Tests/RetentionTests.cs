@@ -85,7 +85,9 @@ internal static class RetentionTests
         string Invoke(int expected, params string[] arguments)
         {
             string stdout, stderr; int code;
-            if (executable is null)
+            // Per-server retention is declared in the recipe now; the executable exposes only
+            // `config log-retention`, so the catalog server commands run in process.
+            if (executable is null || arguments[0] == "server")
             {
                 using var output = new StringWriter(); using var error = new StringWriter();
                 code = arguments[0] == "server" ? ServerCli.Run(arguments[1..], output, error, servers) : ConfigurationCli.Run(arguments[0], arguments[1..], output, error, manager);

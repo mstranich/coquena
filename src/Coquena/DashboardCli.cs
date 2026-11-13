@@ -249,6 +249,11 @@ internal static partial class DashboardCli
             Render();
         };
         recipeEditor.Tools.Pressed += EditorAction;
+        recipeEditor.Validation.Pressed += action =>
+        {
+            if (action.StartsWith("problem:", StringComparison.Ordinal) && int.TryParse(action[8..], out var at) && recipeEditor.Problems.ElementAtOrDefault(at) is { } problem)
+            { recipeEditor.Reveal(problem); Render(); }
+        };
         definitionDetail.Pressed += DefinitionAction;
         downloadDetail.Pressed += DownloadAction;
 
@@ -594,9 +599,10 @@ internal static partial class DashboardCli
             systemDetail.Height = Dim.Fill();
             // H · Editor: file tabs, actions, the text and the last validation over the hardware bar.
             foreach (var view in recipeEditor.Views) view.Visible = page == Editing;
-            recipeEditor.Host.Height = Math.Max(1, content - 4);
-            recipeEditor.ValidationTitle.Y = content - 1;
-            recipeEditor.Validation.Y = content;
+            var problemRows = recipeEditor.ValidationRows;
+            recipeEditor.Host.Height = Math.Max(1, content - 3 - problemRows);
+            recipeEditor.ValidationTitle.Y = content - problemRows;
+            recipeEditor.Validation.Y = content - problemRows + 1;
             foreach (var view in window.SubViews) { view.SetNeedsLayout(); view.SetNeedsDraw(); }
         }
 
@@ -1287,13 +1293,14 @@ internal static partial class DashboardCli
                             if (reason is null) break;
                             Query(app, "Clonar preset · nombre no válido", reason, "Aceptar");
                         }
-                        StageEdit(chosen.Recipe.Selection, place.Scope.Name, chosen.Recipe.Selection.Files[^1], ["presets", name], RecipeEditCli.Render(chosen.Recipe.SourceRoot.Get("presets")!.Get(chosen.Name)!));
+                        var source = chosen.Name;
+                        StageComputed(chosen.Recipe.Selection, place.Scope.Name, chosen.Recipe.Selection.Files[^1], ["presets", name], drafts => RecipeEdit.Copy(chosen.Recipe.Selection, drafts, ["presets", source]));
                         return;
                     }
                     else if (action == "preset-remove")
                     {
                         if (Query(app, "Eliminar definición · " + chosen.Name, "Se prepara una desasignación en YAML. Guardar no borra pesos ni retira publicaciones; Up aplicará el cambio explícitamente.", "Cancelar", "Abrir borrador") != 1) return;
-                        StageEdit(chosen.Recipe.Selection, place.Scope.Name, chosen.Recipe.Selection.Files[^1], ["presets", chosen.Name], "null"); return;
+                        StageEdit(chosen.Recipe.Selection, place.Scope.Name, chosen.Recipe.Selection.Files[^1], ["presets", chosen.Name], new EditRemove()); return;
                     }
                     else if (action == "preset-live" && chosen.Target is int target)
                     { index = target; preferredEntry = context.IsGlobal ? chosen.Name : chosen.Recipe.Name + "/" + chosen.Name; selectionEpoch++; Select(); Open(Live); return; }
@@ -1337,7 +1344,7 @@ internal static partial class DashboardCli
                             var recipe = RecipeReader.Read(selections[0]);
                             if (ArgumentSchema.Load(recipe).Definitions.ContainsKey(fields[0])) throw new ArgumentException("Ya existe esa definición.");
                             StageEdit(selections[0], place.Scope.Name, ParameterFile(recipe), ["arg-defs", "definitions", fields[0]],
-                                "{type: " + RecipeEdit.Quote(fields[1]) + ", scope: " + RecipeEdit.Quote(fields[2]) + "}", true, context.IsGlobal ? context : null); return;
+                                RecipeWriter.Map(("type", RecipeWriter.String(fields[1])), ("scope", RecipeWriter.String(fields[2]))), true, context.IsGlobal ? context : null); return;
                         }
                         else if (chosen is not null)
                         {
@@ -1345,7 +1352,7 @@ internal static partial class DashboardCli
                             if (action == "param-remove")
                             {
                                 if (Query(app, "Quitar definición · " + chosen.Name, "Asignaciones en la selección: " + string.Join(", ", chosen.Uses) + "\nSe conservan valores y recursos. Se validará el modo estricto y las reglas antes de permitir guardar.", "Cancelar", "Abrir borrador") != 1) return;
-                                StageEdit(chosen.Recipe.Selection, place.Scope.Name, ParameterFile(chosen.Recipe), ["arg-defs", "definitions", chosen.Name], "null", true); return;
+                                StageEdit(chosen.Recipe.Selection, place.Scope.Name, ParameterFile(chosen.Recipe), ["arg-defs", "definitions", chosen.Name], new EditRemove(), true); return;
                             }
                             if (action == "param-detail") Choose(app, chosen.Name + " · definición efectiva", ["Origen: " + chosen.Value.Origin.File, chosen.Value.Redacted()?.ToJsonString() ?? "—", "Usado por: " + string.Join(", ", chosen.Uses)], null);
                         }
@@ -2093,14 +2100,27 @@ internal static partial class DashboardCli
             recipeEditor.Files[at].View.CaretOffset = document.GetLineByNumber(Math.Clamp(origin.Line, 1, document.LineCount)).Offset;
         }
 
-        void StageEdit(RecipeSelection selection, string scope, string file, string[] path, string value, bool strict = false, ScopeContext? importedContext = null)
+        void StageEdit(RecipeSelection selection, string scope, string file, string[] path, EditNode value, bool strict = false, ScopeContext? importedContext = null) =>
+            StageComputed(selection, scope, file, path, _ => value, strict, importedContext);
+
+        void StageComputed(RecipeSelection selection, string scope, string file, string[] path, Func<Dictionary<string, byte[]>, EditNode> value, bool strict = false, ScopeContext? importedContext = null)
         {
             var newFiles = importedContext is not null ? selection.Files.Where(path => !File.Exists(path) && selection.CapturedFiles?.ContainsKey(path) == true).ToHashSet(StringComparer.OrdinalIgnoreCase) : null;
             OpenEditor(selection, scope, AuthorPrivate(places[focusedPlace], selection), newFiles);
             if (page != Editing) return;
             recipeEditor.ImportedContext = importedContext ?? selection.ImportedScope;
             var inputs = recipeEditor.Drafts().ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.OrdinalIgnoreCase);
-            var candidate = RecipeEdit.Propose(selection, inputs, file, path, value);
+            EditNode content;
+            try { content = value(inputs); }
+            catch (RecipeException error) when (error.Phase == "validate")
+            {
+                // The action needs a valid recipe: the Editor shows what to fix, as the user left it.
+                if (recipeEditor.Validate() is { } first) recipeEditor.Reveal(first);
+                recipeEditor.Status = "sin cambios: corregí la receta primero";
+                Render();
+                return;
+            }
+            var candidate = RecipeEdit.Propose(selection, inputs, file, path, content);
             recipeEditor.RequireValidSave = strict;
             recipeEditor.Stage(file, candidate);
             recipeEditor.Status = "borrador; Guardar no aplica a ejecución";
@@ -2166,8 +2186,9 @@ internal static partial class DashboardCli
             }
             if (recipeEditor.Validate() is { } problem)
             {
-                if (recipeEditor.RequireValidSave) { Query(app, "Cambios inválidos; se conserva lo guardado", problem.Message, "Aceptar"); return false; }
-                if (Query(app, "La combinación no es válida", problem.Message + "\nUp no la publicará hasta corregirla. ¿Guardar igualmente?", "Cancelar", "Guardar igualmente") != 1) return false;
+                var summary = RecipeValidation.Describe(recipeEditor.Problems.Take(5)) + (recipeEditor.Problems.Count > 5 ? "\n…" : "");
+                if (recipeEditor.RequireValidSave) { Query(app, "Cambios inválidos; se conserva lo guardado", summary, "Aceptar"); return false; }
+                if (Query(app, "La combinación no es válida", summary +"\nUp no la publicará hasta corregirla. ¿Guardar igualmente?", "Cancelar", "Guardar igualmente") != 1) return false;
             }
             foreach (var file in modified)
             {
@@ -2213,14 +2234,7 @@ internal static partial class DashboardCli
                 {
                     case "save": SaveDrafts(); break;
                     case "validate":
-                        recipeEditor.Validate();
-                        if (recipeEditor.Problem is { Line: { } line } problem &&
-                            recipeEditor.Files.FindIndex(item => item.Path.Equals(problem.File, StringComparison.OrdinalIgnoreCase)) is var at and >= 0)
-                        {
-                            recipeEditor.Show(at);
-                            var document = recipeEditor.Files[at].View.Document!;
-                            recipeEditor.Files[at].View.CaretOffset = document.GetLineByNumber(Math.Min(line, document.LineCount)).Offset;
-                        }
+                        if (recipeEditor.Validate() is { } first) recipeEditor.Reveal(first);
                         break;
                     case "up" or "down":
                         if (recipeEditor.ImportedContext is not null) break;

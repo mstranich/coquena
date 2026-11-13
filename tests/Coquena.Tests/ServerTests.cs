@@ -164,28 +164,16 @@ internal static class ServerTests
             store.Update(DocumentKind.Servers, json.ServersDocument, ContractValidation.Servers, _ => new(1, []));
             File.Delete(home.PathFor("catalogs/servers.json"));
             Reject(manager.EnsureInitial, "missing catalog with existing designation is not empty");
-            Console.WriteLine($"OK: {checks} comprobaciones de servidores" + (executable is null ? "." : " con CLI nativa."));
+            Console.WriteLine($"OK: {checks} comprobaciones de servidores.");
         }
         finally { if (Directory.Exists(root)) Directory.Delete(root, true); }
 
         string CliTest(string[] args, int expected)
         {
-            string stdout, stderr; int exit;
-            if (executable is null)
-            {
-                using var output = new StringWriter(); using var error = new StringWriter();
-                exit = ServerCli.Run(args, output, error, manager); stdout = output.ToString(); stderr = error.ToString();
-            }
-            else
-            {
-                var start = new ProcessStartInfo(executable) { UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true };
-                start.Environment["COQUENA_HOME"] = root;
-                start.ArgumentList.Add("server"); foreach (var arg in args) start.ArgumentList.Add(arg);
-                using var process = Process.Start(start)!;
-                var output = process.StandardOutput.ReadToEndAsync(); var error = process.StandardError.ReadToEndAsync();
-                if (!process.WaitForExit(10000)) { process.Kill(true); throw new Exception("CLI server timeout"); }
-                stdout = output.GetAwaiter().GetResult(); stderr = error.GetAwaiter().GetResult(); exit = process.ExitCode;
-            }
+            // ServerCli is the catalog server CLI; the product routes `server` to scoped
+            // services, so these commands only exist in process.
+            using var output = new StringWriter(); using var error = new StringWriter();
+            var exit = ServerCli.Run(args, output, error, manager); var stdout = output.ToString(); var stderr = error.ToString();
             Check(exit == expected && (expected == 0 ? stderr.Length == 0 : stderr.Contains("Error:")), $"CLI {string.Join(' ', args)}: {exit} {stderr}");
             return stdout;
         }

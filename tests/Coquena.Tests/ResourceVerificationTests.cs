@@ -71,13 +71,13 @@ internal static class ResourceVerificationTests
         Check(output.ToString().Contains("All OK") && output.ToString().Contains("Auditoría rápida OK"), "verify shows a human-readable summary by default");
         output.GetStringBuilder().Clear();
         Check(Cli.Run(["verify", "--base", root, "--json"], output, error) == 0 &&
-            JsonNode.Parse(output.ToString())![0]!["status"]!.GetValue<string>() == "quick-ok", "JSON distinguishes quick audit from checksum");
+            JsonNode.Parse(output.ToString())!["valid"]!.GetValue<bool>() && JsonNode.Parse(output.ToString())!["resources"]![0]!["status"]!.GetValue<string>() == "quick-ok", "JSON distinguishes quick audit from checksum");
         Check(Cli.Run(["model", "list", "--base", root, "--checksum"], output, error) == 2, "checksum is rejected outside model verify");
         var revisionBeforeInvalid = store.Read().Revision;
         error.GetStringBuilder().Clear();
         File.WriteAllText(yaml, original + "      flash-attn: true\n");
         Check(Cli.Run(["verify", "--base", root], output, error) == 2 &&
-            error.ToString().Contains("flash-attn recibió el booleano true") && error.ToString().Contains("on, off o auto") && error.ToString().Contains("emit.ini") &&
+            error.ToString().Contains("flash-attn recibió el booleano true") && (error.ToString().Contains("on, off, auto") || error.ToString().Contains("[on|off|auto]")) && !error.ToString().Contains("Flash Attention") && error.ToString().Contains("emit.ini") &&
             store.Read().Revision == revisionBeforeInvalid, "verify rejects non-emittable preset arguments before recording observations");
         File.WriteAllText(yaml, "presets: [");
         Check(Cli.Run(["verify", "--base", root], output, error) == 2 && store.Read().Revision == revisionBeforeInvalid, "invalid YAML is revalidated before observations and has no persistent resource effect");
