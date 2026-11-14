@@ -112,7 +112,7 @@ internal static partial class DashboardCli
         // While Up runs, its button keeps its place, disabled, with the spinner, and a status row says so.
         var spinner = DashboardPresentation.Spinner();
         rows.Add(" " + (busy is null ? ManagementPresentation.Button("▲ Up", "up") : DefinitionsPresentation.Off((busy == "up" ? spinner : "▲") + " Up")) + " " +
-            DefinitionsPresentation.Off((busy == "down" ? spinner : "▼") + " Down") + " " +
+            (busy is null && chosen is not null ? ManagementPresentation.Button("▼ Down", "down") : DefinitionsPresentation.Off((busy == "down" ? spinner : "▼") + " Down")) + " " +
             (chosen is null || busy is not null ? DefinitionsPresentation.Off("Importar") : ManagementPresentation.Button("Importar", "recipe-import")) + " " + DefinitionsPresentation.Off("Ver en vivo"));
         if (busy is not null)
             rows.Add(" " + Markup.Style("warn", spinner + " ") + Markup.Style("mut", (busy == "down" ? "Deteniendo" : "Ejecutando Up") + "… Se puede cambiar de vista; la operación sigue."));

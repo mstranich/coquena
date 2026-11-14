@@ -1727,10 +1727,11 @@ internal static partial class DashboardCli
                     });
                     return;
                 }
-                if (action == "up")
+                if (action is "up" or "down")
                 {
                     var chosen = SelectedCombination(place);
                     if (chosen is null) return;
+                    if (action == "down") { BeginPublication("down", chosen.Selection, place.Scope.Name, chosen.Private); return; }
                     if (chosen.Selection.Files.Any(file => !File.Exists(file)))
                     { OpenEditor(chosen.Selection, place.Scope.Name, chosen.Private, combinationNewFiles.GetValueOrDefault(context.Root)); return; }
                     BeginPublication("up", chosen.Selection, place.Scope.Name, chosen.Private);
