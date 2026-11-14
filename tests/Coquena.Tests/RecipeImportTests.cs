@@ -26,8 +26,7 @@ internal static class RecipeImportTests
               resumen:
                 args:
                   model: model://propio
-            arg-defs:
-              definitions:
+            parameters:
                 ctx-size: {type: integer}
                 temperatura:
                   type: number
@@ -68,7 +67,7 @@ internal static class RecipeImportTests
         Bad(() => RecipeImportSelection.Create(recipe, "model", ["preset:resumen"]), "invalid-import-replacement");
         Bad(() => RecipeImportSelection.Create(recipe, replace: ["preset:proyecto/resumen"]), "invalid-import-replacement");
         Bad(() => RecipeImportSelection.Create(recipe, replace: ["model:propio", "model:propio"]), "invalid-import-replacement");
-        File.WriteAllText(file, yaml + "\ntarget: self\n");
+        File.WriteAllText(file, yaml + "\npublish-to: self\n");
         var self = RecipeReader.Read(new(root), env);
         Bad(() => RecipeImportSelection.Create(self, "presets"), "import-self-requires-service");
         Check(RecipeImportSelection.Create(self, "service,presets").Entities.Count == 2, "self with selected service");

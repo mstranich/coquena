@@ -45,8 +45,11 @@ public sealed class EffectiveRecipe
     public RecipeValue SourceRoot { get; }
     public IReadOnlyList<RecipeValue> Layers { get; }
     public string Name { get; }
-    public string Target => Root.Get("target")?.Text ?? "global";
-    public string ArgsMode => Root.Get("args-mode")?.Text ?? "permissive";
+    public string Target => Root.Get("publish-to")?.Text ?? "global";
+    public string ArgsMode => Mode(Root) ?? "permissive";
+
+    // strict-args is a boolean; the internal policy keeps its two named modes.
+    internal static string? Mode(RecipeValue? node) => node?.Get("strict-args") is { } value ? value.Text == "true" ? "strict" : "permissive" : null;
 
     internal EffectiveRecipe(RecipeSelection selection, RecipeValue root, RecipeValue[] layers, RecipeIdentity? identity, RecipeValue sourceRoot)
     {
@@ -62,18 +65,18 @@ public sealed class EffectiveRecipe
         var selector = serviceOverride ?? Target;
         if (selector == "self")
         {
-            if (Root.Get("service") is null) throw Root.Error("self-requires-service", "target", "Target self requiere service.");
+            if (Root.Get("service") is null) throw Root.Error("self-requires-service", "target", "publish-to: self requiere service.");
             return new(selector, true, ownService?.ServiceId);
         }
         try
         {
-            var id = globalResolver(selector == "global" ? "default" : selector);
+            var id = globalResolver(selector is "global" or "default" ? "default" : selector);
             if (string.IsNullOrEmpty(id)) throw new StorageException("unknown-service", "No resuelve el destino.");
             return new(selector, false, id);
         }
         catch (StorageException error)
         {
-            throw (Root.Get("target") ?? Root).Error(error.Code, "target", error.Code == "unknown-service"
+            throw (Root.Get("publish-to") ?? Root).Error(error.Code, "target", error.Code == "unknown-service"
                 ? "No resuelve el servicio seleccionado; no se elige sustituto."
                 : "No se pudo consultar el estado del servicio seleccionado.");
         }
@@ -81,7 +84,7 @@ public sealed class EffectiveRecipe
 
     public bool PresetEnabled(string key) => Preset(key).Get("enable")?.Text != "false";
     public bool PresetWarmup(string key) => Preset(key).Get("warmup")?.Text == "true";
-    public string PresetArgsMode(string key) => Preset(key).Get("args-mode")?.Text ?? ArgsMode;
+    public string PresetArgsMode(string key) => Mode(Preset(key)) ?? ArgsMode;
     private RecipeValue Preset(string key) => Root.Get("presets")?.Get(key) ?? throw Root.Error("unknown-preset", "query", "El preset no existe.");
     public override string ToString() => Root.ToString();
 }
@@ -126,8 +129,8 @@ public static class RecipeReader
                 "service" => categories.Contains("service"),
                 "presets" => categories.Contains("presets"),
                 "models" or "companions" => categories.Contains("model"),
-                "arg-defs" => categories.Contains("params"),
-                "args-mode" => categories.Contains("service") || categories.Contains("presets"),
+                "parameters" => categories.Contains("params"),
+                "strict-args" => categories.Contains("service") || categories.Contains("presets"),
                 _ => true
             }).ToDictionary(StringComparer.Ordinal));
         }).ToArray();
@@ -158,8 +161,8 @@ public static class RecipeReader
             layers.Add(layer);
             effective = Merge(effective, layer, "root");
         }
-        if (selection.ImportCategories is { } importedCategories && effective.Get("target")?.Text == "self" && !importedCategories.Contains("service"))
-            throw effective.Error("import-self-requires-service", "import", "Target self requiere importar service.");
+        if (selection.ImportCategories is { } importedCategories && effective.Get("publish-to")?.Text == "self" && !importedCategories.Contains("service"))
+            throw effective.Error("import-self-requires-service", "import", "publish-to: self requiere importar service.");
         RecipeStructure.Effective(effective);
         if (selection.ImportedPathBases is { } selectedBases) effective = Rebase(effective, selectedBases);
         if (selection.ImportedScope is { } scope)
@@ -241,13 +244,13 @@ public static class RecipeReader
         return new(kind, value.Origin, expansion.Text, value.Style, expansion.Sensitive);
     }
 
-    private static string Child(string context, string key) => context is "root.presets" or "root.models" or "root.companions" or "root.arg-defs.definitions" || context.EndsWith(".args", StringComparison.Ordinal)
+    private static string Child(string context, string key) => context is "root.presets" or "root.models" or "root.companions" or "root.parameters" || context.EndsWith(".args", StringComparison.Ordinal)
         ? context + ".*" : context + "." + key;
 
     private static RecipeValue Merge(RecipeValue previous, RecipeValue next, string context)
     {
         if (next.Kind != RecipeKind.Map) return next;
-        var atomic = context == "root.service.backend" || context.StartsWith("root.arg-defs.definitions.", StringComparison.Ordinal) && context.Count(c => c == '.') == 3;
+        var atomic = context == "root.service.backend" || context.StartsWith("root.parameters.", StringComparison.Ordinal) && context.Count(c => c == '.') == 2;
         var fields = !atomic && previous.Kind == RecipeKind.Map
             ? previous.Fields.ToDictionary(x => x.Key, x => x.Value, StringComparer.Ordinal)
             : new Dictionary<string, RecipeValue>(StringComparer.Ordinal);

@@ -149,7 +149,7 @@ internal static partial class DashboardCli
     }
 
     internal static string ParameterFile(EffectiveRecipe recipe) => recipe.Selection.Files
-        .Where((_, index) => recipe.Layers[index].Get("arg-defs") is not null).LastOrDefault() ?? recipe.Selection.Files[^1];
+        .Where((_, index) => recipe.Layers[index].Get("parameters") is not null).LastOrDefault() ?? recipe.Selection.Files[^1];
 
     internal sealed class UpdateView
     {
@@ -258,7 +258,7 @@ internal static partial class DashboardCli
         {
             var parts = entity.Selector.Split(':', 2); var kind = parts[0]; var key = parts[1];
             if (kind == "service") return new RecipeRegistry(new ScopeStore(global)).Services().Any(service => service.Name == key);
-            return roots.Any(root => (kind == "param" ? root.Get("arg-defs")?.Get("definitions") : root.Get(kind == "preset" ? "presets" : kind == "model" ? "models" : "companions"))?.Get(key) is not null);
+            return roots.Any(root => (kind == "param" ? root.Get("parameters") : root.Get(kind == "preset" ? "presets" : kind == "model" ? "models" : "companions"))?.Get(key) is not null);
         }).Select(entity => entity.Selector).ToArray();
     }
 

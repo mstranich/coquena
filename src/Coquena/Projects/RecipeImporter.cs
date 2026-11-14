@@ -101,7 +101,7 @@ public sealed class RecipeImporter(ScopeContext context)
         var originalRoots = roots.ToDictionary(StringComparer.Ordinal);
         var common = roots["recipe.yaml"].Fields.ToDictionary(StringComparer.Ordinal);
         EffectiveRecipe? destinationRecipe = null; ArgumentSchema? destinationSchema = null;
-        if (chosen.Categories.Contains("params") && common.ContainsKey("arg-defs") && inputs.ContainsKey(context.PathFor("recipe.yaml")))
+        if (chosen.Categories.Contains("params") && common.ContainsKey("parameters") && inputs.ContainsKey(context.PathFor("recipe.yaml")))
         {
             var globalSelection = new RecipeSelection(context.Base, [context.PathFor("recipe.yaml")], context.Base, selection.EnvFiles)
             { CapturedFiles = inputs, ImportedPathBases = bases["recipe.yaml"], FilterUnusedModels = true };
@@ -123,22 +123,17 @@ public sealed class RecipeImporter(ScopeContext context)
             if (kind == "preset")
             {
                 var fields = value.Fields.ToDictionary(StringComparer.Ordinal);
-                fields.TryAdd("args-mode", source.SourceRoot.Get("args-mode") ?? Text("permissive")); value = value.WithFields(fields);
+                fields.TryAdd("strict-args", source.SourceRoot.Get("strict-args") ?? new(RecipeKind.Boolean, Origin, "false")); value = value.WithFields(fields);
             }
             if (kind is "model" or "companion" or "param")
             {
-                var group = kind == "model" ? "models" : kind == "companion" ? "companions" : "arg-defs";
-                var values = (kind == "param" ? common.GetValueOrDefault(group)?.Get("definitions") : common.GetValueOrDefault(group))?.Fields.ToDictionary(StringComparer.Ordinal) ?? [];
+                var group = kind == "model" ? "models" : kind == "companion" ? "companions" : "parameters";
+                var values = common.GetValueOrDefault(group)?.Fields.ToDictionary(StringComparer.Ordinal) ?? [];
                 var previous = kind == "param" && destinationSchema?.Definitions.ContainsKey(key) == true
                     ? ParameterIntention(destinationSchema, key, destinationRecipe!.SourceRoot) : values.GetValueOrDefault(key);
-                CheckConflict(entity.Selector, previous, value, bases["recipe.yaml"], group + "/" + (kind == "param" ? "definitions/" : "") + key);
+                CheckConflict(entity.Selector, previous, value, bases["recipe.yaml"], group + "/" + key);
                 values[key] = value;
-                if (kind == "param")
-                {
-                    var catalog = common.GetValueOrDefault(group)?.Fields.ToDictionary(StringComparer.Ordinal) ?? [];
-                    catalog["definitions"] = Map(values); common[group] = Map(catalog);
-                }
-                else common[group] = Map(values);
+                common[group] = Map(values);
                 AddBases(bases["recipe.yaml"], group + "/" + key, value, kind);
                 continue;
             }
@@ -169,13 +164,13 @@ public sealed class RecipeImporter(ScopeContext context)
             var old = roots.GetValueOrDefault(path);
             CheckConflict(entity.Selector, kind == "service" ? old?.Get("service") : old?.Get("presets")?.Get(key), value, bases[path], kind == "service" ? "service" : "presets/" + key);
             if (kind == "service" && old is not null)
-                CheckConflict(entity.Selector, old.Get("args-mode") ?? Text("permissive"), source.SourceRoot.Get("args-mode") ?? Text("permissive"), new JsonObject(), "args-mode");
+                CheckConflict(entity.Selector, old.Get("strict-args") ?? new(RecipeKind.Boolean, Origin, "false"), source.SourceRoot.Get("strict-args") ?? new(RecipeKind.Boolean, Origin, "false"), new JsonObject(), "strict-args");
             var projected = new Dictionary<string, RecipeValue>
             {
                 ["name"] = old?.Get("name") ?? source.SourceRoot.Get("name") ?? Text(owner["name"]!.GetValue<string>()),
                 [kind == "service" ? "service" : "presets"] = kind == "service" ? value : Map(new() { [key] = value })
             };
-            if (kind == "service" && source.SourceRoot.Get("args-mode") is { } rootMode) projected["args-mode"] = rootMode;
+            if (kind == "service" && source.SourceRoot.Get("strict-args") is { } rootMode) projected["strict-args"] = rootMode;
             roots[path] = Map(projected);
             AddBases(bases[path], kind == "service" ? "service" : "presets/" + key, value, kind);
             owner["files"] = new JsonArray(path);
@@ -189,7 +184,7 @@ public sealed class RecipeImporter(ScopeContext context)
             serviceId = selectedOperation["service-id"]!.GetValue<string>();
         }
         else if (pending.Count != 0 && serviceId is null)
-            serviceId = new RecipeRegistry(store).ResolveGlobalService("default");
+            serviceId = new RecipeRegistry(store).ResolveGlobalService(GlobalSelector(source.Target));
         var knownService = new RecipeRegistry(store).Services().Any(s => s.ServiceId == serviceId);
         if (selectedOperation is not null && !knownService) throw new StorageException("import-publication-conflict", "El destino pendiente ya no está registrado; no se redirige al alias actual.");
         var live = pending.Count != 0 && knownService && (running?.Invoke(serviceId!) ?? new ScopedServiceProcess(store).Reconcile(serviceId!));
@@ -230,12 +225,12 @@ public sealed class RecipeImporter(ScopeContext context)
         // Compose only the selected consumer/service with global resource intention.
         var candidate = common.ToDictionary(StringComparer.Ordinal);
         candidate["name"] = Text(registeredName);
-        candidate["target"] = Text(chosen.Categories.Contains("service") ? "self" : "global");
+        candidate["publish-to"] = Text(chosen.Categories.Contains("service") ? "self" : source.Target is "self" or "default" ? "global" : source.Target);
         if (serviceId is not null && chosen.Categories.Contains("service"))
         {
             var serviceRecipe = roots[$"services/{serviceId}/recipe.yaml"];
             candidate["service"] = serviceRecipe.Get("service")!;
-            if (serviceRecipe.Get("args-mode") is { } mode) candidate["args-mode"] = mode;
+            if (serviceRecipe.Get("strict-args") is { } mode) candidate["strict-args"] = mode;
         }
         if (pending.Count != 0) candidate["presets"] = Map(pending.ToDictionary(p => p.Key, p => roots[p.Path].Get("presets")!.Get(p.Key)!, StringComparer.Ordinal));
         var candidateBases = bases["recipe.yaml"].DeepClone().AsObject();
@@ -251,7 +246,7 @@ public sealed class RecipeImporter(ScopeContext context)
             string syntheticKey; do { syntheticKey = "import-resource-" + synthetic++; } while (preparationPresets.ContainsKey(syntheticKey));
             preparationPresets[syntheticKey] = Map(new()
             {
-                ["args-mode"] = Text("permissive"),
+                ["strict-args"] = new(RecipeKind.Boolean, Origin, "false"),
                 ["args"] = Map(new() { ["model"] = Text(kind + "://" + key) })
             });
         }
@@ -415,10 +410,13 @@ public sealed class RecipeImporter(ScopeContext context)
         (value.Kind == RecipeKind.String && value.Text!.Equals(reference, StringComparison.OrdinalIgnoreCase) ? 1 : 0) +
         value.Fields.Values.Sum(v => CountReferences(v, reference)) + value.Items.Sum(v => CountReferences(v, reference));
 
+    // Imported presets without a service go to the global the source recipe names.
+    private static string GlobalSelector(string target) => target is "global" or "default" or "self" ? "default" : target;
+
     private static RecipeValue ParameterIntention(ArgumentSchema schema, string key, RecipeValue rawRoot)
     {
         var effective = schema.Definitions[key];
-        var raw = rawRoot.Get("arg-defs")?.Get("definitions")?.Get(key);
+        var raw = rawRoot.Get("parameters")?.Get(key);
         return raw?.Origin == effective.Origin ? raw : effective;
     }
     private static bool Changed(IReadOnlyDictionary<string, byte[]> inputs)
@@ -465,7 +463,7 @@ public sealed class RecipeImporter(ScopeContext context)
         if (selector.StartsWith("preset:", StringComparison.Ordinal))
         {
             fields.TryAdd("enable", new(RecipeKind.Boolean, Origin, "true")); fields.TryAdd("warmup", new(RecipeKind.Boolean, Origin, "false"));
-            fields.TryAdd("args", Map([])); fields.TryAdd("args-mode", Text("permissive"));
+            fields.TryAdd("args", Map([])); fields.TryAdd("strict-args", new(RecipeKind.Boolean, Origin, "false"));
         }
         if (selector.StartsWith("model:", StringComparison.Ordinal) || selector.StartsWith("companion:", StringComparison.Ordinal))
             if (fields.ContainsKey("repository")) { fields.TryAdd("revision", Text("main")); fields.TryAdd("files", new(RecipeKind.Sequence, Origin)); }

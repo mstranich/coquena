@@ -1,4 +1,5 @@
 using System.Text;
+using System.Text.Json.Nodes;
 using Coquena.Recipes;
 
 namespace Coquena.Tests;
@@ -7,7 +8,7 @@ namespace Coquena.Tests;
 // a key and writing null by layer.
 internal static class RecipeWriterTests
 {
-    private const string Schema = "arg-defs:\n  definitions:\n    context: {type: integer, scope: preset}\n    label: {type: string, scope: preset}\n";
+    private const string Schema = "parameters:\n    context: {type: integer, scope: preset}\n    label: {type: string, scope: preset}\n";
 
     public static void Run(Action<bool, string> check)
     {
@@ -85,7 +86,7 @@ internal static class RecipeWriterTests
                 "problems after a removed block keep their lines: " + RecipeValidation.Describe(nested));
             // References to an entry set aside are consequences: counted on its problem, not listed.
             var derived = RecipeValidation.Check(single, new Dictionary<string, byte[]> { [file] = Encoding.UTF8.GetBytes(
-                "name: demo\nargs-mode: strict\narg-defs:\n  definitions:\n    context: 5\npresets:\n  a:\n    args:\n      context: 1\n  b:\n    args:\n      context: 2\n") }).Problems;
+                "name: demo\nstrict-args: true\nparameters:\n    context: 5\npresets:\n  a:\n    args:\n      context: 1\n  b:\n    args:\n      context: 2\n") }).Problems;
             check(derived.Count == 1 && derived[0].Line == 5 && derived[0].Message.EndsWith(Messages.ReferencesToEntry(2), StringComparison.Ordinal),
                 "references to a removed definition are not reported as new problems: " + RecipeValidation.Describe(derived));
 
@@ -131,6 +132,30 @@ internal static class RecipeWriterTests
             check(rootKeys.SetEquals(RecipeShape.Root.Fields.Select(f => f.Key)) && schema["additionalProperties"]!.GetValue<bool>() == false &&
                   schema["properties"]!["presets"]!["anyOf"]![0]!["additionalProperties"]!["anyOf"]![0]!["properties"]!["args"] is not null,
                 "the schema lists the reader's vocabulary and rejects unknown keys");
+            // Every named property explains itself, so an agent can read a recipe from the schema alone.
+            var undocumented = new List<string>();
+            void Described(JsonNode? node, string path)
+            {
+                if (node is JsonObject map)
+                {
+                    if (map["properties"] is JsonObject properties)
+                        foreach (var property in properties)
+                        {
+                            if (property.Value?["description"] is null) undocumented.Add(path + "." + property.Key);
+                            Described(property.Value, path + "." + property.Key);
+                        }
+                    foreach (var pair in map.Where(pair => pair.Key != "properties")) Described(pair.Value, path);
+                }
+                else if (node is JsonArray items) foreach (var item in items) Described(item, path);
+            }
+            Described(schema, "");
+            check(undocumented.Count == 0, "every schema property has a description: " + string.Join(", ", undocumented));
+            check(schema["title"] is not null && schema["description"]!.GetValue<string>().Contains("docs/user-guide", StringComparison.Ordinal) &&
+                  schema["properties"]!["publish-to"]!["examples"] is JsonArray && schema["properties"]!["parameters"]!["examples"] is JsonArray &&
+                  schema["properties"]!["publish-to"]!["description"]!.GetValue<string>().Contains("registered global service", StringComparison.Ordinal),
+                "the schema root names the recipe, links the manual and shows examples");
+            check(schema["properties"]!["arg-defs"] is null && schema["properties"]!["target"] is null && schema["properties"]!["args-mode"] is null,
+                "old names are absent from the schema");
             File.WriteAllText(file, "name: demo\nunknown: 1\n");
             check(RecipeValidation.Check(single).Problems.Single().Code == "unknown-key", "the reader rejects the key the schema rejects");
 

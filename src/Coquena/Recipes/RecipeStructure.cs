@@ -17,10 +17,11 @@ internal static partial class RecipeStructure
     internal static void Effective(RecipeValue root)
     {
         if (root.Get("name") is { } name) Name(name.Text!, name);
-        if (root.Get("target") is { } target && target.Text is not ("global" or "self"))
-            throw target.Error("invalid-target", "validation", "Target sólo admite global o self.");
-        if (root.Get("target")?.Text == "self" && root.Get("service") is null)
-            throw root.Get("target")!.Error("self-requires-service", "validation", "Target self requiere service.");
+        // global/default, self or the registered name of a global service; whether
+        // that service exists is checked when the operational target is resolved.
+        if (root.Get("publish-to") is { } target) Name(target.Text!, target);
+        if (root.Get("publish-to")?.Text == "self" && root.Get("service") is null)
+            throw root.Get("publish-to")!.Error("self-requires-service", "validation", "publish-to: self requiere service.");
         if (root.Get("service") is { } service)
         {
             var backend = service.Get("backend") ?? throw service.Error("backend-required", "validation", "Service requiere un backend efectivo.");

@@ -27,7 +27,7 @@ internal static class DashboardProjectTests
         string Quote(string path) => "'" + Path.GetFullPath(path).Replace('\\', '/').Replace("'", "''") + "'";
         File.WriteAllText(file, $"""
             name: news
-            target: self
+            publish-to: self
             service:
               backend:
                 executable: {Quote(backend)}
@@ -64,7 +64,7 @@ internal static class DashboardProjectTests
         Directory.CreateDirectory(directory);
         var home = new Home(Path.Combine(root, "home"));
         var file = Path.Combine(directory, "coquena.yaml");
-        const string definition = "name: news\ntarget: self\nservice:\n  backend:\n    executable: ./absent.exe\n";
+        const string definition = "name: news\npublish-to: self\nservice:\n  backend:\n    executable: ./absent.exe\n";
         File.WriteAllText(file, definition);
         var target = DashboardCli.Discover(out _, directory, home).Single();
         check(target.Label == "◇ news" && target.DeclaresService && target.Service is null && target.Destination == "self",

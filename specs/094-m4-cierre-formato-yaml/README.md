@@ -1,14 +1,21 @@
 ---
-status: draft
+status: complete
 created: 2026-11-12
 tags:
 - m4
 - yaml
 - schema
 created_at: 2026-11-12T03:19:47.499002100Z
-updated_at: 2026-11-12T03:19:47.499002100Z
+updated_at: 2026-11-14T03:57:50.558309200Z
+completed_at: 2026-11-14T03:57:50.558309200Z
+transitions:
+- status: planned
+  at: 2026-11-14T03:41:15.977124800Z
+- status: in-progress
+  at: 2026-11-14T03:41:16.197771600Z
+- status: complete
+  at: 2026-11-14T03:57:50.558309200Z
 ---
-
 # Cerrar M4 revisando el formato YAML de las recetas
 
 ## Objetivo
@@ -40,7 +47,9 @@ digan lo que hacen, reflejados en el schema que genera
 
 - Se mantienen `global` (también por omisión: servicio global predeterminado) y
   `self` (único servicio propio de la receta; requiere `service`).
-- Otro nombre, como `Pepito`, se busca en el catálogo global y permite publicar
+- `default` es un alias de `global`, igual que en los selectores de servicio de la
+  CLI, que ya lo reservan. Por eso ningún servicio global puede llamarse `default`.
+- Otro nombre, como `gpu-secundaria`, se busca en el catálogo global y permite publicar
   en ese servicio aunque no sea el predeterminado. Si no existe, se informa el
   error sin sustituirlo por otro servicio.
 - Los nombres explícitos del selector de publicación no buscan servicios locales.
@@ -59,11 +68,20 @@ digan lo que hacen, reflejados en el schema que genera
   registrado, aunque después cambie la intención de la receta.
 - Renombrar `target`, `arg-defs` y `args-mode`, sin ninguna compatibilidad con los nombres
   anteriores: un nombre viejo es un campo no reconocido, como cualquier otro.
-- Descripción y valores permitidos de los campos renombrados en el schema
-  generado por [090](../090-m4-tui-editor-mejoras/README.md).
+- Hacer que el schema generado por [090](../090-m4-tui-editor-mejoras/README.md)
+  explique la receta por sí solo, para que un agente sin acceso a docs/design la
+  entienda:
+  - cada campo, no solo los renombrados, describe para qué sirve, su valor por
+    omisión y los valores permitidos;
+  - la raíz incluye `title` y `description`, dice qué es una receta de Coquena y
+    remite al manual de usuario publicado;
+  - `examples` en los campos menos obvios (`publish-to`, una entrada de `parameters`);
+  - las descripciones resumen las reglas canónicas sin reemplazarlas: herencia de
+    `strict-args`, combinación de capas y selección del destino de publicación.
 - Actualizar documentación funcional, ejemplos, recetas de prueba y textos de la TUI.
 - Aplicar el renombrado de `args-mode` en raíz, `service.server` y presets,
-  conservando valores, defaults, herencia y precedencia.
+  convirtiendo `permissive`/`strict` en `false`/`true` y conservando el default,
+  la herencia y la precedencia.
 - Integrar sobre el validador y schema de 090 (dependencia de ejecución), sin
   duplicarlos. El schema admite nombres; la existencia del servicio se comprueba
   al resolver el destino operativo, no para abrir o editar una receta.
@@ -81,30 +99,57 @@ digan lo que hacen, reflejados en el schema que genera
 
 ## Por concretar
 
-- [ ] Nuevo nombre de `target`, que exprese dónde se publican los presets.
-  Se conversaron `service-to-publish`, `publish-to` y `publish-presets-to`;
-  ninguno está aprobado ni limita las alternativas.
-- [ ] Nuevo nombre de `arg-defs`, explícito y sin abreviaturas poco claras.
-  Se conversaron `definitions`, `parameter-definition` y `parameter-definitions`;
-  ninguno está aprobado ni limita las alternativas.
-- [ ] Nuevo nombre de `args-mode`; `parameter-validation` es una propuesta,
-  no una decisión aprobada.
-- [ ] Evaluar el nombre del bloque de parámetros junto con su envoltura interna
-  `definitions`. Aplanarla sería un cambio estructural adicional, no acordado.
-- [ ] Si las recetas globales importadas se migran o se reimportan.
+- [x] `target` se renombra a `publish-to`: se lee como frase con sus tres tipos
+  de valor (`global`/`default`, `self` o un nombre global).
+- [x] `arg-defs.definitions` se aplana en `parameters`, un mapa directo
+  nombre → definición, igual que `presets`, `models` y `companions`. La
+  envoltura `definitions` desaparece. Cambian también las rutas de edición
+  de la TUI y la CLI y las claves de validación.
+- [x] `args-mode` pasa a ser el booleano `strict-args`: `true` equivale a
+  `strict` y `false` (por omisión) a `permissive`. Sigue el patrón de `strict`
+  en `tsconfig.json`. Deja de ser un enum, así que un tercer modo exigiría
+  otro campo.
+- [x] Las recetas globales ya importadas las migra el usuario a mano. El código
+  no incluye migración ni reimportación automática: un archivo con nombres
+  viejos falla con el error habitual de campo no reconocido.
 
-## Criterios de aceptación (borrador)
+## Criterios de aceptación
 
-- [ ] Los nombres viejos se rechazan como campos no reconocidos.
-- [ ] `global` y la omisión seleccionan el predeterminado; `self` selecciona el
+- [x] Los nombres viejos se rechazan como campos no reconocidos.
+- [x] `global`, `default` y la omisión seleccionan el predeterminado; `self` selecciona el
       único propio y exige `service`.
-- [ ] Con dos globales, seleccionar uno por nombre publica allí aunque no sea
+- [x] Con dos globales, seleccionar uno por nombre publica allí aunque no sea
       el predeterminado; un nombre inexistente falla sin fallback. Un nombre
       local coincidente no desvía la búsqueda global.
-- [ ] Conservar `service` no altera el destino global elegido. Importar presets
+- [x] Conservar `service` no altera el destino global elegido. Importar presets
       sin servicio respeta el global nombrado; retirar conserva el destino registrado.
-- [ ] El renombrado de `args-mode` conserva valores y herencia en sus tres ubicaciones.
-- [ ] El schema generado refleja los nombres nuevos y rechaza los viejos.
-- [ ] El schema admite nombres de servicios sin depender del catálogo local.
-- [ ] Pruebas de lectura, validación e importación con los nombres nuevos.
-- [ ] Publicación Native AOT y ejecución del binario.
+- [x] `strict-args` reemplaza a `args-mode` en sus tres ubicaciones, conserva
+      el default permisivo, la herencia y la precedencia, y rechaza los valores
+      no booleanos.
+- [x] El schema generado refleja los nombres nuevos y rechaza los viejos.
+- [x] Ningún campo del schema queda sin descripción; la raíz tiene `title` y
+      `description`, y las descripciones coinciden con las reglas vigentes
+      (sin el antiguo "global o self"). Las descripciones están en inglés,
+      idioma prioritario mientras el schema admita uno solo.
+- [x] El schema admite nombres de servicios sin depender del catálogo local.
+- [x] Pruebas de lectura, validación e importación con los nombres nuevos.
+- [x] Publicación Native AOT y ejecución del binario.
+
+## Evidencia
+
+- Suite completa `dotnet run --project tests/Coquena.Tests`: exit 0. Incluye:
+  - lectura: `publish-to` con `global`, `default`, `self` y un nombre; nombre inválido
+    rechazado; resolución sin sustituto ante un nombre inexistente;
+  - rechazo de `target`, `args-mode` y `arg-defs` como claves desconocidas, y de
+    `strict-args` no booleano;
+  - schema: ninguna propiedad sin descripción, `title`, enlace al manual, `examples`
+    y ausencia de los nombres viejos;
+  - importación de presets sin servicio hacia un global nombrado que no es el
+    predeterminado, y error `unknown-service` sin publicar en otro;
+  - publicación con `up` en un global nombrado no predeterminado, con bloque
+    `service` presente; `down` retira de ese destino; nombre inexistente falla.
+- Native AOT: `dotnet publish src/Coquena -c Release -r win-x64` y ejecución de
+  `coquena.exe`: `init` genera el schema con las claves nuevas y los ejemplos;
+  `preset list` lee una receta con `publish-to: gpu-secundaria`, `strict-args` y
+  `parameters`; `target` y `args-mode` fallan con `structure/unknown-key`.
+- El manual de usuario (`docs/user-guide`) no se modifica: se actualiza en el release.

@@ -16,7 +16,7 @@
     } | {
       { <b>$TestRoot\nuevo | sin coquena.yaml }
       [Inicializar]
-      crea coquena.yaml con name: nuevo y target: global
+      crea coquena.yaml con name: nuevo y publish-to: global
     }
   }
   { CPU ▂▃▅▆▅ 42% | RAM ▅▅▆▆ 18,2/32G }

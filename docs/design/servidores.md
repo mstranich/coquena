@@ -24,10 +24,11 @@ proyecto ni receta previa: prepara el servicio predeterminado con la misma
 selección oficial descrita a continuación e inicia el router sin modelos.
 `-d` devuelve el control después de comprobar su salud.
 
-Al omitir target o declarar `target: global`, un proyecto utiliza el servicio
+Al omitir `publish-to` o declarar `publish-to: global`, un proyecto utiliza el servicio
 global predeterminado, infraestructura compartida reutilizable entre proyectos:
 publicar una receta no exige crear un proceso exclusivo para ella.
-`target: self` selecciona el servicio propio de la receta.
+`publish-to: self` selecciona el servicio propio de la receta y
+`publish-to: <nombre>` un servicio global registrado que no sea el predeterminado.
 
 Si todavía no hay servicios globales registrados, up prepara uno
 con el backend oficial de llama.cpp. Sondea sistema y hardware, consulta los builds

@@ -196,9 +196,9 @@ internal static class RecipeEditCli
             else
             {
                 for (var i = recipe.Layers.Count - 1; i >= 0; i--)
-                    if (recipe.Layers[i].Get("arg-defs") is not null) { file = selection.Files[i]; break; }
-                path = ["arg-defs", "definitions", name!];
-                var existing = recipe.SourceRoot.Get("arg-defs")?.Get("definitions")?.Get(name!);
+                    if (recipe.Layers[i].Get("parameters") is not null) { file = selection.Files[i]; break; }
+                path = ["parameters", name!];
+                var existing = recipe.SourceRoot.Get("parameters")?.Get(name!);
                 switch (action)
                 {
                     case "define" when positional.Count == 2 && definitionFile is not null:

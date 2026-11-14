@@ -60,8 +60,8 @@ internal static class RecipeTests
 
         var baseYaml = """
             name: demo
-            target: self
-            args-mode: strict
+            publish-to: self
+            strict-args: true
             service:
               backend: {version: latest, variant: 'cuda@12'}
               server:
@@ -72,8 +72,7 @@ internal static class RecipeTests
               p:
                 args: {model: 'model://main', a: 1, remove: 2}
               old: {enable: false}
-            arg-defs:
-              definitions:
+            parameters:
                 a: {type: integer, minimum: 1}
             """;
         Write("overrides/second.yaml", """
@@ -86,8 +85,7 @@ internal static class RecipeTests
                 warmup: true
                 args: {a: 3, remove: null}
               old: ~
-            arg-defs:
-              definitions:
+            parameters:
                 a: {type: string}
             """);
         var composed = Read(baseYaml, "overrides/second.yaml");
@@ -96,7 +94,7 @@ internal static class RecipeTests
         Check(composed.Root.Get("service")!.Get("server")!.Get("args")!.Get("port")!.Text == "9931", "map inherited");
         Check(composed.Root.Get("service")!.Get("server")!.Get("args")!.Get("tags")!.Items.Single().Text == "c", "list replaced");
         Check(Args(composed).Get("a")!.Text == "3" && Args(composed).Get("remove") is null && composed.Root.Get("presets")!.Get("old") is null, "partial preset and null deletion");
-        Check(composed.Root.Get("arg-defs")!.Get("definitions")!.Get("a")!.Get("minimum") is null, "whole argument definition replacement");
+        Check(composed.Root.Get("parameters")!.Get("a")!.Get("minimum") is null, "whole argument definition replacement");
         Check(Args(composed).Get("model")!.Origin.File == Path.Combine(root, "coquena.yaml") && Args(composed).Get("a")!.Origin.File.EndsWith("second.yaml"), "per-field provenance");
         Check(Args(composed).Get("a")!.Origin.Line == 8 && Args(composed).Get("a")!.Origin.Column > 0 && Args(composed).Get("a")!.Origin.Path.Contains("args"), "one-based logical diagnostics");
         Check(composed.Root.Get("models")!.Get("main")!.Get("repository")!.Text == "owner/repo", "scalar model normalized");
@@ -107,10 +105,14 @@ internal static class RecipeTests
         Check(consumer.ResolveTarget(selector => { Check(selector == "default", "omitted target means default"); return "id"; }).ServiceId == "id", "default resolver");
         Check(consumer.ResolveTarget(selector => selector, "named").ServiceId == "named", "explicit target override");
         Fail(() => consumer.ResolveTarget(_ => "id", "self"), "self-requires-service");
-        Bad("target: self", "self-requires-service");
-        Bad("target: default", "invalid-target");
-        Bad("target: named-server", "invalid-target");
-        Bad("target: Global", "invalid-target");
+        Bad("publish-to: self", "self-requires-service");
+        Check(Read("publish-to: named-server").Target == "named-server", "a global service can be named");
+        Check(Read("publish-to: default").ResolveTarget(selector => selector).ServiceId == "default", "default is an alias of global");
+        Check(Read("publish-to: global").ResolveTarget(selector => selector).ServiceId == "default", "global selects the default service");
+        Check(Read("publish-to: secondary-gpu").ResolveTarget(selector => selector == "secondary-gpu" ? "id-2" : "id-1").ServiceId == "id-2",
+            "a named global is resolved without falling back to the default");
+        Fail(() => Read("publish-to: absent").ResolveTarget(_ => throw new StorageException("unknown-service", "x")), "unknown-service");
+        Bad("publish-to: 'a/b'", "invalid-name");
         Bad("service: {}", "backend-required");
         Bad("service: {backend: {executable: a, version: latest}}", "invalid-backend-selection");
         Bad("service: {backend: {version: latest}}", "invalid-backend-selection");
@@ -226,7 +228,7 @@ internal static class RecipeTests
         Write(".env", "CTX=automatic-must-not-load");
         Check(Args(Read("presets:\n  p:\n    args:\n      x: ${CTX-fallback}\n")).Get("x")!.Text == "8192", "env not auto-detected");
 
-        foreach (var yaml in new[] { "backend: {}", "server: {}", "project: {}", "version: 1", "service: {name: forbidden}", "presets: {p: {model: main}}", "service: {server: {wat: null}}", "arg-defs: {definitions: {x: {unknown: null}}}" })
+        foreach (var yaml in new[] { "backend: {}", "server: {}", "project: {}", "version: 1", "service: {name: forbidden}", "presets: {p: {model: main}}", "service: {server: {wat: null}}", "parameters: {x: {unknown: null}}" })
             Bad(yaml, "unknown-key");
         Bad("name: a\nname: b", "duplicate-key");
         Bad("presets: {p: {args: {x: 1, x: 2}}}", "duplicate-key");
@@ -251,8 +253,11 @@ internal static class RecipeTests
         Bad("presets: {p: {args: {x: 1e999}}}", "non-finite-number");
         Bad("name: ''", "invalid-name");
         Bad("name: 'bad/name'", "invalid-name");
-        Bad("args-mode: unknown", "invalid-args-mode");
-        Bad("arg-defs: {definitions: {x: {type: integer, minimum: {hidden: true}}}}", "invalid-type");
+        Bad("strict-args: strict", "invalid-type");
+        Bad("args-mode: strict", "unknown-key");
+        Bad("arg-defs: {definitions: {}}", "unknown-key");
+        Bad("target: global", "unknown-key");
+        Bad("parameters: {x: {type: integer, minimum: {hidden: true}}}", "invalid-type");
         Bad("models: {m: 'owner/repo'}", "invalid-model-shorthand");
         Bad("models: {m: {repository: owner/repo}}", "invalid-resource-selection");
         Bad("models: {m: {repository: owner/repo, quantization: Q4, files: [a.gguf]}}", "invalid-resource-selection");

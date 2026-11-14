@@ -24,7 +24,7 @@ internal static class RecipeImportIntegrationTests
         File.WriteAllText(Path.Combine(sourceDir, "backend.exe"), "fixture, never executed by import");
         var content = """
             name: laboratorio
-            target: self
+            publish-to: self
             service:
               backend:
                 executable: ./backend.exe
@@ -39,8 +39,7 @@ internal static class RecipeImportIntegrationTests
                 args:
                   model: model://principal
                   ctx-size: 1024
-            arg-defs:
-              definitions:
+            parameters:
                 ctx-size: {type: integer}
             """;
         File.WriteAllText(sourcePath, content);
@@ -79,7 +78,7 @@ internal static class RecipeImportIntegrationTests
 
         // A selective preset import must resolve its model in destination, ignoring
         // the excluded model declaration in the incoming source.
-        File.WriteAllText(sourcePath, content.Replace("target: self", "target: global").Replace("1024", "4096").Replace("{type: integer}", "{type: boolean}"));
+        File.WriteAllText(sourcePath, content.Replace("publish-to: self", "publish-to: global").Replace("1024", "4096").Replace("{type: integer}", "{type: boolean}"));
         var selectedResult = await importer.ImportAsync(new(sourceDir), provider, select: "presets", replace: ["preset:resumen"], environment: environment);
         Check(selectedResult.Confirmed && File.ReadAllText(iniPath).Contains("4096"), "selective preset uses destination model and params without loading excluded schema");
         var receipt = store.Read().Documents["local/recipes.json"]["data"]!["recipes"]!.AsArray().Single(r => r!["global-preset"]?.GetValue<string>() == "resumen")!;
@@ -110,6 +109,17 @@ internal static class RecipeImportIntegrationTests
         File.AppendAllText(context.PathFor("recipe.yaml"), "# editor change\n");
         registry.SetDefaultService(service.ServiceId);
         Check(File.ReadAllText(context.PathFor("recipe.yaml")).EndsWith("# editor change\n", StringComparison.Ordinal), "unrelated commit preserves manual YAML edits");
+
+        // Presets without a service go to the global the recipe names, not to the default.
+        var namedPath = Path.Combine(sourceDir, "named.yaml");
+        File.WriteAllText(namedPath, "name: dirigido\npublish-to: alternate\npresets:\n  dirigido:\n    args:\n      model: model://principal\n");
+        Check((await importer.ImportAsync(new(sourceDir, [namedPath]), provider, select: "presets", environment: environment)).Confirmed, "named global import confirmed");
+        var alternateIni = new PresetPublication(store, store, alternateId).IniPath;
+        Check(File.Exists(alternateIni) && File.ReadAllText(alternateIni).Contains("[dirigido]") && !File.ReadAllText(iniPath).Contains("[dirigido]"),
+            "presets imported without service publish to the named global, not the default");
+        File.WriteAllText(namedPath, "name: perdido\npublish-to: absent\npresets:\n  perdido:\n    args:\n      model: model://principal\n");
+        try { await importer.ImportAsync(new(sourceDir, [namedPath]), provider, select: "presets", environment: environment); throw new Exception("Expected unknown service"); }
+        catch (StorageException e) { Check(e.Code == "unknown-service" && !File.ReadAllText(iniPath).Contains("[perdido]"), "an unknown named global fails without fallback"); }
 
         var otherPath = Path.Combine(sourceDir, "concurrent.yaml");
         const string serviceYaml = "name: nuevo\nservice:\n  backend:\n    executable: ./backend.exe\n";
@@ -216,11 +226,11 @@ internal static class RecipeImportIntegrationTests
         Check((await importer.ImportAsync(new(sourceDir, [unsentPath]), provider, select: "presets", environment: environment,
             interactive: true, confirm: _ => true, running: _ => true, router: _ => fakeRouter)).Confirmed, "explicit retry publishes previously unsent candidate");
         var policyPath = Path.Combine(sourceDir, "policy.yaml");
-        File.WriteAllText(policyPath, "name: policy\narg-defs:\n  definitions:\n    ctx-size:\n      type: boolean\n");
+        File.WriteAllText(policyPath, "name: policy\nparameters:\n    ctx-size:\n      type: boolean\n");
         var beforePolicy = File.ReadAllText(context.PathFor("recipe.yaml"));
         try { await importer.ImportAsync(new(sourceDir, [policyPath]), provider, select: "params", replace: ["param:ctx-size"], environment: environment); throw new Exception("Expected incompatible global schema"); }
         catch (RecipeException) { Check(File.ReadAllText(context.PathFor("recipe.yaml")) == beforePolicy, "parameter replacement validates existing global assignments before changing intention"); }
-        File.WriteAllText(policyPath, "name: policy\narg-defs:\n  definitions:\n    extra:\n      type: number\n      minimum: 1\n");
+        File.WriteAllText(policyPath, "name: policy\nparameters:\n    extra:\n      type: number\n      minimum: 1\n");
         var beforePolicyIni = File.ReadAllText(iniPath);
         Check((await importer.ImportAsync(new(sourceDir, [policyPath]), provider, select: "params", environment: environment,
             running: _ => throw new Exception("Schema import must not inspect process"), router: _ => throw new Exception("Schema import must not reload"))).Confirmed &&
@@ -229,7 +239,7 @@ internal static class RecipeImportIntegrationTests
         Check((await importer.ImportAsync(new(sourceDir, [policyPath]), provider, select: "params", environment: environment)).Confirmed,
             "normalized numeric schema values remain idempotent");
         var filteredPath = Path.Combine(sourceDir, "filtered.yaml");
-        File.WriteAllText(filteredPath, "name: filtered\nservice:\n  backend:\n    executable: ${EXCLUDED_BACKEND}\nmodels:\n  excluded:\n    files: ['${EXCLUDED_LITERAL}', \"${EXCLUDED_MODEL}\"]\narg-defs:\n  definitions: {ignored: {type: \"${EXCLUDED_SCHEMA}\"}}\npresets:\n  filtered:\n    args:\n      model: model://principal\n");
+        File.WriteAllText(filteredPath, "name: filtered\nservice:\n  backend:\n    executable: ${EXCLUDED_BACKEND}\nmodels:\n  excluded:\n    files: ['${EXCLUDED_LITERAL}', \"${EXCLUDED_MODEL}\"]\nparameters: {ignored: {type: \"${EXCLUDED_SCHEMA}\"}}\npresets:\n  filtered:\n    args:\n      model: model://principal\n");
         var modelCount = new ScopedModels(context).List().Count; var serviceCount = registry.Services().Length;
         Check((await importer.ImportAsync(new(sourceDir, [filteredPath]), provider, select: "presets", environment: environment)).Confirmed &&
             new ScopedModels(context).List().Count == modelCount && registry.Services().Length == serviceCount,
@@ -255,7 +265,7 @@ internal static class RecipeImportIntegrationTests
 
         await fakeRouter.ReloadAsync(default);
         var multiPath = Path.Combine(sourceDir, "multi.yaml");
-        File.WriteAllText(multiPath, "name: multi\narg-defs:\n  definitions:\n    multi-param:\n      type: string\npresets:\n  first:\n    args:\n      model: model://principal\n  second:\n    warmup: true\n    args:\n      model: model://principal\n");
+        File.WriteAllText(multiPath, "name: multi\nparameters:\n    multi-param:\n      type: string\npresets:\n  first:\n    args:\n      model: model://principal\n  second:\n    warmup: true\n    args:\n      model: model://principal\n");
         fakeRouter.FailWarmup = true;
         var partial = await importer.ImportAsync(new(sourceDir, [multiPath]), provider, select: "presets", environment: environment,
             interactive: true, confirm: _ => true, running: _ => true, router: _ => fakeRouter);
@@ -277,11 +287,10 @@ internal static class RecipeImportIntegrationTests
         ICombinationResources provider, Dictionary<string, string?> environment, Action<bool, string> check)
     {
         var first = Path.Combine(folder, "schema-layered.yaml"); var overlay = Path.Combine(folder, "schema-overlay.yaml");
-        File.WriteAllText(first, "name: layered\narg-defs:\n  definitions:\n    layer-arg:\n      type: integer\n      description: ${DESCRIPTION}\n", new System.Text.UnicodeEncoding(false, true));
+        File.WriteAllText(first, "name: layered\nparameters:\n    layer-arg:\n      type: integer\n      description: ${DESCRIPTION}\n", new System.Text.UnicodeEncoding(false, true));
         var original = File.ReadAllBytes(first);
         File.WriteAllText(overlay, """
-            arg-defs:
-              definitions:
+            parameters:
                 layer-arg:
                   type: string
                   pattern: '^x$'
@@ -311,10 +320,10 @@ internal static class RecipeImportIntegrationTests
             "materialized schema survives removal of original YAML layer");
 
         var extra = Path.Combine(folder, "merge-policy.yaml");
-        File.WriteAllText(extra, "name: merge-policy\narg-defs:\n  definitions:\n    kept-param:\n      type: boolean\n");
+        File.WriteAllText(extra, "name: merge-policy\nparameters:\n    kept-param:\n      type: boolean\n");
         try { await importer.ImportAsync(new(folder, [extra]), provider, select: "params", environment: environment); throw new Exception("Expected effective schema conflict"); }
         catch (StorageException e) { check(e.Code == "import-entity-conflict", "replacement authorization includes destination YAML definitions"); }
-        File.WriteAllText(extra, "name: merge-policy\narg-defs:\n  definitions:\n    new-param:\n      type: string\n");
+        File.WriteAllText(extra, "name: merge-policy\nparameters:\n    new-param:\n      type: string\n");
         await importer.ImportAsync(new(folder, [extra]), provider, select: "params", environment: environment);
         var merged = ArgumentSchema.Load(RecipeReader.Read(new(context.Base, [commonPath], context.Base), environment));
         check(merged.Definitions.ContainsKey("kept-param") && merged.Definitions.ContainsKey("new-param") && merged.Definitions.ContainsKey("layer-arg"),

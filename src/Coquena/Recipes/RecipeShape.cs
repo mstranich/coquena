@@ -11,7 +11,7 @@ namespace Coquena.Recipes;
 internal static partial class RecipeShape
 {
     internal abstract record Shape(string? Description = null);
-    internal enum ScalarKind { Text, Boolean, Integer, Positive, Number, Mode, Any }
+    internal enum ScalarKind { Text, Boolean, Integer, Positive, Number, Any }
     internal sealed record Scalar(ScalarKind Kind, string? Description = null) : Shape(Description);
     internal sealed record Field(string Key, Shape Shape);
     internal sealed record Map(IReadOnlyList<Field> Fields, string? Description = null) : Shape(Description);
@@ -30,48 +30,85 @@ internal static partial class RecipeShape
     private static Scalar Text(string? description = null) => new(ScalarKind.Text, description);
     private static Map Fields(string? description, params Field[] fields) => new(fields, description);
     private static Field F(string key, Shape shape) => new(key, shape);
-    private static readonly Scalar Mode = new(ScalarKind.Mode, "strict rechaza argumentos sin definición; permissive los admite.");
+    private static readonly Scalar Mode = new(ScalarKind.Boolean,
+        "Argument validation. true (strict) rejects arguments without a definition in parameters; false (permissive, default) accepts them. " +
+        "Both check type, options, scope and rules of defined arguments. The root sets the general value; " +
+        "service.server and each preset may override it and inherit it from the root when omitted.");
     private static readonly List Texts = new(Text());
+    private static Scalar Bool(string description) => new(ScalarKind.Boolean, description);
 
     private static Map ResourceFields(bool companion) => Fields(null,
-        [F("repository", Text("Repositorio publicador/nombre.")), F("revision", Text("Revisión del repositorio.")),
-         F("quantization", Text("Cuantización a descargar.")), F("files", new List(Text(), "Archivos de pesos.")),
-         .. companion ? [F("type", Text("mmproj o mtp."))] : Array.Empty<Field>()]);
+        [F("repository", Text("Remote repository as publisher/repository. Without repository, files lists local paths.")),
+         F("revision", Text("Repository revision. When omitted, the default one is used and pinned to a commit on resolution; not allowed with local paths.")),
+         F("quantization", Text("Quantization to download from the repository. Alternative to files; they are not combined.")),
+         F("files", new List(Text(), "Weight files: repository paths, as an alternative to quantization, or local paths without repository. Do not mix local and remote.")),
+         .. companion ? [F("type", Text("Companion role: mmproj or mtp."))] : Array.Empty<Field>()]);
 
-    internal static readonly Map Definition = Fields(null,
-        F("type", Text("Tipo del valor.")), F("enum", new List(new Scalar(ScalarKind.Any))), F("minimum", new Scalar(ScalarKind.Number)),
-        F("maximum", new Scalar(ScalarKind.Number)), F("pattern", Text()), F("items", new Reference("definition-item")),
-        F("any-of", new List(new Reference("definition-item"))), F("description", Text()), F("default", new Scalar(ScalarKind.Any)),
-        F("aliases", Texts), F("scope", Text("preset o server.")),
-        F("rules", new List(Fields(null, F("when", new Reference("condition")),
-            F("requires", new Entries(new Reference("condition"), false)), F("conflicts", new Entries(new Reference("condition"), false))))),
-        F("applies-to", Fields(null, F("distribution", Text()), F("min-build", Text()), F("max-build", Text()), F("capabilities", Texts))),
-        F("emit", Fields(null,
-            F("cli", Fields(null, F("name", Text()), F("mode", Text()), F("separator", Text()), F("true-value", Text()), F("false-value", Text()), F("negative-name", Text()))),
-            F("ini", Fields(null, F("name", Text()), F("mode", Text()), F("separator", Text()), F("true-value", Text()), F("false-value", Text()))))));
+    private static Map EmitTarget(bool cli) => Fields(cli ? "Emission as a server command-line argument." : "Emission as a key of the presets INI file.",
+        [F("name", Text(cli ? "Argument name without --. When omitted, the canonical name is used." : "Exact INI key. When omitted, the canonical name is used.")),
+         F("mode", Text("Required: value (a scalar), flag (boolean only), repeat or join (array only).")),
+         F("separator", Text("Separator between items with mode join.")),
+         F("true-value", Text("Text emitted for true in a boolean with mode value.")),
+         F("false-value", Text("Text emitted for false in a boolean with mode value.")),
+         .. cli ? [F("negative-name", Text("Flag emitted for false in a boolean with mode flag."))] : Array.Empty<Field>()]);
+
+    internal static readonly Map Definition = Fields("Definition of a backend argument: type, constraints, scope, rules and emission.",
+        F("type", Text("Value type: string, integer, number, boolean or array. Required unless any-of is used.")),
+        F("enum", new List(new Scalar(ScalarKind.Any), "Allowed values, of the declared type.")),
+        F("minimum", new Scalar(ScalarKind.Number, "Inclusive minimum; integer or number only.")),
+        F("maximum", new Scalar(ScalarKind.Number, "Inclusive maximum; integer or number only.")),
+        F("pattern", Text("Regular expression a string must match (.NET, without backreferences or lookaround).")),
+        F("items", new Reference("definition-item", "Definition of each item; required for array.")),
+        F("any-of", new List(new Reference("definition-item"), "Value alternatives; excludes type and its constraints.")),
+        F("description", Text("Text for forms and help.")),
+        F("default", new Scalar(ScalarKind.Any, "Value suggested in forms. Not emitted when the argument is omitted.")),
+        F("aliases", new List(Text(), "Other names of the same argument; they cannot match existing names or aliases.")),
+        F("scope", Text("Where it can be assigned: preset or server. When omitted, both.")),
+        F("rules", new List(Fields("Rule: when `when` holds, requires must hold and conflicts must not. At least one of the two.",
+            F("when", new Reference("condition", "Condition on this argument. When omitted, it means {present: true}.")),
+            F("requires", new Entries(new Reference("condition"), false, "Argument → condition that must hold.")),
+            F("conflicts", new Entries(new Reference("condition"), false, "Argument → condition that must not hold."))), "Rules between arguments.")),
+        F("applies-to", Fields("Backend builds the definition applies to.",
+            F("distribution", Text("Backend distribution.")), F("min-build", Text("Inclusive minimum build, bNNNN.")),
+            F("max-build", Text("Inclusive maximum build, bNNNN.")), F("capabilities", new List(Text(), "Capabilities the build requires.")))),
+        F("emit", Fields("How the argument is emitted. A missing destination uses the known adapter or free emission.", F("cli", EmitTarget(true)), F("ini", EmitTarget(false)))));
 
     internal static readonly Map DefinitionItem = new(Definition.Fields.Where(field =>
-        field.Key is "type" or "enum" or "minimum" or "maximum" or "pattern" or "items" or "any-of").ToArray());
+        field.Key is "type" or "enum" or "minimum" or "maximum" or "pattern" or "items" or "any-of").ToArray(), "Definition of a value, without argument metadata.");
 
-    internal static readonly Map Condition = Fields(null, F("present", new Scalar(ScalarKind.Boolean)), F("equals", new Scalar(ScalarKind.Any)), F("contains", new Scalar(ScalarKind.Any)));
+    internal static readonly Map Condition = Fields("Condition: exactly one of present, equals or contains.",
+        F("present", Bool("true if the argument is assigned (false counts as assigned); false if it is missing or removed with null.")),
+        F("equals", new Scalar(ScalarKind.Any, "The argument is exactly this scalar.")),
+        F("contains", new Scalar(ScalarKind.Any, "The argument is an array containing this scalar.")));
 
-    internal static readonly Map Root = Fields("Receta de Coquena.",
-        F("name", Text("Nombre del proyecto.")),
-        F("target", Text("Servicio donde se publican los presets: global o self.")),
-        F("args-mode", Mode),
-        F("service", Fields("Servicio propio del proyecto.",
-            F("backend", Fields("Backend del servicio.", F("name", Text("Alias del backend.")), F("version", Text()), F("variant", Text()), F("executable", Text("Ejecutable externo.")))),
-            F("server", Fields(null, F("args-mode", Mode), F("args", new Entries(new Argument(), true, "Argumentos del servidor.")),
-                F("logs", Fields(null, F("directory", Text()), F("retention", Fields(null, F("max-bytes", new Scalar(ScalarKind.Positive)))))),
-                F("hooks", Fields(null, F("start-failed", Fields(null, F("command", Text()), F("args", Texts))))),
-                F("health", Fields(null, F("url", Text()), F("timeout-seconds", new Scalar(ScalarKind.Positive)), F("interval-ms", new Scalar(ScalarKind.Integer)))))),
-            F("recovery", Fields(null, F("allow-draft-last-good", new Scalar(ScalarKind.Boolean)))))),
-        F("arg-defs", Fields("Parámetros disponibles para los presets.", F("definitions", new Entries(new Reference("definition"), true)))),
-        F("models", new Entries(new Resource(false, ResourceFields(false)), false, "Modelos por clave.")),
-        F("companions", new Entries(new Resource(true, ResourceFields(true)), false, "Companions por clave.")),
-        F("presets", new Entries(Fields(null,
-            F("enable", new Scalar(ScalarKind.Boolean)), F("warmup", new Scalar(ScalarKind.Boolean)), F("args-mode", Mode),
-            F("args", new Entries(new Argument(), true, "Argumentos del preset."))), false, "Presets por nombre.")));
+    internal static readonly Map Root = Fields("Coquena recipe (coquena.yaml): defines its own inference service, presets to publish, or both.",
+        F("name", Text("Recipe name. Identifies its own service and prefixes published presets (name/preset). When omitted, the folder name is used on registration.")),
+        F("publish-to", Text("Service where the presets are published: global or default (the default global service; also when the field is omitted), " +
+            "self (the service this recipe defines; requires service) or the name of a registered global service. " +
+            "An unknown name is an error, with no fallback. Choosing the destination does not start the service and does not depend on the recipe defining service.")),
+        F("strict-args", Mode),
+        F("service", Fields("The recipe's own inference service; at most one. Presets are published to it with publish-to: self.",
+            F("backend", Fields("Backend that runs the service: version and variant of an official backend, or executable; mutually exclusive.",
+                F("name", Text("Alias of the downloaded backend.")), F("version", Text("Official backend version.")),
+                F("variant", Text("Official backend variant.")), F("executable", Text("Path to an external executable.")))),
+            F("server", Fields("Server process configuration.",
+                F("strict-args", Mode), F("args", new Entries(new Argument(), true, "Server arguments: name without -- → value.")),
+                F("logs", Fields("Server logs.", F("directory", Text("Log folder.")),
+                    F("retention", Fields("Log retention.", F("max-bytes", new Scalar(ScalarKind.Positive, "Maximum size kept, in bytes.")))))),
+                F("hooks", Fields("Commands run on server events.", F("start-failed", Fields("Runs when the server fails to start.",
+                    F("command", Text("Command path.")), F("args", new List(Text(), "Command arguments; empty by default.")))))),
+                F("health", Fields("Server health check.", F("url", Text("URL that is queried.")),
+                    F("timeout-seconds", new Scalar(ScalarKind.Positive, "Maximum time to become healthy, in seconds.")),
+                    F("interval-ms", new Scalar(ScalarKind.Integer, "Interval between checks, from 100 to 10000 ms.")))))),
+            F("recovery", Fields("Service recovery.", F("allow-draft-last-good", Bool("Allows promoting an applied, healthy draft as the last good version. Default false.")))))),
+        F("parameters", new Entries(new Reference("definition"), true,
+            "Parameters available to server and presets: argument name without -- → definition. A later layer replaces the whole definition; null removes it.")),
+        F("models", new Entries(new Resource(false, ResourceFields(false)), false, "Models by key. Short form publisher/repository:quantization or a map; presets reference them as model://key.")),
+        F("companions", new Entries(new Resource(true, ResourceFields(true)), false, "Auxiliary model files (mmproj, mtp) by key.")),
+        F("presets", new Entries(Fields("Preset published as name/key.",
+            F("enable", Bool("Publishes the preset. Default true; when disabled it keeps its definition.")),
+            F("warmup", Bool("Preloads the model on publication. Default false.")), F("strict-args", Mode),
+            F("args", new Entries(new Argument(), true, "Preset arguments: name without -- → value."))), false, "Presets by name.")));
 
     private static Shape Resolve(Reference reference) => reference.Name switch
     {
@@ -143,11 +180,6 @@ internal static partial class RecipeShape
                 if (Deferred(value, beforeInterpolation)) return;
                 if (value.Kind is not (RecipeKind.Integer or RecipeKind.Number)) throw value.Error("invalid-type", "structure", "Se requiere un número.");
                 return;
-            case ScalarKind.Mode:
-                Kind(value, RecipeKind.String, beforeInterpolation);
-                if (beforeInterpolation && value.Style != RecipeStyle.SingleQuoted && value.Text!.Contains('$')) return;
-                if (value.Text is not ("strict" or "permissive")) throw value.Error("invalid-args-mode", "structure", "Modo de argumentos inválido.");
-                return;
         }
     }
 
@@ -175,6 +207,7 @@ internal static partial class RecipeShape
             if (!allowed.Contains(pair.Key)) throw pair.Value.Error("unknown-key", "structure", "Clave estructural desconocida.");
     }
 
+    internal const string ManualUrl = "https://github.com/mstranich/coquena/blob/main/docs/user-guide/recipes.md";
     internal const string SchemaId = "https://coquena.dev/schema/recipe.json";
 
     // JSON Schema (2020-12) of a recipe file, generated from the same shapes.
@@ -185,9 +218,17 @@ internal static partial class RecipeShape
         {
             ["$schema"] = "https://json-schema.org/draft/2020-12/schema",
             ["$id"] = SchemaId,
-            ["$comment"] = "Generado por Coquena. No editar: se reemplaza al ejecutar coquena init."
+            ["$comment"] = "Generated by Coquena. Do not edit: coquena init replaces it.",
+            ["title"] = "Coquena recipe"
         };
         foreach (var pair in schema.ToArray()) { schema.Remove(pair.Key); result[pair.Key] = pair.Value; }
+        result["description"] = Root.Description + " Manual: " + ManualUrl;
+        var properties = result["properties"]!.AsObject();
+        properties["publish-to"]!["examples"] = new JsonArray("global", "self", "secondary-gpu");
+        properties["parameters"]!["examples"] = new JsonArray(new JsonObject
+        {
+            ["ctx-size"] = new JsonObject { ["type"] = "integer", ["minimum"] = 1, ["scope"] = "preset", ["description"] = "Context size." }
+        });
         result["$defs"] = new JsonObject
         {
             ["definition"] = Emit(Definition), ["definition-item"] = Emit(DefinitionItem), ["condition"] = Emit(Condition)
@@ -227,7 +268,7 @@ internal static partial class RecipeShape
             Resource { Companion: true } resource => Emit(resource.Fields),
             Resource resource => new JsonObject
             {
-                ["anyOf"] = new JsonArray(new JsonObject { ["type"] = "string", ["pattern"] = "^[^/:\\s]+/[^/:\\s]+:[^:]+$", ["description"] = "publicador/repositorio:cuantización" }, Emit(resource.Fields))
+                ["anyOf"] = new JsonArray(new JsonObject { ["type"] = "string", ["pattern"] = "^[^/:\\s]+/[^/:\\s]+:[^:]+$", ["description"] = "publisher/repository:quantization" }, Emit(resource.Fields))
             },
             Scalar scalar => Emit(scalar.Kind),
             _ => throw new InvalidOperationException()
@@ -247,11 +288,16 @@ internal static partial class RecipeShape
             ScalarKind.Integer => Deferred(new JsonObject { ["type"] = "integer" }),
             ScalarKind.Positive => Deferred(new JsonObject { ["type"] = "integer", ["minimum"] = 1 }),
             ScalarKind.Number => Deferred(new JsonObject { ["type"] = "number" }),
-            ScalarKind.Mode => new JsonObject { ["anyOf"] = new JsonArray(new JsonObject { ["enum"] = new JsonArray("strict", "permissive") }, new JsonObject { ["type"] = "string", ["pattern"] = "\\$" }) },
             _ => new JsonObject()
         };
     }
 
     // Any field or entry may be null: null unassigns what a lower layer set.
-    private static JsonObject Nullable(JsonNode node) => new() { ["anyOf"] = new JsonArray(node, new JsonObject { ["type"] = "null" }) };
+    // The description is repeated on the wrapper so editors show it on hover.
+    private static JsonObject Nullable(JsonNode node)
+    {
+        var result = new JsonObject { ["anyOf"] = new JsonArray(node, new JsonObject { ["type"] = "null" }) };
+        if (node["description"] is { } description) result["description"] = description.DeepClone();
+        return result;
+    }
 }

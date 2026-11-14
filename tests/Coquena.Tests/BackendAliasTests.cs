@@ -24,7 +24,7 @@ internal static class BackendAliasTests
             var project = Path.Combine(folder, name); Directory.CreateDirectory(project);
             var yaml = Path.Combine(project, "coquena.yaml");
             var executable = Path.Combine(project, "backend.exe"); File.WriteAllText(executable, "external fixture, never executed");
-            var text = $"name: {name}\ntarget: self\nservice:\n  backend:\n    name: my-downloaded\n    executable: ./backend.exe\n  server:\n    args:\n      port: 29991\n";
+            var text = $"name: {name}\npublish-to: self\nservice:\n  backend:\n    name: my-downloaded\n    executable: ./backend.exe\n  server:\n    args:\n      port: 29991\n";
             File.WriteAllText(yaml, text);
             var context = ScopeContext.Project(yaml); var preparation = new CombinationPreparation(context);
             using (var unpreparedOutput = new StringWriter())

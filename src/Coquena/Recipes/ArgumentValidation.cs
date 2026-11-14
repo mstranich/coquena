@@ -16,7 +16,7 @@ public static class ArgumentValidation
         schema ??= ArgumentSchema.Load(recipe);
         var blocks = new List<ValidatedArgumentBlock>();
         if (recipe.Root.Get("service")?.Get("server") is { } server)
-            blocks.Add(Block(recipe, schema, server, "server", "service", server.Get("args-mode")?.Text ?? recipe.ArgsMode, backend));
+            blocks.Add(Block(recipe, schema, server, "server", "service", EffectiveRecipe.Mode(server) ?? recipe.ArgsMode, backend));
         foreach (var preset in recipe.Root.Get("presets")?.Fields ?? new Dictionary<string, RecipeValue>())
             blocks.Add(Block(recipe, schema, preset.Value, "preset", preset.Key, recipe.PresetArgsMode(preset.Key), backend));
         return blocks.AsReadOnly();
@@ -31,7 +31,7 @@ public static class ArgumentValidation
             try { failures.AddRange(Block(recipe, candidate, value, scope, key, mode, backend).Diagnostics); }
             catch (RecipeException e) { failures.Add(new(e.Code, e.Origin, e.Detail)); }
         }
-        if (recipe.Root.Get("service")?.Get("server") is { } server) Inspect(server, "server", "service", server.Get("args-mode")?.Text ?? recipe.ArgsMode);
+        if (recipe.Root.Get("service")?.Get("server") is { } server) Inspect(server, "server", "service", EffectiveRecipe.Mode(server) ?? recipe.ArgsMode);
         foreach (var preset in recipe.Root.Get("presets")?.Fields ?? new Dictionary<string, RecipeValue>())
             Inspect(preset.Value, "preset", preset.Key, recipe.PresetArgsMode(preset.Key));
         return failures.AsReadOnly();

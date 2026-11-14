@@ -26,7 +26,7 @@ COQUENA_HOME/
     tmp/
 ```
 
-`global/recipe.yaml` mantiene models, companions y arg-defs globales. Cada
+`global/recipe.yaml` mantiene models, companions y parameters globales. Cada
 contribución importada conserva procedencia de receta y presets globales, sin prefijo
 de proyecto, en `consumers/<id>/recipe.yaml`;
 el índice global relaciona nombre publicado, consumidor y servicio destino.

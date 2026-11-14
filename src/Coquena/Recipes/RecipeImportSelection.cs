@@ -38,7 +38,7 @@ public sealed class RecipeImportSelection
             ["service"] = recipe.Root.Get("service") is not null,
             ["presets"] = recipe.Root.Get("presets") is not null,
             ["model"] = recipe.Root.Get("models") is not null || recipe.Root.Get("companions") is not null,
-            ["params"] = recipe.Root.Get("arg-defs") is not null
+            ["params"] = recipe.Root.Get("parameters") is not null
         };
         var categories = select is null ? available.Where(p => p.Value).Select(p => p.Key).ToArray() : select.Split(',');
         var seen = new HashSet<string>(StringComparer.Ordinal);
@@ -52,7 +52,7 @@ public sealed class RecipeImportSelection
         if (asDefault && !seen.Contains("service"))
             throw recipe.Root.Error("import-default-requires-service", "import", "As-default requiere seleccionar service.");
         if (recipe.Target == "self" && !seen.Contains("service"))
-            throw recipe.Root.Error("import-self-requires-service", "import", "Target self requiere importar service.");
+            throw recipe.Root.Error("import-self-requires-service", "import", "publish-to: self requiere importar service.");
 
         var entities = new List<ImportEntity>();
         if (seen.Contains("service")) Add("service:" + recipe.Name);

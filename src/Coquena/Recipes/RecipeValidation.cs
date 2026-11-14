@@ -211,7 +211,7 @@ internal static partial class RecipeValidation
     {
         ["models", var name, ..] => ("model://" + name, keys[..2]),
         ["companions", var name, ..] => ("companion://" + name, keys[..2]),
-        ["arg-defs", "definitions", var name, ..] => ("arg:" + name, keys[..3]),
+        ["parameters", var name, ..] => ("arg:" + name, keys[..2]),
         _ => null
     };
 

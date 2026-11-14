@@ -378,7 +378,7 @@ features:
 
   - id: recipe-argument-schema-emission
     intent: Componer definiciones locales, validar argumentos y relaciones, consultar impacto y emitir tokens CLI o INI con codec por build.
-    keywords: [arg-defs, schema, param, aliases, args-mode, rules, CLI, INI, interpolation]
+    keywords: [parameters, schema, param, aliases, strict-args, rules, CLI, INI, interpolation]
     entrypoints:
       - src/Coquena/Recipes/ArgumentSchema.cs
       - src/Coquena/Recipes/ArgumentValidation.cs

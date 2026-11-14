@@ -13,7 +13,7 @@ internal static class AuthoringDashboardTests
     public static async Task Setup(string root)
     {
         Directory.CreateDirectory(root);
-        File.WriteAllText(Path.Combine(root, "coquena.yaml"), "name: authoring-fixture\narg-defs:\n  definitions:\n    context: {type: integer, scope: preset, description: Context length}\npresets:\n  assistant:\n    args:\n      context: 12\n");
+        File.WriteAllText(Path.Combine(root, "coquena.yaml"), "name: authoring-fixture\nparameters:\n    context: {type: integer, scope: preset, description: Context length}\npresets:\n  assistant:\n    args:\n      context: 12\n");
         File.WriteAllText(Path.Combine(root, "extra.yaml"), "presets: {assistant: {args: {context: 24}}}\n");
         File.WriteAllText(Path.Combine(root, ".env"), "LOCAL_FIXTURE=not-for-evidence\n");
         await new CombinationPreparation(ScopeContext.Project(Path.Combine(root, "coquena.yaml"))).PrepareAsync(new RecipeSelection(root), new NoResources());
@@ -26,7 +26,7 @@ internal static class AuthoringDashboardTests
         try
         {
             var file = Path.Combine(root, "coquena.yaml");
-            const string yaml = "# untouched header\nname: fixture\narg-defs:\n  definitions:\n    context: {type: integer, scope: preset}\npresets:\n  assistant:\n    args:\n      context: 12\n";
+            const string yaml = "# untouched header\nname: fixture\nparameters:\n    context: {type: integer, scope: preset}\npresets:\n  assistant:\n    args:\n      context: 12\n";
             File.WriteAllText(file, yaml);
             var ini = DashboardCli.PublishedValues("[fixture/assistant]\r\nctx-size = 12\r\n# temp = 1\r\n");
             check(ini.Count == 1 && ini["ctx-size"] == "12", "P reads published INI values without padding or comments");
@@ -46,7 +46,7 @@ internal static class AuthoringDashboardTests
             // Layout under stress: long names, paging and several arguments still fit the 80×24 content area.
             var stressFile = Path.Combine(root, "stress", "coquena.yaml");
             Directory.CreateDirectory(Path.GetDirectoryName(stressFile)!);
-            var stressYaml = new StringBuilder("name: a-very-long-combination-name-for-layout\narg-defs:\n  definitions:\n");
+            var stressYaml = new StringBuilder("name: a-very-long-combination-name-for-layout\nparameters:\n");
             foreach (var name in new[] { "context-length-for-long-sessions", "temperature", "top-p", "top-k", "repeat-penalty", "seed" })
                 stressYaml.Append("    ").Append(name).Append(": {type: number, scope: preset, description: A deliberately long description that must be clipped to the content width of the dashboard}\n");
             stressYaml.Append("presets:\n");
@@ -72,7 +72,7 @@ internal static class AuthoringDashboardTests
             check(stressPresets.Length == 6 && DashboardCli.PresetsPage("s", stressPresets, stressPresets[5].Id, 56).Rows.SelectMany(Markup.Parse).Any(span => span.Action == "preset:" + stressPresets[5].Id),
                 "P pages to the selected preset beyond the first four");
 
-            try { RecipeEdit.Propose(selection, inputs, file, ["arg-defs", "definitions", "context"], RecipeWriter.Map(("type", RecipeWriter.String("string")))); check(false, "incompatible type accepted"); }
+            try { RecipeEdit.Propose(selection, inputs, file, ["parameters", "context"], RecipeWriter.Map(("type", RecipeWriter.String("string")))); check(false, "incompatible type accepted"); }
             catch (RecipeException) { check(File.ReadAllText(file) == yaml, "incompatible schema keeps the saved assignments and file"); }
 
             var newFile = Path.Combine(root, "override.yaml");
@@ -88,13 +88,13 @@ internal static class AuthoringDashboardTests
             var emptyGlobal = ScopeContext.Global(new Home(Path.Combine(root, "empty-home")));
             var emptyPath = emptyGlobal.PathFor("recipe.yaml");
             var emptyInputs = new Dictionary<string, byte[]> { [emptyPath] = [] };
-            var firstSchema = RecipeEdit.Propose(new RecipeSelection(emptyGlobal.Base, [emptyPath], emptyGlobal.Base), emptyInputs, emptyPath, ["arg-defs", "definitions", "custom"], RecipeWriter.Map(("type", RecipeWriter.String("string"))));
+            var firstSchema = RecipeEdit.Propose(new RecipeSelection(emptyGlobal.Base, [emptyPath], emptyGlobal.Base), emptyInputs, emptyPath, ["parameters", "custom"], RecipeWriter.Map(("type", RecipeWriter.String("string"))));
             check(!File.Exists(emptyPath), "first global schema remains a draft before explicit save");
             ImportedRecipeEdits.Save(emptyGlobal, emptyInputs, new Dictionary<string, byte[]> { [emptyPath] = firstSchema });
             check(new ScopeStore(emptyGlobal).Read().Documents.ContainsKey("recipe.yaml") && File.Exists(emptyPath), "first global schema is created through a generation on explicit save");
             var store = new ScopeStore(global);
-            const string common = "arg-defs: {definitions: {context: {type: integer, scope: preset}}}\n";
-            const string consumer = "name: imported\nargs-mode: strict\npresets: {assistant: {args: {context: 12}}}\n";
+            const string common = "parameters: {context: {type: integer, scope: preset}}\n";
+            const string consumer = "name: imported\nstrict-args: true\npresets: {assistant: {args: {context: 12}}}\n";
             store.Commit(0, new Dictionary<string, JsonObject>
             {
                 ["recipe.yaml"] = Intention(common), ["consumers/11111111-1111-4111-8111-111111111111/recipe.yaml"] = Intention(consumer)

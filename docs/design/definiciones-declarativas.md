@@ -6,7 +6,7 @@ El contrato concreto se describe en [Formato del proyecto](formato-proyecto.md).
 
 Una carpeta con `coquena.yaml` contiene una receta de servicio, consumidor o ambos.
 El servicio define un backend efectivo; el consumidor publica sus presets en el
-target seleccionado. Distintas combinaciones especializan la intención de la
+destino seleccionado. Distintas combinaciones especializan la intención de la
 carpeta; no crean procesos propios para cada consumidor de un servicio compartido.
 El name de raíz identifica al único servicio opcional de la receta, según
 [servicios y recetas](servicios-recetas.md).
@@ -92,7 +92,7 @@ sin exigir update/upgrade solo por editar intención.
 Cada combinación registra archivos, orden, intención de referencia y resoluciones.
 Alternar combinaciones conserva los registros y resoluciones de las otras; esto
 no mantiene publicadas simultáneamente sus contribuciones. Aplicar otra combinación
-del mismo proyecto al mismo target reconcilia su conjunto publicado según
+del mismo proyecto al mismo destino reconcilia su conjunto publicado según
 [servicios compartidos](servicios-recetas.md#compartir-un-servidor-entre-proyectos).
 Una invocación explícita la vuelve
 conocida aunque falle por hardware; no la acredita funcional ni crea bloqueo de
@@ -108,7 +108,7 @@ no copia pesos ni acredita compatibilidad o éxito local.
 
 ## Validación
 
-La estructura general se valida siempre. `args-mode` distingue permisivo y estricto; ambos validan definiciones conocidas, según [parámetros](catalogo-de-parametros.md).
+La estructura general se valida siempre. `strict-args` distingue permisivo (false) y estricto (true); ambos validan definiciones conocidas, según [parámetros](catalogo-de-parametros.md).
 
 Verify diagnostica YAML y existencia/integridad de backend, modelos y recursos
 de presets seleccionados. Incluir descargas no utilizadas exige opción explícita.

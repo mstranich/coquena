@@ -115,7 +115,7 @@ internal static class InferenceRouterTests
             var oldTasks = tracker.History.Select(task => task.Identity).ToArray();
             var backendYaml = backend.Replace('\\', '/').Replace("'", "''");
             var modelYaml = model.Replace("'", "''");
-            File.WriteAllText(recipe, $"name: fixture\ntarget: self\nservice:\n  backend:\n    executable: '{backendYaml}'\n  server:\n    health:\n      url: http://127.0.0.1:{port}/health\n    args:\n      host: 127.0.0.1\n      port: {port}\n      models-preset: '{publication.IniPath.Replace('\\', '/').Replace("'", "''")}'\n      metrics: true\n      slots: true\nmodels:\n  local:\n    files: ['{modelYaml}']\npresets:\n  a:\n    args:\n      model: model://local\n      ctx-size: 2048\n      parallel: 2\n      threads: 1\n      threads-batch: 1\n      n-gpu-layers: 0\n      context-shift: true\n      load-on-startup: true\n");
+            File.WriteAllText(recipe, $"name: fixture\npublish-to: self\nservice:\n  backend:\n    executable: '{backendYaml}'\n  server:\n    health:\n      url: http://127.0.0.1:{port}/health\n    args:\n      host: 127.0.0.1\n      port: {port}\n      models-preset: '{publication.IniPath.Replace('\\', '/').Replace("'", "''")}'\n      metrics: true\n      slots: true\nmodels:\n  local:\n    files: ['{modelYaml}']\npresets:\n  a:\n    args:\n      model: model://local\n      ctx-size: 2048\n      parallel: 2\n      threads: 1\n      threads-batch: 1\n      n-gpu-layers: 0\n      context-shift: true\n      load-on-startup: true\n");
             Command("up");
             Command("down");
             await Capture();

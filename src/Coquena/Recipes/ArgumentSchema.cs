@@ -47,7 +47,7 @@ public sealed class ArgumentSchema
 
     public static ArgumentSchema Load(EffectiveRecipe recipe)
     {
-        var entries = recipe.Root.Get("arg-defs")?.Get("definitions");
+        var entries = recipe.Root.Get("parameters");
         return new(entries?.Fields.ToDictionary(StringComparer.Ordinal)
             ?? new Dictionary<string, RecipeValue>(StringComparer.Ordinal));
     }

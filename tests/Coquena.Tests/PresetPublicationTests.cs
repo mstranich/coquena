@@ -76,8 +76,7 @@ internal static class PresetPublicationTests
                     service:
                       backend:
                         executable: ./unused-missing.exe
-                    arg-defs:
-                      definitions:
+                    parameters:
                         custom-batch:
                           type: integer
                           scope: preset
@@ -148,6 +147,26 @@ internal static class PresetPublicationTests
                 Cli(2, "withdraw", "absent");
                 var alternate = registry.Register(["alternate.yaml"], "alternate"); var alternateService = registry.RegisterService(alternate.RecipeId);
                 registry.SetDefaultService(alternateService.ServiceId);
+                // A global chosen by name receives the presets although it is not the default,
+                // and keeping an own service block does not divert the destination.
+                var namedService = registry.Services().Single(s => s.ServiceId == service.ServiceId).Name;
+                var namedFolder = Path.Combine(folder, "named-project"); Directory.CreateDirectory(namedFolder);
+                File.Copy(weights, Path.Combine(namedFolder, "fixture.gguf"));
+                File.WriteAllText(Path.Combine(namedFolder, "coquena.yaml"), definition.Replace("name: cli", $"name: named\npublish-to: {namedService}"));
+                using (var namedOutput = new StringWriter())
+                using (var namedError = new StringWriter())
+                {
+                    if (PublicationCli.Run(["up", "--base", namedFolder], namedOutput, namedError, decision) != 0 ||
+                        !(await router.ObserveAsync(default)).Any(p => p!["id"]!.GetValue<string>() == "named/first"))
+                        throw new Exception("publish-to por nombre no publicó en el global elegido: " + namedError);
+                    if (PublicationCli.Run(["down", "--base", namedFolder], namedOutput, namedError, decision) != 0 ||
+                        (await router.ObserveAsync(default)).Any(p => p!["id"]!.GetValue<string>() == "named/first"))
+                        throw new Exception("Down no retiró del global nombrado: " + namedError);
+                    File.WriteAllText(Path.Combine(namedFolder, "coquena.yaml"), definition.Replace("name: cli", "name: named\npublish-to: absent"));
+                    if (PublicationCli.Run(["up", "--base", namedFolder], namedOutput, namedError, decision) == 0 ||
+                        !namedError.ToString().Contains("unknown-service", StringComparison.Ordinal))
+                        throw new Exception("Un global inexistente no falló sin sustituto: " + namedError);
+                }
                 File.WriteAllText(yaml, "invalid: edited-after-publication\n");
                 Cli(0, "down");
                 if ((await router.ObserveAsync(default)).Any(p => p!["id"]!.GetValue<string>().StartsWith("cli/"))) throw new Exception("Down no retiró destino guardado tras cambiar alias/YAML.");
@@ -164,7 +183,7 @@ internal static class PresetPublicationTests
                 using var selfPortProbe = new System.Net.Sockets.TcpListener(System.Net.IPAddress.Loopback, 0);
                 selfPortProbe.Start(); var selfPort = ((System.Net.IPEndPoint)selfPortProbe.LocalEndpoint).Port; selfPortProbe.Stop();
                 var selfYaml = Path.Combine(selfFolder, "coquena.yaml");
-                File.WriteAllText(selfYaml, $"name: own\ntarget: self\nservice:\n  backend:\n    executable: '{executable.Replace('\\', '/')}'\n  server:\n    args:\n      host: 127.0.0.1\n      port: {selfPort}\n    health:\n      url: http://127.0.0.1:{selfPort}/health\nmodels:\n  tiny:\n    files: [./fixture.gguf]\npresets:\n  local:\n    args:\n      model: model://tiny\n");
+                File.WriteAllText(selfYaml, $"name: own\npublish-to: self\nservice:\n  backend:\n    executable: '{executable.Replace('\\', '/')}'\n  server:\n    args:\n      host: 127.0.0.1\n      port: {selfPort}\n    health:\n      url: http://127.0.0.1:{selfPort}/health\nmodels:\n  tiny:\n    files: [./fixture.gguf]\npresets:\n  local:\n    args:\n      model: model://tiny\n");
                 using var ownOutput = new StringWriter(); using var ownError = new StringWriter();
                 var ownDecision = new Decisions { AllowStart = false };
                 if (PublicationCli.Run(["up", "--private", "--base", selfFolder], ownOutput, ownError, ownDecision) != 8 || ownDecision.Starts != 1)
@@ -184,7 +203,7 @@ internal static class PresetPublicationTests
                     if (PublicationCli.Run(["up", "--start-service", "--private", "--base", selfFolder], ownOutput, ownError, ownDecision) != 0 ||
                         firstInstance != ownStore.Read().Documents.Values.Single(d => d["kind"]!.GetValue<string>() == "active")["data"]!["instance-id"]!.GetValue<string>())
                         throw new Exception("Reutilización self fallida.");
-                    File.WriteAllText(selfYaml, File.ReadAllText(selfYaml).Replace("target: self", "target: global"));
+                    File.WriteAllText(selfYaml, File.ReadAllText(selfYaml).Replace("publish-to: self", "publish-to: global"));
                     if (PublicationCli.Run(["up", "--private", "--base", selfFolder], ownOutput, ownError, ownDecision) != 0 ||
                         !(await router.ObserveAsync(default)).Any(p => p!["id"]!.GetValue<string>() == "own/local"))
                         throw new Exception("Cambio de destino no conservó publicaciones independientes.");

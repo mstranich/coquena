@@ -7,8 +7,8 @@ y conservar lo útil como una receta que puede llevar a otra máquina compatible
 
 Además de configurar y distribuir recetas, Coquena permite reutilizar un servidor
 entre proyectos: sus presets se combinan en el mismo router y se publican o retiran
-en caliente, sin detenerlo. El target predeterminado es `global`; `self` permite
-seleccionar el servicio propio del proyecto. Un servidor global puede atender, por ejemplo, modelos
+en caliente, sin detenerlo. El destino predeterminado (`publish-to`) es `global`; `self` permite
+seleccionar el servicio propio del proyecto y un nombre, otro servicio global. Un servidor global puede atender, por ejemplo, modelos
 de programación y de resumen de medios para trabajos concurrentes. Compartir la
 instancia permite que el backend gestione la demanda de esos trabajos sobre los
 mismos recursos, en lugar de requerir una instancia por proyecto compitiendo por

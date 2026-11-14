@@ -1367,7 +1367,7 @@ internal static partial class DashboardCli
                             if (fields is null) return;
                             var recipe = RecipeReader.Read(selections[0]);
                             if (ArgumentSchema.Load(recipe).Definitions.ContainsKey(fields[0])) throw new ArgumentException("Ya existe esa definición.");
-                            StageEdit(selections[0], place.Scope.Name, ParameterFile(recipe), ["arg-defs", "definitions", fields[0]],
+                            StageEdit(selections[0], place.Scope.Name, ParameterFile(recipe), ["parameters", fields[0]],
                                 RecipeWriter.Map(("type", RecipeWriter.String(fields[1])), ("scope", RecipeWriter.String(fields[2]))), true, context.IsGlobal ? context : null); return;
                         }
                         else if (chosen is not null)
@@ -1376,7 +1376,7 @@ internal static partial class DashboardCli
                             if (action == "param-remove")
                             {
                                 if (Query(app, "Quitar definición · " + chosen.Name, "Asignaciones en la selección: " + string.Join(", ", chosen.Uses) + "\nSe conservan valores y recursos. Se validará el modo estricto y las reglas antes de permitir guardar.", "Cancelar", "Abrir borrador") != 1) return;
-                                StageEdit(chosen.Recipe.Selection, place.Scope.Name, ParameterFile(chosen.Recipe), ["arg-defs", "definitions", chosen.Name], new EditRemove(), true); return;
+                                StageEdit(chosen.Recipe.Selection, place.Scope.Name, ParameterFile(chosen.Recipe), ["parameters", chosen.Name], new EditRemove(), true); return;
                             }
                             if (action == "param-detail") Choose(app, chosen.Name + " · definición efectiva", ["Origen: " + chosen.Value.Origin.File, chosen.Value.Redacted()?.ToJsonString() ?? "—", "Usado por: " + string.Join(", ", chosen.Uses)], null);
                         }

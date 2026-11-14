@@ -19,10 +19,10 @@ internal static class ArgumentTests
             Write("coquena.yaml", yaml);
             return RecipeReader.Read(new(root, new[] { "coquena.yaml" }.Concat(layers)), env);
         }
-        ArgumentSchema Schema(string definitions) => ArgumentSchema.Load(Read("arg-defs:\n  definitions:\n" + definitions));
+        ArgumentSchema Schema(string definitions) => ArgumentSchema.Load(Read("parameters:\n" + definitions));
         void InvalidSchema(string definition, string code) => Bad(() => Schema("    x: " + definition + "\n"), code);
         ValidatedArgumentBlock Preset(EffectiveRecipe r, ArgumentBackend? backend = null) => ArgumentValidation.Validate(r, backend: backend).Single(x => x.Key == "p");
-        EffectiveRecipe With(string definition, string args, string mode = "permissive") => Read("args-mode: " + mode + "\narg-defs:\n  definitions:\n    x: " + definition + "\npresets:\n  p:\n    args: " + args + "\n");
+        EffectiveRecipe With(string definition, string args, string mode = "permissive") => Read("strict-args: " + (mode == "strict" ? "true" : "false") + "\nparameters:\n    x: " + definition + "\npresets:\n  p:\n    args: " + args + "\n");
         string[] Cli(EffectiveRecipe r, IArgumentAdapter? adapter = null) => ArgumentEmission.Cli(r, Preset(r), adapter).ToArray();
 
         Editing(root);
@@ -58,15 +58,13 @@ internal static class ArgumentTests
         Check(!Read("presets:\n  p:\n    enable: ${BOOL|boolean}\n").PresetEnabled("p"), "structural boolean requires explicit type");
 
         Write("override.yaml", """
-            arg-defs:
-              definitions:
+            parameters:
                 x: {type: string, aliases: [short]}
                 old: null
                 local: {type: boolean}
             """);
         var layered = Read("""
-            arg-defs:
-              definitions:
+            parameters:
                 x: {type: integer, minimum: 5}
                 old: {type: string}
                 inline: {type: string}
@@ -77,9 +75,9 @@ internal static class ArgumentTests
         var schema = ArgumentSchema.Load(layered);
         Check(schema.Definitions.Count == 3 && !schema.Definitions.ContainsKey("old"), "layered definitions and null removal");
         Check(schema.Definitions["x"].Get("minimum") is null && Preset(layered).Arguments.ContainsKey("x"), "whole replacement and alias canonicalization");
-        Write("remove.yaml", "arg-defs: null\n");
-        Check(ArgumentSchema.Load(Read("arg-defs: {definitions: {x: {type: string}}}", "remove.yaml")).Definitions.Count == 0, "whole schema removal");
-        Bad(() => Read("arg-defs: {imports: [old.json]}"), "unknown-key");
+        Write("remove.yaml", "parameters: null\n");
+        Check(ArgumentSchema.Load(Read("parameters: {x: {type: string}}", "remove.yaml")).Definitions.Count == 0, "whole schema removal");
+        Bad(() => Read("parameters: {x: {imports: [old.json]}}"), "unknown-key");
         var invalid = new (string Definition, string Code)[]
         {
             ("{}", "type-required"), ("{type: wat}", "invalid-schema-type"), ("{type: string, hidden: null}", "unknown-key"),
@@ -138,13 +136,12 @@ internal static class ArgumentTests
         Check(Preset(With("{type: integer, default: 3}", "{}")).Arguments.Count == 0, "no defaults materialized");
         var union = With("{any-of: [{type: integer}, {type: string}]}", "{x: '${VALUE}'}");
         Check(Preset(union).Arguments["x"].Value.Kind == RecipeKind.String, "any-of does not choose conversion");
-        Bad(() => Preset(Read("arg-defs:\n  definitions:\n    x: {type: integer}\npresets:\n  p:\n    args:\n      x: ${VALUE}\n")), "invalid-argument-value");
-        Check(Preset(Read("arg-defs:\n  definitions:\n    x: {type: integer}\npresets:\n  p:\n    args:\n      x: ${VALUE|integer}\n")).Arguments["x"].Value.Kind == RecipeKind.Integer, "explicit conversion then schema validation");
-        Check(Preset(Read("args-mode: strict\npresets:\n  p:\n    args-mode: permissive\n    args: {unknown: 1}\n")).Arguments.Count == 1, "local mode override");
+        Bad(() => Preset(Read("parameters:\n    x: {type: integer}\npresets:\n  p:\n    args:\n      x: ${VALUE}\n")), "invalid-argument-value");
+        Check(Preset(Read("parameters:\n    x: {type: integer}\npresets:\n  p:\n    args:\n      x: ${VALUE|integer}\n")).Arguments["x"].Value.Kind == RecipeKind.Integer, "explicit conversion then schema validation");
+        Check(Preset(Read("strict-args: true\npresets:\n  p:\n    strict-args: false\n    args: {unknown: 1}\n")).Arguments.Count == 1, "local mode override");
 
         var rules = """
-            arg-defs:
-              definitions:
+            parameters:
                 config:
                   type: string
                   scope: preset
@@ -200,7 +197,7 @@ internal static class ArgumentTests
         Bad(() => Cli(Read("presets: {p: {args: {x: [a, b]}}}")), "array-emission-required");
         foreach (var text in new[] { "a\\nb", "a\\u0000b" })
             Bad(() => Cli(Read("presets: {p: {args: {x: \"" + text + "\"}}}")), "unrepresentable-text");
-        var collision = Read("arg-defs: {definitions: {x: {type: string, emit: {cli: {mode: value, name: z}}}, y: {type: string, emit: {cli: {mode: value, name: z}}}}}\npresets: {p: {args: {x: a, y: b}}}");
+        var collision = Read("parameters: {x: {type: string, emit: {cli: {mode: value, name: z}}}, y: {type: string, emit: {cli: {mode: value, name: z}}}}\npresets: {p: {args: {x: a, y: b}}}");
         Bad(() => Cli(collision), "emission-key-collision");
         var special = Read("presets: {p: {args: {x: 'a path/with spaces; $(echo nope) & | " + '"' + "quoted" + '"' + "'}}}");
         var plan = new ArgumentProcessPlan(Cli(special), "");
@@ -254,8 +251,7 @@ internal static class ArgumentTests
         foreach (var share in new[] { "0", "1" })
             Check(Preset(Moe("{moe-cache-cpu-share: " + share + "}"), new("ggml", "b12191")).Diagnostics.Count == 0, "MoE inclusive CPU share " + share);
         var extended = Read("""
-            arg-defs:
-              definitions:
+            parameters:
                 custom-batch:
                   type: integer
                   scope: preset
@@ -295,8 +291,7 @@ internal static class ArgumentTests
 
         var referenceRule = """
             models: {main: {files: ['./main.gguf']}}
-            arg-defs:
-              definitions:
+            parameters:
                 choice:
                   type: string
                   rules:
@@ -309,7 +304,7 @@ internal static class ArgumentTests
             """;
         Bad(() => Preset(Read(referenceRule + " {choice: 'model://main'}\n")), "argument-requires");
         Check(Preset(Read(referenceRule + " {choice: {literal: 'model://main'}}\n")).Arguments.Count == 1, "reference condition does not match a literal of identical text");
-        var serverIni = Read("service: {backend: {executable: './server'}, server: {args: {x: a}}}\narg-defs: {definitions: {x: {type: string, scope: server, emit: {ini: {mode: value, name: key}}}}}");
+        var serverIni = Read("service: {backend: {executable: './server'}, server: {args: {x: a}}}\nparameters: {x: {type: string, scope: server, emit: {ini: {mode: value, name: key}}}}");
         var serverPlan = ArgumentEmission.Compose(serverIni, ArgumentValidation.Validate(serverIni), adapter);
         Check(serverPlan.Cli.Count == 0 && serverPlan.Ini == "[*]\nkey=a\n", "process INI arguments use global section");
         var overridden = Read("service: {backend: {executable: './server'}, server: {args: {x: a}}}\npresets: {p: {args: {x: b}}}");
@@ -325,7 +320,7 @@ internal static class ArgumentTests
         Bad(() => Preset(slowPattern), "pattern-inconclusive");
         Bad(() => ArgumentEmission.Ini(iniRecipe, Preset(iniRecipe), "p:suffix", adapter), "reserved-ini-section");
         Bad(() => ArgumentEmission.Ini(iniRecipe, Preset(iniRecipe), "DEFAULT", adapter), "reserved-ini-section");
-        var secretRecipe = Read("arg-defs:\n  definitions:\n    x: {type: integer}\npresets:\n  p:\n    args:\n      x: ${SECRET}\n");
+        var secretRecipe = Read("parameters:\n    x: {type: integer}\npresets:\n  p:\n    args:\n      x: ${SECRET}\n");
         try { Preset(secretRecipe); throw new Exception("Expected secret validation failure"); }
         catch (RecipeException e) { Check(!e.Message.Contains(env["SECRET"]!), "validation diagnostics do not expose secret value"); }
         Console.WriteLine($"Argument tests: {assertions} checks OK. Fixtures: {root}");
@@ -364,9 +359,9 @@ internal static class ArgumentTests
                 return status;
             }
             Check(Run(files, "param", "define", "description", "--file", field) == 0 &&
-                File.ReadAllText(overlay).Contains("arg-defs"), "arg-defs falls back to last layer");
+                File.ReadAllText(overlay).Contains("parameters"), "parameters falls back to last layer");
             File.WriteAllText(overlay, "# override\r\n");
-            File.WriteAllText(definitions, "arg-defs:\r\n  definitions:\r\n    n:\r\n      type: integer # type\r\n      aliases: [count]\r\n",
+            File.WriteAllText(definitions, "parameters:\r\n    n:\r\n      type: integer # type\r\n      aliases: [count]\r\n",
                 new System.Text.UnicodeEncoding(false, true));
             files = ["-f", file, "-f", definitions, "-f", overlay];
 

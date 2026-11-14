@@ -26,7 +26,7 @@ Las referencias de variante oficial, como `backend://cuda@13`, identifican la
 variante, no un alias coincidente; un alias con ese nombre requiere calificación.
 El alias no adopta archivos externos ni convierte un backend en oficial.
 `presets` es otro bloque raíz: sus entidades se registran independientemente y se
-publican en el target seleccionado. No se anidan dentro de service ni pertenecen
+publican en el destino seleccionado. No se anidan dentro de service ni pertenecen
 al servicio por estar en la misma receta. Un preset resumen de la receta noticias
 se publica como `noticias/resumen` mientras pertenece al proyecto. Los modelos y
 companions definidos con nombre propio local y archivos también tienen identidad de proyecto:
@@ -55,21 +55,24 @@ Si el nuevo nombre colisiona, no se publica ni se recupera otro nombre de receta
 inferencia; se conserva evidencia de la retirada y se informa el conflicto.
 Este ciclo sólo opera sobre publicaciones de presets.
 
-`target`, también raíz, admite únicamente los strings lowercase `global` y `self`.
-Omitirlo equivale a `global`, incluso si existe `service`; `self` exige ese bloque
-y selecciona el servicio propio de la receta. No acepta nombres de servidores ni
-`default` como valor.
+`publish-to`, también raíz, admite `global`, su alias `default`, `self` o el nombre
+de un servicio global registrado. Omitirlo equivale a `global`, incluso si existe
+`service`; `self` exige ese bloque y selecciona el servicio propio de la receta.
+Un nombre, como `gpu-secundaria`, se busca sólo en el catálogo global y permite
+publicar en ese servicio aunque no sea el predeterminado. Un servicio de proyecto
+coincidente no desvía la búsqueda: el propio se selecciona únicamente con `self`.
+Un servicio propio importado al catálogo global puede elegirse allí por su nombre.
 
 Global es un ámbito: puede contener varios servicios. Default es la designación
 de uno de esos servicios como predeterminado dentro del ámbito global; no es
 sinónimo de global. Un servicio propio de proyecto no es elegible como default
-global. `target: global` utiliza el servicio global marcado como default.
+global. `publish-to: global` utiliza el servicio global marcado como default.
 La elección de cuál es default pertenece a la configuración global de Coquena,
 independiente de la receta consumidora. Puede asignarlo el usuario o establecerse
 al preparar por primera vez el
 [servidor global predeterminado](servidores.md#servidor-global-predeterminado).
-Un valor de target distinto de global o self es un error de validación; no se
-interpreta como nombre de servicio ni se elige otro destino.
+Un nombre que no corresponde a un servicio global registrado es un error al resolver
+el destino; no se elige otro servicio en su lugar.
 Los nombres de servicio `global`, `default` y `self` están reservados para los selectores.
 
 Los identificadores distinguen mayúsculas por comparación ordinal. No admiten NUL,
@@ -114,7 +117,7 @@ de cada proyecto. Los conjuntos preset/modelo son las unidades que esos trabajos
 consumen. La analogía explica la reutilización y composición, sin atribuir a
 llama.cpp aislamiento de contenedores o virtualización.
 
-Al aplicar otra combinación YAML del mismo proyecto sobre el mismo target, up
+Al aplicar otra combinación YAML del mismo proyecto sobre el mismo destino, up
 reconcilia la contribución anterior de ese proyecto con el conjunto efectivo nuevo:
 agrega los presets nuevos, actualiza los modificados y retira los que dejan de
 formar parte del conjunto habilitado. Los presets sin cambios se conservan y no
@@ -147,7 +150,7 @@ Las comprobaciones de actividad, decisiones de publicación y resultados siguen
 el contrato de [servidores](servidores.md#plazos-y-control).
 
 Los presets permanecen publicados hasta su retirada explícita mediante down,
-withdraw o como parte de un cambio aplicado que los retire. Cambiar el target no
+withdraw o como parte de un cambio aplicado que los retire. Cambiar el destino no
 acredita por sí solo una retirada del destino anterior: se conserva el registro
 de sus publicaciones hasta confirmar su retirada. Una retirada que forme parte
 del cambio sigue las mismas comprobaciones de propietario, actividad y resultado;
@@ -174,7 +177,7 @@ Consumidor sin proceso propio:
 
 ```yaml
 name: noticias
-target: global
+publish-to: global
 models:
   principal:
     files: [./weights/modelo.gguf]
@@ -189,7 +192,7 @@ Proyecto autónomo:
 
 ```yaml
 name: laboratorio
-target: self
+publish-to: self
 service:
   backend:
     executable: ./bin/llama-server.exe
@@ -216,12 +219,12 @@ registra un servicio global ni inicia el ejecutable por estar presente.
 `import <receta.yaml>` copia la intención seleccionada al estado global, sin editar
 ni seguir el original. Omisión de `--select` incluye las categorías declaradas;
 el filtro admite `service,presets,model,params`. Service incluye su backend;
-model incluye modelos y companions; params incluye `arg-defs`, no preferencias.
+model incluye modelos y companions; params incluye `parameters`, no preferencias.
 Seleccionar una categoría ausente es error. No se incorporan dependencias excluidas:
 deben resolver en destino o se diagnostica antes de cambiar intención.
 
 El servicio destino de presets es el servicio importado si se incluye `service`;
-en otra importación se usa `target` y su alias global. `self` requiere incluir
+en otra importación se usa el servicio que indica `publish-to`: el global nombrado o, con `global` o `default`, el predeterminado. `self` requiere incluir
 `service`. `--as-default` requiere importar un servicio y actualiza el alias junto
 con su definición. Al primer uso, nombre de receta se calcula contra la receta y base
 originales y se registra; usos posteriores conservan esa asociación. No pasa a
@@ -258,7 +261,7 @@ Los comandos posteriores reciben sus variables por los mecanismos que admiten;
 no reutilizan valores ni siguen el archivo env de la importación anterior.
 Una última ubicación conocida sirve para diagnóstico; no sustituye automáticamente
 una variable ausente ni una ruta actual inexistente y no inicia búsquedas por el disco.
-La importación copia las definiciones efectivas de `arg-defs` de las capas YAML seleccionadas y conserva sus expresiones de intención.
+La importación copia las definiciones efectivas de `parameters` de las capas YAML seleccionadas y conserva sus expresiones de intención.
 No se guarda un `.env` ni se congelan secretos expandidos como literales de receta.
 
 Importar no inicia un servicio. Si está activo, publica los presets seleccionados

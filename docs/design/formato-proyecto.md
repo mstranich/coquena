@@ -9,10 +9,10 @@ afecta nombres de argumentos, no la estructura del documento.
 
 ## Receta
 
-Claves raíz admitidas: `name`, `target`, `args-mode`, `service`, `arg-defs`,
+Claves raíz admitidas: `name`, `publish-to`, `strict-args`, `service`, `parameters`,
 `models`, `companions` y `presets`. No hay bloques raíz `backend`, `server` o
 `project`. `service` admite exclusivamente `backend`, `server` y `recovery`;
-`service.server` admite `args-mode`, `args`, `logs`, `hooks` y `health`.
+`service.server` admite `strict-args`, `args`, `logs`, `hooks` y `health`.
 El bloque service es un objeto único opcional, nunca una colección: una receta
 no puede definir más de un servicio. Su backend es obligatorio en la definición
 efectiva, aunque un override pueda omitirlo para heredarlo. Un documento vacío
@@ -24,19 +24,24 @@ publicados de presets como `name/preset`, sin hacerlos hijos de service ni alter
 las claves de modelos, companions o parámetros. Service y presets son entidades
 de primer nivel con registro independiente. `.coquena/local/` conserva los nombres
 utilizados; cambiar carpeta o YAML no renombra entidades existentes.
-`target` selecciona el servicio donde se publican los presets, independientemente
+`publish-to` selecciona el servicio donde se publican los presets, independientemente
 del servicio que pueda definir la propia receta:
 
 | Selección | Destino |
 | --- | --- |
-| `target: global` | Servidor global predeterminado. También se usa al omitir target. |
-| `target: self` | Único servicio definido en esta receta; requiere que exista el bloque service. |
+| `publish-to: global` | Servidor global predeterminado. También se usa al omitir publish-to. |
+| `publish-to: default` | Alias de `global`. |
+| `publish-to: self` | Único servicio definido en esta receta; requiere que exista el bloque service. |
+| `publish-to: gpu-secundaria` | Servicio global registrado con ese nombre, aunque no sea el predeterminado. |
 
-El campo target sólo acepta los strings lowercase `global` y `self`. Un nombre
-de servidor, `default` o cualquier otro valor se rechazan. Global identifica el
-ámbito y default designa al servicio elegido dentro de ese ámbito; un servicio
-propio de proyecto no puede ser el default global. La elección del default se
-administra globalmente, sin escribir su nombre en la receta consumidora.
+Un nombre se busca sólo en el catálogo global, nunca entre servicios de proyecto;
+el servicio propio se elige con `self`. Si el nombre no existe, se informa el error
+sin sustituirlo por otro servicio. El schema admite cualquier nombre válido: la
+existencia se comprueba al resolver el destino, no para abrir o editar la receta.
+Global identifica el ámbito y default designa al servicio elegido dentro de ese
+ámbito; un servicio propio de proyecto no puede ser el default global. La elección
+del default se administra globalmente. Conservar `service` en la receta no altera
+el destino global elegido.
 
 Seleccionar un destino no transfiere la propiedad de los presets al servicio ni
 lo inicia por sí solo. La primera preparación del destino global sigue la
@@ -44,7 +49,7 @@ lo inicia por sí solo. La primera preparación del destino global sigue la
 Un alias incoherente se diagnostica sin elegir un sustituto.
 
 Nombres, importación y ámbito en [servicios y recetas](servicios-recetas.md).
-Cada preset admite `enable`, `warmup`, `args-mode` y `args`; modelos admiten
+Cada preset admite `enable`, `warmup`, `strict-args` y `args`; modelos admiten
 `repository`, `revision`, `quantization` y `files`; companions añaden `type`.
 `repository` exige `publicador/repositorio`; revision omitida usa la revisión
 predeterminada del repositorio, que se fija a commit al resolver. `quantization`
@@ -62,7 +67,7 @@ Companion requiere type según los roles del [catálogo de recursos](modelos-y-c
 | service.server.hooks | start-failed con command (ruta string) y args (lista de strings, default vacía). |
 | service.server.health | url (string), timeout-seconds (entero positivo) e interval-ms (entero); defaults/plazos en servidores. |
 | service.recovery | allow-draft-last-good (booleano, default false): permite promover borrador aplicado y sano, sin convertir guardado en evidencia. |
-| arg-defs | definitions (mapa de definiciones de argumentos). |
+| parameters | Mapa de nombre de argumento a definición. |
 
 Los mapas estructurales no admiten claves fuera de su vocabulario. Ningún campo
 con default se materializa en YAML sólo por leerlo; la validación efectiva usa
@@ -86,15 +91,15 @@ La edición puntual preserva comentarios y texto ajenos a la asignación; si el
 parser no puede localizar una edición inequívoca, no reserializa todo el archivo:
 informa la ubicación para edición manual. Se releen los bytes de las capas antes
 de reemplazar. Los comandos editan la última capa seleccionada. Para definiciones
-de argumentos, eligen la última capa que declara `arg-defs`. Si ninguna la
+de argumentos, eligen la última capa que declara `parameters`. Si ninguna la
 declara, crean la sección en la última capa.
 
 Ejemplo estructural: repositorios y archivos ilustrativos, no receta descargable.
 
 ```yaml
 name: ejemplo
-target: self
-args-mode: permissive
+publish-to: self
+strict-args: false
 
 service:
   backend:
@@ -115,12 +120,11 @@ service:
         command: ./scripts/notificar.exe
         args: ["fallo-de-inicio"]
 
-arg-defs:
-  definitions:
-    ctx-size:
-      type: integer
-      minimum: 0
-      scope: preset
+parameters:
+  ctx-size:
+    type: integer
+    minimum: 0
+    scope: preset
 
 models:
   principal:
@@ -147,14 +151,14 @@ presets:
       ctx-size: 8192
   experimental:
     enable: false
-    args-mode: permissive
+    strict-args: false
     args:
       model: model://local
       opcion-experimental: fast
 ```
 
-`args-mode` acepta `permissive` (default) o `strict`. La raíz establece el default
-del proyecto; cada bloque con `args` puede sobrescribirlo mediante un campo hermano.
+`strict-args` es un booleano: `false` (default) valida en modo permisivo y `true`
+en modo estricto. La raíz establece el default del proyecto; cada bloque con `args` puede sobrescribirlo mediante un campo hermano.
 `enable` vale true por defecto. Un preset deshabilitado conserva su definición,
 pero no se prepara ni publica; sus referencias no exigen preparar recursos por ese uso.
 

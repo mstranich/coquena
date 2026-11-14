@@ -1,7 +1,7 @@
 # Definiciones de parámetros por proyecto
 
 El catálogo describe argumentos del backend para validación y formularios. Pertenece
-al ámbito de intención seleccionado, es reutilizable y se declara en `arg-defs.definitions`; no requiere
+al ámbito de intención seleccionado, es reutilizable y se declara en `parameters`; no requiere
 catálogo centralizado en home ni asociación a una máquina. No imponer flags oficiales
 a forks con otra interfaz.
 
@@ -30,7 +30,7 @@ Sin schema, uso libre: booleano YAML true emite flag sin valor y false lo omite;
 con orden de omisión. Convertir valores a argumentos sin ejecutar su contenido
 como código de shell.
 
-`args-mode` es permisivo por defecto; la raíz fija el modo general y cada bloque puede sobrescribirlo. Permisivo valida los conocidos y admite desconocidos. Estricto exige definición para todos. Ambos validan tipo, opciones, ámbito y dependencias conocidas:
+`strict-args` vale false (modo permisivo) por defecto; la raíz fija el modo general y cada bloque puede sobrescribirlo. Permisivo valida los conocidos y admite desconocidos. Estricto exige definición para todos. Ambos validan tipo, opciones, ámbito y dependencias conocidas:
 entero, decimal, texto, enumeración, flag y booleano con valor son conceptos distintos.
 Un flag no recibe un argumento booleano; la emisión de un booleano con valor sigue
 el backend. Inválidos (y desconocidos en modo estricto) no se omiten con warning para ejecutar otra
@@ -57,12 +57,11 @@ del argumento; no se decide por cómo se almacena o emite el valor.
 Ejemplo ilustrativo de definiciones y asignaciones válidas:
 
 ```yaml
-arg-defs:
-  definitions:
-    ctx-size:
-      type: integer
-    temperature:
-      type: number
+parameters:
+  ctx-size:
+    type: integer
+  temperature:
+    type: number
 presets:
   conversacion:
     args:
@@ -219,7 +218,7 @@ Libertad de argumentos no exime de validar rutas y propiedad antes de escribir.
 
 ## Composición y vocabulario declarativo
 
-Las definiciones se declaran en `arg-defs.definitions` de las capas YAML
+Las definiciones se declaran en `parameters` de las capas YAML
 seleccionadas. Se pueden agrupar en una capa dedicada. Las capas posteriores
 prevalecen y las listas se reemplazan completas.
 
@@ -233,19 +232,18 @@ Se validan args y referencias efectivos del mismo ámbito después de componer;
 no se completan valores automáticamente. Ejemplo ilustrativo, no regla oficial MTP:
 
 ```yaml
-arg-defs:
-  definitions:
-    metodo:
-      type: string
-      enum: [normal, experimental]
-    auxiliar:
-      type: string
-      rules:
-        - when:
-            present: true
-          requires:
-            metodo:
-              equals: experimental
+parameters:
+  metodo:
+    type: string
+    enum: [normal, experimental]
+  auxiliar:
+    type: string
+    rules:
+      - when:
+          present: true
+        requires:
+          metodo:
+            equals: experimental
 ```
 
 Las reglas declaradas se comprueban en ambos modos dentro de su ámbito, también
@@ -259,7 +257,7 @@ no requieren cambiar el binario; nuevas clases de regla sí requieren soporte.
 
 ## Metaschema de definiciones
 
-`arg-defs` admite el mapa `definitions` en cada capa YAML.
+`parameters` es un mapa de nombre de argumento a definición en cada capa YAML.
 El vocabulario es cerrado: clave desconocida es error, también en modo permisivo.
 Claves de argumento siguen `[A-Za-z0-9][A-Za-z0-9-]*`, sin `--`.
 
@@ -319,20 +317,19 @@ Ejemplo ilustrativo para un backend que requiere puerto cuando no se proporciona
 un archivo de configuración:
 
 ```yaml
-arg-defs:
-  definitions:
-    config:
-      type: string
-      scope: preset
-      rules:
-        - when:
-            present: false
-          requires:
-            port:
-              present: true
-    port:
-      type: integer
-      scope: preset
+parameters:
+  config:
+    type: string
+    scope: preset
+    rules:
+      - when:
+          present: false
+        requires:
+          port:
+            present: true
+  port:
+    type: integer
+    scope: preset
 presets:
   ejemplo:
     args:

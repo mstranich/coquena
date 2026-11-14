@@ -305,14 +305,14 @@ se lee `coquena.yaml` de base; no se asciende buscando otro proyecto. `--global`
 es incompatible con `-f`, env-file, private y project-directory, salvo `import`, que
 recibe archivo fuente y siempre escribe global. No hay `-f -` ni entrada YAML por stdin.
 
-El campo target de la receta sólo admite `global` y `self`, y usa `global` al
-omitirse. `self` selecciona el servicio propio. El alias default del registro de
-servicios identifica el global predeterminado entre los servicios de ese ámbito;
-se elige con `service default set <nombre>`. Los nombres y `default` no son valores
-admitidos del campo target.
+El campo `publish-to` de la receta admite `global`, su alias `default`, `self` o el
+nombre de un servicio global registrado, y usa `global` al omitirse. `self` selecciona
+el servicio propio. El alias default del registro de servicios identifica el global
+predeterminado entre los servicios de ese ámbito; se elige con
+`service default set <nombre>`. Un nombre se busca sólo entre servicios globales.
 
 `--service` selecciona servicio para control/observación y backend global. En up/apply
-sobrescribe target sólo para esa operación y se registra como destino publicado,
+sobrescribe `publish-to` sólo para esa operación y se registra como destino publicado,
 sin editar YAML. Down sin selección retira la publicación registrada del consumidor,
 incluido su destino original; una selección distinta no retira otro destino por nombre.
 En service, omitir nombre y opción selecciona default; `self` exige proyecto.

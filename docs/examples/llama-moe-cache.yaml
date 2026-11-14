@@ -1,8 +1,7 @@
 # Optional argument definitions; compose with the recipe using --file.
 # Upstream: ggml-org/llama.cpp releases b11480 (#29887) and b12191 (#30966).
 # No values are assigned and no cache is enabled by this layer.
-arg-defs:
-  definitions:
+parameters:
     moe-cache-mib:
       type: integer
       minimum: 0
