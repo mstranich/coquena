@@ -4,8 +4,9 @@ created: 2026-11-13
 priority: medium
 tags:
 - i18n cli tui
+- m5
 created_at: 2026-11-13T16:33:37.861730400Z
-updated_at: 2026-11-13T16:33:52.790398600Z
+updated_at: 2026-11-14T02:15:18.274659300Z
 transitions:
 - status: draft
   at: 2026-11-13T16:33:49.578233300Z
@@ -16,7 +17,7 @@ transitions:
 
 Que los textos que muestran la CLI y la TUI puedan traducirse sin tocar la lógica que
 los decide, y que las pruebas no dependan de su redacción.
-Sin milestone asignado.
+Entrega de [M5](../../docs/milestones/M5-rendimiento.md).
 
 ## Situación
 

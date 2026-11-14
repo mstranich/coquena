@@ -33,9 +33,9 @@ Entrega de
   y aceptación especulativa disponible. Acreditar fuente, denominador y período;
   no confundir caché KV con caché MoE ni acumulados con cifras de la petición.
 - Disponible desde la TUI y desde la CLI.
-- Categoría Chat dentro de Herramientas, con acceso rápido desde el botón Chat de
+- Vista Chat en la TUI, con acceso rápido desde el botón Chat de
   En vivo para el preset enfocado.
-- `tool chat --preset <service>/<preset>` para la prueba rápida por CLI;
+- `chat --preset <service>/<preset>` para la prueba rápida por CLI;
   la referencia usa el nombre publicado completo del preset dentro del servicio.
 - Sesión CLI interactiva con `/exit` o Ctrl+C para salir. Línea de telemetría
   permanente debajo del área de escritura, actualizada sin alterar texto ni cursor.
@@ -59,7 +59,7 @@ Entrega de
 - Campos y compactación de la línea de telemetría; comprobar edición con texto
   largo, redimensionado, ausencia de métricas y recepción de respuesta.
 
-## Aporte del estudio conceptual
+## Fundamento de observabilidad
 
 El [estudio](../../docs/milestones/M5-estudio-rendimiento.md) distingue esta prueba
 de los tokens sintéticos de llama-bench y de una carga HTTP controlada. El cliente
@@ -68,10 +68,11 @@ el vínculo con su slot. No trasladar conteo de fragmentos SSE como tokens.
 
 ## Criterios de aceptación (borrador)
 
+- [ ] Vista previa TUI revisada antes de implementar.
 - [ ] Conversación real con un preset publicado.
 - [ ] Recorrido rápido con pocos prompts permite seguir procesamiento, generación,
   caché y especulación disponibles; las métricas ausentes se identifican sin inventarlas.
-- [ ] Botón Chat de En vivo abre Herramientas › Chat con el mismo servicio/preset.
+- [ ] Botón Chat de En vivo abre Chat con el mismo servicio/preset.
 - [ ] Invocación CLI selecciona el mismo destino con `--preset <service>/<preset>`.
 - [ ] CLI interactiva: telemetría debajo de la entrada durante edición y respuesta,
   sin perder texto/cursor ni imprimir una nueva línea por cada refresco.

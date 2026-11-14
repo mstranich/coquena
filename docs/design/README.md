@@ -88,7 +88,7 @@ aceptación del riesgo de interrupción se definen en
 | [Interfaces visuales](interfaces-visuales.md) | Panel, borradores y comparación |
 | [Pantalla Servicios](ui-servicio.md) | Hardware, actividad, histórico visual y logs de la TUI |
 | [Pantallas de la TUI](tui/README.md) | Wireframes, vista previa a 80×24 y paleta |
-| [Ajuste y prueba rápida](benchmarking.md) | Calibración MoE, recomendaciones para recetas y Chat con telemetría |
+| [Chat de prueba](benchmarking.md) | Prueba rápida de presets con conversación y telemetría |
 | [Comandos](comandos.md) | Responsabilidades y superficie CLI |
 | [Glosario](glosario.md) | Vocabulario y unidades de tamaño y memoria |
 | [Modelo de datos](modelo-de-datos.md) | Relaciones conceptuales |

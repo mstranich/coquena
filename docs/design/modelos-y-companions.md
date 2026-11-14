@@ -75,46 +75,6 @@ se comprueban las cabeceras de todas las partes elegidas y la coherencia split; 
 certifica integridad de los pesos ni compatibilidad de carga. Un fallo aislado conserva
 los demás candidatos; una exploración limitada se informa como parcial/no concluyente.
 
-## Evidencia de arquitectura y expertos
-
-Coquena conserva en su índice interno local la clasificación MoE, denso o
-desconocido, junto a los metadatos que la sustentan, su origen y la identidad de
-la revisión o archivos inspeccionados. La arquitectura y los contadores de expertos
-del GGUF son evidencia; el nombre del archivo por sí solo no confirma la clasificación.
-La ausencia de datos interpretables no se convierte automáticamente en modelo denso.
-
-Al completar una descarga, la validación de los archivos preparados obtiene y
-conserva en el índice local los metadatos de arquitectura y expertos, además de
-las verificaciones de estructura e integridad. Incluye los valores originales
-interpretados de `general.architecture`, los contadores de expertos de su
-arquitectura, sus tipos y la clasificación derivada, con su fundamento y versión
-de interpretación. Los datos ausentes, no interpretables o contradictorios quedan
-identificados; no se inventa una clasificación para completar el registro.
-
-La evidencia se publica vinculada a la instalación y a los archivos efectivamente
-verificados. La recuperación de una publicación conserva esa asociación, sin
-atribuir metadatos de una descarga nueva a la instalación anterior.
-Enumerar y filtrar presets usa la evidencia persistida, sin releer el GGUF para
-cada consulta. Si sólo cambia el criterio de clasificación y los metadatos
-guardados bastan, se reinterpreta el registro sin volver a leer el archivo.
-
-Para modelos ya registrados sin esa evidencia, la comprobación acotada completa
-el índice una vez y las siguientes consultas lo reutilizan, sin redescarga.
-`verify` también completa los metadatos incompletos del índice usando las cabeceras
-de los archivos locales que verifica. Conserva los valores observados y su origen,
-incluidos ausencia o imposibilidad de interpretación, en lugar de repetir la lectura
-en cada enumeración. No amplía por ello la selección de recursos de la verificación.
-El registro de archivos locales externos también obtiene y guarda la evidencia.
-Un modelo pendiente de inspección no se presenta como MoE
-confirmado sólo porque su cabecera sea comprobable. Si cambian los archivos o la
-revisión, no se reutiliza como vigente una clasificación de otra versión; un fallo
-de lectura se registra como diagnóstico, no como prueba de arquitectura densa.
-
-La clasificación orienta el descubrimiento y el orden de los presets para
-[ajuste MoE](benchmarking.md#selección-para-ajuste-moe), sin actuar como lista
-cerrada de compatibilidad. La compatibilidad observada de un ajuste se registra
-por separado: un fallo de calibración no reclasifica por sí solo la arquitectura.
-
 ## Identificación en el catálogo local
 
 El **nombre del registro** identifica la unidad en el inventario del proyecto.

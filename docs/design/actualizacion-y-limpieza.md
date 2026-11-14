@@ -66,13 +66,6 @@ y companions. Un fallo de checksum previo permite repetir esta última etapa par
 confirmar la recuperación. No equivale a autenticidad del publicador.
 
 No descargar, reparar, rebasar hash, modificar YAML ni resoluciones por verify.
-La auditoría de cabeceras completa en el índice local los metadatos de arquitectura
-y expertos que estén incompletos para los modelos seleccionados, según
-[evidencia del catálogo](modelos-y-companions.md#evidencia-de-arquitectura-y-expertos).
-Esta ampliación de observaciones persistidas no repara pesos ni modifica las
-referencias de integridad. No requiere `--checksum`: leer la cabecera y certificar
-el contenido completo son comprobaciones distintas. Si la lectura falla o los
-metadatos no permiten clasificar, se conserva el diagnóstico sin inventar valores.
 Guardar observaciones locales separadas de referencia. Externo sin baseline no
 se certifica. Discrepancia bloquea nuevos inicios que la seleccionen en ambos modos,
 sin fallback por integridad ni detener instancia activa.

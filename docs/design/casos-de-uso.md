@@ -59,7 +59,6 @@ crear borradores y experimentar antes de guardar, manteniendo explícita la
 composición activa. Un router compatible puede recibir presets sin reinicio;
 cambiar el backend requiere otro proceso.
 
-La observación no inicia modelos ni deja un supervisor. El benchmarking tiene
-su propio ciclo explícito y no debe interrumpir una instancia productiva sin
-una operación acordada. Detalles en [interfaces](interfaces-visuales.md),
-[observabilidad](observabilidad.md) y [benchmarking](benchmarking.md).
+La observación no inicia modelos ni deja un supervisor. Chat usa una entrada publicada y no inicia servicios
+ni publica presets implícitamente. Detalles en [interfaces](interfaces-visuales.md),
+[observabilidad](observabilidad.md) y [Chat](benchmarking.md).

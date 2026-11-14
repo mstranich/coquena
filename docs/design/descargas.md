@@ -130,14 +130,6 @@ local y contrastar identidad remota cuando su algoritmo sea comparable.
 No fusionar shards ni publicar una mezcla de revisiones. Aplicar las mismas garantías
 a cada companion declarado.
 
-En la validación final de modelos, conservar los metadatos de arquitectura y
-expertos junto a su clasificación y evidencia según el
-[catálogo de modelos](modelos-y-companions.md#evidencia-de-arquitectura-y-expertos).
-Reutilizar la inspección de cabecera de los archivos preparados y publicar esa
-evidencia en el índice con la instalación verificada, sin exigir otra lectura
-del GGUF al listar presets. Esta extracción no sustituye ni reduce las
-verificaciones de estructura o integridad.
-
 ### Backends
 
 Preparar todos sus artefactos; verificar transferencia, extracción e integridad.

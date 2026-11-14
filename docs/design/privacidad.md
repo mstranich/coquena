@@ -46,7 +46,7 @@ Si se omiten datos necesarios para comparar capacidad o rendimiento, se declara
 esa limitación. El resultado no garantiza el mismo rendimiento en otro equipo;
 anonimizar no convierte una medición en un requisito mínimo o una estimación
 universal. El registro local puede conservar el detalle necesario para analizar
-la ejecución original, según las reglas de [benchmarking](benchmarking.md).
+la ejecución original, según las reglas de privacidad de este documento.
 
 ## Autoría y conservación
 

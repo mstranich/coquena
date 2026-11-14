@@ -184,9 +184,9 @@ opciones/default y dependencias cuando el validador las soporte.
 Sin schema mantener editor genérico de args. La CLI también permite mantener coherencia.
 No convertir configuración de parámetros en requisito diario para usar el panel.
 
-## Laboratorio de rendimiento
+## Chat de prueba
 
-Chat es una categoría dentro de Herramientas. El botón Chat en En vivo lleva a
+Chat dispone de una vista propia. El botón Chat en En vivo lleva a
 ella con el servicio y preset enfocados, conservando su identidad publicada.
 El modelo se consulta a través del preset, sin una selección independiente.
 

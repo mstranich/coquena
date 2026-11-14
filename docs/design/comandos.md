@@ -43,7 +43,7 @@ información con forma estable para scripts; sin ese flag nunca imprimen JSON.
 | ps, logs | Observación general o por servicio, sin cambiar intención; ps admite -w/--watch. |
 | update, upgrade, verify, prune | Combinación o ámbito global explícito; no recorren YAML desconocidos. `clean` es alias de prune. |
 | usage (df) | Consulta del espacio usado por el proyecto, si hay uno, y por el ámbito global; no admite `--global`. |
-| tui, web, tool | Operaciones comunes sobre ámbito/servicio seleccionados. |
+| tui, web, chat | Operaciones comunes sobre ámbito/servicio seleccionados. |
 
 `-g` es alias de `--global` para seleccionar el ámbito global.
 
@@ -79,16 +79,10 @@ La consulta de configuración efectiva permite revisar capas y resultado antes
 de preparar. Es una responsabilidad de consulta, no un subcomando llamado como
 la herramienta de referencia para composición de archivos.
 
-### tool
-
-`tool` reúne ajuste MoE y prueba rápida interactiva según
-[benchmarking](benchmarking.md). `tool moe-cache-tune` realiza la calibración y
-recomendación de caché MoE de un preset. Las mediciones pueden guardarse como
-evidencia local o global y sus propuestas aplicarse posteriormente
-al preset con actualización confirmada de la receta.
+### chat
 
 La prueba rápida se invoca con
-`tool chat --preset <service>/<preset>`: selecciona un servicio y una entrada
+`chat --preset <service>/<preset>`: selecciona un servicio y una entrada
 publicada con el nombre completo de preset dentro de ese servicio. No infiere
 el proyecto por el modelo ni publica o inicia servicios al enviar mensajes.
 El diálogo vive durante la sesión, sin historial persistente de conversación.
@@ -96,7 +90,7 @@ Abre un chat CLI interactivo con `/exit` y Ctrl+C como salidas. Mantiene
 una línea de telemetría debajo del área de escritura, actualizada sin perder el
 mensaje en edición. Su interacción y cancelación siguen el
 [laboratorio interactivo](benchmarking.md#laboratorio-interactivo).
-La TUI ofrece la misma operación desde Herramientas › Chat y el acceso Chat de En vivo.
+La TUI ofrece la misma operación desde Chat y el acceso Chat de En vivo.
 
 ### system
 
@@ -427,9 +421,6 @@ Con `--global`, comprueba las definiciones y recursos usados del catálogo globa
 `--select` limita la comprobación a recursos de ese catálogo y permite elegir uno
 instalado sin uso. `--include-unused` agrega las instalaciones del inventario global
 que no estén utilizadas. Sólo `--include-unused` es exclusivo del ámbito global.
-Verify completa los metadatos incompletos de arquitectura y expertos del índice
-local a partir de las cabeceras de los modelos seleccionados, sin requerir
-`--checksum`. No descarga ni repara los archivos; registra la evidencia observada.
 
 Verify valida primero la receta con la misma validación que el Editor y las
 acciones de autoría, y sólo después comprueba archivos y, si se pide, SHA-256.

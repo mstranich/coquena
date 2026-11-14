@@ -11,7 +11,7 @@ que envió una petición. Una entrada externa sin prefijo permanece visible.
 ## Distribución
 
 Con un preset enfocado en el árbol servicio → proyecto → preset, el botón Chat
-abre Herramientas › Chat con ese destino seleccionado. Es un acceso al
+abre Chat con ese destino seleccionado. Es un acceso al
 [laboratorio interactivo](benchmarking.md#laboratorio-interactivo), que reorganiza
 las métricas alrededor de la prueba y permite enviar mensajes. Abrirlo no publica
 ni inicia el servicio.

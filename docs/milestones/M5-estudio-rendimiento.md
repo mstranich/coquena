@@ -1,12 +1,13 @@
 # M5 — Estudio conceptual de referencias
 
-## Estado del estudio tras la reformulación
+## Estado del estudio tras la retirada de calibración
 
-Bench, batched-bench, carga de servidor y comparación general se retiraron de M5.
-Las referencias y asociaciones históricas de este estudio explican lo explorado,
-no las responsabilidades actuales de las tarjetas reutilizadas. 096 evalúa ahora
-la viabilidad del port MoE, 097 indexa metadatos y 098 guarda propuestas en recetas.
-El plan vigente y sus dependencias están en [M5](M5-rendimiento.md).
+El usuario confirmó que la calibración resultó inviable y decidió conservar sólo
+Chat en M5. Las antiguas tarjetas 095–099 se eliminaron; Chat pasó de 100 a 095. Las asociaciones de números anteriores a la renumeración y
+propuestas que aparecen abajo son históricas: no describen tareas vigentes ni
+reglas del producto. La lectura estática de este estudio no es evidencia del
+experimento de inviabilidad ni permite atribuirle una causa técnica.
+El plan vigente está en [M5](M5-rendimiento.md).
 
 ## Alcance y evidencia
 

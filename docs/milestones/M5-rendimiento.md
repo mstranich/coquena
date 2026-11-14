@@ -1,75 +1,58 @@
-# M5 — Herramientas para ajustar y compartir recetas
+# M5 — Chat de prueba e internacionalización
 
 **Estado:** definición en borrador. **Depende de:** [M4](M4-experiencia-completa.md).
 
 ## Objetivo y cierre
 
-Facilitar que un preset existente obtenga una recomendación de caché MoE para el
-equipo local, que el usuario pueda revisarla y guardarla en la receta o un override.
-Chat permite una prueba rápida de respuesta y telemetría con pocos prompts.
-No se pretende construir una plataforma de benchmarking ni reemplazar un arnés.
+Probar un preset publicado mediante una conversación breve y observar su respuesta
+junto a la telemetría disponible. La CLI y la TUI comparten el mismo destino y
+operación; el acceso Chat de En vivo conserva el servicio y preset seleccionados.
+Internacionalizar los textos de usuario de la CLI y la TUI, separando su redacción
+de la lógica y acreditando el mecanismo con Native AOT.
 
-El recorrido de entrega es: seleccionar preset, calibrar, consultar mediciones y
-predicciones, confirmar una propuesta y conservarla en YAML. La receta resultante
-es distribuible; su optimalidad en otro hardware no se presume. La prueba con el
-agente del usuario no se convierte en una batería automatizada obligatoria.
+## Decisión de alcance
 
-## Primera prioridad: viabilidad
+El usuario confirmó que la calibración MoE resultó inviable y decidió retirarla.
+Se eliminan las antiguas tarjetas 095–099 (antes de renumerar): contenedor Herramientas, viabilidad del port,
+metadatos MoE, guardado de recomendaciones e integración del calibrador.
+Esta decisión no retira los parámetros de caché MoE ya incorporados en 093.
+El estudio conceptual previo no acredita ejecución ni viabilidad; no se dispone
+aquí del detalle del experimento para describir su causa técnica.
 
-Antes de desarrollar la integración completa, 096 debe acreditar el port C# de
-`scripts/moe-cache-tune.py` con una calibración real y Windows Native AOT. Lectura
-estática, ayuda de ejecutables o compilación no bastan. Si hay impedimentos, se
-revisa el alcance con esa evidencia antes de continuar el trabajo que depende del port.
-La viabilidad no depende de tener TUI, índice MoE o edición de recetas terminados.
+M5 incluye dos entregas, ambas en estado draft:
 
-## Entregas
+- [095: Chat de prueba](../../specs/095-m5-chat-prueba/README.md): vista TUI,
+  acceso desde En vivo y CLI.
+- [096: Internacionalización](../../specs/096-i18n-textos-de-usuario/README.md):
+  textos de usuario traducibles en CLI y TUI, etiquetas de datos y diagnósticos
+  persistidos mediante códigos y datos.
 
-| Tarjeta | Responsabilidad | Relación |
-| --- | --- | --- |
-| [096](../../specs/096-m5-viabilidad-moe-cache-tune/README.md) | Viabilidad del port MoE: trazas, simulación, ajuste y procesos Windows | Primera prioridad; bloquea integración MoE |
-| [097](../../specs/097-m5-metadatos-modelos/README.md) | Metadatos de arquitectura/expertos en descarga, índice y verify | Soporte de selección; no bloquea el experimento de viabilidad |
-| [099](../../specs/099-m5-moe-cache-tune/README.md) | `tool moe-cache-tune` desde preset, con recomendación y evidencia mínima | Usa port viable de 096 |
-| [098](../../specs/098-m5-aplicar-ajuste-receta/README.md) | Aplicar propuesta al preset y guardar en receta/override | Operación separada; usa recomendación de 099 |
-| [100](../../specs/100-m5-chat-prueba/README.md) | Chat rápido, telemetría y acceso desde En vivo | Puede avanzar sin esperar al port |
-| [095](../../specs/095-m5-tui-herramientas/README.md) | Herramientas con Chat y Ajuste fino MoE | Integra operaciones; no duplica sus implementaciones |
+El comando pasa de la agrupación anterior a `chat --preset <service>/<preset>`.
 
-Todas permanecen draft. La numeración no expresa orden de ejecución. Se reutilizan
-y reformulan los borradores existentes, retirando sus contenidos de Bench, carga
-concurrente y comparación general. No representan funciones entregadas.
+## Contrato y aceptación
 
-## Límites del milestone
+- Usar una entrada publicada sin iniciar servicios ni publicar implícitamente.
+- Contexto durante la sesión, sin historial persistente de conversación.
+- CLI interactiva con telemetría debajo de la entrada; salida con /exit o Ctrl+C.
+- Métricas con fuente y alcance; correlación de tareas sólo con evidencia.
+- Vista previa revisada antes de implementar la presentación TUI.
+- Conversación real, tráfico ajeno, ausencia de métricas, cancelación y restauración
+  del terminal acreditados con publicación y ejecución Windows Native AOT.
 
-- Sin llama-bench, batched-bench, catálogo/formulario Bench ni migración de server-bench.
-- Sin integración de throughput-lab, barridos HTTP o réplicas balanceadas; nginx no
-  forma parte del mapa de producto ni se reemplaza por un balanceador propio.
-- Sin administrador general de bancos de pruebas, comparador histórico o ranking.
-- Conservar evidencia mínima de calibración y recomendación no exige esas funciones.
-- Sin historial persistente de Chat, herramientas de agente o evaluador de calidad.
-- Descarga, índice y verify permanecen juntos como entrega de metadatos.
+Para i18n, los textos de usuario se centralizan en el mecanismo elegido; las
+pruebas conservan códigos y datos como contrato. Se acredita publicación Native AOT
+y ejecución en cada idioma entregado, según la tarjeta 096.
 
-## Decisiones funcionales conservadas
+Reglas de Chat: [Chat de prueba](../design/benchmarking.md).
 
-Herramientas ofrece Chat y Ajuste fino MoE; su descripción es «Calibrar la caché
-de expertos y recomendar parámetros para el preset». CLI usa `tool`.
-`tool chat --preset <service>/<preset>` abre sesión interactiva con `/exit` o Ctrl+C
-y telemetría bajo la entrada. El botón Chat de En vivo lleva al mismo preset.
+## Límites y decisiones abiertas
 
-Ajuste fino MoE parte de la combinación YAML; Chat usa una entrada publicada.
-Un backend alternativo de calibración sólo afecta al experimento. Guardar una
-propuesta es distinto de publicar/reiniciar. La selección no exige clasificación
-MoE confirmada: prioridad por evidencia y posibilidad de intentar otros presets.
+Sin calibrador, recomendaciones automáticas, plataforma de benchmarking ni
+herramientas de agente. Permanecen por definir los límites de contexto, parámetros
+de generación, streaming, errores, cambio de destino y entrada/salida redirigidas,
+según la tarjeta 095. Para i18n, quedan por definir el mecanismo, la selección de
+idioma, los idiomas entregados y el tratamiento del ancho fijo de la TUI, según
+la tarjeta 096. La inclusión en M5 no resuelve esas decisiones ni acredita
+implementación.
 
-Reglas: [ajuste y prueba rápida](../design/benchmarking.md),
-[metadatos](../design/modelos-y-companions.md#evidencia-de-arquitectura-y-expertos),
-[guardado](../design/interfaces-visuales.md#borradores-y-guardado).
-
-## Incertidumbres que necesitan resolución
-
-- Compatibilidad real de trazas/logs, simulación y cierre de procesos Windows.
-- Preparación de calibración, límites de memoria, cancelación e interferencia.
-- Formato/ruta mínima de evidencia y sintaxis de aplicación de propuesta.
-- Presentación de Chat con alcance correcto de caché y especulación.
-- Reconciliar nombres/contratos YAML con el cierre de M4 antes de implementar.
-
-El [estudio de referencias](M5-estudio-rendimiento.md) conserva lo investigado;
-las herramientas descartadas no vuelven al alcance por aparecer allí.
+El [estudio histórico](M5-estudio-rendimiento.md) conserva las referencias exploradas.

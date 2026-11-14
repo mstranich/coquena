@@ -124,4 +124,4 @@ Entrega de [M4](../../docs/milestones/M4-experiencia-completa.md).
   por el usuario.
 - Textos de usuario centralizados en `src/Coquena/Messages.cs`; las pruebas comparan
   códigos, datos o el catálogo. La traducción queda en
-  [101](../101-i18n-textos-de-usuario/README.md).
+  [096](../096-i18n-textos-de-usuario/README.md).

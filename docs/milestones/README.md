@@ -9,7 +9,7 @@ The milestone documents are currently written in Spanish.
 | [M2](M2-gestion-completa.md) | Complete catalog management | Delivered |
 | [M3](M3-definiciones-declarativas.md) | YAML recipes, global services, and projects | Delivered in 0.3.0 |
 | [M4](M4-experiencia-completa.md) | Terminal interface | Closing in the 0.4.x series |
-| [M5](M5-rendimiento.md) | Tools: MoE cache tuning into recipes and quick chat checks | Planned; port feasibility first |
+| [M5](M5-rendimiento.md) | Quick chat checks with telemetry and internationalization | Planned |
 
 After M5 there are no planned feature milestones: work focuses on fixes,
 stability, and the everyday experience.
