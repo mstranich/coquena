@@ -42,12 +42,13 @@ internal static class CliHelp
           preset                           Crear y configurar presets de modelos
           service (server)                 Administrar servicios y su ejecución
           import <receta.yaml>             Importar intención global sin iniciar
-          update [--global]               Consultar novedades y guardar un plan
-          upgrade [--global]              Aplicar propuestas válidas del plan vigente
+          logs                             Consultar y seguir logs de servicios
+          update [--global]                Consultar novedades y guardar un plan
+          upgrade [--global]               Aplicar propuestas válidas del plan vigente
+            --select referencia            Filtrar update/upgrade; opción repetible
           usage (df)                       Ver espacio usado y liberable
-          prune [--global] [--dry-run|--yes]
-                                           Borrar lo que no se usa; alias clean
-            --select referencia           Filtrar update/upgrade; opción repetible
+          prune (clean) [--global] [--dry-run|--yes]
+                                           Borrar lo que no se usa
           combination list | forget <id>   Consultar u olvidar combinaciones
           verify [--global] [--checksum] [--json]  Auditar recursos
             --checksum                     Comprobar SHA-256 de cada archivo
@@ -153,7 +154,8 @@ internal static class CliHelp
         Descargas:
           download list [--model|--companion|--backend]
             Listar descargas; filtrar por tipo de recurso
-          download status [<id-descarga>]   Consultar una descarga; sin ID, listar todas
+          download status|show [<id-descarga>]
+            Consultar una descarga; sin ID, listar todas
           download pause <id-descarga>      Pausar y conservar lo descargado
           download resume <id-descarga> [--force]
             Reanudar; --force sólo permite intentar un backend incompatible
