@@ -366,6 +366,7 @@ features:
       - src/Coquena/Downloads/DownloadManager.cs
       - src/Coquena/Storage/LocalStore.cs
       - src/Coquena/Projects/ScopeStore.cs
+      - src/Coquena/Storage/SharedFile.cs
       - src/Coquena/Models/FileIntegrity.cs
     tests:
       - tests/Coquena.Tests/ScopeTransferTests.cs

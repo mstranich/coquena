@@ -242,7 +242,7 @@ public sealed class ResourceVerification(ScopeContext context, Action<int>? afte
     {
         context.Ensure();
         var path = context.PathFor(".gitignore");
-        var text = File.Exists(path) ? File.ReadAllText(path) : "";
+        var text = File.Exists(path) ? SharedFile.ReadAllText(path) : "";
         if (!text.Split('\n').Any(line => line.TrimEnd('\r') == "/local/"))
             ScopeStore.Replace(path, System.Text.Encoding.UTF8.GetBytes(text + (text.Length > 0 && !text.EndsWith('\n') ? "\n" : "") + "/local/\n"));
         return true;

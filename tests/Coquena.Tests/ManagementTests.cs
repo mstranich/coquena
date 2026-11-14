@@ -14,6 +14,39 @@ internal static class ManagementTests
 {
     public static async Task Run(Action<bool, string> check)
     {
+        // A directory-move question queued on a UI loop that has already ended resolves as
+        // Cancelar when the dashboard closes, instead of blocking the move thread forever.
+        using (var closing = new CancellationTokenSource())
+        {
+            var asked = Task.Run(() => DashboardCli.SettingsForm.AnswerOrCancel(_ => { }, () => 2, closing.Token));
+            check(!asked.Wait(200), "settings question waits for the UI while open");
+            closing.Cancel();
+            check(asked.Wait(TimeSpan.FromSeconds(10)) && asked.Result == 0, "settings question resolves as Cancelar on close");
+            check(DashboardCli.SettingsForm.AnswerOrCancel(work => work(), () => 2, CancellationToken.None) == 2, "settings question returns the UI answer");
+        }
+        // A reader holding a document open must not block its atomic replacement. The
+        // shared reader keeps the previous version; a reader without delete sharing (as
+        // File.ReadAllBytes opens) still blocks it, which is what the bounded retry covers.
+        var shared = Path.Combine(Path.GetTempPath(), "coquena-shared-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(shared);
+        try
+        {
+            var document = Path.Combine(shared, "doc.json");
+            File.WriteAllText(document, "old");
+            using (var reader = SharedFile.Open(document))
+            {
+                ScopeStore.Replace(document, "new"u8.ToArray());
+                check(new StreamReader(reader).ReadToEnd() == "old" && SharedFile.ReadAllText(document) == "new", "replace succeeds while a shared reader is open");
+            }
+            if (OperatingSystem.IsWindows())
+                using (File.OpenRead(document))
+                {
+                    var blocked = false;
+                    try { ScopeStore.Replace(document, "newer"u8.ToArray()); } catch (IOException) { blocked = true; }
+                    check(blocked && SharedFile.ReadAllText(document) == "new", "a reader without delete sharing blocks replace and leaves the document intact");
+                }
+        }
+        finally { Directory.Delete(shared, true); }
         var root = Path.Combine(Path.GetTempPath(), "coquena-management-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(root);
         var home = new Home(Path.Combine(root, "home"));

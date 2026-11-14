@@ -13,7 +13,7 @@ public sealed class ProjectIndex(Home home)
         Directory.CreateDirectory(home.Root);
         var path = home.PathFor("projects.json");
         using var lease = new FileStream(home.PathFor("projects.writer.lock"), FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
-        var old = File.Exists(path) ? ProjectDocuments.Read(File.ReadAllBytes(path), "project-index") : null;
+        var old = File.Exists(path) ? ProjectDocuments.Read(SharedFile.ReadAllBytes(path), "project-index") : null;
         var entries = old is null ? new JsonArray() : old["data"]!["projects"]!.DeepClone().AsArray();
         var existing = entries.FirstOrDefault(x => x!["scope-id"]!.GetValue<string>() == snapshot.ScopeId);
         if (existing is not null) entries.Remove(existing);
@@ -32,7 +32,7 @@ public sealed class ProjectIndex(Home home)
     {
         var path = home.PathFor("projects.json");
         if (!File.Exists(path)) return [];
-        var document = ProjectDocuments.Read(File.ReadAllBytes(path), "project-index");
+        var document = ProjectDocuments.Read(SharedFile.ReadAllBytes(path), "project-index");
         return document["data"]!["projects"]!.AsArray().Select(x => x!["base"]!.GetValue<string>()).ToArray();
     }
 }

@@ -125,7 +125,7 @@ internal sealed class RecipeYaml(string file, byte[]? captured = null)
         var origin = new RecipeOrigin(path, 1, 1, "$");
         try
         {
-            using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
+            using var stream = SharedFile.Open(path);
             if (stream.Length > MaxBytes) throw new RecipeException("file-limit", "read", origin, "El archivo supera 16 MiB.");
             // Read through the limit even if a concurrently growing file had a smaller length.
             using var bytes = new MemoryStream();

@@ -33,7 +33,7 @@ public sealed class CombinationPreparation(ScopeContext context)
         var keyPath = context.PathFor("local/intent.key");
         if (File.Exists(keyPath))
         {
-            var key = File.ReadAllBytes(keyPath);
+            var key = SharedFile.ReadAllBytes(keyPath);
             var name = request.Kind + ":" + request.Key;
             foreach (var source in new[] { entry, entry?["service-preparation"] })
                 if (key.Length == 32 && source?["key-id"]?.GetValue<string>() == KeyId(key) &&
@@ -92,7 +92,7 @@ public sealed class CombinationPreparation(ScopeContext context)
             throw new StorageException("preparation-base-conflict", "La selección debe pertenecer a la base del ámbito.");
         var identity = CombinationIdentity.FromSelection(selection, privateSelection);
         var inputs = new Dictionary<string, byte[]>(StringComparer.OrdinalIgnoreCase);
-        foreach (var path in selection.Files.Concat(selection.EnvFiles)) inputs[path] = File.ReadAllBytes(path);
+        foreach (var path in selection.Files.Concat(selection.EnvFiles)) inputs[path] = SharedFile.ReadAllBytes(path);
         var recipe = RecipeReader.Read(selection, environment);
         var blocks = ArgumentValidation.Validate(recipe);
         _ = ModelIntent.FromRecipe(recipe);
@@ -124,7 +124,7 @@ public sealed class CombinationPreparation(ScopeContext context)
         if (previousDocument is null && !identity.Private && File.Exists(context.PathFor(resolutionPath)))
         {
             var path = context.PathFor(resolutionPath);
-            var bytes = File.ReadAllBytes(path);
+            var bytes = SharedFile.ReadAllBytes(path);
             inputs[path] = bytes;
             previousDocument = ProjectDocuments.Read(bytes, "resolution");
             if (previousDocument["data"]!["combination-id"]!.GetValue<string>() != identity.Id) ProjectDocuments.Invalid();
@@ -201,7 +201,7 @@ public sealed class CombinationPreparation(ScopeContext context)
         changes.Insert(0, new(store, current.Revision, docs, Validate: () =>
         {
             CheckInputs(inputs);
-            if (!File.ReadAllBytes(context.PathFor("local/intent.key")).AsSpan().SequenceEqual(key))
+            if (!SharedFile.ReadAllBytes(context.PathFor("local/intent.key")).AsSpan().SequenceEqual(key))
                 throw new StorageException("scope-conflict", "Cambió la clave local durante la preparación.");
         }));
         ScopeStore.CommitTogether(changes, fault);
@@ -217,7 +217,7 @@ public sealed class CombinationPreparation(ScopeContext context)
             throw new StorageException("preparation-base-conflict", "La selección debe pertenecer a la base del ámbito.");
         var identity = CombinationIdentity.FromSelection(selection, privateSelection);
         var inputs = new Dictionary<string, byte[]>(StringComparer.OrdinalIgnoreCase);
-        foreach (var path in selection.Files.Concat(selection.EnvFiles)) inputs[path] = File.ReadAllBytes(path);
+        foreach (var path in selection.Files.Concat(selection.EnvFiles)) inputs[path] = SharedFile.ReadAllBytes(path);
         var recipe = RecipeReader.Read(selection, environment);
         var blocks = ArgumentValidation.Validate(recipe);
         _ = ModelIntent.FromRecipe(recipe);
@@ -234,7 +234,7 @@ public sealed class CombinationPreparation(ScopeContext context)
         var complete = before.Documents.GetValueOrDefault(resolutionPath);
         if (complete is null && !identity.Private && File.Exists(context.PathFor(resolutionPath)))
         {
-            var bytes = File.ReadAllBytes(context.PathFor(resolutionPath));
+            var bytes = SharedFile.ReadAllBytes(context.PathFor(resolutionPath));
             inputs[context.PathFor(resolutionPath)] = bytes;
             complete = ProjectDocuments.Read(bytes, "resolution");
             if (complete["data"]!["combination-id"]!.GetValue<string>() != identity.Id) ProjectDocuments.Invalid();
@@ -282,7 +282,7 @@ public sealed class CombinationPreparation(ScopeContext context)
         ScopeStore.CommitTogether([new(store, current.Revision, docs, Validate: () =>
         {
             CheckInputs(inputs);
-            if (!File.ReadAllBytes(context.PathFor("local/intent.key")).AsSpan().SequenceEqual(key))
+            if (!SharedFile.ReadAllBytes(context.PathFor("local/intent.key")).AsSpan().SequenceEqual(key))
                 throw new StorageException("scope-conflict", "Cambió la clave local durante la preparación.");
         })]);
         return new(identity.Id, identity.Private, checked(version + 1), prepared.AsReadOnly(), true);
@@ -370,7 +370,7 @@ public sealed class CombinationPreparation(ScopeContext context)
         }
         catch (IOException) when (File.Exists(path))
         {
-            var bytes = File.ReadAllBytes(path);
+            var bytes = SharedFile.ReadAllBytes(path);
             if (bytes.Length != 32) throw new StorageException("invalid-intent-key", "La clave local no es válida.");
             return bytes;
         }
@@ -379,7 +379,7 @@ public sealed class CombinationPreparation(ScopeContext context)
     {
         context.Ensure();
         var path = context.PathFor(".gitignore");
-        var existing = File.Exists(path) ? File.ReadAllText(path) : "";
+        var existing = File.Exists(path) ? SharedFile.ReadAllText(path) : "";
         var missing = new[] { "/local/", "/combinations/*/local/", "/models/", "/backends/", "/downloads/", "/tmp/", "/logs/",
                 "/services/*/local/", "/services/*/logs/" }
             .Concat(identity.Private ? ["/combinations/" + identity.Id + "/resolved.json"] : Array.Empty<string>())
@@ -409,7 +409,7 @@ public sealed class CombinationPreparation(ScopeContext context)
     private static void CheckInputs(Dictionary<string, byte[]> inputs)
     {
         foreach (var input in inputs)
-            if (!File.Exists(input.Key) || !File.ReadAllBytes(input.Key).AsSpan().SequenceEqual(input.Value))
+            if (!File.Exists(input.Key) || !SharedFile.ReadAllBytes(input.Key).AsSpan().SequenceEqual(input.Value))
                 throw new StorageException("intention-conflict", "Cambió un YAML, env o schema durante la preparación.");
     }
     private static JsonObject Selection(CombinationIdentity identity) => new()

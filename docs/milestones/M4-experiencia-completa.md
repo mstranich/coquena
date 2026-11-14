@@ -103,7 +103,7 @@ La secuencia comienza por 066. Los IDs y directorios históricos no fijan orden.
 | 17 | [089](../../specs/089-m4-tui-coherencia-consistencia/README.md) | Coherencia visual y de navegación entre vistas | — |
 | 18 | [090](../../specs/090-m4-tui-editor-mejoras/README.md) | Escritura y validación del YAML de recetas, schema y Editor básico | — |
 | 19 | [091](../../specs/091-m4-cli-salida-legible-espacio/README.md) | Salida legible de la CLI, progreso compacto y espacio usado | — |
-| 20 | [092](../../specs/092-m4-reproducir-monitor-limpieza/README.md) | Resolver la coordinación entre monitor de descargas y limpieza | — |
+| 20 | [092](../../specs/092-m4-reproducir-monitor-limpieza/README.md) | Resolver problemas de concurrencia y coordinación | — |
 | 21 | [093](../../specs/093-incorporar-cache-moe/README.md) | Incorporar parámetros de caché MoE | — |
 | 22 | [094](../../specs/094-m4-cierre-formato-yaml/README.md) | Cierre: renombrar campos de la receta para uso diario | 090 |
 

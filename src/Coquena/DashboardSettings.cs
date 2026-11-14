@@ -30,6 +30,10 @@ internal static partial class DashboardCli
         private readonly List<CheckBox> resourceBoxes = [];
         private int shownGpus = -1;
         private Task? directoryChange;
+        private readonly CancellationToken closing;
+
+        // The directory move still running, if any; the dashboard waits for it on exit.
+        public Task Pending => directoryChange ?? Task.CompletedTask;
 
         public View Coquena { get; }
         public View Tui { get; }
@@ -44,9 +48,9 @@ internal static partial class DashboardCli
             public bool Own { get; set; }
         }
 
-        public SettingsForm(IApplication app, ConfigurationManager manager, Home home, bool color)
+        public SettingsForm(IApplication app, ConfigurationManager manager, Home home, bool color, CancellationToken closing = default)
         {
-            (this.app, this.manager, this.home, this.color) = (app, manager, home, color);
+            (this.app, this.manager, this.home, this.color, this.closing) = (app, manager, home, color, closing);
             Coquena = new View { Width = Dim.Fill(), Height = Dim.Fill(), CanFocus = true };
             Tui = new View { Width = Dim.Fill(), Height = Dim.Fill(), CanFocus = true };
             status = new Label { X = 1, Y = 14, Width = Dim.Fill(1), Height = 3 };
@@ -214,7 +218,8 @@ internal static partial class DashboardCli
                         message = output.ToString().Trim().Split('\n')[^1].Trim();
                     }
                     catch (Exception error) when (Expected(error)) { message = "No se cambió el directorio de " + field.Name.ToLowerInvariant() + ": " + error.Message; }
-                    app.Invoke(() => { Load(quiet: true); Tell(status, field.Name + ": " + message, message.StartsWith("No se", StringComparison.Ordinal)); });
+                    if (!closing.IsCancellationRequested)
+                        app.Invoke(() => { Load(quiet: true); Tell(status, field.Name + ": " + message, message.StartsWith("No se", StringComparison.Ordinal)); });
                 }
             });
         }
@@ -241,13 +246,25 @@ internal static partial class DashboardCli
 
         private int Ask(string title, string text, string[] actions)
         {
+            // Index 0 is always Cancelar. Once the dashboard closes nobody can answer, so the
+            // question resolves as Cancelar instead of blocking the move thread forever.
+            return AnswerOrCancel(work => app.Invoke(work), () => Query(app, title, text, actions), closing);
+        }
+
+        // Asks on the UI thread from a background thread. Returns 0 (Cancelar) when the
+        // dashboard is closing, including when the queued question will never run.
+        internal static int AnswerOrCancel(Action<Action> invoke, Func<int> query, CancellationToken closing)
+        {
+            if (closing.IsCancellationRequested) return 0;
             var answer = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
-            app.Invoke(() =>
+            invoke(() =>
             {
-                try { answer.TrySetResult(Query(app, title, text, actions)); }
+                if (closing.IsCancellationRequested) { answer.TrySetResult(0); return; }
+                try { answer.TrySetResult(query()); }
                 catch (Exception error) { answer.TrySetException(error); }
             });
-            return answer.Task.GetAwaiter().GetResult();
+            try { return answer.Task.WaitAsync(closing).GetAwaiter().GetResult(); }
+            catch (OperationCanceledException) when (closing.IsCancellationRequested) { return 0; }
         }
 
         // A path equal to the default location is stored as the default.

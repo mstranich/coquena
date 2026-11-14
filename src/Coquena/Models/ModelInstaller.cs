@@ -416,6 +416,7 @@ public sealed partial class ModelInstaller(Home home, LocalStore? storage = null
         {
             fault?.Invoke(ModelInstallStage.BeforeCleanup);
             RemovePublicationTemporaries(operation);
+            DownloadManager.StopMonitor(home, operation.Id);
             store.Exclusive(() =>
             {
                 if (!InstallPublished(operation)) Fail("stale-cleanup");

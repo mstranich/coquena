@@ -168,14 +168,14 @@ public static class RecipeReader
             // holds the scope writer lease during ValidateIntent. Taking another
             // OS writer lease here would deadlock with that caller.
             var statePath = scope.PathFor("local/state.json");
-            var state = ProjectDocuments.Read(File.ReadAllBytes(statePath), "state");
+            var state = ProjectDocuments.Read(SharedFile.ReadAllBytes(statePath), "state");
             var generation = ProjectDocuments.Uuid(state["data"]!["generation"]);
             foreach (var file in selection.Files)
             {
                 var relative = Path.GetRelativePath(scope.Root, file).Replace('\\', '/');
                 var entry = state["data"]!["documents"]?[relative];
                 if (entry?["kind"]?.GetValue<string>() != "recipe-intention") continue;
-                var bytes = File.ReadAllBytes(scope.PathFor($"local/generations/{generation}/{relative}"));
+                var bytes = SharedFile.ReadAllBytes(scope.PathFor($"local/generations/{generation}/{relative}"));
                 if (Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(bytes)) != entry["sha256"]!.GetValue<string>())
                     throw new StorageException("invalid-generation", "La intención importada no coincide con la generación.");
                 var document = ProjectDocuments.Read(bytes, "recipe-intention");

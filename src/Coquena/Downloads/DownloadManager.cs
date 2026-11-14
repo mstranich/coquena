@@ -58,6 +58,20 @@ public sealed class DownloadManager(Home home, LocalStore? storage = null)
 {
     internal Home StorageHome => home;
     private readonly LocalStore store = storage ?? new LocalStore(home);
+    // Control monitors still reading an operation area, by area path. Every routine that
+    // removes the area stops the monitor first, so no read can meet a vanishing directory.
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, Func<Task>> Monitors =
+        new(StringComparer.OrdinalIgnoreCase);
+    // Test seam: runs before each monitor read, to hold the monitor inside the conflicting window.
+    internal Func<Task>? BeforeControlRead { get; set; }
+
+    // Barrier before removing an operation area. Waits for the monitor to stop reading; a
+    // monitor failure is not raised here, RunAsync reports it with the operation result.
+    internal static void StopMonitor(Home home, Guid id)
+    {
+        if (!Monitors.TryGetValue(home.PathFor($"downloads/{id:D}"), out var stop)) return;
+        stop().ContinueWith(_ => { }, TaskContinuationOptions.ExecuteSynchronously).Wait();
+    }
     private static readonly ContractJsonContext Json = ContractJsonContext.Default;
     private string Area(Guid id) => home.PathFor($"downloads/{id:D}");
     private string Control(Guid id, string action) => home.PathFor($"downloads/{id:D}/{action}.request");
@@ -217,6 +231,7 @@ public sealed class DownloadManager(Home home, LocalStore? storage = null)
     internal void Cleanup(OperationDocument value, bool installed = false)
     {
         value = Save(value with { State = installed ? "completed" : "cancelled", Phase = "cleanup", Diagnostic = "cleanup-pending", UpdatedAt = DateTimeOffset.UtcNow });
+        StopMonitor(home, value.Id);
         try
         {
             store.Exclusive(() =>
@@ -258,19 +273,27 @@ public sealed class DownloadManager(Home home, LocalStore? storage = null)
             throw new DownloadException("cleanup-pending", "Operación terminada pendiente de limpieza del consumidor.");
         if (value.State == "cancelled") throw new DownloadException("cleanup-pending", "Cancelar para completar limpieza pendiente.");
         using var stopped = CancellationTokenSource.CreateLinkedTokenSource(cancellation);
+        // Stopping the monitor must not cancel transfer or publication, so it has its own signal.
+        using var quiet = CancellationTokenSource.CreateLinkedTokenSource(stopped.Token);
         // External controls are requests; only this executor mutates checkpoints while writing.
-        var monitoring = Monitor();
+        // Task.Run keeps the monitor off the caller's context, so a cleanup may block on it.
+        var monitoring = Task.Run(Monitor);
+        var area = Area(id);
+        Func<Task> stopMonitor = async () => { quiet.Cancel(); await monitoring; };
+        Monitors[area] = stopMonitor;
         async Task Monitor()
         {
             try
             {
-                while (!stopped.IsCancellationRequested)
+                while (!quiet.IsCancellationRequested)
                 {
+                    if (BeforeControlRead is { } probe) await probe();
+                    if (quiet.IsCancellationRequested) break;
                     if (File.Exists(Control(id, "pause")) || File.Exists(Control(id, "cancel"))) { stopped.Cancel(); break; }
-                    await Task.Delay(50, stopped.Token);
+                    await Task.Delay(50, quiet.Token);
                 }
             }
-            catch (OperationCanceledException) { }
+            catch (OperationCanceledException) when (quiet.IsCancellationRequested) { }
         }
         try
         {
@@ -353,7 +376,11 @@ public sealed class DownloadManager(Home home, LocalStore? storage = null)
                 Diagnostic = code, UpdatedAt = DateTimeOffset.UtcNow });
             progress?.Invoke(value); return value;
         }
-        finally { stopped.Cancel(); await monitoring; }
+        finally
+        {
+            Monitors.TryRemove(new(area, stopMonitor));
+            quiet.Cancel(); await monitoring;
+        }
 
         async Task Transfer(int index)
         {

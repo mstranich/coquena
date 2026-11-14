@@ -337,7 +337,7 @@ public static class PublicationCli
         {
             if (key is not null && recipe!.Root.Get("presets")?.Get(key) is null) throw new StorageException("unknown-preset", "El preset seleccionado no existe.");
             var inputPaths = selection.Files.Concat(selection.EnvFiles);
-            var inputs = inputPaths.Distinct(StringComparer.OrdinalIgnoreCase).ToDictionary(p => p, File.ReadAllBytes);
+            var inputs = inputPaths.Distinct(StringComparer.OrdinalIgnoreCase).ToDictionary(p => p, SharedFile.ReadAllBytes);
             var adapter = new LlamaB11482ArgumentAdapter();
             var backendResource = active?["resources"]?.AsArray().SingleOrDefault(r => r!["kind"]?.GetValue<string>() == "backend");
             var backend = new ArgumentBackend(backendResource?["resolution"]?["origin"]?.GetValue<string>() == "official" ? "official" : null,
@@ -373,7 +373,7 @@ public static class PublicationCli
             combination = prepared.Id;
             validate = () =>
             {
-                if (inputs.Any(p => !File.Exists(p.Key) || !File.ReadAllBytes(p.Key).AsSpan().SequenceEqual(p.Value)) ||
+                if (inputs.Any(p => !File.Exists(p.Key) || !SharedFile.ReadAllBytes(p.Key).AsSpan().SequenceEqual(p.Value)) ||
                     !JsonNode.DeepEquals(CombinationPreparation.Expanded(recipe.Root), CombinationPreparation.Expanded(RecipeReader.Read(selection).Root)))
                     throw new StorageException("intention-conflict", "Cambió la intención durante la publicación.");
             };

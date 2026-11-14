@@ -110,6 +110,46 @@ internal static class DownloadTests
             var done = await manager.RunAsync(complete.Id, bytes);
             Check(done!.State == "verifying" && done.Phase == "resource-validation" && bytes.Calls == 2);
             Check(done.Files.All(f => f.ConfirmedBytes == 6 && f.State == "transferred"));
+            // Monitor/cleanup barrier: the monitor is held inside its read window while the
+            // finalizer removes the area. Cleanup must wait for it; the monitor must never
+            // observe the area missing, and the finalizer result must survive.
+            async Task CleanupWaitsForMonitor(OperationDocument operation)
+            {
+                var area = home.PathFor($"downloads/{operation.Id:D}");
+                var held = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+                var gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+                var finalizing = 0; var seen = new List<bool>();
+                manager.BeforeControlRead = async () =>
+                {
+                    if (Volatile.Read(ref finalizing) == 0) return;
+                    held.TrySetResult(); await gate.Task;
+                    lock (seen) seen.Add(Directory.Exists(area));
+                };
+                try
+                {
+                    var finalized = await manager.RunAsync(operation.Id, Bytes(), finalize: async (value, _) =>
+                    {
+                        Volatile.Write(ref finalizing, 1);
+                        await held.Task;
+                        var cleanup = Task.Run(() => manager.Cleanup(value, installed: true));
+                        try
+                        {
+                            // Bounded only to detect a cleanup that did not wait; success never depends on it.
+                            await Task.WhenAny(cleanup, Task.Delay(500));
+                            Check(!cleanup.IsCompleted && Directory.Exists(area));
+                        }
+                        finally { gate.TrySetResult(); } // RunAsync awaits the held monitor on every exit
+                        await cleanup;
+                        return value;
+                    });
+                    Check(finalized is not null && !Directory.Exists(area) && seen.Count == 1 && seen[0]);
+                }
+                finally { manager.BeforeControlRead = null; gate.TrySetResult(); }
+            }
+            await CleanupWaitsForMonitor(New());
+            var resumedCleanup = New();
+            Save(resumedCleanup with { State = "completed", Phase = "cleanup" });
+            await CleanupWaitsForMonitor(resumedCleanup);
             Check(manager.Status(done.Id).State == "verifying");
             await manager.RunAsync(done.Id, bytes); Check(bytes.Calls == 2); // no repeat
             Check(!File.Exists(home.PathFor(done.Files[0].DestinationPath)));

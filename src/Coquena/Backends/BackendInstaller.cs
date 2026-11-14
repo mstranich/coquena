@@ -328,6 +328,7 @@ public sealed partial class BackendInstaller(Home home, LocalStore? storage = nu
             var plan = operation.BackendInstall!;
             if (plan.Upgrade is not null)
                 retentionReport?.Invoke("Builds anteriores conservados; la limpieza requiere una acción explícita.");
+            DownloadManager.StopMonitor(home, operation.Id);
             store.Exclusive(() =>
             {
                 var installed = Catalog().Backends.SingleOrDefault(b => b.Id == plan.BackendId);

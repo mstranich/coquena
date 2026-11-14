@@ -100,7 +100,7 @@ public sealed class ResourceCleanup(ScopeContext context, Home home)
         if (Directory.Exists(home.Root)) Add(ScopeContext.At(home.Root, Path.Combine(home.Root, "global"), true));
         var indexPath = home.PathFor("projects.json");
         if (File.Exists(indexPath))
-            foreach (var entry in ProjectDocuments.Read(File.ReadAllBytes(indexPath), "project-index")["data"]!["projects"]!.AsArray())
+            foreach (var entry in ProjectDocuments.Read(SharedFile.ReadAllBytes(indexPath), "project-index")["data"]!["projects"]!.AsArray())
             try
             {
                 var scope = ScopeContext.Project(Path.Combine(entry!["base"]!.GetValue<string>(), "coquena.yaml"));
@@ -287,7 +287,7 @@ public sealed class ResourceCleanup(ScopeContext context, Home home)
             if (!Guid.TryParseExact(name, "D", out var id) || id == Guid.Empty || id.ToString("D") != name)
                 throw new StorageException("invalid-operation-directory", "No se infiere ausencia de una operación desconocida.");
             var path = scope.PathFor($"downloads/{name}/operation.json");
-            var data = ProjectDocuments.Read(File.ReadAllBytes(path), "operation")["data"]!;
+            var data = ProjectDocuments.Read(SharedFile.ReadAllBytes(path), "operation")["data"]!;
             if (scopeId is null || data["scope-id"]?.GetValue<string>() != scopeId || data["operation-id"]?.GetValue<string>() != name ||
                 data["transfer"] is not JsonObject transfer)
                 throw new StorageException("transfer-scope-conflict", "Checkpoint de identidad incierta; se conserva el ámbito.");

@@ -354,7 +354,7 @@ public sealed class ScopeTransfers
     {
         try
         {
-            var document = ProjectDocuments.Read(File.ReadAllBytes(path), "operation");
+            var document = ProjectDocuments.Read(SharedFile.ReadAllBytes(path), "operation");
             var data = document["data"]!;
             ProjectDocuments.Uuid(data["scope-id"]);
             foreach (var key in new[] { "destination", "volume", "file-id" })

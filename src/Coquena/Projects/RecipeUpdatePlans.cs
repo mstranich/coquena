@@ -23,7 +23,7 @@ public sealed class RecipeUpdatePlans(ScopeContext context)
         var filters = selectors.Select(ResourceSelector.Parse).ToArray();
         var key = ReadKey();
         var originalInputs = selections.SelectMany(s => s.Files.Concat(s.EnvFiles)).Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToDictionary(p => p, File.ReadAllBytes, StringComparer.OrdinalIgnoreCase);
+            .ToDictionary(p => p, SharedFile.ReadAllBytes, StringComparer.OrdinalIgnoreCase);
         var recipes = selections.Select(s => RecipeReader.Read(s)).ToArray();
         var inputs = Inputs(recipes);
         if (originalInputs.Any(p => !inputs[p.Key].SequenceEqual(p.Value)))
@@ -73,14 +73,14 @@ public sealed class RecipeUpdatePlans(ScopeContext context)
         docs[PathName] = document;
         store.Locked(() =>
         {
-            var path = context.PathFor(".gitignore"); var text = File.Exists(path) ? File.ReadAllText(path) : "";
+            var path = context.PathFor(".gitignore"); var text = File.Exists(path) ? SharedFile.ReadAllText(path) : "";
             if (!text.Split('\n').Any(line => line.TrimEnd('\r') == "/local/"))
                 ScopeStore.Replace(path, Encoding.UTF8.GetBytes(text + (text.Length > 0 && !text.EndsWith('\n') ? "\n" : "") + "/local/\n"));
             return true;
         });
         ScopeStore.CommitTogether([new(store, snapshot.Revision, docs, Validate: () =>
         {
-            if (!ReadKey().SequenceEqual(key) || inputs.Any(p => !File.ReadAllBytes(p.Key).SequenceEqual(p.Value)) ||
+            if (!ReadKey().SequenceEqual(key) || inputs.Any(p => !SharedFile.ReadAllBytes(p.Key).SequenceEqual(p.Value)) ||
                 Fingerprint(key, selections.Select(s => RecipeReader.Read(s)).ToArray(), inputs) != plan["intent-hmac"]!.GetValue<string>())
                 throw new StorageException("stale-update-plan", "Cambió la intención durante la consulta.");
         })]);
@@ -132,7 +132,7 @@ public sealed class RecipeUpdatePlans(ScopeContext context)
     private byte[] ReadKey()
     {
         var path = context.PathFor("local/intent.key");
-        if (!File.Exists(path) || File.ReadAllBytes(path) is not { Length: 32 } key)
+        if (!File.Exists(path) || SharedFile.ReadAllBytes(path) is not { Length: 32 } key)
             throw new StorageException("update-preparation-required", "Preparar la combinación antes de consultar un plan; falta la identidad local de intención.");
         return key;
     }
@@ -162,7 +162,7 @@ public sealed class RecipeUpdatePlans(ScopeContext context)
         var files = new Dictionary<string, byte[]>(StringComparer.OrdinalIgnoreCase);
         foreach (var recipe in recipes)
             foreach (var path in recipe.Selection.Files.Concat(recipe.Selection.EnvFiles))
-                files[path] = File.ReadAllBytes(path);
+                files[path] = SharedFile.ReadAllBytes(path);
         return files;
     }
     private static string Fingerprint(byte[] key, IEnumerable<EffectiveRecipe> recipes, Dictionary<string, byte[]> inputs)
@@ -193,7 +193,7 @@ public sealed class RecipeUpdatePlans(ScopeContext context)
         var fingerprint = Fingerprint(key, recipes, inputs);
         return () =>
         {
-            if (!ReadKey().SequenceEqual(key) || inputs.Any(p => !File.ReadAllBytes(p.Key).SequenceEqual(p.Value)) ||
+            if (!ReadKey().SequenceEqual(key) || inputs.Any(p => !SharedFile.ReadAllBytes(p.Key).SequenceEqual(p.Value)) ||
                 Fingerprint(key, selections.Select(s => RecipeReader.Read(s)).ToArray(), inputs) != fingerprint)
                 throw new StorageException("stale-update-plan", "Cambió la intención; ejecutar update de nuevo.");
         };

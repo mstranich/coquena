@@ -50,7 +50,7 @@ internal static class ImportedResolutions
     {
         var path = context.PathFor("local/intent.key");
         if (!File.Exists(path)) return null;
-        var key = File.ReadAllBytes(path);
+        var key = SharedFile.ReadAllBytes(path);
         if (key.Length != 32) return null;
         var normalized = RecipeImporter.Normalize(request.Intent, request.Kind + ":" + request.Key);
         return Convert.ToHexStringLower(HMACSHA256.HashData(key, Encoding.UTF8.GetBytes(CombinationPreparation.Expanded(normalized).ToJsonString())));

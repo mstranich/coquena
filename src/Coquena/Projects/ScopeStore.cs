@@ -173,13 +173,13 @@ public sealed class ScopeStore(ScopeContext context)
                     throw new StorageException("missing-state-pointer", "Existen proyecciones sin estado publicado; no se acepta catálogo vacío.");
             return Empty();
         }
-        var state = ProjectDocuments.Read(File.ReadAllBytes(StatePath), "state");
+        var state = ProjectDocuments.Read(SharedFile.ReadAllBytes(StatePath), "state");
         var data = state["data"]!.AsObject();
         var scopeId = ProjectDocuments.Uuid(data["scope-id"]);
         var gen = ProjectDocuments.Uuid(data["generation"]);
         ProjectDocuments.Uuid(data["transaction-id"]);
         var generationState = Context.PathFor($"local/generations/{gen}/state.json");
-        if (!File.Exists(generationState) || !File.ReadAllBytes(generationState).AsSpan().SequenceEqual(ProjectDocuments.Bytes(state)))
+        if (!File.Exists(generationState) || !SharedFile.ReadAllBytes(generationState).AsSpan().SequenceEqual(ProjectDocuments.Bytes(state)))
             throw new StorageException("invalid-generation", "Falta la generación publicada o no coincide con su estado.");
         var documents = LoadDocuments(Context, state);
         var sameBase = data["base-volume"]?.GetValue<string>() == Context.PhysicalBase.Volume &&
@@ -209,7 +209,7 @@ public sealed class ScopeStore(ScopeContext context)
             ValidateDocumentPath(path);
             var physical = context.PathFor($"local/generations/{gen}/{path}");
             if (!File.Exists(physical)) throw new StorageException("invalid-generation", "Falta un documento comprometido; se conserva evidencia.");
-            var bytes = File.ReadAllBytes(physical);
+            var bytes = SharedFile.ReadAllBytes(physical);
             if (Hash(bytes) != entry!["sha256"]!.GetValue<string>()) throw new StorageException("invalid-generation", "Hash de generación discrepante.");
             var document = ProjectDocuments.Read(bytes, entry["kind"]!.GetValue<string>());
             if (document["revision"]!.GetValue<long>() != entry["revision"]!.GetValue<long>()) throw new StorageException("invalid-generation", "Revisión de generación discrepante.");
@@ -233,7 +233,7 @@ public sealed class ScopeStore(ScopeContext context)
             {
                 foreach (var store in ordered) leases.Add(Acquire(store.Context.PathFor("local/writer.lock")));
                 var markers = ordered.Where(x => File.Exists(x.PendingPath))
-                    .Select(x => ProjectDocuments.Read(File.ReadAllBytes(x.PendingPath), "operation")).ToArray();
+                    .Select(x => ProjectDocuments.Read(SharedFile.ReadAllBytes(x.PendingPath), "operation")).ToArray();
                 var expanded = false;
                 foreach (var marker in markers)
                 {
@@ -265,7 +265,7 @@ public sealed class ScopeStore(ScopeContext context)
         if (Path.GetFileName(path) != "operation.json" || Path.GetFileName(Path.GetDirectoryName(path)) != tx ||
             Path.GetFileName(Path.GetDirectoryName(Path.GetDirectoryName(path))) != "operations")
             throw new StorageException("invalid-operation", "Ruta de coordinador fuera del layout de operaciones.");
-        var bytes = File.ReadAllBytes(path);
+        var bytes = SharedFile.ReadAllBytes(path);
         if (Hash(bytes) != data["manifest-sha256"]!.GetValue<string>()) throw new StorageException("invalid-operation", "Manifiesto coordinador discrepante.");
         var manifest = ProjectDocuments.Read(bytes, "operation");
         if (manifest["data"]!["operation-id"]!.GetValue<string>() != data["operation-id"]!.GetValue<string>()) throw new StorageException("invalid-operation", "Identidad de operación discrepante.");
@@ -286,11 +286,11 @@ public sealed class ScopeStore(ScopeContext context)
         var decision = Path.Combine(Path.GetDirectoryName(manifestPath)!, "commit.json");
         var completed = Path.Combine(Path.GetDirectoryName(manifestPath)!, "completed.json");
         var committed = File.Exists(decision);
-        if (committed && !File.ReadAllBytes(decision).AsSpan().SequenceEqual(ProjectDocuments.Bytes(Decision(marker, "committed", 2))))
+        if (committed && !SharedFile.ReadAllBytes(decision).AsSpan().SequenceEqual(ProjectDocuments.Bytes(Decision(marker, "committed", 2))))
             throw new StorageException("invalid-operation", "Decisión de commit discrepante.");
         if (File.Exists(completed))
         {
-            if (!File.ReadAllBytes(completed).AsSpan().SequenceEqual(ProjectDocuments.Bytes(Decision(marker, committed ? "committed" : "aborted", 3))))
+            if (!SharedFile.ReadAllBytes(completed).AsSpan().SequenceEqual(ProjectDocuments.Bytes(Decision(marker, committed ? "committed" : "aborted", 3))))
                 throw new StorageException("invalid-operation", "Finalización de operación discrepante.");
             foreach (var node in manifest["data"]!["participants"]!.AsArray())
                 RemoveMarker(Participant(node!), marker);
@@ -302,13 +302,13 @@ public sealed class ScopeStore(ScopeContext context)
             var store = Participant(node!);
             var next = node!["next"]!.AsObject();
             var previous = node["previous"] as JsonObject;
-            var current = File.Exists(store.StatePath) ? ProjectDocuments.Read(File.ReadAllBytes(store.StatePath), "state") : null;
+            var current = File.Exists(store.StatePath) ? ProjectDocuments.Read(SharedFile.ReadAllBytes(store.StatePath), "state") : null;
             if (!JsonNode.DeepEquals(current, previous) && !JsonNode.DeepEquals(current, next)) throw Conflict();
             if (committed)
             {
                 var generation = ProjectDocuments.Uuid(next["data"]!["generation"]);
                 var saved = store.Context.PathFor($"local/generations/{generation}/state.json");
-                if (!File.Exists(saved) || !File.ReadAllBytes(saved).AsSpan().SequenceEqual(ProjectDocuments.Bytes(next)))
+                if (!File.Exists(saved) || !SharedFile.ReadAllBytes(saved).AsSpan().SequenceEqual(ProjectDocuments.Bytes(next)))
                     throw new StorageException("invalid-generation", "Estado de generación discrepante.");
                 _ = LoadDocuments(store.Context, next);
             }
@@ -333,7 +333,7 @@ public sealed class ScopeStore(ScopeContext context)
                         if (previous?.GetValueOrDefault(path)?["data"]?["text"]?.GetValue<string>() == doc["data"]!["text"]!.GetValue<string>() &&
                             File.Exists(item.Store.Context.PathFor(path))) continue;
                         var bytes = ProjectDocuments.Utf8.GetBytes(doc["data"]!["text"]!.GetValue<string>());
-                        if (!File.Exists(item.Store.Context.PathFor(path)) || !File.ReadAllBytes(item.Store.Context.PathFor(path)).AsSpan().SequenceEqual(bytes))
+                        if (!File.Exists(item.Store.Context.PathFor(path)) || !SharedFile.ReadAllBytes(item.Store.Context.PathFor(path)).AsSpan().SequenceEqual(bytes))
                             Replace(item.Store.Context.PathFor(path), bytes);
                     }
                     else Replace(item.Store.Context.PathFor(path), ProjectDocuments.Bytes(doc));
@@ -353,7 +353,7 @@ public sealed class ScopeStore(ScopeContext context)
     private static void RemoveMarker(ScopeStore store, JsonObject marker)
     {
         if (!File.Exists(store.PendingPath)) return;
-        var observed = ProjectDocuments.Read(File.ReadAllBytes(store.PendingPath), "operation");
+        var observed = ProjectDocuments.Read(SharedFile.ReadAllBytes(store.PendingPath), "operation");
         // A completed transaction must not remove a newer transaction's marker.
         if (JsonNode.DeepEquals(observed, marker)) File.Delete(store.PendingPath);
     }
@@ -428,7 +428,7 @@ public sealed class ScopeStore(ScopeContext context)
                 return;
             }
 
-            var original = File.ReadAllBytes(path);
+            var original = SharedFile.ReadAllBytes(path);
             for (var attempt = 0; ; attempt++)
             {
                 try { File.Replace(temp, path, null); return; }
@@ -437,10 +437,10 @@ public sealed class ScopeStore(ScopeContext context)
                 {
                     Thread.Sleep(25 << attempt);
                     if (!File.Exists(path)) throw;
-                    var current = File.ReadAllBytes(path);
+                    var current = SharedFile.ReadAllBytes(path);
                     if (current.AsSpan().SequenceEqual(bytes)) return;
                     if (!current.AsSpan().SequenceEqual(original) || !File.Exists(temp) ||
-                        !File.ReadAllBytes(temp).AsSpan().SequenceEqual(bytes)) throw;
+                        !SharedFile.ReadAllBytes(temp).AsSpan().SequenceEqual(bytes)) throw;
                 }
             }
         }

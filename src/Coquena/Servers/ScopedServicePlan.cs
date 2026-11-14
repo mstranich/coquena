@@ -25,10 +25,10 @@ public static class ScopedServicePlan
         if (!JsonNode.DeepEquals(snapshot, CombinationPreparation.Expanded(recipe.Root)))
             throw new StorageException("intention-conflict", "La receta efectiva cambió después de la preparación.");
         var paths = recipe.Selection.Files.Concat(recipe.Selection.EnvFiles);
-        var inputs = paths.Distinct(StringComparer.OrdinalIgnoreCase).ToDictionary(path => path, File.ReadAllBytes, StringComparer.OrdinalIgnoreCase);
+        var inputs = paths.Distinct(StringComparer.OrdinalIgnoreCase).ToDictionary(path => path, SharedFile.ReadAllBytes, StringComparer.OrdinalIgnoreCase);
         void ValidateIntent()
         {
-            if (inputs.Any(input => !File.Exists(input.Key) || !File.ReadAllBytes(input.Key).AsSpan().SequenceEqual(input.Value)) ||
+            if (inputs.Any(input => !File.Exists(input.Key) || !SharedFile.ReadAllBytes(input.Key).AsSpan().SequenceEqual(input.Value)) ||
                 !JsonNode.DeepEquals(snapshot, CombinationPreparation.Expanded(RecipeReader.Read(recipe.Selection).Root)))
                 throw new StorageException("intention-conflict", "Cambió la receta o su schema antes de publicar la instancia.");
         }

@@ -330,9 +330,9 @@ public sealed class RecipeImporter(ScopeContext context)
             if (Changed(sourceInputs))
                 throw new StorageException("intention-conflict", "Cambió la fuente antes de publicar presets importados.");
             foreach (var path in pending.Select(p => p.Path).Append("recipe.yaml"))
-                if (File.ReadAllText(context.PathFor(path)) != next[path]["data"]!["text"]!.GetValue<string>())
+                if (SharedFile.ReadAllText(context.PathFor(path)) != next[path]["data"]!["text"]!.GetValue<string>())
                     throw new StorageException("intention-conflict", "Cambió la intención global antes de publicar.");
-            if (expectedInstance is not null && ProjectDocuments.Read(File.ReadAllBytes(context.PathFor(activePath!)), "active")["data"]?["instance-id"]?.GetValue<string>() != expectedInstance)
+            if (expectedInstance is not null && ProjectDocuments.Read(SharedFile.ReadAllBytes(context.PathFor(activePath!)), "active")["data"]?["instance-id"]?.GetValue<string>() != expectedInstance)
                 throw new StorageException("instance-conflict", "Cambió la instancia durante la importación.");
         }
         var warmupFailed = false;

@@ -20,11 +20,11 @@ internal static class ImportedRecipeEdits
         foreach (var (path, doc) in documents.Where(pair => pair.Value["kind"]?.GetValue<string>() == "recipe-intention"))
         {
             var projection = context.PathFor(path);
-            observed[projection] = File.Exists(projection) ? File.ReadAllBytes(projection) : null;
+            observed[projection] = File.Exists(projection) ? SharedFile.ReadAllBytes(projection) : null;
             captured[projection] = observed[projection] ?? Encoding.UTF8.GetBytes(doc["data"]!["text"]!.GetValue<string>());
         }
         foreach (var path in opened.Keys.Where(path => !observed.ContainsKey(path)))
-            observed[path] = File.Exists(path) ? File.ReadAllBytes(path) : null;
+            observed[path] = File.Exists(path) ? SharedFile.ReadAllBytes(path) : null;
         foreach (var draft in drafts)
         {
             if (!opened.TryGetValue(draft.Key, out var original))
@@ -61,7 +61,7 @@ internal static class ImportedRecipeEdits
         {
             foreach (var file in observed)
             {
-                var current = File.Exists(file.Key) ? File.ReadAllBytes(file.Key) : null;
+                var current = File.Exists(file.Key) ? SharedFile.ReadAllBytes(file.Key) : null;
                 if (current is null != (file.Value is null) || current is not null && !current.AsSpan().SequenceEqual(file.Value))
                     throw new StorageException("intention-conflict", "Cambió una proyección durante el guardado.");
             }

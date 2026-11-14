@@ -136,7 +136,7 @@ internal static partial class DashboardCli
         recipeRow.Add(upButton, downButton, privatePreparation, recipeTarget);
         pageView.Add(recipeRow);
         // Configuración: Coquena and TUI are input forms; Sistema is drawn as markup rows.
-        var settings = new SettingsForm(app, preferences, Home.Resolve(), useColor);
+        var settings = new SettingsForm(app, preferences, Home.Resolve(), useColor, stop.Token);
         var settingsView = new View { X = Right, Y = 2, Width = Dim.Fill(), CanFocus = true };
         var recipeEditor = new RecipeEditorPage(useColor);
         var systemDetail = new Canvas(useColor) { Interactive = true };
@@ -438,6 +438,14 @@ internal static partial class DashboardCli
         {
             Console.SetError(consoleError);
             stop.Cancel();
+            // A directory move holds the writer lease and commits a recoverable transaction:
+            // let it finish instead of ending the process halfway. Pending questions answer Cancelar.
+            if (!settings.Pending.IsCompleted)
+            {
+                consoleError.WriteLine("Esperando a que termine el traslado de directorios…");
+                try { settings.Pending.GetAwaiter().GetResult(); }
+                catch (Exception error) { consoleError.WriteLine("El traslado de directorios no terminó: " + error.Message); }
+            }
             try { Task.WhenAll(managementJobs.Values).WaitAsync(TimeSpan.FromSeconds(10)).GetAwaiter().GetResult(); }
             catch (Exception error) when (ManagementError(error) || error is TimeoutException) { }
             Task.WhenAll(logSessions.Values.Select(session => session.CloseAsync()).Concat(retiredLogs)).GetAwaiter().GetResult();
