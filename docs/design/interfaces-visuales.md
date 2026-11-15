@@ -49,7 +49,12 @@ disponible para navegación mediante el índice de proyectos de Coquena.
 El árbol de Definiciones lista el ámbito Global y los proyectos conocidos; sólo
 el enfocado se expande. El índice global localiza los catálogos de proyecto;
 cada catálogo conserva su inventario, definiciones e identidad. Una ruta que ya
-no se puede resolver se muestra como inaccesible.
+no se puede resolver se muestra como inaccesible, sin vistas y con la acción
+Olvidar debajo de su mensaje. Mantenimiento de cada proyecto conocido también
+ofrece Olvidar.
+Los proyectos accesibles sin receta también ofrecen Mantenimiento. Sus filtros de
+modelos, auxiliares, backends y descargas usan la misma selección y evaluación que
+la CLI; cambiar la selección invalida la vista previa anterior.
 
 Enfocar otro ámbito cambia el catálogo que se consulta, sus transferencias y los
 servicios propios que se ofrecen. Los servidores globales siguen disponibles.

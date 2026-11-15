@@ -135,18 +135,41 @@ features:
     keywords: [clean, dry-run, yes, backend, remove, combination, forget, protection, ownership]
     entrypoints:
       - src/Coquena/CleanupCli.cs
+      - src/Coquena/UsageCli.cs
       - src/Coquena/ScopedBackendCli.cs
     implementation:
       - src/Coquena/Projects/ResourceCleanup.cs
+      - src/Coquena/Projects/CleanupSelection.cs
+      - src/Coquena/MaintenanceOptions.cs
+      - src/Coquena/Projects/DiskUsage.cs
       - src/Coquena/Projects/CombinationCleanup.cs
       - src/Coquena/Projects/ScopeStore.cs
       - src/Coquena/Projects/PhysicalDirectory.cs
     tests:
       - tests/Coquena.Tests/CleanupTests.cs
+      - tests/Coquena.Tests/MaintenanceTests.cs
     references:
       - docs/design/actualizacion-y-limpieza.md
       - docs/design/persistencia-proyectos.md
       - docs/design/comandos.md
+
+  - id: known-projects
+    intent: Listar los proyectos conocidos con su estado y olvidar uno, incluso si su carpeta ya no existe, desde la CLI y Mantenimiento de la TUI.
+    keywords: [project, list, forget, projects.json, known projects, inaccessible, scope-id, Olvidar]
+    entrypoints:
+      - src/Coquena/ProjectCli.cs
+      - src/Coquena/DashboardCli.cs
+    implementation:
+      - src/Coquena/Projects/ProjectIndex.cs
+      - src/Coquena/DashboardDefinitions.cs
+      - src/Coquena/DashboardResources.cs
+      - src/Coquena/Observation/DefinitionsPresentation.cs
+    tests:
+      - tests/Coquena.Tests/CleanupTests.cs
+    references:
+      - docs/design/comandos.md
+      - docs/design/persistencia-proyectos.md
+      - docs/design/interfaces-visuales.md
 
   - id: recipe-upgrade
     intent: Preparar propuestas exactas válidas y publicar conjuntamente inventario y resoluciones sin modificar instancias activas.

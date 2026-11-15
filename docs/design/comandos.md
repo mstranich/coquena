@@ -41,8 +41,10 @@ información con forma estable para scripts; sin ese flag nunca imprimen JSON.
 | service/server start, stop, restart | Proceso del servicio seleccionado; no publicación de un consumidor. |
 | up, down | Publicar/retirar conjunto de la receta seleccionada; no detener servicio. |
 | ps, logs | Observación general o por servicio, sin cambiar intención; ps admite -w/--watch. |
-| update, upgrade, verify, prune | Combinación o ámbito global explícito; no recorren YAML desconocidos. `clean` es alias de prune. |
-| usage (df) | Consulta del espacio usado por el proyecto, si hay uno, y por el ámbito global; no admite `--global`. |
+| update, upgrade, verify | Combinación o ámbito global explícito; no recorren YAML desconocidos. |
+| prune | Proyectos de `-f <archivo>` o `--project <scope-id>` y ámbito global con `--global`. Sin selección, proyecto actual. `clean` es alias de prune. |
+| project | Proyectos conocidos de la home; no requiere receta. |
+| usage (df) | Sin selección, consulta todos los ámbitos conocidos. Los selectores de ámbito y recurso son los mismos que en clean. |
 | tui, web, chat | Operaciones comunes sobre ámbito/servicio seleccionados. |
 
 `-g` es alias de `--global` para seleccionar el ámbito global.
@@ -67,6 +69,7 @@ Ps y el dashboard sí agregan observación de servicios conocidos, sin mutar inv
 | verify | Auditar y guardar resultados locales; no reparar. |
 | prune | Previsualizar elegibles y borrar sólo tras confirmación o `--yes`. |
 | usage | Medir el espacio por ámbito y por tipo, e indicar cuánto liberaría prune; no borra. |
+| project forget | Quitar un proyecto de los conocidos; no borra archivos. |
 
 ### Responsabilidades de los comandos
 
@@ -303,7 +306,9 @@ contra esa base explícita o cwd; sin base explícita su carpeta pasa a ser base
 Los `-f` posteriores y todos los `--env-file` relativos parten de esa base. Sin `-f`,
 se lee `coquena.yaml` de base; no se asciende buscando otro proyecto. `--global`
 es incompatible con `-f`, env-file, private y project-directory, salvo `import`, que
-recibe archivo fuente y siempre escribe global. No hay `-f -` ni entrada YAML por stdin.
+recibe archivo fuente y siempre escribe global, y la selección de ámbitos de
+`usage`/`clean`, que permite unir global y proyectos sin componer YAML.
+No hay `-f -` ni entrada YAML por stdin.
 
 El campo `publish-to` de la receta admite `global`, su alias `default`, `self` o el
 nombre de un servicio global registrado, y usa `global` al omitirse. `self` selecciona
@@ -354,8 +359,11 @@ update [--select <recurso>]... [--json]
 upgrade [--select <recurso>]... [--json]
 verify [--select <recurso>]...
 verify --global [--select <recurso>]... [--include-unused]
-usage [-f <archivo>] [--project-directory <carpeta>]
-prune [--global] [--dry-run|--yes]
+usage [--global] [-f <archivo>] [--project <scope-id>] [--model] [--companion] [--backend] [--select <referencia>] [--downloads]
+prune [--global] [-f <archivo>] [--project <scope-id>] [--model] [--companion] [--backend] [--select <referencia>] [--downloads] [--dry-run|--yes]
+project list [--json]
+project forget <id>... [--dry-run|--yes]
+project forget --inaccessible [--dry-run|--yes]
 combination list|forget <combination-id>
 download list|show|pause|resume|cancel [<operation-id>]
 backend show|set|download|list|remove|protect|unprotect
@@ -475,16 +483,44 @@ cascada de archivos ajenos. Opciones de campos específicos siguen sus canónico
 Prune sin opciones previsualiza y pregunta; sin interacción sólo previsualiza y
 diagnostica falta de confirmación. Dry-run nunca borra; yes autoriza el conjunto
 mostrado sólo si su revisión sigue vigente. No existe prune --force. `clean` es alias
-de prune, con la misma gramática.
+de prune, con la misma gramática. Prune elige ámbitos con `-f`, `--project` o `--global`:
+decide con el estado de `.coquena/` y no lee el contenido del YAML, así que no
+admite capas env, `--private` ni otra forma de indicar la carpeta. El archivo de
+`-f` sólo ubica la carpeta y puede no existir.
+`-f` y `--project` son repetibles, y pueden combinarse con `--global`; la selección
+es la unión de esos ámbitos, sin duplicar una misma raíz física. `--project` recibe
+un scope-id de `project list` o un prefijo único. No permite borrar archivos de un
+proyecto inaccesible. Los tipos elegidos se unen; `--select`, repetible, limita esa
+selección a los recursos indicados. Un tipo incompatible con un selector se rechaza.
+Sin filtros se consideran las instalaciones. `--downloads` selecciona preparación
+de descargas detenidas; combinado con tipos o recursos incluye también las
+instalaciones elegidas. Los filtros nunca reducen la comprobación de referencias.
+Project list muestra cada proyecto conocido con su identificador corto, su estado
+(disponible, sin receta o inaccesible) y su carpeta. Project forget recibe el
+uno o varios identificadores o prefijos únicos y quita esos proyectos de los conocidos, aunque su
+carpeta ya no exista; no borra archivos, y el proyecto se registra de nuevo al
+volver a usarlo. `project forget --inaccessible` selecciona todos los inaccesibles.
+`--dry-run` muestra las entradas sin retirarlas; olvidar requiere confirmación o
+`--yes`. Se revalidan el índice y el estado mostrado antes de retirarlas; no se
+amplía la selección confirmada. Olvidar puede cambiar la elegibilidad global,
+sin retirar publicaciones, instancias ni otras referencias independientes.
+Un proyecto que no se puede leer se informa por separado. Su entrada en el índice
+no bloquea prune ni exige olvidarlo antes de limpiar otros proyectos. Las
+referencias registradas sólo conservan los recursos que mencionan mientras sigan
+vigentes, según las reglas de [limpieza](actualizacion-y-limpieza.md).
 Usage (alias df) recorre los inventarios de todos los ámbitos que Coquena conoce:
-el proyecto de la carpeta, si tiene receta, el global y los proyectos registrados.
+el proyecto de la carpeta si tiene receta o estado local, el global y los proyectos registrados.
+Con selectores explícitos muestra sólo los ámbitos y elementos elegidos.
 Mide cada instalación por sus archivos, estén donde estén, y la clasifica con la
 misma regla que prune: está libre si no está protegida ni la referencia una receta,
 un preset, un servicio, un plan o una descarga sin terminar. Muestra cada ámbito por
-separado, con modelos, auxiliares, backends, descargas sin terminar y logs, la lista
+separado, con modelos, auxiliares, backends, preparación y registros de descargas y logs, la lista
 de lo libre y cuánto liberaría prune en ese ámbito. Los archivos externos se cuentan
-pero nunca son libres. Un proyecto registrado que no se puede leer se informa, y lo
-libre del resto se presenta con esa advertencia. Usage y la vista previa de prune
+pero nunca son libres. Los recursos sin referencias vigentes ni protección se
+listan como eliminables; para los conservados se muestran los motivos y proyectos
+que contienen sus referencias. Los proyectos que no se pueden abrir se informan
+aparte, sin convertir esa falta de acceso en referencias hipotéticas.
+Usage y la vista previa de prune
 no crean carpetas ni archivos de estado.
 Up, down, apply y withdraw muestran sus pasos (validar la receta, iniciar el
 servicio, preparar backend y modelos, publicar los presets) con el mismo progreso

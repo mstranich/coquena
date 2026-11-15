@@ -1051,7 +1051,7 @@ internal static partial class DashboardCli
             {
                 definitionClock.Restart();
                 var place = places[focusedPlace];
-                definitionPage = definitionView is null ? DefinitionsPresentation.Inaccessible(place.Scope.Name)
+                definitionPage = definitionView is null ? DefinitionsPresentation.Inaccessible(place.Scope.Name, place.ScopeIds is { Length: > 0 })
                     : definitionSource.Read(place, definitionView, targets, snapshots, definitionDetail.Viewport.Height,
                         Math.Max(20, window.Viewport.Width - Right));
                 try
@@ -1093,7 +1093,7 @@ internal static partial class DashboardCli
                     else if (definitionView == "Mantenimiento" && place.Context is not null)
                     {
                         if (!maintenanceViews.TryGetValue(place.Context.Root, out var state)) maintenanceViews[place.Context.Root] = state = new();
-                        definitionPage = MaintenancePage(place.Scope.Name, state, managementJobs.ContainsKey("maintenance:" + place.Context.Root));
+                        definitionPage = MaintenancePage(place.Scope.Name, state, managementJobs.ContainsKey("maintenance:" + place.Context.Root), place.ScopeIds is { Length: > 0 }, place.Scope.Global || place.Scope.HasRecipe);
                     }
                     else if (definitionView == "Recetas" && place.Context is not null)
                     {
@@ -1189,15 +1189,38 @@ internal static partial class DashboardCli
         {
             if (page != Definitions) return;
             var place = places[focusedPlace];
-            if (action == "init" && place.Context is null && place.Folder is { } folder)
+            if (action == "init" && place.Folder is { } folder)
             {
                 using var output = new StringWriter();
                 using var failure = new StringWriter();
-                var code = InitCli.Run([folder], output, failure);
+                var code = InitializeProject(place, output, failure);
                 Notify(code == 0 ? "✓" : "✗", code == 0 ? "ok" : "err", (code == 0 ? output : failure).ToString().Trim(), -1);
                 places = definitionSource.Places();
                 focusedPlace = Math.Max(0, places.FindIndex(candidate => candidate.Context is not null &&
                     candidate.Context.Base.Equals(Path.TrimEndingDirectorySeparator(Path.GetFullPath(folder)), StringComparison.OrdinalIgnoreCase)));
+                definitionView = DefinitionsPresentation.Views(places[focusedPlace].Scope).FirstOrDefault();
+                definitionPage = null; Render(); return;
+            }
+            if (action == "project-forget" && place.ScopeIds is { Length: > 0 } scopeIds && !place.Scope.Global)
+            {
+                // Not while a cleanup of this project is running.
+                if (place.Context is not null && managementJobs.ContainsKey("maintenance:" + place.Context.Root)) return;
+                var where = place.Context?.Base ?? place.Folder ?? place.Scope.Name;
+                try
+                {
+                    // Every index entry at this folder goes: the tree shows them as a single node.
+                    var index = new ProjectIndex(Home.Resolve());
+                    var plan = index.PreviewForget(scopeIds);
+                    if (Query(app, Messages.MaintenanceForgetTitle(place.Scope.Name), where + "\n" + Messages.ProjectForgetSummary(plan.Projects.Count), Messages.MaintenanceCancel, Messages.MaintenanceForgetConfirm) != 1) return;
+                    index.Forget(plan);
+                    Notify("✓", "ok", Messages.ProjectForgotten(plan.Projects[0].Base), -1);
+                }
+                catch (Exception error) when (error is StorageException or IOException or UnauthorizedAccessException)
+                {
+                    Query(app, Messages.MaintenanceForgetErrorTitle, error.Message, Messages.MaintenanceAccept);
+                }
+                places = definitionSource.Places();
+                focusedPlace = Math.Min(focusedPlace, places.Count - 1);
                 definitionView = DefinitionsPresentation.Views(places[focusedPlace].Scope).FirstOrDefault();
                 definitionPage = null; Render(); return;
             }
@@ -1404,22 +1427,31 @@ internal static partial class DashboardCli
                 if (action.StartsWith("maintenance-", StringComparison.Ordinal))
                 {
                     if (!maintenanceViews.TryGetValue(context.Root, out var state)) maintenanceViews[context.Root] = state = new();
+                    if (action.StartsWith("maintenance-filter-", StringComparison.Ordinal))
+                    {
+                        if (managementJobs.ContainsKey("maintenance:" + context.Root)) return;
+                        var kind = action["maintenance-filter-".Length..];
+                        state.Toggle(kind);
+                        definitionPage = null; Render(); return;
+                    }
                     if (action == "maintenance-preview")
+                    {
+                        var selection = state.Selection;
                         ManagementJob("maintenance:" + context.Root, () =>
                         {
-                            var plan = new ResourceCleanup(context, Home.Resolve()).Preview();
+                            var plan = new ResourceCleanup(context, Home.Resolve()).Preview(selection: selection);
                             app.Invoke(() => { state.Plan = plan; definitionPage = null; Render(); });
-                            return Task.FromResult("Plan de limpieza de " + place.Scope.Name + ": " + ByteSize.Format(plan.Bytes) + " recuperables.");
+                            return Task.FromResult(Messages.MaintenancePlanReady(place.Scope.Name, plan.Bytes));
                         });
+                    }
                     else if (action == "maintenance-clean" && state.Plan is { } plan)
                     {
                         if (managementJobs.ContainsKey("maintenance:" + context.Root)) return;
-                        if (Query(app, "Limpiar · " + place.Scope.Name, "Eliminar el conjunto completo mostrado: " + plan.Items.Count + " instalaciones.\nRecuperable: " + ByteSize.Format(plan.Bytes) +
-                            ".\nSe revalidan referencias y protecciones antes de borrar.", "Cancelar", "Eliminar conjunto") != 1) return;
+                        if (Query(app, Messages.MaintenanceCleanupTitle(place.Scope.Name), Messages.MaintenanceDeleteQuestion(plan.Items.Count + (plan.Downloads?.Count ?? 0), plan.Bytes), Messages.MaintenanceCancel, Messages.MaintenanceDeleteConfirm) != 1) return;
                         ManagementJob("maintenance:" + context.Root, () =>
                         {
                             var result = new ResourceCleanup(context, Home.Resolve()).Apply(plan);
-                            var text = "Última limpieza de esta sesión · " + DateTimeOffset.Now.ToString("dd/MM HH:mm") + "\n" + CleanupText(result);
+                            var text = Messages.MaintenanceLastCleanup(DateTimeOffset.Now) + "\n" + CleanupText(result);
                             app.Invoke(() => { state.Plan = null; state.Cleanup = text; definitionPage = null; Render(); });
                             if (result.Diagnostics.Count > 0) throw new IOException(text);
                             return Task.FromResult(text);
@@ -1427,6 +1459,8 @@ internal static partial class DashboardCli
                     }
                     else if (action == "maintenance-verify")
                     {
+                        // A folder without recipe has nothing to verify.
+                        if (!context.IsGlobal && !place.Scope.HasRecipe) return;
                         var mode = Query(app, "Verificar · " + place.Scope.Name, "Auditar definición y recursos; no descarga ni repara.", "Cancelar", "Auditoría rápida", "SHA-256");
                         if (mode <= 0) return;
                         var args = new List<string>();
@@ -1445,6 +1479,7 @@ internal static partial class DashboardCli
                                 item.Value!["files"]!.AsArray().Select(file => file!.GetValue<string>()), context.Base,
                                 item.Value["env-files"]!.AsArray().Select(file => file!.GetValue<string>()))).ToList();
                             if (place.Recipe is not null) selections.Insert(0, place.Recipe);
+                            if (selections.Count == 0) return;
                             var choice = Choose(app, "Combinación a verificar", selections.Select(selection => string.Join(" + ", selection.Files.Select(Path.GetFileName))).ToArray(), "Verificar");
                             if (choice is not int row) return;
                             var selection = selections[row];
@@ -1684,7 +1719,7 @@ internal static partial class DashboardCli
                     if (chosen.Id is not { } id) return;
                     if (Query(app, "Olvidar combinación · " + place.Scope.Name, chosen.Files + " · " + id[..6] +
                         "\nSe quita del registro de .coquena. Los YAML, los pesos y lo publicado se conservan; una instancia activa sigue igual.",
-                        "Cancelar", "Olvidar") != 1) return;
+                        Messages.MaintenanceCancel, Messages.MaintenanceForgetConfirm) != 1) return;
                     ManagementJob("forget:" + context.Root + id, () =>
                     {
                         new CombinationCleanup(context).Forget(id);

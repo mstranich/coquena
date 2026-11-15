@@ -11,6 +11,11 @@ public class DownloadException(string code, string message) : Exception(message)
     public string Code { get; } = code;
 }
 
+internal sealed class DownloadCleanupException(string code, string message, long freedBytes) : DownloadException(code, message)
+{
+    internal long FreedBytes { get; } = freedBytes;
+}
+
 // Provider resolves an ephemeral location from the PINNED selection on every attempt.
 // No URL, credential or provider object is written to operation.json.
 public interface IDownloadTransport
@@ -136,6 +141,32 @@ public sealed class DownloadManager(Home home, LocalStore? storage = null)
         catch (IOException e) when ((e.HResult & 0xffff) is 32 or 33)
         { throw new DownloadException("executor-busy", "Otro ejecutor controla este GUID."); }
     });
+
+    // Read-only probe; the apply path acquires the same executor exclusion again.
+    internal static bool Idle(Coquena.Projects.ScopeContext scope, Guid id)
+    {
+        var path = scope.PathFor($"downloads/{id:D}/executor.lock");
+        if (!File.Exists(path)) return true;
+        try { using var lease = new FileStream(path, FileMode.Open, FileAccess.ReadWrite, FileShare.Delete); return true; }
+        catch (IOException) { return false; }
+    }
+
+    internal long CleanSelected(Coquena.Projects.CleanupDownload selected, Func<OperationDocument, bool> eligible)
+    {
+        using var lease = Lease(selected.Id); // No control request: a live executor is kept.
+        var value = Read(selected.Id); Paths(value);
+        if (System.Text.Json.JsonSerializer.Serialize(value, Json.OperationDocument) != selected.Checkpoint || !eligible(value))
+            throw new DownloadException("cleanup-conflict", Messages.CleanupDownloadChanged);
+        var bytes = Coquena.Projects.DiskUsage.FolderSize(home.Scope!, $"downloads/{value.Id:D}");
+        if (bytes != selected.Bytes) throw new DownloadException("cleanup-conflict", Messages.CleanupDownloadSizeChanged);
+        try { Cleanup(value); }
+        catch (DownloadException error)
+        {
+            var remaining = Coquena.Projects.DiskUsage.FolderSize(home.Scope!, $"downloads/{value.Id:D}");
+            throw new DownloadCleanupException(error.Code, error.Message, Math.Max(0, bytes - remaining));
+        }
+        return bytes;
+    }
 
     public OperationDocument Status(Guid id)
     {

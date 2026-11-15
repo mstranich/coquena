@@ -16,6 +16,8 @@ public static class Cli
 
         if (args.Length > 0 && args[0] == "init")
             return InitCli.Run(args[1..], output, error);
+        if (args.Length > 0 && args[0] == "project")
+            return ProjectCli.Run(args, output, error);
         if (args.Length > 0 && args[0] == "tui")
             return DashboardCli.Run(args[1..], output, error);
 
@@ -23,7 +25,7 @@ public static class Cli
         while (prefix < args.Length)
         {
             if (args[prefix] is "--global" or "-g" or "--private") { prefix++; continue; }
-            if (args[prefix] is "--file" or "-f" or "--env-file" or "--project-directory" or "--base" or "--service")
+            if (args[prefix] is "--file" or "-f" or "--env-file" or "--project-directory" or "--base" or "--service" or "--project")
             { if (prefix + 1 >= args.Length) break; prefix += 2; continue; }
             break;
         }

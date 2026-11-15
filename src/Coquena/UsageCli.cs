@@ -6,69 +6,71 @@ namespace Coquena;
 // usage (alias df): every file Coquena knows, by scope, and what prune may free.
 public static class UsageCli
 {
-    private const string Help = "usage [-f archivo] [--project-directory ruta]\n" +
-        "Muestra el espacio que ocupa cada ámbito conocido y lo que se puede liberar. Alias: df.";
+    private const string Help = Messages.UsageHelp;
 
     public static int Run(string[] args, TextWriter output, TextWriter error)
     {
+        if (args.Any(a => a is "--help" or "-h")) { output.WriteLine(Help); return 0; }
+        MaintenanceOptions options;
+        try { options = MaintenanceOptions.Parse(args); }
+        catch (ArgumentException) { error.WriteLine(Messages.UsageInvalidOptions); return 2; }
         try
         {
-            string? file = null, directory = null; var seen = false;
-            for (var i = 0; i < args.Length; i++)
-            {
-                var arg = args[i] switch { "-f" => "--file", "--base" => "--project-directory", _ => args[i] };
-                if (arg is "--help" or "-h") { output.WriteLine(Help); return 0; }
-                if (arg is "usage" or "df" && !seen) { seen = true; continue; }
-                if (arg is "--file" or "--project-directory" && i + 1 < args.Length)
-                {
-                    if (arg == "--file") { if (file is not null) throw new ArgumentException(); file = args[++i]; }
-                    else { if (directory is not null) throw new ArgumentException(); directory = args[++i]; }
-                    continue;
-                }
-                throw new ArgumentException();
-            }
             var home = Home.Resolve();
-            var recipe = Path.GetFullPath(file ?? Path.Combine(directory ?? Environment.CurrentDirectory, "coquena.yaml"));
-            var project = File.Exists(recipe) ? ScopeContext.Project(recipe, directory) : null;
-            var globalRoot = Path.Combine(home.Root, "global");
+            var scopes = options.Scopes(home, false);
+            var recipe = Path.Combine(Environment.CurrentDirectory, "coquena.yaml");
+            var project = scopes.FirstOrDefault(s => !s.IsGlobal) ?? (!options.ExplicitScopes &&
+                (File.Exists(recipe) || Directory.Exists(Path.Combine(Environment.CurrentDirectory, ".coquena"))) ? ScopeContext.Project(recipe) : null);
             // Without a project, survey from the global scope; neither path creates folders.
-            var anchor = project ?? (Directory.Exists(home.Root) ? ScopeContext.Global(home) : null);
-            var survey = anchor is null ? new UsageSurvey([], []) : new ResourceCleanup(anchor, home).Survey();
-            Write(survey, project, output);
+            var anchor = scopes.FirstOrDefault() ?? project ?? (Directory.Exists(home.Root) ? ScopeContext.At(home.Root, Path.Combine(home.Root, "global"), true) : null);
+            var survey = anchor is null ? new UsageSurvey([], []) : new ResourceCleanup(anchor, home).Survey(options.Selection);
+            if (options.ExplicitScopes) survey = survey with { Scopes = survey.Scopes.Where(s => scopes.Any(c => Same(c, s.Scope))).ToArray() };
+            if (options.ExplicitScopes)
+            {
+                foreach (var scope in survey.Scopes) Section(scope.Scope.IsGlobal ? Messages.UsageGlobal : Messages.UsageProject, scope,
+                    (scope.Scope.IsGlobal ? "coquena clean --global" : $"coquena clean -f \"{Path.Combine(scope.Scope.Base, "coquena.yaml")}\"") + options.FilterArguments, output);
+                if (survey.Scopes.Count == 0) output.WriteLine(Messages.UsageEmptySelection);
+                WriteSkipped(survey, output);
+            }
+            else Write(survey, project, output, options.FilterArguments);
             return 0;
         }
-        catch (ArgumentException)
+        catch (Exception e) when (e is StorageException or IOException or UnauthorizedAccessException or ArgumentException or Coquena.Downloads.DownloadException)
         {
-            error.WriteLine("No se reconocen esas opciones. Uso: " + Help.Split('\n')[0]);
-            return 2;
-        }
-        catch (Exception e) when (e is StorageException or IOException or UnauthorizedAccessException)
-        {
-            error.WriteLine("No se pudo medir el espacio: " + e.Message);
+            error.WriteLine(Messages.UsageFailed(e.Message));
             return 2;
         }
     }
 
-    internal static void Write(UsageSurvey survey, ScopeContext? project, TextWriter output)
+    internal static void Write(UsageSurvey survey, ScopeContext? project, TextWriter output, string filters = "")
     {
         var own = project is null ? null : survey.Scopes.FirstOrDefault(s => Same(s.Scope, project));
         var global = survey.Scopes.FirstOrDefault(s => s.Scope.IsGlobal);
-        if (project is null) output.WriteLine("No hay un proyecto en esta carpeta.");
-        else if (own is null) output.WriteLine("Este proyecto todavía no guarda archivos.");
-        else Section("Este proyecto", own, "coquena prune", output);
+        if (project is null) output.WriteLine(Messages.UsageNoProject);
+        else if (own is null) output.WriteLine(Messages.UsageProjectEmpty);
+        else Section(Messages.UsageHere, own, "coquena clean" + filters, output);
         output.WriteLine();
-        if (global is null) output.WriteLine("El ámbito global todavía no guarda archivos.");
-        else Section("Global", global, "coquena prune --global", output);
+        if (global is null) output.WriteLine(Messages.UsageGlobalEmpty);
+        else Section(Messages.UsageGlobal, global, "coquena clean --global" + filters, output);
         foreach (var other in survey.Scopes.Where(s => s != own && s != global))
         {
             output.WriteLine();
-            Section("Otro proyecto", other, $"coquena prune --project-directory \"{other.Scope.Base}\"", output);
+            Section(Messages.UsageOtherProject, other, $"coquena clean -f \"{Path.Combine(other.Scope.Base, "coquena.yaml")}\"" + filters, output);
         }
+        WriteSkipped(survey, output);
+    }
+
+    private static void WriteSkipped(UsageSurvey survey, TextWriter output)
+    {
         if (survey.Skipped.Count > 0)
         {
             output.WriteLine();
-            output.WriteLine("⚠ No se pudieron leer estos proyectos conocidos; lo marcado como liberable puede estar en uso por ellos:");
-            foreach (var path in survey.Skipped) output.WriteLine("  " + path);
+            output.WriteLine(Messages.UsageUnavailableSummary(survey.Skipped.Distinct(StringComparer.OrdinalIgnoreCase).Count()));
+            foreach (var path in survey.Skipped.Distinct(StringComparer.OrdinalIgnoreCase))
+            {
+                output.WriteLine("  " + path);
+            }
+            output.WriteLine(Messages.UsageUnavailableHint);
         }
     }
 
@@ -77,20 +79,33 @@ public static class UsageCli
 
     private static void Section(string title, ScopeUsage usage, string prune, TextWriter output)
     {
-        output.WriteLine($"{title}: {ByteSize.Format(usage.Total)}  ({usage.Scope.Base})");
-        foreach (var (kind, label) in new[] { ("model", "Modelos"), ("companion", "Auxiliares"), ("backend", "Backends") })
+        output.WriteLine(Messages.UsageHeading(title, usage.Total, usage.Scope.Base));
+        foreach (var (kind, label) in new[] { ("model", Messages.MaintenanceModels), ("companion", Messages.MaintenanceCompanions), ("backend", Messages.MaintenanceBackends) })
         {
             var items = usage.Resources.Where(r => r.Kind == kind).ToArray();
             if (items.Length == 0) continue;
             var free = items.Where(r => r.Status == UsageStatus.Free).Sum(r => r.Bytes);
-            output.WriteLine($"  {label,-12}{ByteSize.Format(items.Sum(r => r.Bytes)),12}{(free > 0 ? $"   libre {ByteSize.Format(free)}" : "")}");
+            output.WriteLine(Messages.UsageResourceRow(label, items.Sum(r => r.Bytes), free));
         }
-        if (usage.Downloads > 0) output.WriteLine($"  {"Descargas",-12}{ByteSize.Format(usage.Downloads),12}   sin terminar");
-        if (usage.Logs > 0) output.WriteLine($"  {"Logs",-12}{ByteSize.Format(usage.Logs),12}");
+        if (usage.Downloads > 0) output.WriteLine(Messages.UsageDownloadsRow(usage.Downloads));
+        foreach (var download in usage.CleanupDownloads ?? []) output.WriteLine(Messages.UsageDownloadRow(download.Name, download.Bytes, download.Id, false));
+        if (usage.Logs > 0) output.WriteLine(Messages.UsageLogsRow(usage.Logs));
+        var repeatedNames = usage.Resources.GroupBy(r => r.Name).Where(g => g.Count() > 1).Select(g => g.Key).ToHashSet();
+        string Label(UsageResource item) => repeatedNames.Contains(item.Name) && item.InstallationId is { } id
+            ? Messages.UsageInstallationLabel(item.Name, id) : item.Name;
+        if (usage.Resources.Any(r => r.Status == UsageStatus.Free)) output.WriteLine(Messages.UsageRemovableResources);
         foreach (var item in usage.Resources.Where(r => r.Status == UsageStatus.Free))
-            output.WriteLine($"    sin uso: {item.Name} ({ByteSize.Format(item.Bytes)})");
+            output.WriteLine(Messages.UsageUnusedRow(Label(item), item.Bytes));
+        var kept = usage.Resources.Where(r => r.Status == UsageStatus.InUse).ToArray();
+        if (kept.Length > 0) output.WriteLine(Messages.UsageKeptHeading);
+        foreach (var item in kept)
+            output.WriteLine(Messages.UsageKeptRow(Label(item), (item.References ?? []).Select(reference =>
+                Messages.UsageShortReference(reference, Same(usage.Scope, reference.Scope))).Distinct()));
         var external = usage.Resources.Where(r => r.Status == UsageStatus.External).Sum(r => r.Bytes);
-        if (external > 0) output.WriteLine($"  Incluye {ByteSize.Format(external)} de archivos externos que Coquena no borra.");
-        output.WriteLine(usage.Free > 0 ? $"  Se pueden liberar {ByteSize.Format(usage.Free)} con {prune}." : "  No hay nada para liberar.");
+        if (external > 0) output.WriteLine(Messages.UsageExternal(external));
+        output.WriteLine(usage.Free > 0 ? Messages.UsageReclaimable(usage.Free, prune) : Messages.UsageNothingToClean);
     }
+
+    private static bool Same(ScopeContext scope, string folder) =>
+        string.Equals(scope.Base, folder, StringComparison.OrdinalIgnoreCase);
 }

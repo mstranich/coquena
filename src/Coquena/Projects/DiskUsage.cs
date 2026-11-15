@@ -3,12 +3,14 @@ namespace Coquena.Projects;
 public enum UsageStatus { InUse, Protected, Free, External, Kept }
 
 // One installation known by a scope inventory, wherever its files live.
-public sealed record UsageResource(string Kind, string Name, long Bytes, UsageStatus Status);
+public sealed record UsageReference(string Scope, string Kind);
+public sealed record UsageResource(string Kind, string Name, long Bytes, UsageStatus Status, IReadOnlyList<UsageReference>? References = null, string? InstallationId = null);
 
-public sealed record ScopeUsage(ScopeContext Scope, IReadOnlyList<UsageResource> Resources, long Downloads, long Logs)
+public sealed record ScopeUsage(ScopeContext Scope, IReadOnlyList<UsageResource> Resources, long Downloads, long Logs,
+    IReadOnlyList<CleanupDownload>? CleanupDownloads = null)
 {
     public long Total => Resources.Sum(r => r.Bytes) + Downloads + Logs;
-    public long Free => Resources.Where(r => r.Status == UsageStatus.Free).Sum(r => r.Bytes);
+    public long Free => Resources.Where(r => r.Status == UsageStatus.Free).Sum(r => r.Bytes) + (CleanupDownloads?.Sum(d => d.Bytes) ?? 0);
 }
 
 // Skipped lists known projects that could not be read; their references are unknown.

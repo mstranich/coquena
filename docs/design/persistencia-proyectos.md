@@ -181,7 +181,14 @@ y observación. Al abrir el proyecto desde la nueva ubicación se actualiza ese 
 contra su estado local y la identidad comprobable. No se exige localizarlo desde
 la ruta antigua ni se recorre el disco para descubrirlo. El estado local es la
 referencia del nombre previo; la home no sustituye esa evidencia por el basename
-de coquena.yaml, compartido por muchos proyectos.
+de coquena.yaml, compartido por muchos proyectos. Un proyecto sale del índice sólo
+al olvidarlo de forma explícita ([comandos](comandos.md)); olvidarlo no toca su
+carpeta ni su estado local.
+La selección para olvidar puede contener varios identificadores o todos los
+proyectos inaccesibles. La vista previa conserva la revisión del índice y el estado
+de cada proyecto; la aplicación revalida ambos antes de publicar la retirada del
+conjunto. Olvidar no retira referencias de publicación ni sustituye una limpieza
+confirmada de recursos.
 
 Reclamar el nombre anterior significa comprobar que corresponde a la entidad y
 propietario registrados, no reservarlo o apropiarse de otra entidad por coincidencia.

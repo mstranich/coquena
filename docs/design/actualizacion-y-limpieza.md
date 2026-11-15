@@ -95,6 +95,22 @@ Una copia local registrada como externa también se conserva: pertenecer a la
 carpeta no la convierte en archivo propio eliminable por limpieza.
 
 Mostrar recursos elegibles y espacio recuperable, y pedir confirmación antes de borrar.
+Medición y plan usan la misma evaluación y selección de ámbitos, tipos y recursos.
+Las interfaces cambian la forma de seleccionar, no los algoritmos ni las protecciones.
+Una entrada inaccesible del índice de proyectos no es una referencia de uso y no
+bloquea recursos de otros proyectos. La limpieza se decide por recurso: propiedad,
+protección y referencias registradas que siguen vigentes. La consulta muestra los
+recursos sin referencias que pueden eliminarse y los motivos concretos de conservación.
+El índice puede depurarse olvidando explícitamente uno o varios proyectos, o todos
+los inaccesibles, con vista previa y confirmación. Sólo se retiran sus ubicaciones
+del índice; se mantienen los archivos y las referencias independientes.
+
+La preparación de descargas se limpia sólo por selección explícita. Se conservan
+ejecutores activos y publicaciones físicas pendientes de incorporación al inventario.
+Antes de borrar se comprueban de nuevo el checkpoint, el tamaño y la exclusión del
+ejecutor. Se reutiliza la limpieza del motor de descargas; una instalación ya
+publicada no se borra al retirar su preparación o registro terminal. Un fallo
+conserva evidencia recuperable para reintentar y se informa sin afirmar éxito.
 Borrar solo inventario propio; conservar vecinos y archivos añadidos por otros.
 Retirar del catálogo las instalaciones eliminadas y las entradas que quedan
 sin instalaciones.
@@ -113,8 +129,15 @@ No inferir borrado sin confirmación.
 
 El ámbito global y cada proyecto mantienen inventarios independientes. Un servicio
 que publica rutas de otro ámbito mantiene referencias cruzadas a sus revisiones
-físicas. Limpieza consulta ambas raíces bajo coordinación; un consumidor ausente,
-inaccesible o de identidad incierta no autoriza liberar su recurso por inferencia.
+físicas. Limpieza consulta las raíces disponibles bajo coordinación. Una referencia
+registrada cuyo destino no se pudo leer conserva sólo los recursos que menciona;
+no bloquea el resto. Una publicación hacia una raíz que ya no existe o un servicio
+retirado del registro verificado no está vigente. La contribución de un consumidor
+cuya raíz desapareció deja de proteger recursos de un servicio detenido, siempre
+que no haya una publicación en curso. Las ejecuciones, recuperación y operaciones
+pendientes mantienen sus protecciones independientes. Un error de permisos o
+lectura no demuestra que un destino desapareció. Antes del borrado se reevalúan
+estas condiciones: una referencia que vuelve a estar vigente invalida la vista previa.
 Down confirmado retira la referencia de publicación; otras combinaciones, pins,
 última buena y descargas explícitas pueden seguir protegiéndolo.
 

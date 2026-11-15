@@ -27,7 +27,7 @@ internal static class DefinitionsPresentation
     public static string[] Views(Scope scope) => !scope.Accessible ? []
         // Presets come after the entities they join: what is used first, then the presets that relate it.
         : scope.Global ? ["Backends", "Servicios", "Modelos", "Parámetros", "Presets", "Actualizaciones", "Mantenimiento"]
-        : !scope.HasRecipe ? ["Receta"]
+        : !scope.HasRecipe ? ["Receta", "Mantenimiento"]
         : ["Recetas", "Backends", "Servicio", "Modelos", "Parámetros", "Presets", "Actualizaciones", "Mantenimiento"];
 
     // Scope headers and, under the focused scope only, its views.
@@ -177,8 +177,11 @@ internal static class DefinitionsPresentation
         new(Escape(folder) + " " + Style("mut", "sin coquena.yaml"),
             ["", " " + Style("btnf", " Inicializar ", "init"), "", " " + Style("mut", "Crea el archivo de configuración de esta carpeta (coquena.yaml) con el nombre " + folder + ".")]);
 
-    public static Page Inaccessible(string name) =>
-        new(Escape(name), ["", " " + Style("err", "✗") + " " + Style("mut", Messages.ProjectPathGone)]);
+    // A known project that no longer resolves offers only Olvidar, under its message.
+    public static Page Inaccessible(string name, bool forgettable = false) =>
+        new(Escape(name), forgettable
+            ? ["", " " + Style("err", "✗") + " " + Style("mut", Messages.ProjectPathGone), "", " " + ManagementPresentation.Button(Messages.MaintenanceForget, "project-forget") + " " + Style("mut", Messages.ForgetProjectHint)]
+            : ["", " " + Style("err", "✗") + " " + Style("mut", Messages.ProjectPathGone)]);
 
     public static Page Problem(string title, string message) =>
         new(Escape(title), ["", " " + Style("err", "✗") + " " + Escape(message)]);

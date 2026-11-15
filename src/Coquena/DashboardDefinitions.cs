@@ -12,11 +12,23 @@ namespace Coquena;
 
 internal static partial class DashboardCli
 {
+    internal static int InitializeProject(DefinitionsSource.Place place, TextWriter output, TextWriter error)
+    {
+        // A maintenance context may exist before the recipe. It does not mean initialized.
+        if (!place.Scope.Accessible || place.Scope.Global || place.Folder is not { } folder ||
+            File.Exists(Path.Combine(folder, "coquena.yaml")))
+        {
+            error.WriteLine(Messages.ProjectCannotInitialize);
+            return 2;
+        }
+        return InitCli.Run([folder], output, error);
+    }
+
     // Read-only queries behind the Definiciones tab. Each view uses the same reads as the
     // matching CLI list command; a failed read shows its message and nothing is written.
     internal sealed class DefinitionsSource(Home home, string directory)
     {
-        internal sealed record Place(View.Scope Scope, ScopeContext? Context, RecipeSelection? Recipe, string? Folder = null);
+        internal sealed record Place(View.Scope Scope, ScopeContext? Context, RecipeSelection? Recipe, string? Folder = null, string[]? ScopeIds = null);
 
         // Global, the folder where the TUI was opened and every project of the index.
         public List<Place> Places()
@@ -24,13 +36,16 @@ internal static partial class DashboardCli
             var places = new List<Place>();
             places.Add(new(new("Global", true, false, true, true), ScopeContext.Global(home), null));
             var here = Path.TrimEndingDirectorySeparator(Path.GetFullPath(directory));
-            places.Add(Project(here, true));
-            string[] indexed = [];
-            try { indexed = new ProjectIndex(home).Locations(); }
+            (string ScopeId, string Base)[] indexed = [];
+            try { indexed = new ProjectIndex(home).Entries(); }
             catch (Exception error) when (ServiceObservation.ObservationError(error)) { }
-            foreach (var location in indexed.Select(path => Path.TrimEndingDirectorySeparator(Path.GetFullPath(path)))
-                         .Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(path => Path.GetFileName(path), StringComparer.OrdinalIgnoreCase))
-                if (!location.Equals(here, StringComparison.OrdinalIgnoreCase)) places.Add(Project(location, false));
+            // One node per folder. Its scope IDs (one per index entry at that path) let Olvidar
+            // remove the folder from the known projects even when it no longer resolves.
+            var known = indexed.GroupBy(entry => Path.TrimEndingDirectorySeparator(Path.GetFullPath(entry.Base)), StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(group => group.Key, group => group.Select(entry => entry.ScopeId).ToArray(), StringComparer.OrdinalIgnoreCase);
+            places.Add(Project(here, true) with { ScopeIds = known.GetValueOrDefault(here) });
+            foreach (var (folder, ids) in known.OrderBy(entry => Path.GetFileName(entry.Key), StringComparer.OrdinalIgnoreCase))
+                if (!folder.Equals(here, StringComparison.OrdinalIgnoreCase)) places.Add(Project(folder, false) with { ScopeIds = ids });
             return places;
         }
 
@@ -39,7 +54,11 @@ internal static partial class DashboardCli
             var file = Path.Combine(folder, "coquena.yaml");
             var name = Path.GetFileName(folder);
             if (!Directory.Exists(folder)) return new(new(name, false, here, false, false), null, null);
-            if (!File.Exists(file)) return new(new(name, false, here, true, false), null, null, folder);
+            if (!File.Exists(file))
+            {
+                try { return new(new(name, false, here, true, false), ScopeContext.Project(file), null, folder); }
+                catch (Exception error) when (ServiceObservation.ObservationError(error)) { return new(new(name, false, here, false, false), null, null, folder); }
+            }
             RecipeSelection? selection = null;
             try
             {

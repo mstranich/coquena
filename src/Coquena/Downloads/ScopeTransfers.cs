@@ -110,6 +110,10 @@ public sealed class ScopeTransfers
     public Task ControlAsync(Guid id, bool cancel, CancellationToken cancellation = default)
         => Downloads.ControlAsync(id, cancel, cancellation, BeforeCancel);
 
+    internal long Clean(CleanupDownload selected) => Downloads.CleanSelected(selected, operation =>
+        operation.Phase is not ("publishing" or "cancelling-publication") && operation.ScopePublication is { } &&
+        (!Directory.Exists(Context.PathFor(Destination(operation))) || PublishedInstallation(operation) is not null));
+
     public bool Published(OperationDocument operation) => PublishedInstallation(operation) is not null;
 
     private string Area(OperationDocument operation) => $"downloads/{operation.Id:D}";

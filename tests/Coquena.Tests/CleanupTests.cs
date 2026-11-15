@@ -128,10 +128,22 @@ internal static class CleanupTests
         var otherContext = ScopeContext.Project(Path.Combine(other, "coquena.yaml")); var otherStore = new ScopeStore(otherContext);
         otherStore.Commit(0, new Dictionary<string, JsonObject> { ["local/inventory.json"] = ProjectDocuments.Create("inventory", 1, new() { ["resources"] = new JsonArray() }) });
         new ProjectIndex(home).Refresh(otherStore);
+        var otherId = otherStore.Read().ScopeId!;
         Directory.Move(other, other + "-moved");
-        try { cleanup.Preview(); throw new Exception("expected inaccessible root"); }
-        catch (StorageException) { checks++; }
+        Check(cleanup.Preview() is not null, "unreachable navigation entry does not block unrelated resources");
+        // A known project that no longer resolves is listed as such and can be forgotten by ID prefix.
+        var index = new ProjectIndex(home);
+        Check(index.List().Single(p => p.ScopeId == otherId).State == KnownProjectState.Unreachable &&
+            index.List().Single(p => p.ScopeId != otherId).State == KnownProjectState.Available, "project list tells unreachable from available");
+        try { index.Forget("zz"); throw new Exception("expected unknown project"); }
+        catch (StorageException e) when (e.Code == "unknown-project") { checks++; }
+        var forgotten = index.Forget(otherId[..8]);
+        Check(forgotten.ScopeId == otherId && index.List().All(p => p.ScopeId != otherId) && Directory.Exists(other + "-moved"),
+            "forget removes only the index entry and keeps files");
+        Check(cleanup.Preview() is not null, "forgetting the unreachable project unblocks prune");
         Directory.Move(other + "-moved", other);
+        new ProjectIndex(home).Refresh(otherStore);
+        Check(index.List().Any(p => p.ScopeId == otherId && p.State == KnownProjectState.NoRecipe), "using a forgotten project registers it again; a folder without coquena.yaml lists as no-recipe");
         var target = new ScopeStore(ScopeContext.Global(home)); var targetRegistry = new RecipeRegistry(target);
         var targetRecipe = targetRegistry.Register(["service.yaml"], "shared");
         var service = targetRegistry.RegisterService(targetRecipe.RecipeId);
@@ -186,10 +198,15 @@ internal static class CleanupTests
                 return (process.ExitCode, output.GetAwaiter().GetResult() + error.GetAwaiter().GetResult());
             }
             var native = Add();
-            Check(Invoke("prune", "--project-directory", project, "--dry-run").Code == 0 && File.Exists(PathOf(native)), "AOT dry run preserves bytes");
-            var usage = Invoke("usage", "--project-directory", project);
-            Check(usage.Code == 0 && usage.Text.Contains(project) && usage.Text.Contains(home.Root), "AOT usage reports both scopes");
-            Check(Invoke("df", "--global").Code == 2, "AOT usage has no --global");
+            Check(Invoke("prune", "-f", yaml, "--dry-run").Code == 0 && File.Exists(PathOf(native)), "AOT dry run preserves bytes");
+            foreach (var rejected in new[] { new[] { "prune", "--project-directory", project }, ["clean", "--base", project], ["prune", "-f", yaml, "--env-file", yaml], ["prune", "-f", yaml, "--private"] })
+                Check(Invoke(rejected).Code == 2 && File.Exists(PathOf(native)), "AOT prune scope only by -f or --global: " + string.Join(" ", rejected));
+            var listed = Invoke("project", "list", "--json");
+            Check(listed.Code == 0 && listed.Text.Contains(project.Replace("\\", "\\\\")) && listed.Text.Contains("\"available\""), "AOT project list shows known projects with state");
+            Check(Invoke("project", "forget", "zz").Code == 2 && Invoke("project", "forget").Code == 2, "AOT project forget rejects unknown and missing IDs");
+            var usage = Invoke("usage", "-f", yaml);
+            Check(usage.Code == 0 && usage.Text.Contains(project), "AOT usage reports selected project");
+            Check(Invoke("df", "--global").Code == 0, "AOT usage supports global scope");
             var backend = Add(true, kind: "backend");
             var backendPath = context.PathFor("backends/installations/" + backend + "/weights.gguf");
             Check(Invoke("backend", "remove", backend, "--global").Code == 2 && File.Exists(backendPath), "AOT remove rejects foreign IDs");
@@ -197,10 +214,10 @@ internal static class CleanupTests
             Check(Invoke("backend", "unprotect", backend, "--base", project).Code == 0, "AOT unprotect backend");
             Check(Invoke("runtime", "remove", backend, "--base", project).Code == 0 && !File.Exists(backendPath) &&
                 File.Exists(PathOf(native)), "AOT targeted removal preserves other eligible resources");
-            Check(Invoke("clean", "--project-directory", project).Code == 3 && File.Exists(PathOf(native)), "AOT redirected input requires confirmation");
-            var response = Invoke("prune", "--project-directory", project, "--yes");
+            Check(Invoke("clean", "-f", yaml).Code == 3 && File.Exists(PathOf(native)), "AOT redirected input requires confirmation");
+            var response = Invoke("prune", "-f", yaml, "--yes");
             Check(response.Code == 0 && response.Text.Contains(Messages.PruneFreed(1024)) && !File.Exists(PathOf(native)), "AOT confirmed cleanup");
-            Check(Invoke("clean", "--project-directory", project, "--force").Code == 2, "AOT rejects force");
+            Check(Invoke("clean", "-f", yaml, "--force").Code == 2, "AOT rejects force");
             Check(Invoke("combination", "list", "--project-directory", project).Code == 0, "AOT lists combinations");
             var nativeCombination = new string('b', 64);
             Change(docs => docs["local/combinations.json"]["data"]!["combinations"]![nativeCombination] = new JsonObject {
@@ -209,6 +226,7 @@ internal static class CleanupTests
                 !new CombinationPreparation(context).List().ContainsKey(nativeCombination) && File.Exists(yaml), "AOT forget preserves YAML");
         }
         Console.WriteLine($"OK: {checks} comprobaciones de limpieza" + (executable is null ? "." : " y CLI Native AOT."));
+        MaintenanceTests.Run(Path.Combine(root, "maintenance"), executable);
     }
     private static Dictionary<string, JsonObject> Next(ScopeSnapshot state) => state.Documents.ToDictionary(p => p.Key,
         p => ProjectDocuments.Create(p.Value["kind"]!.GetValue<string>(), p.Value["revision"]!.GetValue<long>() + 1, p.Value["data"]!.AsObject()));

@@ -16,33 +16,52 @@ namespace Coquena;
 
 internal static partial class DashboardCli
 {
-    private sealed class MaintenanceView
+    internal sealed class MaintenanceView
     {
         public CleanupPlan? Plan;
         public string? Verification;
         public string? Cleanup;
+        public HashSet<string> Kinds = ["model", "companion", "backend"];
+        public bool Downloads;
+        public CleanupSelection Selection => new(Kinds.Order().ToArray(), [], Downloads, Kinds.Count > 0);
+        public void Toggle(string kind)
+        {
+            if (kind == "downloads") Downloads = !Downloads;
+            else if (kind is "model" or "companion" or "backend") { if (!Kinds.Remove(kind)) Kinds.Add(kind); }
+            Plan = null;
+        }
     }
 
-    private static DefinitionsPresentation.Page MaintenancePage(string scope, MaintenanceView state, bool busy = false)
+    internal static DefinitionsPresentation.Page MaintenancePage(string scope, MaintenanceView state, bool busy = false, bool forgettable = false, bool verifiable = true)
     {
         // While Verificar or Limpiar runs, both actions are disabled and the spinner shows the wait.
         string Act(string text, string action) => busy ? DefinitionsPresentation.Off(text) : ManagementPresentation.Button(text, action);
         var rows = new List<string>();
-        if (busy) rows.Add(" " + Markup.Style("warn", DashboardPresentation.Spinner() + " ") + Markup.Style("mut", "Trabajando… se puede cambiar de vista mientras sigue."));
-        rows.Add(" " + Act("Verificar", "maintenance-verify") + " " + Markup.Style("mut", "definición y recursos seleccionados"));
-        if (state.Verification is not null) rows.AddRange(state.Verification.Split('\n').Select(row => " " + Escape(row)));
-        rows.Add(""); rows.Add(" " + Act("Limpiar…", "maintenance-preview") + " " + Markup.Style("mut", "recursos propios sin referencias"));
+        if (busy) rows.Add(" " + Markup.Style("warn", DashboardPresentation.Spinner() + " ") + Markup.Style("mut", Messages.MaintenanceWorking));
+        // A folder without recipe has nothing to verify.
+        if (verifiable)
+        {
+            rows.Add(" " + Act(Messages.MaintenanceVerify, "maintenance-verify") + " " + Markup.Style("mut", Messages.MaintenanceVerifyHint));
+            if (state.Verification is not null) rows.AddRange(state.Verification.Split('\n').Select(row => " " + Escape(row)));
+            rows.Add("");
+        }
+        rows.Add(" " + Act(Messages.MaintenancePreview, "maintenance-preview") + " " + Markup.Style("mut", Messages.MaintenanceCleanupHint));
+        rows.Add(" " + string.Join(" ", new[] { ("model", Messages.MaintenanceModels), ("companion", Messages.MaintenanceCompanions), ("backend", Messages.MaintenanceBackends) }
+            .Select(item => Act((state.Kinds.Contains(item.Item1) ? "☑ " : "☐ ") + item.Item2, "maintenance-filter-" + item.Item1))));
+        rows.Add(" " + Act((state.Downloads ? "☑ " : "☐ ") + Messages.MaintenanceDownloads, "maintenance-filter-downloads"));
         if (state.Plan is { } plan)
         {
-            rows.Add(" " + Markup.Style("mut", "RECURSO / INSTALACIÓN                 TAMAÑO"));
-            foreach (var item in plan.Items) rows.Add(" " + Escape(item.Kind + " " + item.InstallationId) + " " + Escape(ByteSize.Format(item.Bytes)));
-            foreach (var note in plan.Diagnostics) rows.Add(" " + Markup.Style("warn", Markup.Escape(Messages.PruneKept(note.Name, note.Code))));
-            if (plan.Items.Count == 0) rows.Add(" " + Markup.Style("mut", "Sin instalaciones elegibles."));
-            rows.Add(" " + Markup.Style("hi", "Recuperable: " + ByteSize.Format(plan.Bytes)));
-            if (plan.Items.Count > 0) rows.Add(" " + Act("Eliminar conjunto…", "maintenance-clean"));
+            rows.Add(" " + Markup.Style("mut", Messages.MaintenanceColumns));
+            foreach (var item in plan.Items) rows.Add(" " + Escape(Messages.Kind(item.Kind) + " " + item.InstallationId) + " " + Escape(ByteSize.Format(item.Bytes)));
+            foreach (var item in plan.Downloads ?? []) rows.Add(" " + Escape(Messages.MaintenanceDownloadName(item.Name)) + " " + Escape(ByteSize.Format(item.Bytes)));
+            foreach (var note in plan.Diagnostics) rows.Add(" " + Markup.Style("warn", Markup.Escape(Messages.PruneKept(note))));
+            if (plan.Items.Count + (plan.Downloads?.Count ?? 0) == 0) rows.Add(" " + Markup.Style("mut", Messages.MaintenanceEmpty));
+            rows.Add(" " + Markup.Style("hi", Messages.MaintenanceRecoverable(plan.Bytes)));
+            if (plan.Items.Count + (plan.Downloads?.Count ?? 0) > 0) rows.Add(" " + Act(Messages.MaintenanceDelete, "maintenance-clean"));
         }
         if (state.Cleanup is not null) rows.AddRange(state.Cleanup.Split('\n').Select(row => " " + Escape(row)));
-        return new("Mantenimiento de " + Escape(scope), rows);
+        if (forgettable) { rows.Add(""); rows.Add(" " + Act(Messages.MaintenanceForget, "project-forget") + " " + Markup.Style("mut", Messages.ForgetProjectHint)); }
+        return new(Messages.MaintenanceTitle(Escape(scope)), rows);
     }
 
     private sealed class HubView

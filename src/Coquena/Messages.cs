@@ -14,7 +14,7 @@ public static class Messages
 
     public static string Kind(string kind) => kind switch
     {
-        "backend" => "Backend", "companion" => "Auxiliar", _ => "Modelo"
+        "backend" => "Backend", "companion" => "Auxiliar", "download" => "Descarga", _ => "Modelo"
     };
 
     // prune
@@ -27,11 +27,125 @@ public static class Messages
         "file-inaccessible" => $"Se conserva {name}: no se pudo leer el archivo.",
         _ => $"Se conserva {name} ({code})."
     };
+    public static string PruneKept(Projects.CleanupNote note) => note.Reference is { } reference
+        ? $"Se conserva {note.Name}: {CleanupReference(reference)}." : PruneKept(note.Name, note.Code);
+    public static string CleanupReference(Projects.UsageReference reference) => reference.Kind switch
+    {
+        "combination-index" => $"lo usa una combinación registrada en {reference.Scope}",
+        "update-plan" => $"lo necesita una actualización pendiente en {reference.Scope}",
+        "active" => $"está incluido en una ejecución registrada en {reference.Scope}",
+        "last-good" => $"se conserva para recuperación en {reference.Scope}",
+        "download" => $"lo necesita una descarga pendiente en {reference.Scope}",
+        _ => $"tiene una referencia de servicio o publicación registrada en {reference.Scope}"
+    };
+    public static string UsageReferencedRow(string name, Projects.UsageReference reference) => $"    se conserva {name}: {CleanupReference(reference)}.";
     public static string PruneConfirmationRequired => Error("confirmation-required", "Falta confirmar. Repetir con --yes para borrar lo mostrado");
     public const string PruneAsk = "¿Borrar lo mostrado? [s/N] ";
     public static string PruneFreed(long bytes) => $"✔ Se liberaron {ByteSize.Format(bytes)}.";
     public static string PruneFailed(string name, string code) => Error(code, $"No se pudo borrar {name}");
     public const string CombinationForgotten = "Combinación olvidada. Se conservan el YAML, los pesos y las publicaciones.";
+
+    // Maintenance: codes and persisted data remain independent of these texts.
+    public const string UsageDescription = "Muestra el espacio usado y los archivos que se pueden borrar en cada proyecto y en el almacenamiento global. Alias: df.";
+    public const string UsageEmptySelection = "No hay archivos de Coquena en los proyectos o en el almacenamiento global seleccionados.";
+    public const string UsageNoProject = "No hay un proyecto en esta carpeta.";
+    public const string UsageProjectEmpty = "Este proyecto todavía no tiene archivos guardados por Coquena.";
+    public const string UsageGlobalEmpty = "Todavía no hay archivos en el almacenamiento global.";
+    public const string UsageHere = "Este proyecto";
+    public const string UsageGlobal = "Global";
+    public const string UsageProject = "Proyecto";
+    public const string UsageOtherProject = "Otro proyecto";
+    public const string UsageBlockedDetails = "⚠ Coquena no pudo abrir estos proyectos registrados. Esto no impide limpiar los recursos sin referencias vigentes:";
+    public const string UsageForgetHint = "  Ver la lista con coquena project list. Si esos proyectos ya no se usan, revisar su retirada con coquena project forget --inaccessible --dry-run.";
+    public const string UsageBlocked = "  No se puede limpiar todavía: Coquena no pudo leer algunos proyectos y no sabe qué archivos siguen usando.";
+    public const string UsageNothingToClean = "  No hay archivos que se puedan borrar con los filtros elegidos.";
+    public const string MaintenanceModels = "Modelos";
+    public const string MaintenanceCompanions = "Auxiliares";
+    public const string MaintenanceBackends = "Backends";
+    public const string UsageDownloadUncertain = "pendiente de revisar";
+    public const string UsageDownloadReclaimable = "se puede borrar";
+    public const string ProjectHelpDescription = "Lista los proyectos registrados en Coquena o retira los elegidos de esa lista. Se puede usar un identificador completo o su inicio, si identifica un único proyecto.";
+    public const string ProjectInvalidArguments = "No se reconocen esos argumentos. Ver coquena project --help.";
+    public const string ProjectForgetConfirmationRequired = "Revisar los proyectos con --dry-run. Para retirarlos de la lista sin una pregunta interactiva, usar --yes.";
+    public const string ProjectForgetAsk = "¿Olvidar los proyectos mostrados? [s/N] ";
+    public const string CleanupTypeMismatch = "El recurso indicado no pertenece a ninguno de los tipos elegidos.";
+    public const string ProjectUniqueIdRequired = "Usar un identificador de coquena project list. Si se escribe sólo el inicio, debe identificar un único proyecto.";
+    public const string ProjectUnreachableForCleanup = "No se pudo abrir ese proyecto. Revisar su ubicación y permisos con coquena project list. Si ya no se usa, se puede retirar con coquena project forget.";
+    public const string ProjectForgetSelectionRequired = "Indicar los proyectos que se quieren olvidar, o usar --inaccessible para elegir todos los que Coquena no puede abrir.";
+    public const string ProjectIndexEmpty = "No hay proyectos conocidos.";
+    public const string ProjectUnknownId = "No hay ningún proyecto registrado con ese identificador. Ver coquena project list.";
+    public const string ProjectAmbiguousId = "Ese inicio coincide con varios proyectos. Escribir más caracteres del identificador.";
+    public const string ProjectIndexChanged = "La lista de proyectos cambió desde que se mostró. Revisarla de nuevo antes de olvidar proyectos.";
+    public const string ProjectChangedBeforeForget = "Uno de los proyectos cambió desde que se mostró. Revisar la lista de nuevo antes de olvidarlo.";
+    public const string CleanupScopesChanged = "Los proyectos relacionados con esta limpieza cambiaron. Volver a consultar qué se puede borrar.";
+    public const string CleanupWrongScope = "La lista de archivos para borrar corresponde a otro proyecto o almacenamiento.";
+    public const string CleanupFilesChanged = "Los archivos o sus referencias cambiaron. Volver a consultar qué se puede borrar.";
+    public const string CleanupUnknownOperation = "Hay una carpeta de descarga que Coquena no reconoce. Se conserva para evitar borrar archivos sin saber a qué descarga pertenecen.";
+    public const string CleanupTransferIdentityUnknown = "El registro de una descarga no coincide con el proyecto. Se conservan los archivos; revisar la descarga antes de limpiar.";
+    public const string CleanupOperationDirectoryMismatch = "El identificador de la descarga no coincide con su carpeta. Se conservan sus archivos.";
+    public const string CleanupInstallationLocationUnknown = "No se pudo verificar la carpeta de instalación. Se conservan sus archivos.";
+    public const string CleanupNotRegularFile = "La ruta corresponde a una carpeta o un enlace. No se borra como si fuera un archivo de Coquena.";
+    public const string CleanupProjectUnreadable = "No se puede limpiar todavía: Coquena no pudo leer un proyecto y no sabe qué archivos sigue usando. Revisar coquena project list. Si ya no se usa, revisar su retirada con coquena project forget --inaccessible --dry-run.";
+    public const string MaintenanceSelectors = "[--global] [-f archivo] [--project id] [--model|--companion|--backend] [--select referencia] [--downloads]";
+    public const string UsageHelp = "usage " + MaintenanceSelectors + "\n" + UsageDescription;
+    public const string ProjectHelp = "project list [--json]\nproject forget <id>... [--dry-run|--yes]\nproject forget --inaccessible [--dry-run|--yes]\n" + ProjectHelpDescription;
+    public const string CleanupHelp = "clean " + MaintenanceSelectors + " [--dry-run|--yes]\nAlias: prune.\nSin elegir un proyecto o --global, se limpia el proyecto de la carpeta actual.\nSin filtros, se eligen instalaciones que ya no se usan.";
+    public static string UsageInvalidOptions => "No se reconocen esas opciones. Uso: " + UsageHelp.Split('\n')[0];
+    public static string UsageFailed(string detail) => "No se pudo medir el espacio: " + detail;
+    public static string UsageHeading(string title, long bytes, string folder) => $"{title}: {ByteSize.Format(bytes)}  ({folder})";
+    public static string UsageResourceRow(string label, long bytes, long free) =>
+        $"  {label,-12}{ByteSize.Format(bytes),12}" + (free > 0 ? $"   se pueden borrar {ByteSize.Format(free)}" : "");
+    public static string UsageDownloadsRow(long bytes) => $"  {"Descargas",-12}{ByteSize.Format(bytes),12}   archivos temporales y registros";
+    public static string UsageDownloadRow(string name, long bytes, Guid id, bool blocked) =>
+        $"    descarga ({(blocked ? UsageDownloadUncertain : UsageDownloadReclaimable)}): {name} ({ByteSize.Format(bytes)}) · {id:D}";
+    public static string UsageLogsRow(long bytes) => $"  {"Logs",-12}{ByteSize.Format(bytes),12}";
+    public static string UsageUnusedRow(string name, long bytes) => $"    {name} ({ByteSize.Format(bytes)})";
+    public const string UsageRemovableResources = "  Para borrar · sin referencias ni protección:";
+    public const string UsageKeptHeading = "  Se conservan:";
+    public static string UsageKeptRow(string name, IEnumerable<string> reasons) => $"    {name} — {string.Join("; ", reasons)}";
+    public static string UsageInstallationLabel(string name, string id) => $"{name} [instalación {id[..Math.Min(8, id.Length)]}]";
+    public static string UsageShortReference(Projects.UsageReference reference, bool local) =>
+        (reference.Kind switch { "combination-index" => "combinación", "update-plan" => "actualización pendiente",
+            "active" => "ejecución", "last-good" => "recuperación", "download" => "descarga pendiente", _ => "servicio/publicación" }) +
+        (local ? "" : $" ({reference.Scope})");
+    public static string UsageUnavailableSummary(int paths) => $"⚠ Rutas de proyectos inaccesibles: {paths}. No bloquean esta limpieza.";
+    public const string UsageUnavailableHint = "  Revisar: coquena project list · Olvidar: coquena project forget --inaccessible";
+    public static string UsageUncertainRow(string name, long bytes) => $"    podría estar en uso por un proyecto que no se pudo leer: {name} ({ByteSize.Format(bytes)})";
+    public static string UsageExternal(long bytes) => $"  Incluye {ByteSize.Format(bytes)} de archivos externos que Coquena no borra.";
+    public static string UsageReclaimable(long bytes, string command) => $"  Se pueden liberar {ByteSize.Format(bytes)} con {command}.";
+    public static string ProjectForgetSummary(int count) => (count == 1 ? "Se retirará 1 proyecto de la lista de Coquena." : $"Se retirarán {count} proyectos de la lista de Coquena.") +
+        " Sus archivos no se borran. Al dejar de tenerlos en cuenta, algunos archivos globales podrían quedar disponibles para limpiar. Los archivos que usen otros proyectos o servicios se conservan.";
+    public static string CleanupReclaimable(long bytes) => bytes == 0 ? "No hay archivos para borrar con estos filtros." : $"Se pueden liberar {ByteSize.Format(bytes)}.";
+    public const string MaintenanceWorking = "Trabajando… se puede cambiar de vista mientras sigue.";
+    public const string MaintenanceVerify = "Verificar";
+    public const string MaintenanceVerifyHint = "revisar la receta y sus archivos";
+    public const string MaintenancePreview = "Limpiar…";
+    public const string MaintenanceCleanupHint = "archivos de Coquena que ya no se usan";
+    public const string MaintenanceDownloads = "Descargas detenidas";
+    public const string MaintenanceColumns = "RECURSO / INSTALACIÓN                 TAMAÑO";
+    public const string MaintenanceEmpty = "No hay archivos para borrar con estos filtros.";
+    public const string MaintenanceDelete = "Borrar lo mostrado…";
+    public const string MaintenanceForget = "Olvidar…";
+    public static string MaintenanceTitle(string scope) => "Mantenimiento de " + scope;
+    public static string MaintenanceRecoverable(long bytes) => "Se pueden liberar: " + ByteSize.Format(bytes);
+    public static string MaintenanceDownloadName(string name) => "Descarga " + name;
+    public static string MaintenancePlanReady(string scope, long bytes) => $"Limpieza de {scope}: se pueden liberar {ByteSize.Format(bytes)}.";
+    public static string MaintenanceDeleteQuestion(int count, long bytes) => $"Se borrarán los {count} elementos mostrados para liberar {ByteSize.Format(bytes)}.\nAntes de borrar, Coquena vuelve a comprobar que no estén en uso.";
+    public const string MaintenanceDeleteConfirm = "Borrar lo mostrado";
+    public const string MaintenanceCancel = "Cancelar";
+    public static string MaintenanceCleanupTitle(string scope) => "Limpiar · " + scope;
+    public static string MaintenanceForgetTitle(string scope) => "Olvidar proyecto · " + scope;
+    public const string MaintenanceForgetErrorTitle = "Olvidar proyecto";
+    public const string MaintenanceForgetConfirm = "Olvidar";
+    public const string MaintenanceAccept = "Aceptar";
+    public static string MaintenanceLastCleanup(DateTimeOffset at) => "Última limpieza de esta sesión · " + at.ToString("dd/MM HH:mm");
+    public const string CleanupDownloadChanged = "La descarga cambió desde que se mostró. Volver a consultar qué se puede borrar.";
+    public const string CleanupDownloadSizeChanged = "El tamaño de la descarga cambió desde que se mostró. Volver a consultar qué se puede borrar.";
+    public const string CleanupInvalidOptions = "No se reconocen esas opciones. Ver coquena clean --help.";
+    public const string CleanupSelectionChanged = "La lista de archivos para borrar cambió desde que se mostró. Repetir clean para revisarla.";
+    public const string CleanupGlobalHeading = "Global: ";
+    public const string CleanupProjectHeading = "Proyecto: ";
+    public const string ProjectCannotInitialize = "No se puede inicializar esta carpeta: ya tiene una receta o Coquena no puede acceder a ella.";
 
     // recipes and authoring
     public const string CombinationNotPrepared = "La combinación todavía no se preparó. Usarla en Up o Iniciar para poder comprobar novedades.";
@@ -40,6 +154,16 @@ public static class Messages
     public static string MoreRows(int count) => $"… {count} más";
     public const string NoUpdatePlan = "Sin plan de actualización registrado.";
     public const string ProjectPathGone = "La ruta del proyecto ya no se puede resolver.";
+    public const string NoKnownProjects = "No hay proyectos conocidos.";
+    public const string ForgetProjectHint = "quitarlo de los proyectos conocidos; no borra archivos";
+    public static string ProjectForgotten(string folder) =>
+        $"Proyecto olvidado: {folder}. No se borró ningún archivo; si se vuelve a usar, se registra de nuevo.";
+    public static string ProjectState(string code) => code switch
+    {
+        "available" => "disponible",
+        "no-recipe" => "sin receta",
+        _ => "inaccesible"
+    };
     public static string ReferencesToEntry(int count) => count == 1 ? " (y 1 referencia a esta entrada)" : $" (y {count} referencias a esta entrada)";
     public const string RestNotValidated = " El resto del archivo no se pudo validar.";
     public const string SchemaReferenceUpdated = "Referencia al schema actualizada";

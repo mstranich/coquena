@@ -47,8 +47,16 @@ internal static class CliHelp
           upgrade [--global]               Aplicar propuestas válidas del plan vigente
             --select referencia            Filtrar update/upgrade; opción repetible
           usage (df)                       Ver espacio usado y liberable
-          prune (clean) [--global] [--dry-run|--yes]
+          prune (clean) [--global] [-f <archivo>] [--project <id>]
+            [--dry-run|--yes]
                                            Borrar lo que no se usa
+            --model --companion --backend  Filtrar tipos en usage y clean
+            --select referencia            Elegir recursos; opción repetible
+            --downloads                    Incluir preparación de descargas detenidas
+          project list [--json]            Listar proyectos conocidos y su estado
+          project forget <id>... [--dry-run|--yes]
+          project forget --inaccessible [--dry-run|--yes]
+                                           Retirar entradas del índice; no borra archivos
           combination list | forget <id>   Consultar u olvidar combinaciones
           verify [--global] [--checksum] [--json]  Auditar recursos
             --checksum                     Comprobar SHA-256 de cada archivo

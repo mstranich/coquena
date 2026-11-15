@@ -32,7 +32,7 @@ están en [interfaces visuales](../interfaces-visuales.md) y
 | Q | Definiciones › Parámetros | nodo Parámetros |
 | Q2 | Definiciones › Parámetros de un proyecto: definiciones de la combinación elegida y su capa | nodo Parámetros (local) |
 | U | Definiciones › Actualizaciones (Comprobar = update, Actualizar = upgrade) | nodo Actualizaciones |
-| R | Definiciones › Mantenimiento (Verificar, Limpiar) | nodo Mantenimiento |
+| R | Definiciones › Mantenimiento (Verificar, Limpiar, Olvidar) | nodo Mantenimiento |
 | V | Modal Nueva combinación: YAML en orden y archivos .env | + Nueva combinación… |
 | X | Modal Aceptar/Cancelar: Up con destino ocupado | ▲ Up |
 | Y | Modal Sí/No/Cancelar: guardar con cambios externos | Guardar en el Editor |
