@@ -24,8 +24,8 @@ public static class VerifyCli
             error.WriteLine(e switch
             {
                 RecipeException { Phase: "validate" } invalid => RecipeValidation.Message(invalid),
-                RecipeException => $"Error en la receta: {e.Message}",
-                _ => $"Error: {code}. La verificación no se completó."
+                RecipeException => Messages.VerifyRecipeError.Format(e.Message),
+                _ => Messages.VerifyNotCompleted.Format(code)
             });
             return e is OperationCanceledException ? 130 : e is ArgumentException or RecipeException or ModelSourceException or Coquena.Backends.BackendException || code == "ambiguous-resource-selector" ? 2 :
                 code.Contains("conflict", StringComparison.Ordinal) ? 3 : 7;
@@ -36,7 +36,7 @@ public static class VerifyCli
     internal static void WriteReport(VerificationReport report, bool checksum, TextWriter output)
     {
         var checksumRan = checksum && report.Resources.All(resource => resource!["mode"]!.GetValue<string>() == "checksum");
-        if (checksum && !checksumRan) output.WriteLine("SHA-256 omitido. Corregir los problemas del catálogo y repetir verify --checksum.");
+        if (checksum && !checksumRan) output.WriteLine(Messages.VerifyChecksumSkipped);
         output.WriteLine(report.Verified ? Messages.VerifyAllOk(report.Resources.Count, checksumRan) : Messages.VerifyProblems(report.Resources.Count, checksumRan));
         foreach (var resource in report.Resources)
         {
@@ -50,7 +50,7 @@ public static class VerifyCli
             }
             if (resource["known-failures"] is JsonObject failures)
                 foreach (var failure in failures)
-                    output.WriteLine($"    Fallo pendiente ({(failure.Key switch { "$unit" => "estructura", "$integrity" => "integridad", _ => failure.Key })}). Revisar el recurso y repetir con --checksum.");
+                    output.WriteLine(Messages.VerifyPendingFailure.Format(Messages.VerifyFailureKind(failure.Key)));
         }
     }
 
@@ -61,7 +61,7 @@ public static class VerifyCli
         var files = new List<string>(); var env = new List<string>(); var selectors = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var seen = new HashSet<string>(); string? basePath = null; bool global = false, unused = false, privateSelection = false, checksum = false, json = false;
         foreach (var arg in args) if (arg is "--help" or "-h")
-        { output.WriteLine("verify [-f archivo] [--env-file archivo] [--project-directory ruta] [--select referencia]... [--checksum] [--json]\nverify --global [--select referencia]... [--include-unused] [--checksum] [--json]\nReferencias: backend://variante, backend://alias, backend://proyecto/alias, model://clave, companion://clave"); return 0; }
+        { output.WriteLine(Messages.DisplayVerifyUsage.ToString()); return 0; }
         for (var i = 0; i < args.Length; i++)
         {
             var arg = args[i] switch { "-g" => "--global", "-f" => "--file", "--base" => "--project-directory", _ => args[i] };
@@ -81,7 +81,7 @@ public static class VerifyCli
             else throw new ArgumentException();
         }
         if (global && (files.Count > 0 || env.Count > 0 || basePath is not null)) throw new ArgumentException();
-        if (!global && unused) throw new ArgumentException("--include-unused requiere --global.");
+        if (!global && unused) throw new ArgumentException(Messages.VerifyUnusedNeedsGlobal);
         var filters = selectors.Select(ResourceSelector.Parse).ToArray();
         var selection = global ? null : new RecipeSelection(Environment.CurrentDirectory, files, basePath, env);
         var context = global ? ScopeContext.Global(Home.Resolve()) : ScopeContext.Project(selection!.Files[0], selection.Base);
@@ -153,7 +153,7 @@ public static class VerifyCli
         }
         foreach (var filter in filters)
         {
-            if (!selected.Any(s => Matches(filter, s))) throw new ArgumentException("Selector desconocido.");
+            if (!selected.Any(s => Matches(filter, s))) throw new ArgumentException(Messages.UnknownSelector);
             filter.CheckAmbiguity(selected.Where(s => Matches(filter, s)).Select(s => s.Request?.ProjectName));
         }
         if (filters.Length > 0) selected = selected.Where(s => filters.Any(f => Matches(f, s))).ToList();

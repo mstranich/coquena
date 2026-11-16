@@ -52,7 +52,7 @@ internal static class ExternalMatchingTests
             Check(Add("BF16", false, true, new Interaction(options =>
             {
                 Check(installer.List().Any(m => m.Record.Name == "owner/repo:BF16" && m.Record.InformativeMatch is null), "persisted before menu");
-                Check(options.Count == 3 && options[0].Contains("A-BF16") && options[1].Contains("B-BF16") && options[2].Contains("Cancelar"), "ambiguous explicit choices and cancel");
+                Check(options.Count == 3 && options[0].Contains("A-BF16") && options[1].Contains("B-BF16") && options[2].Contains(Messages.MaintenanceCancel.ToString()), "ambiguous explicit choices and cancel");
                 return 1;
             })) == 0, "successful add");
             var record = installer.List().Single().Record;

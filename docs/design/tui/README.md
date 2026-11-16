@@ -20,7 +20,7 @@ están en [interfaces visuales](../interfaces-visuales.md) y
 | S | Modal Agregar modelo local (`model add`) | + Agregar local… |
 | O | Definiciones › Backends | nodo Backends |
 | D | Hardware | barra inferior |
-| E–G | Configuración › Coquena, TUI, Sistema | pestaña ≡ |
+| E–G | Configuración › General, TUI, Sistema | pestaña ≡ |
 | H | Editor YAML, una pestaña por archivo de la combinación | Editar, + Agregar override, Clonar… |
 | I | Log histórico (RegEx) | Histórico en el log del servicio |
 | J | Carpeta sin receta | nodo Receta sin `coquena.yaml` (Inicializar) |

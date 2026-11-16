@@ -37,10 +37,10 @@ internal static partial class DashboardCli
             try
             {
                 var selection = chosen ?? (service is null ? place.Recipe! : ServiceSelection(place, service));
-                file = chosen is null ? string.Join(" + ", selection.Files) : "capas " + LayerLegend(selection);
+                file = chosen is null ? string.Join(" + ", selection.Files) : Messages.AuthoringLayersLabel.ToString() + LayerLegend(selection);
                 var definition = RecipeReader.Read(selection).Root.Get("service");
                 var intent = definition?.Get("backend")?.Redacted();
-                backend = intent?["executable"] is not null ? "externo" :
+                backend = intent?["executable"] is not null ? Messages.LabelsExternal.ToString() :
                     string.Join(" · ", new[] { intent?["variant"]?.GetValue<string>(), intent?["version"]?.GetValue<string>() }.OfType<string>());
                 if (chosen is not null && definition?.Get("backend") is { } declaredBackend) backend += " " + LayerMark(selection, declaredBackend.Origin.File);
                 port = definition?.Get("server")?.Get("args")?.Get("port")?.Redacted()?.ToString() ?? "";
@@ -57,7 +57,7 @@ internal static partial class DashboardCli
             var observed = index >= 0 && snapshots.TryGetValue(index, out var snapshot) ? snapshot : null;
             var status = observed is null ? default : LivePresentation.ServiceState(observed);
             return new ManagementPresentation.Service(service?.ServiceId, service?.Name ?? place.Scope.Name, place.Scope.Global && service?.ServiceId == defaultId,
-                backend, port, service is null ? "sin registrar" : observed is null ? null : status.Item1 + " " + status.Item3, observed is null ? null : status.Item2,
+                backend, port, service is null ? Messages.DefinitionsStateUnregistered.ToString() : observed is null ? null : status.Item1 + " " + status.Item3, observed is null ? null : status.Item2,
                 file, arguments, consumers, problem);
         }
     }
@@ -78,7 +78,7 @@ internal static partial class DashboardCli
     {
         if (File.Exists(context.PathFor("local/state.json"))) return Transfers(context).Downloads.List();
         if (Directory.Exists(context.PathFor("downloads")) && Directory.EnumerateFileSystemEntries(context.PathFor("downloads")).Any())
-            throw new StorageException("missing-state-pointer", "Hay transferencias sin identidad de ámbito.");
+            throw new StorageException("missing-state-pointer", Messages.TransferMissingScopeIdentity.ToString());
         return [];
     }
 
@@ -97,13 +97,13 @@ internal static partial class DashboardCli
         using var official = transport is null && selected.ResourceKind == "backend" ? new OfficialArtifactTransport() : null;
         using var huggingFace = transport is null && selected.ResourceKind != "backend" ? new HuggingFaceTransport() : null;
         var result = await transfers.RunAsync(id, transport ?? official ?? (IDownloadTransport)huggingFace!, _ => { }, cancellation,
-            async (_, file, token) => app is not null && await AskOnUi(app, "Reiniciar archivo", $"Archivo {file + 1}: reiniciar con la misma selección y descartar su parcial?",
-                "Reiniciar", token));
-        if (result?.State == "failed") throw new DownloadException("transfer-failed", result.Diagnostic ?? "Falló la transferencia.");
-        if (result is not null) return "Estado: " + result.State + " · " + result.Phase + (result.Diagnostic is { } diagnostic ? " · " + diagnostic : "");
+            async (_, file, token) => app is not null && await AskOnUi(app, Messages.TransferRestartFileTitle.ToString(), Messages.TransferRestartFileConfirm.Format(file + 1),
+                Messages.LabelsRestart.ToString(), token));
+        if (result?.State == "failed") throw new DownloadException("transfer-failed", result.Diagnostic ?? Messages.ManagementTransferFailed.ToString());
+        if (result is not null) return Messages.TransferStateSummary.Format(result.State, result.Phase, result.Diagnostic is { } diagnostic ? " · " + diagnostic : "");
         var candidate = RecipeUpgrade.Pending(new ScopeStore(context).Read().Documents, id)?["candidate"] is not null;
-        return candidate ? "Candidata preparada; upgrade debe publicar el conjunto." : transfers.Published(selected)
-            ? "Instalación publicada y limpieza completada." : "Cancelación y limpieza completadas.";
+        return candidate ? Messages.TransferCandidatePrepared.ToString() : transfers.Published(selected)
+            ? Messages.TransferPublishedAndCleaned.ToString() : Messages.TransferCancelledAndCleaned.ToString();
     }
 
     private static async Task<bool> AskOnUi(IApplication app, string title, string text, string accept, CancellationToken cancellation)
@@ -112,7 +112,7 @@ internal static partial class DashboardCli
         app.Invoke(() =>
         {
             if (cancellation.IsCancellationRequested) { answer.TrySetCanceled(cancellation); return; }
-            try { answer.TrySetResult(Query(app, title, text, "Cancelar", accept) == 1); }
+            try { answer.TrySetResult(Query(app, title, text, Messages.LabelsCancel.ToString(), accept) == 1); }
             catch (Exception error) { answer.TrySetException(error); }
         });
         return await answer.Task.WaitAsync(cancellation);
@@ -129,7 +129,7 @@ internal static partial class DashboardCli
             if (resource["ownership"]?.GetValue<string>() == "external")
             {
                 var path = installation!["executable"]!.GetValue<string>();
-                return new InstalledBackend("externo · " + Path.GetFileName(path), new BackendIntent(null, null, path));
+                return new InstalledBackend(Messages.BackendExternalLabel.Format(Path.GetFileName(path)), new BackendIntent(null, null, path));
             }
             var selection = installation!["selection"]!["backendSelection"]!;
             string variant = selection["variant"]!.GetValue<string>(), release = selection["release"]!.GetValue<string>();
@@ -143,7 +143,7 @@ internal static partial class DashboardCli
     private static ServiceFormResult? ServiceForm(IApplication app, string scope, string? fixedName,
         IReadOnlyList<InstalledBackend> backends, out bool goToBackends)
     {
-        using var dialog = Modal(app, 74, 18, "Agregar servicio a " + scope);
+        using var dialog = Modal(app, 74, 18, Messages.ManagementAddServiceTo.Format(scope));
         var color = string.IsNullOrEmpty(Environment.GetEnvironmentVariable("NO_COLOR"));
         const int field = 12;
         var captions = new List<Label>();
@@ -152,32 +152,32 @@ internal static partial class DashboardCli
         var list = new ListView { X = field, Y = 1, Width = Dim.Fill(2), Height = 4 };
         list.SetSource(new System.Collections.ObjectModel.ObservableCollection<string>(backends.Select(item => item.Label)));
         if (backends.Count > 0) list.SelectedItem = 0;
-        var go = new Button { X = field, Y = 5, Text = " Ir a backends ", NoDecorations = true, ShadowStyle = ShadowStyles.None };
+        var go = new Button { X = field, Y = 5, Text = Messages.ManagementGoToBackendsButton.ToString(), NoDecorations = true, ShadowStyle = ShadowStyles.None };
         var host = new TextField { X = field, Y = 7, Width = 15, Text = "127.0.0.1" };
         var port = new TextField { X = field + 24, Y = 7, Width = 8, Text = "9931" };
         var health = new TextField { X = field, Y = 8, Width = Dim.Fill(2) };
         var arguments = new JsonObject();
-        var argumentButton = new Button { X = 1, Y = 9, Text = " Argumentos de proceso… ", NoDecorations = true, ShadowStyle = ShadowStyles.None };
+        var argumentButton = new Button { X = 1, Y = 9, Text = Messages.ManagementProcessArgumentsButton.ToString(), NoDecorations = true, ShadowStyle = ShadowStyles.None };
         argumentButton.Accepting += (_, args) => { args.Handled = true; EditProcessArguments(app, arguments); };
         var status = new Label { X = 1, Y = 13, Width = Dim.Fill(1), Height = 2 };
         var leave = false;
         go.Accepting += (_, args) => { args.Handled = true; leave = true; app.RequestStop(dialog); };
-        dialog.Add(Caption(1, 2, "nombre"), name, Caption(1, 3, "backend"), list, go,
-            Caption(1, 9, "host"), host, Caption(field + 17, 9, "puerto"), port, Caption(1, 10, "URL salud"), health, argumentButton,
-            Caption(1, 13, backends.Count == 0 ? "Sin backends en " + scope + ": descargalos o registralos en Backends."
-                : "Sólo backends ya preparados en " + scope + "."),
-            Caption(1, 14, "Crear guarda la definición; no inicia el proceso."), status);
+        dialog.Add(Caption(1, 2, Messages.LabelsName.ToString()), name, Caption(1, 3, "backend"), list, go,
+            Caption(1, 9, "host"), host, Caption(field + 17, 9, Messages.LabelsPort.ToString()), port, Caption(1, 10, Messages.ManagementHealthUrlField.ToString()), health, argumentButton,
+            Caption(1, 13, backends.Count == 0 ? Messages.ManagementNoBackendsInScope.Format(scope)
+                : Messages.ManagementOnlyPreparedBackendsInScope.Format(scope)),
+            Caption(1, 14, Messages.ManagementCreateServiceHint.ToString()), status);
         ServiceFormResult? result = null;
-        var cancel = new Button { Text = " Cancelar ", NoDecorations = true, ShadowStyle = ShadowStyles.None };
-        var accept = new Button { Text = " Agregar ", NoDecorations = true, ShadowStyle = ShadowStyles.None, Enabled = backends.Count > 0 };
+        var cancel = new Button { Text = Messages.DashboardCancelButton.ToString(), NoDecorations = true, ShadowStyle = ShadowStyles.None };
+        var accept = new Button { Text = Messages.ManagementAddButton.ToString(), NoDecorations = true, ShadowStyle = ShadowStyles.None, Enabled = backends.Count > 0 };
         // Validate before accepting, so errors leave the user's form intact.
         accept.Accepting += (_, args) =>
         {
             try
             {
-                if (list.SelectedItem is not int row || row < 0 || row >= backends.Count) throw new ArgumentException("Elegir un backend.");
-                if (string.IsNullOrWhiteSpace(name.Text)) throw new ArgumentException("Ingresá un nombre de servicio.");
-                if (!int.TryParse(port.Text, out var number)) throw new ArgumentException("Puerto inválido.");
+                if (list.SelectedItem is not int row || row < 0 || row >= backends.Count) throw new ArgumentException(Messages.ManagementChooseBackendError.ToString());
+                if (string.IsNullOrWhiteSpace(name.Text)) throw new ArgumentException(Messages.ManagementEnterServiceNameError.ToString());
+                if (!int.TryParse(port.Text, out var number)) throw new ArgumentException(Messages.ServiceInvalidPort.ToString());
                 var intent = backends[row].Intent;
                 var options = new ServiceCreationOptions(host.Text.Trim(), number, health.Text.Trim(), arguments);
                 _ = options.Server(intent.Executable is not null);
@@ -205,30 +205,30 @@ internal static partial class DashboardCli
     // assigning it to a service. All work runs after acceptance, outside the main loop.
     private static BackendFormResult? BackendForm(IApplication app, string scope, HardwareContext? hardware)
     {
-        using var dialog = Modal(app, 74, 12, "Agregar backend a " + scope);
+        using var dialog = Modal(app, 74, 12, Messages.ManagementAddBackendTo.Format(scope));
         var color = string.IsNullOrEmpty(Environment.GetEnvironmentVariable("NO_COLOR"));
         const int field = 12;
         var captions = new List<Label>();
         Label Caption(int x, int y, string text) { var label = new Label { X = x, Y = y - 2, Text = text }; captions.Add(label); return label; }
-        var external = new CheckBox { X = field, Y = 0, Text = "ejecutable externo (sin copiar archivos)" };
+        var external = new CheckBox { X = field, Y = 0, Text = Messages.ManagementExternalExecutableCheck.ToString() };
         var variant = new TextField { X = field, Y = 1, Width = 12, Text = "cpu" };
         var version = new TextField { X = field + 21, Y = 1, Width = Dim.Fill(2), Text = "latest" };
         var executable = new TextField { X = field, Y = 4, Width = Dim.Fill(2), Enabled = false };
-        var chooseVariant = new Button { X = 1, Y = 3, Text = " Elegir variante… ", NoDecorations = true, ShadowStyle = ShadowStyles.None };
+        var chooseVariant = new Button { X = 1, Y = 3, Text = Messages.ManagementChooseVariantButton.ToString(), NoDecorations = true, ShadowStyle = ShadowStyles.None };
         chooseVariant.Accepting += (_, args) =>
         {
             args.Handled = true;
             string[] variants = ["cpu", "vulkan", "cuda@12", "cuda@13"];
-            var selected = Choose(app, "Variante · evidencia del sistema", variants.Select(item => item + " · " + (item == "cpu" ?
-                "arquitectura nativa" : item == "vulkan" ? hardware?.Vulkan.Diagnostic ?? "sin sondeo" : hardware?.Cuda.Diagnostic ?? "sin sondeo")).ToArray(), "Elegir");
+            var selected = Choose(app, Messages.ManagementVariantEvidenceTitle.ToString(), variants.Select(item => item + " · " + (item == "cpu" ?
+                Messages.ManagementNativeArchitecture.ToString() : item == "vulkan" ? hardware?.Vulkan.Diagnostic ?? Messages.ManagementNoProbe.ToString() : hardware?.Cuda.Diagnostic ?? Messages.ManagementNoProbe.ToString())).ToArray(), Messages.LabelsChoose.ToString());
             if (selected is int row) variant.Text = variants[row];
         };
         var status = new Label { X = 1, Y = 7, Width = Dim.Fill(1), Height = 2 };
         dialog.Add(external, variant, version, executable, status, chooseVariant,
-            Caption(1, 4, hardware is null ? "compatibilidad: se comprobará al resolver la selección" :
-                $"sondeo: CUDA {hardware.Cuda.State} · Vulkan {hardware.Vulkan.State}"),
-            Caption(1, 2, "origen"), Caption(1, 3, "variante"), Caption(field + 13, 3, "versión"), Caption(1, 6, "ejecutable"),
-            Caption(1, 8, "Prepara el backend en el ámbito; no lo asigna a un servicio."));
+            Caption(1, 4, hardware is null ? Messages.ManagementCompatibilityDeferredHint.ToString() :
+                Messages.ManagementProbeSummary.Format(hardware.Cuda.State, hardware.Vulkan.State)),
+            Caption(1, 2, Messages.LabelsSource.ToString()), Caption(1, 3, Messages.LabelsVariant.ToString()), Caption(field + 13, 3, Messages.ManagementVersionField.ToString()), Caption(1, 6, Messages.LabelsExecutable.ToString()),
+            Caption(1, 8, Messages.ManagementPrepareBackendHint.ToString()));
         external.ValueChanging += (_, change) =>
         {
             var value = change.NewValue == CheckState.Checked;
@@ -236,8 +236,8 @@ internal static partial class DashboardCli
             variant.Enabled = version.Enabled = chooseVariant.Enabled = !value;
         };
         BackendFormResult? result = null;
-        var cancel = new Button { Text = " Cancelar ", NoDecorations = true, ShadowStyle = ShadowStyles.None };
-        var accept = new Button { Text = " Agregar ", NoDecorations = true, ShadowStyle = ShadowStyles.None };
+        var cancel = new Button { Text = Messages.DashboardCancelButton.ToString(), NoDecorations = true, ShadowStyle = ShadowStyles.None };
+        var accept = new Button { Text = Messages.ManagementAddButton.ToString(), NoDecorations = true, ShadowStyle = ShadowStyles.None };
         accept.Accepting += (_, args) =>
         {
             try
@@ -265,17 +265,17 @@ internal static partial class DashboardCli
 
     private static void EditProcessArguments(IApplication app, JsonObject arguments)
     {
-        using var dialog = Modal(app, 72, 16, "Argumentos de proceso · cambios sólo en este formulario");
+        using var dialog = Modal(app, 72, 16, Messages.ManagementProcessArgsTitle.ToString());
         var list = new ListView { X = 1, Y = 0, Width = Dim.Fill(1), Height = 7 };
         var name = new TextField { X = 10, Y = 8, Width = 24 };
         var value = new TextField { X = 10, Y = 9, Width = Dim.Fill(1) };
         var status = new Label { X = 1, Y = 11, Width = Dim.Fill(1), Height = 2 };
         dialog.Add(list,
-            new Label { X = 1, Y = 8, Text = "Nombre" }, name, new Label { X = 1, Y = 9, Text = "Valor" }, value, status);
+            new Label { X = 1, Y = 8, Text = Messages.LabelsName2.ToString() }, name, new Label { X = 1, Y = 9, Text = Messages.LabelsValue.ToString() }, value, status);
         void Refresh() => list.SetSource(new System.Collections.ObjectModel.ObservableCollection<string>(arguments.Select(item => item.Key + " = " + item.Value)));
         Refresh();
-        var set = new Button { Text = " Asignar ", NoDecorations = true, ShadowStyle = ShadowStyles.None };
-        var remove = new Button { Text = " Quitar ", NoDecorations = true, ShadowStyle = ShadowStyles.None };
+        var set = new Button { Text = Messages.ManagementAssignButton.ToString(), NoDecorations = true, ShadowStyle = ShadowStyles.None };
+        var remove = new Button { Text = Messages.ManagementRemoveButton.ToString(), NoDecorations = true, ShadowStyle = ShadowStyles.None };
         set.Accepting += (_, args) =>
         {
             args.Handled = true;
@@ -283,20 +283,20 @@ internal static partial class DashboardCli
             {
                 var key = name.Text.Trim();
                 if (key.Length == 0 || key.StartsWith('-') || key.Any(char.IsWhiteSpace) || key is "host" or "port")
-                    throw new ArgumentException("Nombre sin guiones iniciales; host/port tienen sus propios campos.");
+                    throw new ArgumentException(Messages.ManagementArgNameValidation.ToString());
                 JsonNode? parsed;
                 try { parsed = JsonNode.Parse(value.Text); }
                 catch (System.Text.Json.JsonException) { parsed = JsonValue.Create(value.Text); }
-                if (parsed is JsonObject) throw new ArgumentException("Usar texto, número, true/false o una lista.");
+                if (parsed is JsonObject) throw new ArgumentException(Messages.ManagementArgValueValidation.ToString());
                 arguments[key] = parsed;
-                status.Text = "Asignado al formulario; se guardará al crear el servicio.";
+                status.Text = Messages.ManagementArgAssignedStatus.ToString();
                 Refresh();
             }
             catch (Exception error) when (ManagementError(error)) { status.Text = error.Message; }
         };
         remove.Accepting += (_, args) => { args.Handled = true; if (list.SelectedItem is int row && row >= 0 && row < arguments.Count) arguments.Remove(arguments.ElementAt(row).Key); Refresh(); };
         dialog.AddButton(set); dialog.AddButton(remove);
-        dialog.AddButton(new Button { Text = " Volver ", NoDecorations = true, ShadowStyle = ShadowStyles.None });
+        dialog.AddButton(new Button { Text = Messages.DashboardBackButton.ToString(), NoDecorations = true, ShadowStyle = ShadowStyles.None });
         if (string.IsNullOrEmpty(Environment.GetEnvironmentVariable("NO_COLOR")))
         {
             Paint(dialog, Palette.Text, Palette.Card);

@@ -15,5 +15,6 @@
     <PackageReference Include="Terminal.Gui" Version="2.5.0" />
     <PackageReference Include="Terminal.Gui.Editor" Version="2.5.4" />
     <PackageReference Include="YamlDotNet" Version="18.1.0" />
+    <EmbeddedResource Include="Localization/*.json" LogicalName="languages/%(Filename)%(Extension)" />
   </ItemGroup>
 </Project>

@@ -9,13 +9,13 @@ internal static class InitCli
     {
         if (args is ["--help" or "-h"])
         {
-            output.WriteLine("Uso: coquena init [<directorio>]");
+            output.WriteLine(Messages.InitUsage);
             return 0;
         }
 
         if (args.Length > 1 || args.Length == 1 && args[0].StartsWith('-'))
         {
-            error.WriteLine("Uso: coquena init [<directorio>]");
+            error.WriteLine(Messages.InitUsage);
             return 2;
         }
 
@@ -30,7 +30,7 @@ internal static class InitCli
             foreach (var file in new[] { recipe, projectIgnore, metadataIgnore })
             {
                 if (Directory.Exists(file))
-                    throw new IOException($"Se esperaba un archivo en {file}.");
+                    throw new IOException(Messages.InitExpectedFile.Format(file));
             }
 
             Directory.CreateDirectory(metadata);
@@ -42,18 +42,18 @@ internal static class InitCli
             // Init brings the project to this version: the generated schema and the recipe's
             // reference to it are replaced without asking, and each change is reported.
             var schema = Path.Combine(metadata, SchemaFile);
-            if (Directory.Exists(schema)) throw new IOException($"Se esperaba un archivo en {schema}.");
+            if (Directory.Exists(schema)) throw new IOException(Messages.InitExpectedFile.Format(schema));
             var schemaText = Recipes.RecipeShape.Schema().ToJsonString(new System.Text.Json.JsonSerializerOptions { WriteIndented = true }) + "\n";
             var schemaExisted = File.Exists(schema);
             if (!schemaExisted || File.ReadAllText(schema) != schemaText)
             {
                 File.WriteAllText(schema, schemaText);
-                output.WriteLine((schemaExisted ? "Schema actualizado: " : "Schema creado: ") + schema);
+                output.WriteLine((schemaExisted ? Messages.InitSchemaUpdated : Messages.InitSchemaCreated).Format(schema));
             }
 
             if (File.Exists(recipe))
             {
-                output.WriteLine($"Receta existente conservada: {recipe}");
+                output.WriteLine(Messages.InitRecipeKept.Format(recipe));
                 if (Reference(recipe) is { } change) output.WriteLine(change + ": " + recipe);
                 return 0;
             }
@@ -63,12 +63,12 @@ internal static class InitCli
             {
                 file.Write(System.Text.Encoding.UTF8.GetBytes(SchemaComment + "\n"));
             }
-            output.WriteLine($"Receta creada: {recipe}");
+            output.WriteLine(Messages.InitRecipeCreated.Format(recipe));
             return 0;
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
         {
-            error.WriteLine($"Error al inicializar: {exception.Message}");
+            error.WriteLine(Messages.InitFailed.Format(exception.Message));
             return 1;
         }
     }

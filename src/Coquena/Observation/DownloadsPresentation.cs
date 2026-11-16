@@ -28,8 +28,8 @@ internal static class DownloadsPresentation
             var count = items.Count(item => Rank(item.State) == rank);
             return count == 0 ? null : count + " " + (count == 1 ? one : many);
         }
-        var parts = new[] { Count(0, "activa", "activas"), Count(1, "pausada", "pausadas"), Count(2, "con error", "con error") }.OfType<string>().ToArray();
-        return "Descargas" + (parts.Length == 0 ? "" : "  " + Style("mut", string.Join(" · ", parts)));
+        var parts = new[] { Count(0, Messages.LabelsActive.ToString(), Messages.LabelsActive2.ToString()), Count(1, Messages.LabelsPaused.ToString(), Messages.LabelsPaused2.ToString()), Count(2, Messages.DownloadFailedStatus.ToString(), Messages.DownloadFailedStatus.ToString()) }.OfType<string>().ToArray();
+        return Messages.LabelsDownloads.ToString() + (parts.Length == 0 ? "" : "  " + Style("mut", string.Join(" · ", parts)));
     }
 
     // Actions are "verb:group:operation" so the caller resolves the scope of each row.
@@ -41,7 +41,7 @@ internal static class DownloadsPresentation
             var group = groups[g];
             var visible = group.Items.Where(item => Visible(item.State)).ToArray();
             if (visible.Length == 0) continue;
-            rows.Add(" " + Style("hi", group.Scope) + (group.Here ? " " + Style("mut", "(esta carpeta)") : ""));
+            rows.Add(" " + Style("hi", group.Scope) + (group.Here ? " " + Style("mut", Messages.DownloadThisFolderTag.ToString()) : ""));
             foreach (var kind in Categories)
             {
                 var items = visible.Where(item => item.Kind == kind)
@@ -59,8 +59,8 @@ internal static class DownloadsPresentation
     public static string Category(string kind) => kind switch
     {
         "backend" => "BACKENDS",
-        "model" => "MODELOS",
-        _ => "AUXILIARES"
+        "model" => Messages.LabelsMODELS.ToString(),
+        _ => Messages.LabelsCOMPANIONS.ToString()
     };
 
     private static IEnumerable<string> ItemRows(Item item, int group)
@@ -71,7 +71,7 @@ internal static class DownloadsPresentation
         if (rank == 2)
         {
             yield return name + Style("err", "✗ " + Failure(item.Diagnostic));
-            yield return new string(' ', ButtonColumn) + Button("Reintentar", "resume") + " " + Button("Cancelar", "cancel");
+            yield return new string(' ', ButtonColumn) + Button(Messages.LabelsRetry.ToString(), "resume") + " " + Button(Messages.LabelsCancel.ToString(), "cancel");
             yield break;
         }
         var ratio = item.Total is > 0 ? Math.Clamp(item.Done / (double)item.Total.Value, 0, 1) : (double?)null;
@@ -79,48 +79,51 @@ internal static class DownloadsPresentation
         var bar = new string('█', filled) + new string('░', BarWidth - filled);
         var percent = ratio is { } shown ? (" " + LivePresentation.Number(shown * 100, "0") + "%").PadLeft(5) : "     ";
         var state = rank == 1
-            ? Style("warn", item.State == "paused" ? "❚❚ pausada" : "▲ detenida")
+            ? Style("warn", item.State == "paused" ? Messages.DownloadPausedStatus.ToString() : Messages.DownloadStoppedStatus.ToString())
             : Escape(Progress(item));
         yield return name + Style(rank == 1 ? "mut" : "foc", bar) + percent + "  " + state;
         yield return new string(' ', ButtonColumn) +
-            (rank == 1 ? Button("Reanudar", "resume") : Button("❚❚ Pausar", "pause")) + " " + Button("Cancelar", "cancel");
+            (rank == 1 ? Button(Messages.LabelsResume.ToString(), "resume") : Button(Messages.DownloadPauseAction.ToString(), "pause")) + " " + Button(Messages.LabelsCancel.ToString(), "cancel");
     }
 
     // Speed and remaining time while transferring; otherwise the current phase.
     public static string Progress(Item item)
     {
-        if (item.State == "verifying") return "verificando integridad";
+        if (item.State == "verifying") return Messages.DownloadVerifyingIntegrity.ToString();
         switch (item.Phase)
         {
-            case "publishing": return "instalando";
-            case "resource-validation": return "comprobando";
-            case "extraction": return "extrayendo";
-            case "version-probe": return "comprobando versión";
-            case "cleanup": return "terminando";
-            case "cancelling-publication": return "cancelando";
+            case "publishing": return Messages.LabelsInstalling.ToString();
+            case "resource-validation": return Messages.LabelsChecking.ToString();
+            case "extraction": return Messages.LabelsExtracting.ToString();
+            case "version-probe": return Messages.DownloadCheckingVersion.ToString();
+            case "cleanup": return Messages.LabelsFinishing.ToString();
+            case "cancelling-publication": return Messages.LabelsCancelling.ToString();
         }
-        if (item.State == "pending") return "en espera";
-        if (item.Speed is not { } speed || speed <= 0) return "descargando";
+        if (item.State == "pending") return Messages.DownloadWaiting.ToString();
+        if (item.Speed is not { } speed || speed <= 0) return Messages.LabelsDownloading.ToString();
         var text = DashboardPresentation.Compact(speed) + "/s";
         if (item.Total is { } total && total > item.Done) text += " · " + Remaining(TimeSpan.FromSeconds((total - item.Done) / speed));
         return text;
     }
 
     // Engine diagnostics are codes; a person reads what happened instead.
-    public static string Failure(string? diagnostic) => diagnostic switch
+    public static string Failure(string? diagnostic) => FailureText(diagnostic)?.ToString() ??
+        (string.IsNullOrEmpty(diagnostic) || diagnostic.All(c => c is >= 'a' and <= 'z' or >= '0' and <= '9' or '-')
+            ? Messages.TransferFailed : diagnostic);
+
+    internal static Text? FailureText(string? diagnostic) => diagnostic switch
     {
-        null or "" => Messages.TransferFailed,
+        null or "" => null,
         "connection-interrupted" or "response-stream-failed" or "headers-timeout" or "read-timeout" => Messages.ConnectionCut,
-        "http-failed" => "el servidor rechazó la descarga",
-        "not-found" => "el archivo ya no está disponible",
+        "http-failed" => Messages.DownloadErrorHttpRejected,
+        "not-found" => Messages.DownloadErrorNotFound,
         "size-mismatch" or "remote-hash-mismatch" or "partial-integrity-failed" or "prepared-integrity-failed" or "checkpoint-integrity-failed"
-            => "el archivo descargado no coincide con el original",
-        "transfer-io-failed" => "no se pudo escribir en el disco",
-        "executor-interrupted" => "la descarga se detuvo inesperadamente",
-        "transfer-cancelled" => "la descarga fue cancelada",
+            => Messages.DownloadErrorHashMismatch,
+        "transfer-io-failed" => Messages.DownloadErrorIoFailed,
+        "executor-interrupted" => Messages.DownloadErrorInterrupted,
+        "transfer-cancelled" => Messages.DownloadErrorCancelled,
         _ when diagnostic.EndsWith("-transfer-interrupted", StringComparison.Ordinal) => Messages.TransferCut,
-        _ when diagnostic.All(c => c is >= 'a' and <= 'z' or >= '0' and <= '9' or '-') => Messages.TransferFailed,
-        _ => diagnostic
+        _ => null
     };
 
     public static string Remaining(TimeSpan time) =>

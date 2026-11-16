@@ -62,8 +62,8 @@ internal static class RecipeEditCli
                 {
                     if (positional.Count == 2) return true;
                     if (Console.IsInputRedirected) return false;
-                    output.WriteLine("¿Restablecer el catálogo global? [s/N]");
-                    return Console.ReadLine()?.Trim().Equals("s", StringComparison.OrdinalIgnoreCase) == true;
+                    output.WriteLine(Messages.ResetGlobalCatalogQuestion);
+                    return Messages.IsYes(Console.ReadLine());
                 });
                 return confirmed ? 0 : 3;
             }
@@ -134,7 +134,7 @@ internal static class RecipeEditCli
                     if (effective?.Get("repository") is not null || effective?.Get("files") is not { } existingFiles ||
                         !existingFiles.Items.Select(item => item.Text).SequenceEqual(weights) ||
                         effective.Get("type")?.Text != fields.GetValueOrDefault("--type")) throw Invalid();
-                    output.WriteLine("La definición ya está presente.");
+                    output.WriteLine(Messages.DefinitionPresent);
                     return 0;
                 }
                 if (!companion && fields.ContainsKey("--type")) throw Invalid();
@@ -168,7 +168,7 @@ internal static class RecipeEditCli
                             literal.Items.Any(item => item.Kind is RecipeKind.Map or RecipeKind.Sequence or RecipeKind.Null))
                             throw Invalid();
                         if (literal.Items.Any(item => ArgumentValidation.Reference(recipe, item, false, true) is not null))
-                            throw literal.Error("literal-list-reference", "edit", "El formato no admite referencias escritas como texto literal dentro de una lista.");
+                            throw literal.Error("literal-list-reference", "edit", Messages.LiteralListReference);
                         value = literal.Kind == RecipeKind.String ? RecipeWriter.Map(("literal", Literal(literal))) : Literal(literal);
                         break;
                     case "bind" when positional.Count == 4:
@@ -225,7 +225,7 @@ internal static class RecipeEditCli
                 }
             }
             if (selection.Files.Distinct(StringComparer.OrdinalIgnoreCase).Count() != selection.Files.Count)
-                throw recipe.Root.Error("ambiguous-edit", "edit", "Una capa YAML está seleccionada más de una vez.");
+                throw recipe.Root.Error("ambiguous-edit", "edit", Messages.LayerSelectedTwice);
             RecipeEdit.Save(selection, inputs, file, path, value);
 
             string PresetArgument(string argument)
@@ -234,7 +234,7 @@ internal static class RecipeEditCli
                 return presets?.GetValueOrDefault(name!)?.Get("args")?.Fields.Keys
                     .FirstOrDefault(key => schema.Canonical(key) == canonical) ?? argument;
             }
-            output.WriteLine($"Guardado en {file}.");
+            output.WriteLine(Messages.SavedIn.Format(file));
             return 0;
         }
         catch (RecipeException e)
@@ -245,7 +245,7 @@ internal static class RecipeEditCli
         catch (Exception e) when (e is ArgumentException or IOException or UnauthorizedAccessException or ConfigurationException or StorageException or Backends.BackendException or Models.ModelSourceException)
         {
             error.WriteLine(e.Message);
-            if (e is ArgumentException) error.WriteLine("Ver la sintaxis con coquena --help.");
+            if (e is ArgumentException) error.WriteLine(Messages.SeeSyntax);
             return e is ArgumentException or Backends.BackendException or Models.ModelSourceException ? 2 : 7;
         }
     }
@@ -262,7 +262,7 @@ internal static class RecipeEditCli
         return result;
     }
 
-    private static ArgumentException Invalid() => new("Sintaxis o selección de edición inválida.");
+    private static ArgumentException Invalid() => new(Messages.EditInvalid);
 
     private static RecipeValue ParseValue(string text)
     {

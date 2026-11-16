@@ -25,7 +25,7 @@ internal sealed partial class RecipeVariables(IReadOnlyDictionary<string, string
             else if (input[i] == '|' && nesting > 0)
             {
                 if (nesting != 1 || !input.StartsWith("${", StringComparison.Ordinal) || !input.EndsWith('}') || suffix >= 0)
-                    throw Fail("interpolation-type", origin, "El tipo requiere una expansión que ocupe todo el valor.");
+                    throw Fail("interpolation-type", origin, Messages.RecipeTypeRequiresFullExpansion.ToString());
                 suffix = i;
             }
         }
@@ -33,20 +33,20 @@ internal sealed partial class RecipeVariables(IReadOnlyDictionary<string, string
         {
             type = input[(suffix + 1)..^1];
             if (type is not ("string" or "integer" or "number" or "boolean"))
-                throw Fail("interpolation-type", origin, "Tipo de interpolación inválido.");
+                throw Fail("interpolation-type", origin, Messages.RecipeInvalidInterpolationType.ToString());
             input = input[..suffix] + "}";
         }
         var text = Evaluate(input, origin, 0, ref sensitive, ref whole);
-        if (suffix >= 0 && !whole) throw Fail("interpolation-type", origin, "El tipo requiere una expansión que ocupe todo el valor.");
+        if (suffix >= 0 && !whole) throw Fail("interpolation-type", origin, Messages.RecipeTypeRequiresFullExpansion.ToString());
         if (type == "boolean" && text is not ("true" or "false") ||
             type == "integer" && !RecipeValue.IsInteger(text) || type == "number" && !RecipeValue.IsNumber(text))
-            throw Fail("invalid-type", origin, "La expansión no tiene el tipo explícito declarado.");
+            throw Fail("invalid-type", origin, Messages.RecipeTheExpansionDoesNotHaveTheDeclared.ToString());
         return (text, sensitive, type);
     }
 
     private string Evaluate(string input, RecipeOrigin origin, int depth, ref bool sensitive, ref bool whole)
     {
-        if (depth > 32) throw Fail("interpolation-limit", origin, "La interpolación supera profundidad 32.");
+        if (depth > 32) throw Fail("interpolation-limit", origin, Messages.RecipeInterpolationExceedsDepth.ToString());
         var result = new StringBuilder();
         for (var i = 0; i < input.Length;)
         {
@@ -61,13 +61,13 @@ internal sealed partial class RecipeVariables(IReadOnlyDictionary<string, string
                 var cursor = from;
                 while (cursor < input.Length && (char.IsAsciiLetterOrDigit(input[cursor]) || input[cursor] == '_')) cursor++;
                 name = input[from..cursor];
-                if (!NamePattern().IsMatch(name)) throw Fail("interpolation-syntax", origin, "Nombre de variable inválido.");
-                if (cursor >= input.Length) throw Fail("interpolation-syntax", origin, "Expansión sin cierre.");
+                if (!NamePattern().IsMatch(name)) throw Fail("interpolation-syntax", origin, Messages.RecipeInvalidVariableName.ToString());
+                if (cursor >= input.Length) throw Fail("interpolation-syntax", origin, Messages.RecipeUnclosedExpansion.ToString());
                 if (input[cursor] != '}')
                 {
                     if (input[cursor] == ':') { op = ":"; cursor++; }
                     if (cursor >= input.Length || input[cursor] is not ('-' or '+' or '?'))
-                        throw Fail("interpolation-syntax", origin, "Operador de interpolación inválido.");
+                        throw Fail("interpolation-syntax", origin, Messages.RecipeInvalidInterpolationOperator.ToString());
                     op += input[cursor++];
                     var argumentStart = cursor;
                     var nested = 0;
@@ -77,11 +77,11 @@ internal sealed partial class RecipeVariables(IReadOnlyDictionary<string, string
                         if (input[cursor] == '$' && cursor + 1 < input.Length && input[cursor + 1] == '{')
                         {
                             nested++; cursor++;
-                            if (nested + depth >= 32) throw Fail("interpolation-limit", origin, "La interpolación supera profundidad 32.");
+                            if (nested + depth >= 32) throw Fail("interpolation-limit", origin, Messages.RecipeInterpolationExceedsDepth.ToString());
                         }
                         else if (input[cursor] == '}' && nested-- == 0) break;
                     }
-                    if (cursor >= input.Length) throw Fail("interpolation-syntax", origin, "Expansión sin cierre.");
+                    if (cursor >= input.Length) throw Fail("interpolation-syntax", origin, Messages.RecipeUnclosedExpansion.ToString());
                     argument = input[argumentStart..cursor];
                 }
                 i = cursor + 1;
@@ -90,7 +90,7 @@ internal sealed partial class RecipeVariables(IReadOnlyDictionary<string, string
             {
                 var cursor = i + 1;
                 if (cursor >= input.Length || !(char.IsAsciiLetter(input[cursor]) || input[cursor] == '_'))
-                    throw Fail("interpolation-syntax", origin, "Expansión de variable inválida.");
+                    throw Fail("interpolation-syntax", origin, Messages.RecipeInvalidVariableExpansion.ToString());
                 cursor++;
                 while (cursor < input.Length && (char.IsAsciiLetterOrDigit(input[cursor]) || input[cursor] == '_')) cursor++;
                 name = input[(i + 1)..cursor]; i = cursor;
@@ -101,7 +101,7 @@ internal sealed partial class RecipeVariables(IReadOnlyDictionary<string, string
             var missing = value is null || (op.StartsWith(':') && value.Length == 0);
             string replacement;
             if (op is "?" or ":?" && missing || op == "" && value is null)
-                throw Fail("variable-required", origin, "Variable requerida: " + name + ".");
+                throw Fail("variable-required", origin, Messages.RecipeRequiredVariable.Format(name));
             if (op is "-" or ":-" && missing || op is "+" or ":+" && !missing)
             {
                 var ignoredWhole = false;
@@ -125,7 +125,7 @@ internal sealed partial class RecipeVariables(IReadOnlyDictionary<string, string
             var origin = new RecipeOrigin(file, index + 1, lines[index].Length - line.Length + 1, "$env");
             var equal = line.IndexOf('=');
             var name = (equal < 0 ? line : line[..equal]).Trim();
-            if (!NamePattern().IsMatch(name)) throw Fail("env-syntax", origin, "Nombre de variable env inválido.");
+            if (!NamePattern().IsMatch(name)) throw Fail("env-syntax", origin, Messages.RecipeInvalidEnvVariableName.ToString());
             origin = origin with { Path = "$env[" + name + "]" };
             if (equal < 0) { values[name] = null; continue; }
             var assigned = line[(equal + 1)..];
@@ -143,25 +143,25 @@ internal sealed partial class RecipeVariables(IReadOnlyDictionary<string, string
                 {
                     if (cursor >= raw.Length)
                     {
-                        if (!single || ++index >= lines.Length) throw Fail("env-syntax", origin, "String env sin cierre.");
+                        if (!single || ++index >= lines.Length) throw Fail("env-syntax", origin, Messages.RecipeUnclosedEnvString.ToString());
                         Append(output, "\n", origin); raw = lines[index]; cursor = 0; continue;
                     }
                     var character = raw[cursor++];
                     if (character == quote) break;
                     if (!single && character == '\\')
                     {
-                        if (cursor >= raw.Length) throw Fail("env-syntax", origin, "Escape env incompleto.");
+                        if (cursor >= raw.Length) throw Fail("env-syntax", origin, Messages.RecipeIncompleteEnvEscape.ToString());
                         character = raw[cursor++] switch
                         {
                             'n' => '\n', 'r' => '\r', 't' => '\t', '\\' => '\\', '"' => '"',
-                            _ => throw Fail("env-syntax", origin, "Escape env inválido.")
+                            _ => throw Fail("env-syntax", origin, Messages.RecipeInvalidEnvEscape.ToString())
                         };
                     }
                     Append(output, character.ToString(), origin);
                 }
                 var tail = raw[cursor..];
                 if (tail.Length > 0 && (!char.IsWhiteSpace(tail[0]) || tail.TrimStart() is var rest && rest.Length > 0 && !rest.StartsWith('#')))
-                    throw Fail("env-syntax", origin, "Contenido tras string env.");
+                    throw Fail("env-syntax", origin, Messages.RecipeContentAfterEnvString.ToString());
                 value = output.ToString();
             }
             else
@@ -178,7 +178,7 @@ internal sealed partial class RecipeVariables(IReadOnlyDictionary<string, string
     private static void Append(StringBuilder output, string text, RecipeOrigin origin)
     {
         if ((long)output.Length + text.Length > RecipeYaml.MaxBytes)
-            throw Fail("interpolation-size", origin, "La expansión supera el límite de lectura.");
+            throw Fail("interpolation-size", origin, Messages.RecipeExpansionExceedsReadingLimit.ToString());
         output.Append(text);
     }
     private static RecipeException Fail(string code, RecipeOrigin origin, string detail) => new(code, "interpolation", origin, detail);

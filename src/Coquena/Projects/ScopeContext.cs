@@ -61,11 +61,11 @@ public sealed class ScopeContext
 
     internal void Ensure()
     {
-        if (PhysicalDirectory.Read(Base) != PhysicalBase) throw new StorageException("scope-moved", "Cambió la identidad física de la base.");
+        if (PhysicalDirectory.Read(Base) != PhysicalBase) throw new StorageException("scope-moved", Messages.ProjectPhysicalBaseIdentityChanged.ToString());
         if (Directory.Exists(Root) && (File.GetAttributes(Root) & FileAttributes.ReparsePoint) != 0) Unsafe();
         Directory.CreateDirectory(Root);
         Directory.CreateDirectory(PathFor("local"));
     }
 
-    private static void Unsafe() => throw new StorageException("unsafe-path", "Ruta fuera del ámbito gestionado o enlace no autorizado.");
+    private static void Unsafe() => throw new StorageException("unsafe-path", Messages.ProjectPathOutsideManagedScope.ToString());
 }

@@ -133,7 +133,7 @@ internal static partial class RecipeShape
                 Object(value, null);
                 foreach (var pair in value.Fields)
                 {
-                    if (entries.Arguments) { if (!ArgumentName().IsMatch(pair.Key)) throw pair.Value.Error("invalid-argument-name", "structure", "Nombre de argumento inválido."); }
+                    if (entries.Arguments) { if (!ArgumentName().IsMatch(pair.Key)) throw pair.Value.Error("invalid-argument-name", "structure", Messages.RecipeInvalidArgumentName.ToString()); }
                     else if (entries.Value is not Reference) Name(pair.Key, pair.Value);
                     if (pair.Value.Kind != RecipeKind.Null) Validate(pair.Value, entries.Value, beforeInterpolation);
                 }
@@ -148,12 +148,12 @@ internal static partial class RecipeShape
                 {
                     Object(value, ["literal"]);
                     if (value.Get("literal") is not { Kind: RecipeKind.String or RecipeKind.Boolean or RecipeKind.Integer or RecipeKind.Number })
-                        throw value.Error("invalid-literal", "structure", "Literal requiere un escalar no null.");
+                        throw value.Error("invalid-literal", "structure", Messages.RecipeLiteralRequiresANonNullScalar.ToString());
                 }
                 if (value.Kind == RecipeKind.Sequence)
                     foreach (var item in value.Items)
                         if (item.Kind is RecipeKind.Map or RecipeKind.Sequence or RecipeKind.Null)
-                            throw item.Error("invalid-argument-item", "structure", "La lista de argumentos requiere escalares no null.");
+                            throw item.Error("invalid-argument-item", "structure", Messages.RecipeTheArgumentListRequiresNonNullScalars.ToString());
                 break;
             case Resource resource:
                 if (!resource.Companion && value.Kind == RecipeKind.String) { if (!beforeInterpolation) RecipeStructure.ShortModel(value); return; }
@@ -174,11 +174,11 @@ internal static partial class RecipeShape
             case ScalarKind.Positive:
                 Kind(value, RecipeKind.Integer, beforeInterpolation);
                 if (value.Kind == RecipeKind.Integer && BigInteger.Parse(value.Text!, CultureInfo.InvariantCulture) <= 0)
-                    throw value.Error("positive-required", "structure", "Se requiere entero positivo.");
+                    throw value.Error("positive-required", "structure", Messages.RecipeAPositiveIntegerIsRequired.ToString());
                 return;
             case ScalarKind.Number:
                 if (Deferred(value, beforeInterpolation)) return;
-                if (value.Kind is not (RecipeKind.Integer or RecipeKind.Number)) throw value.Error("invalid-type", "structure", "Se requiere un número.");
+                if (value.Kind is not (RecipeKind.Integer or RecipeKind.Number)) throw value.Error("invalid-type", "structure", Messages.RecipeANumberIsRequired.ToString());
                 return;
         }
     }
@@ -189,22 +189,22 @@ internal static partial class RecipeShape
     private static void Kind(RecipeValue value, RecipeKind kind, bool beforeInterpolation)
     {
         if (kind is RecipeKind.Boolean or RecipeKind.Integer && Deferred(value, beforeInterpolation)) return;
-        if (value.Kind != kind) throw value.Error("invalid-type", "structure", "Tipo de campo inválido.");
+        if (value.Kind != kind) throw value.Error("invalid-type", "structure", Messages.RecipeInvalidFieldType.ToString());
     }
 
     private static void Name(string text, RecipeValue value)
     {
         if (string.IsNullOrWhiteSpace(text) || text.IndexOfAny(['\0', '\r', '\n', ':', '/', '\\']) >= 0)
-            throw value.Error("invalid-name", "structure", "Nombre inválido; se requiere un componente explícito válido.");
+            throw value.Error("invalid-name", "structure", Messages.RecipeInvalidExplicitName.ToString());
     }
 
     private static void Object(RecipeValue value, IEnumerable<string>? vocabulary)
     {
-        if (value.Kind != RecipeKind.Map) throw value.Error("map-required", "structure", "Se requiere un mapa.");
+        if (value.Kind != RecipeKind.Map) throw value.Error("map-required", "structure", Messages.RecipeAMapIsRequired.ToString());
         if (vocabulary is null) return;
         var allowed = vocabulary.ToHashSet(StringComparer.Ordinal);
         foreach (var pair in value.Fields)
-            if (!allowed.Contains(pair.Key)) throw pair.Value.Error("unknown-key", "structure", "Clave estructural desconocida.");
+            if (!allowed.Contains(pair.Key)) throw pair.Value.Error("unknown-key", "structure", Messages.RecipeUnknownStructuralKey.ToString());
     }
 
     internal const string ManualUrl = "https://github.com/mstranich/coquena/blob/main/docs/user-guide/recipes.md";

@@ -18,21 +18,21 @@ public sealed class BackendPaths(Home home)
     public string Resolve(string? location, string logical)
     {
         if (!logical.StartsWith("backends/", StringComparison.Ordinal))
-            throw new StorageException("unsafe-backend-path", "Ruta de backend fuera de su instalación.");
+            throw new StorageException("unsafe-backend-path", Messages.BackendPathOutsideItsInstallation.ToString());
         return new Home(Root(location)).PathFor(logical[9..]);
     }
     public string Server(BackendRecord backend) => backend.Ownership == "managed" && backend.Origin == "ggml"
         ? backend.InstallationDirectory is null ? home.PathFor(backend.ServerPath)
             : new Home(Root(backend.InstallationDirectory)).PathFor(backend.ServerPath)
         : Path.IsPathFullyQualified(backend.ServerPath) ? backend.ServerPath
-        : throw new StorageException("unsafe-backend-path", "Referencia externa sin ruta absoluta.");
+        : throw new StorageException("unsafe-backend-path", Messages.BackendExternalReferenceWithoutAbsolutePath.ToString());
     public string Slot(BackendRecord backend)
     {
         var parts = backend.ServerPath.Split('/');
         var start = backend.InstallationDirectory is null ? 1 : 0;
         if (parts.Length < start + 3 || start == 1 && parts[0] != "backends" || parts[start] != backend.Id.ToString("D") ||
             !Guid.TryParseExact(parts[start + 1], "D", out _))
-            throw new StorageException("unsafe-backend-slot", "No se reconoce el directorio de instalación gestionado.");
+            throw new StorageException("unsafe-backend-slot", Messages.BackendManagedDirUnrecognized.ToString());
         return Resolve(backend.InstallationDirectory, "backends/" + string.Join('/', parts[start..(start + 2)]));
     }
     public static bool Within(string path, string directory) => path.Equals(directory, StringComparison.OrdinalIgnoreCase) ||

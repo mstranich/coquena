@@ -13,7 +13,7 @@ public sealed record BackendIntent(string? Version = null, string? Variant = nul
     public static BackendIntent FromRecipe(EffectiveRecipe recipe)
     {
         var value = recipe.Root.Get("service")?.Get("backend") ??
-            throw new BackendException("backend-required", "La receta no define backend propio.");
+            throw new BackendException("backend-required", Messages.BackendTheRecipeDoesNotDefineItsOwn.ToString());
         var intent = new BackendIntent(value.Get("version")?.Text, value.Get("variant")?.Text, value.Get("executable")?.Text, value.Fields.Values.Any(v => v.Sensitive), value.Get("name")?.Text);
         intent.Validate();
         return intent;
@@ -22,16 +22,16 @@ public sealed record BackendIntent(string? Version = null, string? Variant = nul
     public void Validate()
     {
         if (Name is not null && (string.IsNullOrWhiteSpace(Name) || Name.Any(char.IsControl) || Name.IndexOfAny([':', '/', '\\']) >= 0))
-            throw new BackendException("invalid-backend-name", "Alias de backend inválido.");
+            throw new BackendException("invalid-backend-name", Messages.BackendInvalidAlias.ToString());
         if (Executable is not null)
         {
             if (string.IsNullOrWhiteSpace(Executable) || Executable.Any(char.IsControl) || Version is not null || Variant is not null)
-                throw new BackendException("invalid-backend-selection", "Usar version y variant, o executable, excluyentes.");
+                throw new BackendException("invalid-backend-selection", Messages.RecipeVersionVariantOrExecutableExclusive.ToString());
         }
         else
         {
             if (Version is null || Variant is null || !BackendCatalog.ValidFamily(Variant))
-                throw new BackendException("invalid-backend-selection", "Se requieren versión y variante oficiales.");
+                throw new BackendException("invalid-backend-selection", Messages.BackendOfficialVersionAndVariantRequired.ToString());
             if (Version != "latest") _ = BackendCatalog.BuildNumber(Version);
         }
     }
@@ -92,7 +92,7 @@ public sealed class ScopedBackends(ScopeContext context,
             return resources;
         }
         catch (Exception e) when (e is JsonException or InvalidOperationException or FormatException)
-        { throw new StorageException("invalid-project-document", "Inventario de backends inválido; se conserva sin sobrescribir.", inner: e); }
+        { throw new StorageException("invalid-project-document", Messages.BackendInvalidInventoryPreserved.ToString(), inner: e); }
     }
 
     public async Task<PreparedBackend> PrepareAsync(string serviceId, BackendIntent intent, string originBase,
@@ -141,9 +141,9 @@ public sealed class ScopedBackends(ScopeContext context,
         snapshot = store.Read(); docs = RecipeRegistry.Next(snapshot);
         service = Service(docs, serviceId);
         reference = FindIntent(service["backend-intents"]!.AsArray(), intent, originBase)
-            ?? throw new StorageException("scope-conflict", "La intención cambió durante la preparación.");
+            ?? throw new StorageException("scope-conflict", Messages.BackendIntentionChangedDuringPreparation.ToString());
         if (reference["installation-id"]?.GetValue<string>() != previousInstallation)
-            throw new StorageException("scope-conflict", "Otra preparación publicó una revisión; releer antes de continuar.");
+            throw new StorageException("scope-conflict", Messages.BackendRevisionChangedReadAgain.ToString());
         reference["resource-id"] = prepared.ResourceId;
         reference["installation-id"] = prepared.InstallationId;
         store.Commit(snapshot.Revision, docs);
@@ -156,17 +156,17 @@ public sealed class ScopedBackends(ScopeContext context,
         Action<OperationDocument>? progress = null)
     {
         intent.Validate();
-        if (intent.Executable is not null) throw new BackendException("external-not-downloadable", "Un externo se usa en su ubicación.");
+        if (intent.Executable is not null) throw new BackendException("external-not-downloadable", Messages.BackendAnExternalResourceIsUsedInPlace.ToString());
         var resolution = resolve is not null ? await resolve(hardware, intent.Variant!, intent.Version!, cancellation)
             : await ResolveOfficial(hardware, intent.Variant!, intent.Version!, cancellation);
-        var candidate = resolution.Selected ?? throw new BackendException("no-candidate", "Sin artefactos completos para la selección explícita.");
+        var candidate = resolution.Selected ?? throw new BackendException("no-candidate", Messages.BackendIncompleteExplicitArtifacts.ToString());
         if (candidate.Variant != intent.Variant || intent.Version != "latest" && candidate.Release != intent.Version || !candidate.Complete)
-            throw new BackendException("invalid-selection", "La resolución no coincide con la intención.");
+            throw new BackendException("invalid-selection", Messages.BackendResolutionDoesNotMatchIntention.ToString());
         CheckCompatibility(candidate, hardware, force, warning);
         var selected = new BackendDownloadSelection("ggml", candidate.Release, candidate.Variant.Split('@')[0],
             candidate.Variant, candidate.Platform, candidate.Artifacts.Select(a => new RemoteFile(a.Name, a.Size)).ToArray());
         if (expectedSelection is not null && !JsonNode.DeepEquals(SelectionNode(expectedSelection), SelectionNode(selected)))
-            throw new BackendException("artifact-changed", "Los artefactos del build fijado cambiaron; no se reemplaza su resolución.");
+            throw new BackendException("artifact-changed", Messages.BackendFixedArtifactsChanged.ToString());
         foreach (var resource in List())
             foreach (var installation in resource!["installations"]!.AsArray().Reverse())
                 if (resource["ownership"]!.GetValue<string>() == "managed" && SameSelection(installation!, selected))
@@ -174,7 +174,7 @@ public sealed class ScopedBackends(ScopeContext context,
                     if (installation!["integrity-status"]?.GetValue<string>() is "invalid" or "mismatch")
                     {
                         if (explicitlyRequested) continue;
-                        throw new BackendException("backend-integrity-invalid", "Integridad inválida conocida; no se redescarga automáticamente.");
+                        throw new BackendException("backend-integrity-invalid", Messages.BackendKnownInvalidIntegrity.ToString());
                     }
                     if (expectedSelection is not null && MissingManagedFiles(installation)) continue;
                     if (!Directory.Exists(context.PathFor(installation["location"]!.GetValue<string>()))) continue;
@@ -190,14 +190,14 @@ public sealed class ScopedBackends(ScopeContext context,
         EnsureInventory();
         var transfers = new ScopeTransfers(context, validateBackend: ValidateOfficial);
         operation = transfers.Create(operation, explicitlyRequested ? "explicit" : "automatic", ["llama-server.exe"]);
-        warning?.Invoke($"Operación de backend: {operation.Id:D}");
+        warning?.Invoke(Messages.BackendOperationD.Format(operation.Id));
         progress?.Invoke(operation);
         var pending = await transfers.RunAsync(operation.Id, transport, progress: progress, cancellation: cancellation);
-        if (pending is not null) throw new DownloadException(pending.Diagnostic ?? (pending.State == "paused" ? "transfer-paused" : "backend-preparation-incomplete"), "Preparación no completada.");
+        if (pending is not null) throw new DownloadException(pending.Diagnostic ?? (pending.State == "paused" ? "transfer-paused" : "backend-preparation-incomplete"), Messages.BackendPreparationIncomplete.ToString());
         var installationId = operation.ScopePublication!.InstallationId.ToString("D");
         // Someone cancelled the transfer (TUI or download cancel): nothing was installed.
         if (!List().Any(resource => resource!["installations"]!.AsArray().Any(i => i!["installation-id"]!.GetValue<string>() == installationId)))
-            throw new DownloadException("transfer-cancelled", "Descarga cancelada; no se instaló el backend.");
+            throw new DownloadException("transfer-cancelled", Messages.BackendDownloadCancelledBackendNotInstalled.ToString());
         var found = FindInstallation(installationId);
         return await ReadPrepared(found.Resource, found.Installation, hardware, force, null, cancellation);
     }
@@ -241,7 +241,7 @@ public sealed class ScopedBackends(ScopeContext context,
             .Where(r => r!["kind"]!.GetValue<string>() == "backend" && r["ownership"]!.GetValue<string>() == "managed")
             .SelectMany(r => r!["installations"]!.AsArray())
             .SingleOrDefault(i => i!["installation-id"]!.GetValue<string>() == installationId) : null;
-        if (installation is null) throw new BackendException("unknown-installation", "Indicar el ID de una instalación gestionada del ámbito.");
+        if (installation is null) throw new BackendException("unknown-installation", Messages.BackendSpecifyTheIDOfAManagedInstallation.ToString());
         installation["protected"] = value;
         store.Commit(snapshot.Revision, docs);
     }
@@ -249,26 +249,26 @@ public sealed class ScopedBackends(ScopeContext context,
     public static void CheckCompatibility(BackendCandidate candidate, HardwareContext hardware, bool force, Action<string>? warning)
     {
         if (candidate.Platform != hardware.Platform)
-            throw new BackendException("unsupported-platform", "El artefacto no corresponde a la plataforma nativa.");
+            throw new BackendException("unsupported-platform", Messages.BackendArtifactDoesNotMatchNativePlatform.ToString());
         if (candidate.Compatibility == "incompatible")
         {
-            warning?.Invoke("Backend incompatible: " + candidate.Diagnostic);
-            if (!force) throw new BackendException("backend-incompatible", "Preparación detenida; --force permite intentar con advertencia.");
-            warning?.Invoke("⚠ Se usa un backend que podría no funcionar en este equipo (--force).");
+            warning?.Invoke(Messages.BackendIncompatibleDiagnostic.Format(candidate.Diagnostic));
+            if (!force) throw new BackendException("backend-incompatible", Messages.BackendPreparationStoppedForceHint.ToString());
+            warning?.Invoke(Messages.BackendUsingABackendThatMayNotWork.ToString());
         }
-        else if (candidate.Compatibility != "compatible") warning?.Invoke("Aviso: " + candidate.Diagnostic);
+        else if (candidate.Compatibility != "compatible") warning?.Invoke(Messages.OutputWarningDetail.Format(candidate.Diagnostic));
     }
 
     public static void CheckSelection(BackendDownloadSelection selection, HardwareContext hardware, bool force, Action<string>? warning)
     {
         var candidate = BackendCatalog.Resolve([new(selection.Release, selection.Artifacts.Select(a =>
             new ReleaseAsset(a.Path, a.Size ?? 0, "")).ToArray())], hardware, selection.Variant, selection.Release).Selected
-            ?? throw new BackendException("invalid-selection", "Los artefactos no describen un backend oficial completo de esta plataforma.");
+            ?? throw new BackendException("invalid-selection", Messages.BackendIncompleteOfficialArtifacts.ToString());
         if (selection.Origin != "ggml" || selection.Platform != candidate.Platform || selection.Family != candidate.Variant.Split('@')[0])
-            throw new BackendException("invalid-selection", "La selección oficial es inconsistente.");
+            throw new BackendException("invalid-selection", Messages.BackendOfficialSelectionIsInconsistent.ToString());
         if (selection.Artifacts.Length != candidate.Artifacts.Length || selection.Artifacts.Where((a, i) =>
             a.Path != candidate.Artifacts[i].Name || a.Size != candidate.Artifacts[i].Size).Any())
-            throw new BackendException("invalid-selection", "La selección contiene artefactos ajenos al backend.");
+            throw new BackendException("invalid-selection", Messages.BackendUnrelatedArtifacts.ToString());
         CheckCompatibility(candidate, hardware, force, warning);
     }
 
@@ -284,11 +284,11 @@ public sealed class ScopedBackends(ScopeContext context,
     {
         var ownership = resource["ownership"]!.GetValue<string>();
         if (installation["integrity-status"]?.GetValue<string>() is "invalid" or "mismatch")
-            throw new BackendException("backend-integrity-invalid", "Instalación no utilizable; --force no omite integridad.");
+            throw new BackendException("backend-integrity-invalid", Messages.BackendInstallationUnusable.ToString());
         if (installation["availability"]?.GetValue<string>() == "missing")
-            throw new BackendException(ownership == "managed" ? "backend-installation-absent" : "backend-absent", "Falta la instalación seleccionada.");
+            throw new BackendException(ownership == "managed" ? "backend-installation-absent" : "backend-absent", Messages.BackendSelectedInstallationMissing.ToString());
         if (installation["availability"]?.GetValue<string>() != "available")
-            throw new BackendException("backend-unavailable", "La instalación no está disponible.");
+            throw new BackendException("backend-unavailable", Messages.BackendInstallationUnavailable.ToString());
         string executable; string? build = null; string? variant = null;
         if (ownership == "external") executable = Path.GetFullPath(installation["executable"]!.GetValue<string>(), context.Base);
         else
@@ -296,23 +296,23 @@ public sealed class ScopedBackends(ScopeContext context,
             var selection = ReadSelection(installation);
             CheckSelection(selection, hardware, force, warning);
             var directory = context.PathFor(installation["location"]!.GetValue<string>());
-            if (!Directory.Exists(directory)) throw new BackendException("backend-installation-absent", "Falta la instalación fijada; preparar el build exacto.");
+            if (!Directory.Exists(directory)) throw new BackendException("backend-installation-absent", Messages.BackendFixedInstallationMissing.ToString());
             foreach (var file in installation["files"]!.AsArray())
             {
                 var path = context.PathFor(installation["location"]!.GetValue<string>() + "/" + file!["path"]!.GetValue<string>());
                 if (!File.Exists(path) || new FileInfo(path).Length != file["size"]!.GetValue<long>())
-                    throw new BackendException("backend-installation-incomplete", "Faltan archivos o cambió su tamaño; no se adopta otra revisión.");
+                    throw new BackendException("backend-installation-incomplete", Messages.BackendFilesMissingOrSizeChangedNoOther.ToString());
             }
             await ValidateOfficial(directory, selection, cancellation);
             executable = Path.Combine(directory, "llama-server.exe"); build = selection.Release; variant = selection.Variant;
         }
-        if (!File.Exists(executable)) throw new BackendException("backend-absent", "Ejecutable ausente; un externo requiere intervención.");
+        if (!File.Exists(executable)) throw new BackendException("backend-absent", Messages.BackendExternalExecutableMissingIntervention.ToString());
         return new(resource["resource-id"]!.GetValue<string>(), installation["installation-id"]!.GetValue<string>(), executable, ownership, build, variant);
     }
 
     private PreparedBackend RegisterExternal(string executable, bool relative)
     {
-        if (!File.Exists(executable)) throw new BackendException("backend-absent", "Ejecutable externo ausente.");
+        if (!File.Exists(executable)) throw new BackendException("backend-absent", Messages.BackendExternalExecutableMissing.ToString());
         EnsureInventory();
         var snapshot = store.Read(); var docs = RecipeRegistry.Next(snapshot);
         var resources = docs[Inventory]["data"]!["resources"]!.AsArray();
@@ -321,9 +321,9 @@ public sealed class ScopedBackends(ScopeContext context,
                 if (string.Equals(Path.GetFullPath(installed!["executable"]!.GetValue<string>(), context.Base), executable, StringComparison.OrdinalIgnoreCase))
                 {
                     if (installed["integrity-status"]?.GetValue<string>() is "invalid" or "mismatch")
-                        throw new BackendException("backend-integrity-invalid", "Integridad inválida conocida; no se omite durante el inicio.");
+                        throw new BackendException("backend-integrity-invalid", Messages.BackendInvalidIntegrityAtStartup.ToString());
                     if (old["removal-pending"]?.GetValue<bool>() == true || installed["availability"]?.GetValue<string>() != "available")
-                        throw new BackendException("backend-unavailable", "La instalación externa registrada no está disponible.");
+                        throw new BackendException("backend-unavailable", Messages.BackendExternalInstallationUnavailable.ToString());
                     return new(old["resource-id"]!.GetValue<string>(), installed["installation-id"]!.GetValue<string>(), executable, "external", null, null);
                 }
         var resourceId = Guid.NewGuid().ToString("D"); var installationId = Guid.NewGuid().ToString("D");
@@ -340,13 +340,13 @@ public sealed class ScopedBackends(ScopeContext context,
         foreach (var resource in List())
             foreach (var installation in resource!["installations"]!.AsArray())
                 if (installation!["installation-id"]!.GetValue<string>() == id) return (resource, installation);
-        throw new BackendException("backend-installation-missing", "Esa versión del backend no está instalada.");
+        throw new BackendException("backend-installation-missing", Messages.BackendThatBackendVersionIsNotInstalled.ToString());
     }
     private static JsonNode Service(Dictionary<string, JsonObject> docs, string id) =>
         docs.TryGetValue(Registry, out var registry) ? registry["data"]!["recipes"]!.AsArray().SelectMany(r => r!["entities"]!.AsArray())
             .SingleOrDefault(e => e!["kind"]!.GetValue<string>() == "service" && e["id"]!.GetValue<string>() == id)
-            ?? throw new BackendException("unknown-service", "Servicio no registrado en el ámbito.")
-            : throw new BackendException("unknown-service", "Servicio no registrado en el ámbito.");
+            ?? throw new BackendException("unknown-service", Messages.BackendServiceNotRegisteredInScope.ToString())
+            : throw new BackendException("unknown-service", Messages.BackendServiceNotRegisteredInScope.ToString());
     private JsonNode? FindIntent(JsonArray intents, BackendIntent intent, string originBase) => intents.SingleOrDefault(i =>
         JsonNode.DeepEquals(WithoutAlias(i!["intent"]!), (intent with { Name = null }).Document()) && (!context.IsGlobal || intent.Executable is null ||
             string.Equals(i["origin-base"]!.GetValue<string>(), originBase, StringComparison.OrdinalIgnoreCase)));
@@ -364,7 +364,7 @@ public sealed class ScopedBackends(ScopeContext context,
     }
     private static BackendDownloadSelection ReadSelection(JsonNode installation) =>
         installation["selection"]!["backendSelection"]!.Deserialize(ContractJsonContext.Default.BackendDownloadSelection)
-            ?? throw new BackendException("invalid-selection", "Selección ausente.");
+            ?? throw new BackendException("invalid-selection", Messages.BackendSelectionMissing.ToString());
     private static bool SameSelection(JsonNode installation, BackendDownloadSelection selection) =>
         installation["selection"]?["backendSelection"] is { } node &&
         JsonNode.DeepEquals(node, SelectionNode(selection));

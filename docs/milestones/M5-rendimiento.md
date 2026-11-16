@@ -19,13 +19,14 @@ Esta decisión no retira los parámetros de caché MoE ya incorporados en 093.
 El estudio conceptual previo no acredita ejecución ni viabilidad; no se dispone
 aquí del detalle del experimento para describir su causa técnica.
 
-M5 incluye dos entregas, ambas en estado draft:
+M5 incluye dos entregas:
 
 - [095: Chat de prueba](../../specs/095-m5-chat-prueba/README.md): vista TUI,
   acceso desde En vivo y CLI.
 - [096: Internacionalización](../../specs/096-i18n-textos-de-usuario/README.md):
-  textos de usuario traducibles en CLI y TUI, etiquetas de datos y diagnósticos
-  persistidos mediante códigos y datos.
+  textos de usuario traducibles en CLI y TUI y diagnósticos persistidos mediante
+  códigos y datos. Las claves de datos de `show` y `combination list` se conservan
+  sin traducir.
 
 El comando pasa de la agrupación anterior a `chat <preset> [--service <nombre|default|self> | --global] [--load]`.
 
@@ -40,7 +41,8 @@ El comando pasa de la agrupación anterior a `chat <preset> [--service <nombre|d
   del terminal acreditados con publicación y ejecución Windows Native AOT.
 
 Para i18n, los textos de usuario se centralizan en el mecanismo elegido; las
-pruebas conservan códigos y datos como contrato. Se acredita publicación Native AOT
+pruebas son independientes del idioma y conservan códigos y datos, también
+independientes del idioma, como contrato. Se acredita publicación Native AOT
 y ejecución en cada idioma entregado, según la tarjeta 096.
 
 Reglas de Chat: [Chat de prueba](../design/benchmarking.md).
@@ -50,9 +52,8 @@ Reglas de Chat: [Chat de prueba](../design/benchmarking.md).
 Sin calibrador, recomendaciones automáticas, plataforma de benchmarking ni
 herramientas de agente. Permanecen por definir los límites de contexto, parámetros
 de generación, streaming, errores, cambio de destino y entrada/salida redirigidas,
-según la tarjeta 095. Para i18n, quedan por definir el mecanismo, la selección de
-idioma, los idiomas entregados y el tratamiento del ancho fijo de la TUI, según
-la tarjeta 096. La inclusión en M5 no resuelve esas decisiones ni acredita
-implementación.
+según la tarjeta 095. Para i18n, la tarjeta 096 define el catálogo, los idiomas
+entregados, la selección y la traducción directa de la TUI con corrección de textos
+cortados. La inclusión en M5 no acredita implementación ni validación.
 
 El [estudio histórico](M5-estudio-rendimiento.md) conserva las referencias exploradas.

@@ -55,7 +55,7 @@ public sealed class ServiceObservation(ScopeStore store, HttpClient? client = nu
             }
             if (entity?["instance"]?["instance-id"]?.GetValue<string>() != instanceId ||
                 !JsonNode.DeepEquals(entity?["instance"]?["process"], active["process"]))
-                throw new ConfigurationException("Registro e instancia no coinciden; no se consulta su API.");
+                throw new ConfigurationException(Messages.ObservationRegistryAndInstanceDoNotMatchAPI.ToString());
             var identity = Identity(service.ServiceId, active);
             var check = (instanceProbe ?? InstanceProbe.Create()).Open(identity);
             processState = check.State;
@@ -64,17 +64,17 @@ public sealed class ServiceObservation(ScopeStore store, HttpClient? client = nu
             if (process is null) return Result();
             intent = CompareIntent();
             try { samples.AddRange(await process.CaptureAsync(cancellation)); }
-            catch (Exception e) when (ObservationError(e)) { diagnostics.Add("Recursos del proceso no disponibles: " + e.GetType().Name); }
+            catch (Exception e) when (ObservationError(e)) { diagnostics.Add(Messages.ObservationProcessResourcesUnavailableDetail.Format(e.GetType().Name)); }
 
             var endpoint = active["endpoint"]!;
             var host = endpoint["host"]!.GetValue<string>(); var port = endpoint["port"]!.GetValue<int>();
             if (!process.OwnsEndpoint(host, port))
-            { api = "unverified-listener"; diagnostics.Add("Proceso vivo; escucha no comprobada como propia. No se consulta otro proceso."); return Result(); }
+            { api = "unverified-listener"; diagnostics.Add(Messages.ObservationProcessAliveOwnershipUnverified.ToString()); return Result(); }
             using var owned = client is null ? new HttpClient(new HttpClientHandler { AllowAutoRedirect = false, UseProxy = false }) : null;
             var http = client ?? owned!;
             var configuredHealth = active["snapshot"]?["service"]?["server"]?["health"]?["url"]?["value"]?.GetValue<string>();
             var scheme = Uri.TryCreate(configuredHealth, UriKind.Absolute, out var configuredUrl) ? configuredUrl.Scheme : "http";
-            if (scheme is not ("http" or "https")) throw new FormatException("Protocolo de observación inválido.");
+            if (scheme is not ("http" or "https")) throw new FormatException(Messages.ObservationInvalidObservationProtocol.ToString());
             var address = new UriBuilder(scheme, host == "0.0.0.0" ? "127.0.0.1" : host == "::" ? "::1" : host, port).Uri;
             using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellation);
             deadline.CancelAfter(TimeSpan.FromSeconds(5));
@@ -85,39 +85,39 @@ public sealed class ServiceObservation(ScopeStore store, HttpClient? client = nu
                 var healthUrl = healthText is null ? new Uri(address, "/health") : new Uri(healthText);
                 if (healthUrl.Port != port || healthUrl.Scheme is not ("http" or "https") || !string.IsNullOrEmpty(healthUrl.UserInfo) ||
                     healthText is not null && !string.Equals(healthUrl.Host, host, StringComparison.OrdinalIgnoreCase))
-                    throw new FormatException("URL de salud no atribuible al endpoint verificado.");
+                    throw new FormatException(Messages.ObservationHealthURLCannotBeAttributedToVerified.ToString());
                 using var response = await http.GetAsync(healthUrl, HttpCompletionOption.ResponseHeadersRead, deadline.Token);
                 health = "HTTP " + (int)response.StatusCode;
             }
-            catch (Exception e) when (ObservationError(e)) { health = "unavailable"; diagnostics.Add("Salud: " + e.GetType().Name); }
+            catch (Exception e) when (ObservationError(e)) { health = "unavailable"; diagnostics.Add(Messages.ObservationHealthUnavailableDetail.Format(e.GetType().Name)); }
             try
             {
                 var freshCatalog = reconcileCatalog || catalog is null || catalogInstance != instanceId ||
                     DateTimeOffset.UtcNow - catalogAt >= TimeSpan.FromSeconds(5) ||
                     !JsonNode.DeepEquals(catalogComposition, active["preset-composition"]);
                 var models = freshCatalog ? JsonNode.Parse(await Fetch(http, new(address, "/models"), deadline.Token))?["data"]?.AsArray()
-                    ?? throw new FormatException("Catálogo sin data.") : catalog!;
+                    ?? throw new FormatException(Messages.ObservationCatalogEmpty.ToString()) : catalog!;
                 var observedCatalogAt = freshCatalog ? DateTimeOffset.UtcNow : catalogAt;
-                if (models.Count > 128) throw new FormatException("Catálogo excede 128 entradas por snapshot.");
+                if (models.Count > 128) throw new FormatException(Messages.ObservationCatalogExceedsEntriesPerSnapshot.ToString());
                 var names = new HashSet<string>(StringComparer.Ordinal);
                 var composition = active["preset-composition"] as JsonArray ?? [];
                 var expected = composition.SelectMany(c => c!["presets"]!.AsArray()).Select(p => p!["name"]!.GetValue<string>()).ToHashSet(StringComparer.Ordinal);
                 api = freshCatalog ? "available" : "cached-catalog";
                 current = freshCatalog && PresetPublication.Matches(composition, models);
-                if (!freshCatalog) diagnostics.Add($"Catálogo conservado desde {catalogAt:O}; esperando reconciliación, sin confirmar composición actual.");
+                if (!freshCatalog) diagnostics.Add(Messages.ObservationCatalogPreservedAwaiting.Format(catalogAt));
                 var disabled = active["snapshot"]?["service"]?["server"]?["args"]?["metrics"]?["value"]?.GetValue<string>() == "false" ||
                     active["execution"]?["arguments"]?.AsArray().Any(a => a?.GetValue<string>() == "--no-metrics") == true;
                 foreach (var model in models)
                 {
                     var name = model!["id"]!.GetValue<string>();
-                    if (!names.Add(name)) throw new FormatException("Catálogo con entradas duplicadas.");
+                    if (!names.Add(name)) throw new FormatException(Messages.ObservationCatalogWithDuplicateEntries.ToString());
                     var status = model["status"]?["value"]?.GetValue<string>() ?? "unknown";
                     var childArgs = model["status"]?["args"] as JsonArray;
                     var beforeChild = observeInference && status == "loaded" ? ChildEndpoint(address, process, childArgs) : null;
                     var entrySamples = new List<MetricSample>(); string? diagnostic = null;
-                    if (!expected.Contains(name)) diagnostic = "Entrada observada ajena a la composición activa registrada.";
-                    if (status != "loaded") diagnostic = "Modelo no cargado; métricas no consultadas.";
-                    else if (disabled) diagnostic = "Métricas desactivadas en la ejecución.";
+                    if (!expected.Contains(name)) diagnostic = Messages.ObservationEntryOutsideComposition.ToString();
+                    if (status != "loaded") diagnostic = Messages.ObservationModelNotLoadedMetricsNotQueried.ToString();
+                    else if (disabled) diagnostic = Messages.ObservationMetricsDisabledInExecution.ToString();
                     else
                     {
                         try
@@ -128,14 +128,14 @@ public sealed class ServiceObservation(ScopeStore store, HttpClient? client = nu
                                 entrySamples.Add(new(metric, value, Unit(metric), "/metrics?model; backend mean/cumulative; period not reported",
                                     "instance:" + instanceId + "/entry:" + name, DateTimeOffset.UtcNow));
                         }
-                        catch (Exception e) when (ObservationError(e)) { diagnostic = "Métricas " + Messages.NotAvailable + ": " + e.GetType().Name; }
+                        catch (Exception e) when (ObservationError(e)) { diagnostic = Messages.ObservationMetricsUnavailableDetail.Format(Messages.NotAvailable, e.GetType().Name); }
                     }
                     InferenceSnapshot? inference = null;
                     string? inferenceDiagnostic = null;
                     if (observeInference && status == "loaded" && expected.Contains(name))
                     {
                         try { inference = await CaptureInferenceAsync(http, address, process, childArgs, name, deadline.Token); }
-                        catch (Exception e) when (ObservationError(e)) { inferenceDiagnostic = "Tareas no disponibles: " + e.GetType().Name; }
+                        catch (Exception e) when (ObservationError(e)) { inferenceDiagnostic = Messages.ObservationTasksUnavailableDetail.Format(e.GetType().Name); }
                     }
                     if (observeInference && status == "loaded")
                     {
@@ -153,7 +153,7 @@ public sealed class ServiceObservation(ScopeStore store, HttpClient? client = nu
                     entries.Add(new(name, status, observedCatalogAt, entrySamples, diagnostic)
                     { Inference = inference, InferenceDiagnostic = inferenceDiagnostic });
                 }
-                foreach (var missing in expected.Except(names)) entries.Add(new(missing, "absent", observedCatalogAt, [], "Ausente del catálogo del router."));
+                foreach (var missing in expected.Except(names)) entries.Add(new(missing, "absent", observedCatalogAt, [], Messages.ObservationMissingFromRouterCatalog.ToString()));
                 if (freshCatalog)
                 {
                     catalog = models; catalogInstance = instanceId; catalogAt = observedCatalogAt;
@@ -178,7 +178,7 @@ public sealed class ServiceObservation(ScopeStore store, HttpClient? client = nu
             {
                 current = false;
                 for (var i = 0; i < entries.Count; i++) entries[i] = entries[i] with { Inference = null };
-                diagnostics.Add("Instancia/composición cambió durante la muestra; conservarla como histórica, sin enlazar con el reemplazo.");
+                diagnostics.Add(Messages.ObservationSampleChangedPreserved.ToString());
             }
         }
         catch (OperationCanceledException) when (cancellation.IsCancellationRequested) { throw; }
@@ -207,7 +207,7 @@ public sealed class ServiceObservation(ScopeStore store, HttpClient? client = nu
                 var declared = recipe.Root.Get("name")?.Text;
                 return (same ? "recipe-matches" : "recipe-differs") + (declared is not null && declared != service.Name ? "; declared-name-differs-from-local" : "");
             }
-            catch (Exception e) when (ObservationError(e)) { diagnostics.Add("Intención actual no comparable: " + e.GetType().Name); return "unavailable"; }
+            catch (Exception e) when (ObservationError(e)) { diagnostics.Add(Messages.ObservationIntentionNotComparableDetail.Format(e.GetType().Name)); return "unavailable"; }
         }
         string[] registeredFiles() => new RecipeRegistry(store).Get(service.RecipeId).Files;
     }
@@ -273,13 +273,13 @@ public sealed class ServiceObservation(ScopeStore store, HttpClient? client = nu
         if (active is null || active["terminated"]?.GetValue<bool>() == true) return (null, null);
         var check = (instanceProbe ?? InstanceProbe.Create()).Open(Identity(service.ServiceId, active));
         using var process = check.Instance;
-        if (process is null) return (null, check.State == "stopped" ? null : check.Diagnostic ?? "Instancia no verificada.");
+        if (process is null) return (null, check.State == "stopped" ? null : check.Diagnostic ?? Messages.ObservationInstanceUnverified.ToString());
         var endpoint = active["endpoint"]!;
         var host = endpoint["host"]!.GetValue<string>(); var port = endpoint["port"]!.GetValue<int>();
-        if (!process.OwnsEndpoint(host, port)) return (null, "Proceso vivo; escucha no comprobada como propia.");
+        if (!process.OwnsEndpoint(host, port)) return (null, Messages.ObservationListenerOwnershipUnverified.ToString());
         var configuredHealth = active["snapshot"]?["service"]?["server"]?["health"]?["url"]?["value"]?.GetValue<string>();
         var scheme = Uri.TryCreate(configuredHealth, UriKind.Absolute, out var configuredUrl) ? configuredUrl.Scheme : "http";
-        if (scheme is not ("http" or "https")) return (null, "Protocolo del servicio inválido.");
+        if (scheme is not ("http" or "https")) return (null, Messages.ObservationInvalidServiceProtocol.ToString());
         return (new UriBuilder(scheme, host == "0.0.0.0" ? "127.0.0.1" : host == "::" ? "::1" : host, port).Uri, null);
     }
 
@@ -307,7 +307,7 @@ public sealed class ServiceObservation(ScopeStore store, HttpClient? client = nu
         using var buffer = new MemoryStream(); var bytes = new byte[4096]; int count;
         while ((count = await body.ReadAsync(bytes, cancellation)) > 0)
         {
-            if (buffer.Length + count > 1024 * 1024) throw new FormatException("Respuesta excede 1 MiB.");
+            if (buffer.Length + count > 1024 * 1024) throw new FormatException(Messages.ServerResponseExceedsMiB.ToString());
             buffer.Write(bytes, 0, count);
         }
         return Encoding.UTF8.GetString(buffer.ToArray());

@@ -72,7 +72,7 @@ internal static class WatchTests
         try
         {
             await Until(() => handler.Streams >= 2 && samples.Count >= 2);
-            Check(samples.Any(s => s.Events.Contains("desconectado")), "EOF disconnect is visible; reconnects while process remains alive");
+            Check(samples.Any(s => s.Events.Code == Messages.ObservationDisconnectedRetryGap.Key), "EOF disconnect is visible; reconnects while process remains alive");
             Check(store.Read().Revision == revision, "watch does not mutate persisted intent/runtime");
             handler.State = "external-change";
             await Until(() => samples.Any(s => s.Snapshot!.Entries.Any(e => e.State == "external-change")));
@@ -82,7 +82,7 @@ internal static class WatchTests
             Check(samples.Last().Snapshot!.ProcessState == "alive", "API unavailable is distinct from process termination");
             handler.Unavailable = false;
             handler.NoEvents = true; var attempts = handler.Streams;
-            await Until(() => handler.Streams > attempts && samples.Last().Snapshot!.ApiState == "available" && samples.Last().Events.Contains("desconectado"));
+            await Until(() => handler.Streams > attempts && samples.Last().Snapshot!.ApiState == "available" && samples.Last().Events.Code == Messages.ObservationDisconnectedRetryGap.Key);
             Check(samples.Last().Snapshot!.ProcessState == "alive", "unsupported SSE preserves periodic observation of live API");
             handler.NoEvents = false;
             lifecycle.Stop(service.ServiceId);
@@ -104,7 +104,7 @@ internal static class WatchTests
                     try { await Task.Delay(3500); Check(!child.HasExited, "native " + flag + " remains an observer"); }
                     finally { if (!child.HasExited) child.Kill(); await child.WaitForExitAsync(); }
                     var output = await text;
-                    Check(output.Split(Messages.ObservationFrame + " |").Length >= 3 && output.Contains("Servicio fixture") && !output.Contains('\u001b'), "native redirected " + flag + " emits multiple snapshots without escapes: " + await errors);
+                    Check(output.Split(Messages.ObservationFrame + " |").Length >= 3 && output.Contains("fixture") && !output.Contains('\u001b'), "native redirected " + flag + " emits multiple snapshots without escapes: " + await errors);
                 }
             }
             await stop.CancelAsync();
@@ -140,7 +140,7 @@ internal static class WatchTests
             var follow = new ServiceWatch(routerStore, routerService, null, preferences).RunAsync(seen.Enqueue, cancellation.Token);
             try
             {
-                await Wait(() => seen.Any(s => s.Events.StartsWith("conectado") && s.Snapshot!.Entries.Any(e => e.Name == "idle")));
+                await Wait(() => seen.Any(s => s.Events.Code == Messages.ObservationConnectedReconcilingSnapshot.Key && s.Snapshot!.Entries.Any(e => e.Name == "idle")));
                 Check(true, "real official router SSE connects and reconciles initial catalog");
                 File.WriteAllText(ini, entry + entry.Replace("[idle]", "[external]"));
                 using var externalClient = new HttpClient();

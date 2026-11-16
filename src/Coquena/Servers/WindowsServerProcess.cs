@@ -28,30 +28,30 @@ public sealed unsafe partial class WindowsServerProcess : IDisposable
     public static WindowsServerProcess Create(string executable, string[] arguments, string log, Guid id, string? homeRoot = null, bool newLog = false)
     {
         var job = CreateJobObjectW(0, null);
-        if (job.IsInvalid) throw Error("Crear job");
+        if (job.IsInvalid) throw Error(Messages.ServerCreateJob.ToString());
         var lifetime = CreateJobObjectW(0, JobName(id));
         try
         {
-            if (lifetime.IsInvalid || !SetHandleInformation(lifetime, 1, 1)) throw Error("Crear job de instancia");
+            if (lifetime.IsInvalid || !SetHandleInformation(lifetime, 1, 1)) throw Error(Messages.ServerCreateInstanceJob.ToString());
             ConfigureJob(job, true);
             var security = new Security { Size = sizeof(Security), Inherit = 1 };
             using var output = CreateFileW(log, 0x40000000, 1 | 2 | 4, ref security, newLog ? 1u : 2u, 0x80, 0);
-            if (output.IsInvalid) throw Error("Abrir salida del backend");
+            if (output.IsInvalid) throw Error(Messages.ServerOpenBackendOutput.ToString());
             using var input = CreateFileW("NUL", 0x80000000, 1 | 2, ref security, 3, 0x80, 0);
-            if (input.IsInvalid) throw Error("Abrir entrada del backend");
+            if (input.IsInvalid) throw Error(Messages.ServerOpenBackendInput.ToString());
             nuint size = 0;
             _ = InitializeProcThreadAttributeList(0, 2, 0, ref size);
             var attributes = Marshal.AllocHGlobal(checked((int)size));
             var initialized = false;
             try
             {
-                if (!InitializeProcThreadAttributeList(attributes, 2, 0, ref size)) throw Error("Inicializar atributos");
+                if (!InitializeProcThreadAttributeList(attributes, 2, 0, ref size)) throw Error(Messages.ServerInitializeAttributes.ToString());
                 initialized = true;
                 nint* handles = stackalloc nint[3] { output.DangerousGetHandle(), input.DangerousGetHandle(), lifetime.DangerousGetHandle() };
                 nint* jobs = stackalloc nint[2] { job.DangerousGetHandle(), lifetime.DangerousGetHandle() };
                 if (!UpdateProcThreadAttribute(attributes, 0, 0x20002, (nint)handles, (nuint)(3 * sizeof(nint)), 0, 0) ||
                     !UpdateProcThreadAttribute(attributes, 0, 0x2000D, (nint)jobs, (nuint)(2 * sizeof(nint)), 0, 0))
-                    throw Error("Configurar atributos");
+                    throw Error(Messages.ServerConfigureAttributes.ToString());
                 var start = new StartupEx
                 {
                     Startup = new Startup
@@ -74,7 +74,7 @@ public sealed unsafe partial class WindowsServerProcess : IDisposable
                     // The child inherits whether Ctrl+C is ignored: it must be able to stop gracefully.
                     AcceptInterrupt();
                     if (!CreateProcessW(executable, command, 0, 0, true, 0x80000 | 0x10 | 0x4 | 0x400, environment,
-                        Path.GetDirectoryName(executable), ref start, out var info)) throw Error("Iniciar backend");
+                        Path.GetDirectoryName(executable), ref start, out var info)) throw Error(Messages.ServerStartBackend.ToString());
                     return new(info, job, lifetime);
                 }
                 finally { Marshal.FreeHGlobal(environment); }
@@ -93,13 +93,13 @@ public sealed unsafe partial class WindowsServerProcess : IDisposable
     // job stays attached to router children, with no manager required to own it.
     public void Activate()
     {
-        if (ResumeThread(thread) == uint.MaxValue) throw Error("Activar backend");
+        if (ResumeThread(thread) == uint.MaxValue) throw Error(Messages.ServerActivateBackend.ToString());
         ConfigureJob(job, false);
     }
     private static void ConfigureJob(SafeFileHandle handle, bool killOnClose)
     {
         var limits = new JobLimits { Flags = killOnClose ? 0x2000u : 0 };
-        if (!SetInformationJobObject(handle, 9, ref limits, (uint)sizeof(JobLimits))) throw Error("Configurar job");
+        if (!SetInformationJobObject(handle, 9, ref limits, (uint)sizeof(JobLimits))) throw Error(Messages.ServerConfigureJob.ToString());
     }
 
     // Hold an OS handle throughout verification and action, preventing PID reuse
@@ -108,23 +108,23 @@ public sealed unsafe partial class WindowsServerProcess : IDisposable
     {
         ended = false;
         if (instance.ProcessCreated is null || instance.ExecutablePath is null)
-            throw new ConfigurationException($"Identidad incierta de instancia {instance.InstanceId:D}; no se actúa sobre el PID.");
+            throw new ConfigurationException(Messages.ServerUncertainInstanceIdentityDNoActionOn.Format(instance.InstanceId));
         var handle = OpenProcess(0x1000 | 0x100000 | 1, false, (uint)instance.Pid);
         if (handle.IsInvalid)
         {
             var code = Marshal.GetLastPInvokeError(); handle.Dispose();
             if (code == 87) { ended = true; return null; }
-            throw new ConfigurationException($"Identidad incierta de instancia {instance.InstanceId:D}: acceso al proceso ({code}).");
+            throw new ConfigurationException(Messages.ServerUncertainIdentityProcessAccess.Format(instance.InstanceId, code));
         }
         try
         {
             if (WaitForSingleObject(handle, 0) == 0 || Creation(handle) != instance.ProcessCreated)
             { ended = true; handle.Dispose(); return null; }
             if (!Image(handle).Equals(instance.ExecutablePath, StringComparison.OrdinalIgnoreCase))
-                throw new ConfigurationException($"Identidad incierta de instancia {instance.InstanceId:D}: ejecutable distinto.");
+                throw new ConfigurationException(Messages.ServerUncertainIdentityDifferentExe.Format(instance.InstanceId));
             using var job = OpenJobObjectW(4, false, JobName(instance.InstanceId));
             if (job.IsInvalid || !IsProcessInJob(handle, job, out var belongs) || !belongs)
-                throw new ConfigurationException($"Identidad incierta de instancia {instance.InstanceId:D}: job no verificable.");
+                throw new ConfigurationException(Messages.ServerUncertainIdentityJobUnverified.Format(instance.InstanceId));
             return handle;
         }
         catch
@@ -142,14 +142,14 @@ public sealed unsafe partial class WindowsServerProcess : IDisposable
         if (group.IsInvalid || !IsProcessInJob(verified, group, out var belongs) || !belongs)
         {
             group.Dispose();
-            throw new ConfigurationException("Grupo de instancia no verificable; se conserva el registro.");
+            throw new ConfigurationException(Messages.ServerInstanceGroupUnverifiedRecordPreserved.ToString());
         }
         return group;
     }
     internal static bool GroupExited(SafeFileHandle group)
     {
         if (!QueryInformationJobObject(group, 1, out var accounting, (uint)sizeof(JobAccounting), 0))
-            throw Error("Consultar grupo de instancia");
+            throw Error(Messages.ServerQueryInstanceGroup.ToString());
         return accounting.ActiveProcesses == 0;
     }
     internal static void RequireGroupEnded(Guid instanceId)
@@ -158,13 +158,13 @@ public sealed unsafe partial class WindowsServerProcess : IDisposable
         if (group.IsInvalid)
         {
             if (Marshal.GetLastPInvokeError() == 2) return;
-            throw Error("Consultar grupo de instancia");
+            throw Error(Messages.ServerQueryInstanceGroup.ToString());
         }
-        if (!GroupExited(group)) throw new ConfigurationException("El proceso principal terminó pero su grupo conserva procesos; no se libera la instancia.");
+        if (!GroupExited(group)) throw new ConfigurationException(Messages.ServerMainProcessEndedButItsGroupRetains.ToString());
     }
     internal static void ForceGroup(SafeFileHandle group)
     {
-        if (!TerminateJobObject(group, 1)) throw Error("Forzar cierre del grupo");
+        if (!TerminateJobObject(group, 1)) throw Error(Messages.ServerForceGroupShutdown.ToString());
     }
     internal static long? ObserveMember(int pid, Guid instanceId, bool includeCreation)
     {
@@ -177,17 +177,17 @@ public sealed unsafe partial class WindowsServerProcess : IDisposable
     }
     internal static int ExitCode(SafeFileHandle handle)
     {
-        if (!GetExitCodeProcess(handle, out var code)) throw Error("Leer salida");
+        if (!GetExitCodeProcess(handle, out var code)) throw Error(Messages.ServerReadOutput.ToString());
         return unchecked((int)code);
     }
     internal static void Force(InstanceDocument instance, SafeFileHandle verified)
     {
         if (Exited(verified)) return;
         using var job = OpenJobObjectW(8 | 4, false, JobName(instance.InstanceId));
-        if (job.IsInvalid) throw new ConfigurationException("Job de instancia ausente; identidad del grupo incierta, sin cierre forzado.");
+        if (job.IsInvalid) throw new ConfigurationException(Messages.ServerInstanceJobMissingNoForce.ToString());
         if (!IsProcessInJob(verified, job, out var belongs) || !belongs)
-            throw new ConfigurationException("El proceso no pertenece al job de la instancia; sin cierre forzado.");
-        if (!TerminateJobObject(job, 1)) throw Error("Forzar cierre");
+            throw new ConfigurationException(Messages.ServerProcessDoesNotBelongToInstanceJob.ToString());
+        if (!TerminateJobObject(job, 1)) throw Error(Messages.ServerForceShutdown.ToString());
     }
     public static void Force(InstanceDocument instance)
     {
@@ -220,13 +220,13 @@ public sealed unsafe partial class WindowsServerProcess : IDisposable
     }
     private static long Creation(SafeFileHandle handle)
     {
-        if (!GetProcessTimes(handle, out var created, out _, out _, out _)) throw Error("Leer identidad");
+        if (!GetProcessTimes(handle, out var created, out _, out _, out _)) throw Error(Messages.ServerReadIdentity.ToString());
         return created;
     }
     private static string Image(SafeFileHandle handle)
     {
         var image = new StringBuilder(32768); uint size = 32768;
-        if (!QueryFullProcessImageNameW(handle, 0, image, ref size)) throw Error("Leer ejecutable");
+        if (!QueryFullProcessImageNameW(handle, 0, image, ref size)) throw Error(Messages.ServerReadExecutable.ToString());
         return image.ToString();
     }
     private static ConfigurationException Error(string action) => new($"{action}: {new Win32Exception(Marshal.GetLastPInvokeError()).Message}");

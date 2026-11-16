@@ -14,17 +14,14 @@ namespace Coquena;
 // The telemetry row stays below the input and is redrawn in place, without adding lines.
 internal static class ChatCli
 {
-    public const string Usage = "Uso: coquena chat <preset> [--service <nombre|default|self> | --global] [--load]";
+    public static string Usage => Messages.ChatUsage;
 
     public static int Run(string[] args, TextWriter output, TextWriter error)
     {
         if (args is ["--help"] or ["-h"])
         {
             output.WriteLine(Usage);
-            output.WriteLine("  <preset>: nombre publicado proyecto/clave, la clave de la receta de esta carpeta");
-            output.WriteLine("  o servicio/proyecto/clave. Sin --service se usa el destino de la receta.");
-            output.WriteLine("  --global equivale a --service global. --load pide cargarlo; Enter envía cuando termina.");
-            output.WriteLine("Enter envía; /exit o Ctrl+C sale.");
+            output.WriteLine(Messages.ChatHelp);
             return 0;
         }
         string? reference = null, serviceName = null;
@@ -46,7 +43,7 @@ internal static class ChatCli
         }
         if (Console.IsInputRedirected || Console.IsOutputRedirected)
         {
-            error.WriteLine("Usar coquena chat en una terminal interactiva.");
+            error.WriteLine(Messages.ChatNeedsTerminal);
             return 2;
         }
         try
@@ -79,8 +76,8 @@ internal static class ChatCli
         if (serviceName is not null)
         {
             var chosen = Services(serviceName, targets, local);
-            if (chosen.Count == 0) { error.WriteLine($"No hay un servicio «{serviceName}». {(targets.Count == 0 ? diagnostic : "")}".Trim()); return null; }
-            if (chosen.Count > 1) { error.WriteLine($"«{serviceName}» nombra más de un servicio; no se elige uno por coincidencia."); return null; }
+            if (chosen.Count == 0) { error.WriteLine(Messages.ChatNoService.Format(serviceName, targets.Count == 0 ? diagnostic : "").Trim()); return null; }
+            if (chosen.Count > 1) { error.WriteLine(Messages.ChatServiceAmbiguous.Format(serviceName)); return null; }
             candidates.Add(new(chosen[0], names));
         }
         else
@@ -106,15 +103,15 @@ internal static class ChatCli
             var observation = new ServiceObservation(candidate.Target.Store);
             var (address, problem) = observation.Endpoint(candidate.Target.Service!);
             if (address is not null) continue;
-            if (problem is not null) { error.WriteLine("Servicio no disponible: " + problem); return null; }
+            if (problem is not null) { error.WriteLine(Messages.ChatServiceUnavailable.Format(problem)); return null; }
             var name = candidate.Target.Service!.Name;
-            output.Write($"«{name}» no está en ejecución. ¿Iniciarlo para probar el chat? [s/N] ");
-            if (Console.ReadLine()?.Trim().ToLowerInvariant() is not ("s" or "si" or "sí")) return null;
+            output.Write(Messages.ChatStartQuestion.Format(name));
+            if (!Messages.IsYes(Console.ReadLine())) return null;
             Start(candidate.Target, output, error);
             (address, problem) = observation.Endpoint(candidate.Target.Service!);
-            if (address is null) { error.WriteLine("El servicio no quedó disponible. " + problem); return null; }
+            if (address is null) { error.WriteLine(Messages.ChatServiceNotReady.Format(problem)); return null; }
             if (Published(candidate.Target, candidate.Entries) is { } entry) return (candidate.Target, address, entry);
-            error.WriteLine($"«{reference}» no está publicado en {name}. {Listing(candidate.Target)}".Trim());
+            error.WriteLine(Messages.ChatNotPublishedIn.Format(reference, name, Listing(candidate.Target)).Trim());
             return null;
         }
 
@@ -135,12 +132,12 @@ internal static class ChatCli
         if (matches.Count == 1) return matches[0];
         if (matches.Count > 1)
         {
-            error.WriteLine($"«{reference}» está publicado en más de un servicio; indicar uno:");
+            error.WriteLine(Messages.ChatPublishedInMany.Format(reference));
             foreach (var match in matches) error.WriteLine($"  coquena chat {match.Entry} --service {match.Target.Service!.Name}");
             return null;
         }
-        error.WriteLine($"No hay un preset publicado «{reference}» en los servicios activos." + (targets.Count == 0 ? " " + diagnostic : ""));
-        if (known.Count > 0) error.WriteLine("Presets publicados: " + string.Join(", ", known.Distinct()) + ".");
+        error.WriteLine(Messages.ChatNoPreset.Format(reference) + (targets.Count == 0 ? " " + diagnostic : ""));
+        if (known.Count > 0) error.WriteLine(Messages.ChatPublishedPresets.Format(string.Join(", ", known.Distinct())));
         return null;
     }
 
@@ -179,7 +176,7 @@ internal static class ChatCli
     }
 
     private static string Listing(DashboardCli.Target target) =>
-        Entries(target) is { Count: > 0 } entries ? "Presets: " + string.Join(", ", entries) + "." : "";
+        Entries(target) is { Count: > 0 } entries ? Messages.ChatPresetsList.Format(string.Join(", ", entries)) : "";
 
     // --load: the router loads the preset while the chat is already open. Until it is loaded,
     // messages are not sent; the text stays in the input and /exit always leaves.
@@ -197,24 +194,24 @@ internal static class ChatCli
             {
                 try
                 {
-                    if (!await router.RequestLoadAsync(entry, stop.Token)) { Problem = "el servidor rechazó la carga"; return; }
+                    if (!await router.RequestLoadAsync(entry, stop.Token)) { Problem = Messages.ChatLoadRejected; return; }
                     while (true)
                     {
                         var (loaded, failed) = await router.LoadStateAsync(entry, stop.Token);
-                        if (failed) { Problem = "la carga falló; ver el log del servicio"; return; }
+                        if (failed) { Problem = Messages.ChatLoadFailed; return; }
                         if (loaded) return;
                         await Task.Delay(500, stop.Token);
                     }
                 }
                 catch (OperationCanceledException) { }
-                catch (Exception error) when (error is HttpRequestException or System.Text.Json.JsonException) { Problem = "sin estado de la carga: " + error.Message; }
+                catch (Exception error) when (error is HttpRequestException or System.Text.Json.JsonException) { Problem = Messages.ChatNoLoadState.Format(error.Message); }
                 finally { Loading = false; }
             });
         }
 
         // While loading, the row says so with the elapsed time; a failed load is shown until the end.
         public string? Status => Loading
-            ? DashboardPresentation.Spinner() + " cargando modelo " + (int)(DateTimeOffset.UtcNow - started).TotalSeconds + " s"
+            ? DashboardPresentation.Spinner() + Messages.ChatLoadingModel.Format((int)(DateTimeOffset.UtcNow - started).TotalSeconds)
             : Problem is { } problem ? "✗ " + problem : null;
 
         public bool Blocks => Loading;
@@ -232,7 +229,7 @@ internal static class ChatCli
             : target.Recipe ?? new RecipeSelection(context.Base, new RecipeRegistry(target.Store).Get(service.RecipeId).Files, context.Base);
         var instance = ScopedServiceCli.RunCandidateAsync(lifecycle, new(context, selection, service), false, detached: true,
             privateResources: false, output, error, new ConsoleModelSelectionInteraction(), CancellationToken.None).GetAwaiter().GetResult();
-        output.WriteLine($"Servicio {service.Name}; instancia {instance}.");
+        output.WriteLine(Messages.ServiceInstance.Format(service.Name, instance));
     }
 
     private static int Converse(Uri address, string service, string entry, bool load, TextWriter output)
@@ -242,7 +239,7 @@ internal static class ChatCli
         var session = new ChatSession(client, address, entry);
         var loader = load ? new Loader(client, address, entry) : null;
         var screen = new Screen(output, service + "/" + entry, loader);
-        output.WriteLine($"Chat con {service}/{entry}. Enter envía; /exit o Ctrl+C sale.");
+        output.WriteLine(Messages.ChatWith.Format(service, entry));
         Console.TreatControlCAsInput = true;
         try
         {
@@ -318,7 +315,7 @@ internal static class ChatCli
                 switch (key.Key)
                 {
                     case ConsoleKey.Enter when loader?.Blocks == true && buffer.ToString().Trim() is { Length: > 0 } pending && pending != "/exit":
-                        notice = "no se puede enviar hasta que el modelo esté cargado";
+                        notice = Messages.ChatCannotSendYet;
                         break;
                     case ConsoleKey.Enter:
                         var line = buffer.ToString();
@@ -369,7 +366,7 @@ internal static class ChatCli
 
         public void BeginAnswer()
         {
-            output.Write("\u001b[1masistente\u001b[0m\r\n");
+            output.Write("\u001b[1m" + Messages.ChatAssistant + "\u001b[0m\r\n");
             answerColumn = 0;
             written = 0;
             output.Write("\u001b[?25l" + Fit("…", Width));
@@ -422,23 +419,23 @@ internal static class ChatCli
             var parts = new List<string> { target };
             if (notice is not null) parts.Add(notice);
             if (loader?.Status is { } status) parts.Add(status);
-            parts.Add(turn is null ? "sin petición" : turn.Phase switch
+            parts.Add(turn is null ? Messages.ChatNoRequest : turn.Phase switch
             {
-                ChatPhase.Waiting => "esperando",
-                ChatPhase.Prompt => "procesando prompt" + (turn.Progress is { } progress ? $" {Math.Round(progress.Ratio * 100)}%" : ""),
-                ChatPhase.Generating => "generando",
+                ChatPhase.Waiting => Messages.ChatWaiting,
+                ChatPhase.Prompt => Messages.ChatProcessingPrompt + (turn.Progress is { } progress ? $" {Math.Round(progress.Ratio * 100)}%" : ""),
+                ChatPhase.Generating => Messages.ChatGenerating,
                 ChatPhase.Done => ChatSession.FinishLabel(turn.Finish),
-                ChatPhase.Cancelled => "interrumpida",
-                _ => "error"
+                ChatPhase.Cancelled => Messages.ChatInterrupted,
+                _ => Messages.ChatError
             });
-            if (t is null) parts.Add(turn is null ? (loader?.Blocks == true ? "/exit sale" : "Enter envía · /exit sale") : "sin telemetría de la petición");
+            if (t is null) parts.Add(turn is null ? (loader?.Blocks == true ? Messages.ChatExitHint : Messages.ChatSendHint) : Messages.ChatNoTelemetry);
             else
             {
                 parts.Add("prompt " + ChatSession.Rate(t.PromptRate) + " tk/s");
                 parts.Add("gen " + ChatSession.Rate(t.PredictedRate) + " tk/s · " + t.Predicted + " tk");
-                if (t.Cached + t.Prompt > 0) parts.Add($"caché {Math.Round(100d * t.Cached / (t.Cached + t.Prompt))}%");
-                if (t.Drafted is > 0) parts.Add($"acept. {t.Accepted}/{t.Drafted}");
-                if (turn?.FirstToken is { } first) parts.Add("1.º " + first.TotalSeconds.ToString("0.0", System.Globalization.CultureInfo.CurrentCulture) + " s");
+                if (t.Cached + t.Prompt > 0) parts.Add($"{Messages.ChatCache} {Math.Round(100d * t.Cached / (t.Cached + t.Prompt))}%");
+                if (t.Drafted is > 0) parts.Add($"{Messages.ChatAccepted} {t.Accepted}/{t.Drafted}");
+                if (turn?.FirstToken is { } first) parts.Add(Messages.ChatFirstToken + " " + first.TotalSeconds.ToString("0.0", System.Globalization.CultureInfo.CurrentCulture) + " s");
             }
             return string.Join(" · ", parts);
         }

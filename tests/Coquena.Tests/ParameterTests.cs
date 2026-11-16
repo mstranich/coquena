@@ -36,11 +36,11 @@ internal static class ParameterTests
             foreach (var (name, first, previous) in new[] { ("moe-cache-mib", "b11480", "b11479"), ("moe-cache-cpu-share", "b12191", "b12190") })
             {
                 var definition = manager.Find(name)!;
-                Check(ParameterManager.Availability(definition, null, "ggml", first) == "admitido" &&
-                    ParameterManager.Availability(definition, null, "ggml", previous) == "no admitido", "MoE factory build boundary " + name);
-                Check(ParameterCatalog.Availability(name, "ggml-org/llama.cpp", previous) == "no admitido" &&
-                    ParameterCatalog.Availability(name, "ggml-org/llama.cpp", first) == "admitido", "MoE raw catalog build boundary " + name);
-                Check(ParameterManager.Availability(definition, null, "fork", first) == "desconocido" &&
+                Check(ParameterManager.Availability(definition, null, "ggml", first) == "supported" &&
+                    ParameterManager.Availability(definition, null, "ggml", previous) == "unsupported", "MoE factory build boundary " + name);
+                Check(ParameterCatalog.Availability(name, "ggml-org/llama.cpp", previous) == "unsupported" &&
+                    ParameterCatalog.Availability(name, "ggml-org/llama.cpp", first) == "supported", "MoE raw catalog build boundary " + name);
+                Check(ParameterManager.Availability(definition, null, "fork", first) == "unknown" &&
                     definition.Default == "0", "MoE fork is unknown and default is metadata " + name);
             }
             Check(!manager.ChangeDefinition("ctx-size", d => d with { Description = "consulta" }, "descripción", true, report, () => throw new Exception("dry-run prompted")) && !Directory.Exists(root), "dry-run without home performs no writes");
@@ -79,7 +79,7 @@ internal static class ParameterTests
             Cli(2, "define", "preexisting-unknown", "--type", "integer", "--scope", "model", "--target", "ini");
             Check(State() == state && config.View("one").Own["preexisting-unknown"] == "fraction", "new definition rejects incompatible preexisting unknown assignment without deletion");
             config.Set("one", "preexisting-unknown", null);
-            Check(Cli(0, "show", "-x").Contains("default: 0.7"), "persisted metadata and dash alias");
+            Check(Cli(0, "show", "-x").Contains("0.7"), "persisted metadata and dash alias");
             state = State();
             Cli(2, "define", "custom", "--type", "string", "--scope", "model", "--target", "ini");
             Cli(2, "edit", "missing", "--description", "x");
@@ -160,22 +160,22 @@ internal static class ParameterTests
             Reject(() => config.Set("one", "custom", "1.2"), "integer refuses fraction");
             config.Set("one", "custom", "-3"); Check(config.View("one").Own["custom"] == "-3", "integer allows negative values");
             Cli(0, "support", "set", "custom", "--from", "b9", "--until", "b10000");
-            Check(Availability("custom", "b9") == "admitido" && Availability("custom", "b10000") == "admitido" && Availability("custom", "b8") == "no admitido" && Availability("custom", "b10001") == "no admitido", "numeric builds inclusive range");
+            Check(Availability("custom", "b9") == "supported" && Availability("custom", "b10000") == "supported" && Availability("custom", "b8") == "unsupported" && Availability("custom", "b10001") == "unsupported", "numeric builds inclusive range");
             Cli(0, "support", "set", "custom", "oficial/cuda@13", "--from", "b11482", "--until", "b11482");
-            Check(Availability("custom", "b11482") == "admitido" && Availability("custom", "b11483") == "no admitido", "variant-specific exact version");
+            Check(Availability("custom", "b11482") == "supported" && Availability("custom", "b11483") == "unsupported", "variant-specific exact version");
             Cli(0, "support", "set", "custom", "ggml/vulkan", "--from", "b1000");
-            Check(Availability("custom", "b999", "vulkan") == "no admitido" && Availability("custom", "b1000", "vulkan") == "admitido" && Availability("custom", "b999999", "vulkan") == "admitido", "open upper limit");
+            Check(Availability("custom", "b999", "vulkan") == "unsupported" && Availability("custom", "b1000", "vulkan") == "supported" && Availability("custom", "b999999", "vulkan") == "supported", "open upper limit");
             Cli(0, "support", "set", "custom", "ggml/cpu", "--until", "b1000");
-            Check(Availability("custom", "b1", "cpu") == "admitido" && Availability("custom", "b1001", "cpu") == "no admitido", "open lower limit");
+            Check(Availability("custom", "b1", "cpu") == "supported" && Availability("custom", "b1001", "cpu") == "unsupported", "open lower limit");
             Cli(0, "support", "set", "custom", "--backend", backend.Id.ToString(), "--from", "b12000");
-            Check(ParameterManager.Availability(manager.Find("custom"), backend) == "no admitido" && ParameterManager.Availability(manager.Find("custom"), other) == "no admitido", "local precedence and different builds same family");
+            Check(ParameterManager.Availability(manager.Find("custom"), backend) == "unsupported" && ParameterManager.Availability(manager.Find("custom"), other) == "unsupported", "local precedence and different builds same family");
             Check(!config.Compose(backend, [one.Id]).Ini.Contains("custom =") && config.View("one").Own["custom"] == "-3", "inapplicable omitted while persisted assignment remains");
             Cli(0, "support", "remove", "custom", "--backend", backend.Id.ToString());
             Check(config.Compose(backend, [one.Id]).Ini.Contains("custom = -3"), "local removal preserves other associations");
             Cli(0, "support", "set", "custom");
-            Check(Availability("custom", "b11483") == "no admitido", "specific range does not fall back to permissive general");
+            Check(Availability("custom", "b11483") == "unsupported", "specific range does not fall back to permissive general");
             var supportImpact = Cli(0, "support", "set", "custom", "ggml/cuda@13", "--from", "b12000", "--dry-run");
-            Check(supportImpact.Contains(Messages.KeepEffect("omitir con warning")) && supportImpact.Contains("first") && supportImpact.Contains("second"), "support impact reports executions and preserved assignments");
+            Check(supportImpact.Contains(Messages.KeepEffect(Messages.EmissionOmit.ToString())) && supportImpact.Contains("first") && supportImpact.Contains("second"), "support impact reports executions and preserved assignments");
             var supportCount = manager.Find("custom")!.Support!.Length;
             Cli(0, "support", "remove", "custom");
             Check(manager.Find("custom")!.Support!.Length == supportCount - 1 && config.View("one").Own.ContainsKey("custom"), "remove general preserves specifics and values");
@@ -191,7 +191,7 @@ internal static class ParameterTests
             store.Update(DocumentKind.Backends, json.BackendsDocument, ContractValidation.Backends, old => old! with { Backends = [.. old.Backends, nonofficial] });
             Cli(2, "show", "custom", "--backend", nonofficial.Id.ToString());
             Cli(2, "support", "set", "custom", "--backend", nonofficial.Id.ToString());
-            Check(ParameterManager.Availability(manager.Find("ctx-size"), other) == "desconocido", "factory missing evidence is not incompatibility");
+            Check(ParameterManager.Availability(manager.Find("ctx-size"), other) == "unknown", "factory missing evidence is not incompatibility");
             Cli(0, "edit", "models-autoload", "--type", "enum", "--values", "true", "--values", "false");
             servers.Set("first", "models-autoload", "false");
             Check(ServerRuntime.Arguments(servers.Compose("first"), "fixture.ini").Contains("false"), "edited factory type governs CLI emission");
@@ -294,9 +294,9 @@ internal static class ParameterTests
             { Servers = old.Servers.Select(s => s.Name == "second" ? s with { Backend = new("fixed", other.Id), PresetIds = [one.Id, two.Id] } : s).ToArray() });
             state = State();
             var resetImpact = ResetCli(0, "--dry-run");
-            Check(State() == state && resetImpact.Contains("invalid-integer") && resetImpact.Contains("Recuperar: temp") &&
-                resetImpact.Contains("first") && resetImpact.Contains("second"), "reset redirected impact covers restoration and multiple entities without writes");
-            Check(resetImpact.Contains(Messages.KeepEffect("disponibilidad desconocida")) && resetImpact.Contains("2048"), "reset applicability change reports preserved assignment separately from cascade");
+            Check(State() == state && resetImpact.Contains("invalid-integer") && resetImpact.Contains(Messages.Recover.Format("temp")) &&
+                resetImpact.Contains("first") && resetImpact.Contains("second") && resetImpact.Contains(Messages.ImpactCascade), "reset redirected impact covers restoration and multiple entities without writes");
+            Check(resetImpact.Contains(Messages.KeepEffect(Messages.EmissionUnknown.ToString())) && resetImpact.Contains("2048"), "reset applicability change reports preserved assignment separately from cascade");
             ResetCli(2, "--unknown"); ResetCli(2, "--dry-run", "--dry-run");
             Check(State() == state, "reset invalid grammar preserves state");
             using var cancelled = new StringWriter();

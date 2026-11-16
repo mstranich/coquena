@@ -12,17 +12,17 @@ public static class LogRetentionPolicy
         try
         {
             var bytes = ByteSize.Parse(text);
-            if (bytes == 0) throw new FormatException("La retención debe ser mayor que 0 B.");
+            if (bytes == 0) throw new FormatException(Messages.RetentionPositive);
             return bytes;
         }
         catch (FormatException error) { throw new ConfigurationException(error.Message); }
     }
 
     public static RetentionView Resolve(LogRetention? global, LogRetention? own = null) =>
-        new(own?.MaxBytes ?? global?.MaxBytes ?? InitialBytes, own is not null ? "propio" : global is not null ? "global" : "inicial");
+        new(own?.MaxBytes ?? global?.MaxBytes ?? InitialBytes, own is not null ? "own" : global is not null ? "global" : "initial");
 
     public static void Print(RetentionView view, TextWriter output)
     {
-        output.WriteLine($"Retención: {ByteSize.Format(view.MaxBytes)} | origen: {view.Origin}.");
+        output.WriteLine(Messages.RetentionShow.Format(ByteSize.Format(view.MaxBytes), Messages.RetentionOrigin(view.Origin)));
     }
 }

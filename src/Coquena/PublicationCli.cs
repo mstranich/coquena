@@ -15,7 +15,7 @@ public interface IPublicationInteraction
 {
     bool Available { get; }
     bool Confirm(string diagnostic);
-    bool Confirm(string diagnostic, string destination) => Confirm("Destino: " + destination + "\n" + diagnostic);
+    bool Confirm(string diagnostic, string destination) => Confirm(Messages.PublicationDestination.Format(destination, diagnostic));
     bool StartService();
     bool StartService(string diagnostic) => StartService();
 }
@@ -25,13 +25,13 @@ public sealed record ServiceCreationOptions(string Host, int Port, string? Healt
     internal JsonObject Server(bool external)
     {
         if (string.IsNullOrWhiteSpace(Host) || Host.Any(char.IsControl) || Port is < 1 or > 65535)
-            throw new ArgumentException("Host o puerto inválido.");
-        if (external && string.IsNullOrWhiteSpace(HealthUrl)) throw new ArgumentException("El backend externo requiere URL de salud.");
+            throw new ArgumentException(Messages.PublicationHostPort);
+        if (external && string.IsNullOrWhiteSpace(HealthUrl)) throw new ArgumentException(Messages.PublicationHealthRequired);
         if (!string.IsNullOrWhiteSpace(HealthUrl) && (!Uri.TryCreate(HealthUrl, UriKind.Absolute, out var url) ||
             url.Scheme is not ("http" or "https") || !string.IsNullOrEmpty(url.UserInfo)))
-            throw new ArgumentException("URL de salud inválida o con credenciales.");
+            throw new ArgumentException(Messages.PublicationHealthInvalid);
         var args = Arguments.DeepClone().AsObject();
-        if (args.ContainsKey("host") || args.ContainsKey("port")) throw new ArgumentException("Usar los campos Host y Puerto para esos argumentos.");
+        if (args.ContainsKey("host") || args.ContainsKey("port")) throw new ArgumentException(Messages.PublicationHostPortFields);
         args["host"] = Host; args["port"] = Port;
         var server = new JsonObject { ["args"] = args };
         if (!string.IsNullOrWhiteSpace(HealthUrl)) server["health"] = new JsonObject { ["url"] = HealthUrl };
@@ -49,13 +49,13 @@ public static class PublicationCli
         public bool Available => !Console.IsInputRedirected;
         public bool Confirm(string diagnostic)
         {
-            output.WriteLine(diagnostic); output.WriteLine("¿Aplicar los cambios ahora? [a] Aplicar / [c] Cancelar");
+            output.WriteLine(diagnostic); output.WriteLine(Messages.ImportApplyQuestion);
             return Console.ReadLine()?.Trim().Equals("a", StringComparison.OrdinalIgnoreCase) == true;
         }
         public bool StartService()
         {
-            output.WriteLine("Destino detenido. ¿Iniciar servicio? [s] Sí, [c] Cancelar:");
-            return Console.ReadLine()?.Trim().Equals("s", StringComparison.OrdinalIgnoreCase) == true;
+            output.WriteLine(Messages.PublicationStartQuestion);
+            return Messages.IsYes(Console.ReadLine());
         }
     }
 
@@ -81,7 +81,7 @@ public static class PublicationCli
                 ConfigurationException => "instance-identity-uncertain", OperationCanceledException => "cancelled", _ => "publication-error" };
             // The message explains; the code stays at the end for scripts and reports.
             error.WriteLine($"Error: {e.Message.TrimEnd().TrimEnd('.')} ({code}).");
-            if (e is ArgumentException) error.WriteLine("Ver la sintaxis con coquena --help.");
+            if (e is ArgumentException) error.WriteLine(Messages.SeeSyntax);
             if (e is OperationCanceledException) return 130;
             if (code == "unsupported-argument-destination") return 5;
             if (e is ArgumentException or RecipeException || code is "unknown-preset" or "unknown-service" or "self-requires-service") return 2;
@@ -109,25 +109,25 @@ public static class PublicationCli
             if (arg == "--") { end = true; continue; }
             if (arg is "--file" or "--env-file" or "--project-directory" or "--service")
             {
-                if (++i == args.Length || arg is not ("--file" or "--env-file") && !seen.Add(arg)) throw new ArgumentException("Opción inválida o duplicada.");
+                if (++i == args.Length || arg is not ("--file" or "--env-file") && !seen.Add(arg)) throw new ArgumentException(Messages.OptionInvalidOrDuplicated);
                 if (arg == "--file") files.Add(args[i]); else if (arg == "--env-file") env.Add(args[i]);
                 else if (arg == "--service") selector = args[i]; else basePath = args[i];
             }
             else if (arg is "--start-service" or "--private")
             {
-                if (!seen.Add(arg)) throw new ArgumentException("Opción duplicada.");
+                if (!seen.Add(arg)) throw new ArgumentException(Messages.OptionDuplicated);
                 if (arg == "--start-service") start = true; else isPrivate = true;
             }
-            else if (arg.StartsWith('-')) throw new ArgumentException("Opción de publicación desconocida.");
+            else if (arg.StartsWith('-')) throw new ArgumentException(Messages.PublicationUnknownOption);
             else positional.Add(arg);
         }
         if (positional.FirstOrDefault() == "preset") positional.RemoveAt(0);
-        if (positional.Count == 0) throw new ArgumentException("Falta operación.");
+        if (positional.Count == 0) throw new ArgumentException(Messages.PublicationMissingOperation);
         var action = positional[0]; string? key = positional.Count == 2 ? positional[1] : null;
         if (action is not ("up" or "down" or "apply" or "withdraw") ||
             (action is "up" or "down" ? positional.Count != 1 : positional.Count != 2) || start && action != "up")
-            throw new ArgumentException("Sintaxis de publicación inválida.");
-        if (!interaction.Available) throw new StorageException("interaction-required", "Up/down y apply/withdraw requieren interacción.");
+            throw new ArgumentException(Messages.PublicationInvalidSyntax);
+        if (!interaction.Available) throw new StorageException("interaction-required", Messages.PublicationNeedsInteraction);
         var withdrawing = action is "down" or "withdraw";
         var selection = new RecipeSelection(Environment.CurrentDirectory, files, basePath, env);
         var context = ScopeContext.Project(selection.Files[0], selection.Base); var store = new ScopeStore(context);
@@ -135,7 +135,7 @@ public static class PublicationCli
         EffectiveRecipe? recipe = null;
         if (!withdrawing)
         {
-            var validating = steps.Begin("Validar la receta");
+            var validating = steps.Begin(Messages.StepValidateRecipe);
             try
             {
                 recipe = RecipeReader.Read(selection);
@@ -152,8 +152,8 @@ public static class PublicationCli
                 .SingleOrDefault(r => r!["project-consumer"]?.GetValue<bool>() == true);
             if (found is null)
             {
-                if (action == "withdraw") throw new StorageException("unknown-preset", "No hay publicaciones propias registradas para retirar el preset.");
-                output.WriteLine("Sin publicaciones propias registradas."); return 0;
+                if (action == "withdraw") throw new StorageException("unknown-preset", Messages.PublicationNothingToWithdraw);
+                output.WriteLine(Messages.DisplayNoOwnPublicationsRecorded.ToString()); return 0;
             }
             identity = registry.Get(found["recipe-id"]!.GetValue<string>());
         }
@@ -163,8 +163,8 @@ public static class PublicationCli
         var publication = entry["publication-operation"] ?? recordedTarget ?? entry["publication"];
         if (withdrawing && publication is null)
         {
-            if (action == "withdraw") throw new StorageException("unknown-preset", "No hay publicaciones propias registradas para retirar el preset.");
-            output.WriteLine("Sin publicaciones propias registradas."); return 0;
+            if (action == "withdraw") throw new StorageException("unknown-preset", Messages.PublicationNothingToWithdraw);
+            output.WriteLine(Messages.DisplayNoOwnPublicationsRecorded.ToString()); return 0;
         }
         if (withdrawing && entry["publication-operation"] is null && recordedTarget is null && selector is null && entry["publications"] is JsonArray all)
         {
@@ -173,7 +173,7 @@ public static class PublicationCli
             {
                 remaining = remaining.Where(p => HasPublishedPreset(p!, key!)).ToArray();
                 if (remaining.Length == 0)
-                    throw new StorageException("unknown-preset", "El preset no figura entre las publicaciones propias registradas.");
+                    throw new StorageException("unknown-preset", Messages.PublicationPresetNotOwn);
             }
             if (remaining.Length > 1)
             {
@@ -195,7 +195,7 @@ public static class PublicationCli
             var selectedId = selector == "self" ? registry.FindProjectService(selection.Files).ServiceId :
                 new RecipeRegistry(new ScopeStore(ScopeContext.Global(home))).ResolveGlobalService(selector == "global" ? "default" : selector);
             publication = savedPublications.SingleOrDefault(p => p!["service-id"]!.GetValue<string>() == selectedId)
-                ?? throw new StorageException("publication-conflict", "No existe una publicación propia en el destino seleccionado.");
+                ?? throw new StorageException("publication-conflict", Messages.PublicationNoOwnInTarget);
         }
         if ((withdrawing || entry["publication-operation"] is not null) && publication is not null)
         {
@@ -203,12 +203,12 @@ public static class PublicationCli
                 : ScopeContext.Project(Path.Combine(publication["target-base"]!.GetValue<string>(), "coquena.yaml"));
             var targetRegistry = new RecipeRegistry(new ScopeStore(targetContext));
             service = targetRegistry.Services().SingleOrDefault(s => s.ServiceId == publication["service-id"]!.GetValue<string>())
-                ?? throw new StorageException("publication-conflict", "El destino registrado ya no existe.");
+                ?? throw new StorageException("publication-conflict", Messages.PublicationTargetGone);
             if (selector is not null)
             {
                 var explicitId = selector == "self" ? registry.FindProjectService(selection.Files).ServiceId :
                     new RecipeRegistry(new ScopeStore(ScopeContext.Global(home))).ResolveGlobalService(selector == "global" ? "default" : selector);
-                if (explicitId != service.ServiceId) throw new StorageException("publication-conflict", "La selección no coincide con el destino publicado.");
+                if (explicitId != service.ServiceId) throw new StorageException("publication-conflict", Messages.PublicationSelectionMismatch);
             }
         }
         else
@@ -216,7 +216,7 @@ public static class PublicationCli
             var chosen = selector ?? recipe?.Target ?? "global";
             if (chosen == "self")
             {
-                if (recipe?.Root.Get("service") is null) throw new StorageException("self-requires-service", "Self requiere un servicio propio en la receta.");
+                if (recipe?.Root.Get("service") is null) throw new StorageException("self-requires-service", Messages.PublicationSelfNeedsService);
                 targetContext = context;
                 service = registry.EnsureProjectService(selection.Files, recipe?.Root.Get("name")?.Text);
             }
@@ -236,27 +236,27 @@ public static class PublicationCli
                 (p["target-scope-id"]?.GetValue<string>() == targetScopeId || p["target-root"]!.GetValue<string>() == targetContext.Root)) ??
                 (publication?["service-id"]?.GetValue<string>() == service.ServiceId ? publication : null);
         if (publication?["target-scope-id"]?.GetValue<string>() is string savedScope && targetStore.Read().ScopeId != savedScope)
-            throw new StorageException("publication-conflict", "La identidad física del destino registrado cambió.");
+            throw new StorageException("publication-conflict", Messages.PublicationTargetIdentityChanged);
         var lifecycle = new ScopedServiceProcess(targetStore, output, error);
         var manager = new PresetPublication(store, targetStore, service.ServiceId);
-        bool Confirm(string diagnostic) { using (steps.Hold()) return interaction.Confirm(diagnostic, service.Name + (targetContext.IsGlobal ? " (global)" : " (proyecto)")); }
+        bool Confirm(string diagnostic) { using (steps.Hold()) return interaction.Confirm(diagnostic, service.Name + " (" + Messages.GlobalOrProject(targetContext.IsGlobal) + ")"); }
         var running = lifecycle.Reconcile(service.ServiceId);
         if (!running && !withdrawing)
         {
-            if (action != "up") throw new StorageException("service-stopped", "El destino está detenido; iniciar el servicio explícitamente o usar up.");
+            if (action != "up") throw new StorageException("service-stopped", Messages.PublicationTargetStopped);
             if (!start)
             {
-                bool allowed; using (steps.Hold()) allowed = interaction.StartService($"Iniciar «{service.Name}» ({(targetContext.IsGlobal ? "global" : "proyecto")}) para publicar los presets.");
+                bool allowed; using (steps.Hold()) allowed = interaction.StartService(Messages.PublicationStartToPublish.Format(service.Name, Messages.GlobalOrProject(targetContext.IsGlobal)));
                 if (!allowed)
-                    throw new StorageException("service-stopped", "No se autorizó iniciar el destino.");
+                    throw new StorageException("service-stopped", Messages.PublicationStartNotAllowed);
             }
             var startArgs = new List<string> { "--service", targetContext.IsGlobal ? service.Name : "self", "start", "-d" };
             if (PresetPublication.Service(targetStore.Read(), service.ServiceId)["publication-operation"] is JsonNode unfinished)
             {
                 var recovered = await manager.ReconcileAsync(identity.RecipeId, null, stopped: true, cancellation: cancellation);
                 if (!recovered.Confirmed)
-                    throw new StorageException("publication-pending", Unfinished(unfinished) + " y no se pudo completar; el servicio sigue detenido.");
-                output.WriteLine(Unfinished(unfinished) + "; se completó. Iniciando el servicio.");
+                    throw new StorageException("publication-pending", Messages.PublicationUnfinishedNotCompleted.Format(Unfinished(unfinished)));
+                output.WriteLine(Messages.PublicationUnfinishedCompleted.Format(Unfinished(unfinished)));
             }
             if (targetContext.IsGlobal) startArgs.Add("--global");
             if (!targetContext.IsGlobal)
@@ -266,7 +266,7 @@ public static class PublicationCli
                 foreach (var f in selection.EnvFiles) startArgs.AddRange(["--env-file", f]);
                 if (isPrivate) startArgs.Add("--private");
             }
-            var starting = steps.Begin($"Iniciar el servicio «{service.Name}»");
+            var starting = steps.Begin(Messages.StepStartService.Format(service.Name));
             int exit;
             using (var detail = starting.Writer())
             {
@@ -280,11 +280,11 @@ public static class PublicationCli
             if (exit != 0) { starting.Fail(); return exit; }
             starting.Done();
             running = lifecycle.Reconcile(service.ServiceId);
-            if (!running) throw new StorageException("service-stopped", "El destino terminó después del inicio; no se acredita publicación.");
+            if (!running) throw new StorageException("service-stopped", Messages.PublicationEndedAfterStart);
         }
         var active = targetStore.Read().Documents.GetValueOrDefault(targetStore.RuntimeDocumentPath(service.ServiceId, "active"))?["data"];
         if (running && active?["execution"]?["arguments"]?.AsArray().Any(a => a?.GetValue<string>() == "--models-preset") != true)
-            throw new StorageException("publication-unsupported", "La instancia no ofrece INI operativo recargable; requiere un inicio explícito compatible.");
+            throw new StorageException("publication-unsupported", Messages.PublicationNoReloadableIni);
         using var http = new HttpClient(new HttpClientHandler { AllowAutoRedirect = false }) { Timeout = TimeSpan.FromSeconds(120) };
         var host = active?["endpoint"]?["host"]?.GetValue<string>();
         host = host switch { "0.0.0.0" => "127.0.0.1", "::" => "::1", _ => host };
@@ -295,18 +295,18 @@ public static class PublicationCli
             if (reconciled.Confirmed && reconciled.WarmupFailed && router is not null)
             {
                 var restored = reconciled.Restored ? reconciled : await manager.RestoreFailedAsync(identity.RecipeId, router, true, Confirm, cancellation);
-                error.WriteLine("Error: no cargaron estos presets: " + string.Join(", ", reconciled.FailedEntries ?? []) + " (preset-load-failed).");
-                output.WriteLine(restored?.Confirmed == true ? "Esos presets volvieron a su configuración anterior sin reiniciar el servicio."
-                    : "Esos presets no cargaron; consulta su estado con «service show».");
+                error.WriteLine(Messages.PresetsNotLoaded.Format(string.Join(", ", reconciled.FailedEntries ?? [])));
+                output.WriteLine(restored?.Confirmed == true ? Messages.PresetsRestored
+                    : Messages.PresetsNotLoadedCheck);
                 return restored?.Confirmed == false ? 9 : 8;
             }
             if (reconciled.Confirmed && action == "up" && continueAfterRecovery)
             {
-                output.WriteLine("Un «up» anterior había quedado sin terminar; se completó. Continuando con este «up».");
+                output.WriteLine(Messages.PreviousUpContinuing);
                 return await RunAsync(args, output, error, interaction, continueAfterRecovery: false, frontend: frontend, steps: steps);
             }
-            output.WriteLine(reconciled.Confirmed ? "Se completó un «up» anterior que había quedado sin terminar; repetir el comando para publicar los cambios nuevos."
-                : "No se sabe si un «up» anterior terminó; no se borró ni modificó nada. Consultar «service show» antes de reintentar.");
+            output.WriteLine(reconciled.Confirmed ? Messages.PreviousUpCompleted
+                : Messages.PreviousUpUnknown);
             return reconciled.Confirmed ? 0 : 9;
         }
         if (!withdrawing && router is not null)
@@ -314,8 +314,8 @@ public static class PublicationCli
             var restoration = await manager.RestoreFailedAsync(identity.RecipeId, router, true, Confirm, cancellation);
             if (restoration is not null)
             {
-                error.WriteLine("Error: no cargaron estos presets: " + string.Join(", ", restoration.FailedEntries ?? []) + " (preset-load-failed).");
-                output.WriteLine(restoration.Confirmed ? "Carga fallida detectada; entradas afectadas restauradas sin reiniciar. Repetir para aplicar otra candidata." : "Restauración no confirmada; operación y recursos conservados.");
+                error.WriteLine(Messages.PresetsNotLoaded.Format(string.Join(", ", restoration.FailedEntries ?? [])));
+                output.WriteLine(restoration.Confirmed ? Messages.LoadFailedRestored : Messages.RestorationUnconfirmed);
                 return restoration.Confirmed ? 8 : 9;
             }
         }
@@ -324,10 +324,10 @@ public static class PublicationCli
             ? publication["recipe-name"]?.GetValue<string>() ?? identity.RegisteredName
             : recipe?.Name ?? publication?["recipe-name"]?.GetValue<string>() ?? identity.RegisteredName;
         if (recipe is not null && recipe.Name != name)
-            output.WriteLine($"La intención usa {recipe.Name}; se conserva el nombre publicado {name} hasta retirada confirmada.");
+            output.WriteLine(Messages.PublishedNameKept.Format(recipe.Name, name));
         var combination = publication?["combination"]?.GetValue<string>() ?? "";
         if (action == "withdraw" && !HasPublishedPreset(publication!, key!))
-            throw new StorageException("unknown-preset", "El preset no figura entre las publicaciones propias registradas en el destino.");
+            throw new StorageException("unknown-preset", Messages.PublicationPresetNotInTarget);
         if (key is not null || withdrawing)
             foreach (var p in publication?["presets"]?.AsArray() ?? [])
                 if (action != "down" && p!["name"]!.GetValue<string>() != name + "/" + key &&
@@ -335,7 +335,7 @@ public static class PublicationCli
                     presets.Add(FromNode(p!));
         if (!withdrawing)
         {
-            if (key is not null && recipe!.Root.Get("presets")?.Get(key) is null) throw new StorageException("unknown-preset", "El preset seleccionado no existe.");
+            if (key is not null && recipe!.Root.Get("presets")?.Get(key) is null) throw new StorageException("unknown-preset", Messages.PublicationPresetMissing);
             var inputPaths = selection.Files.Concat(selection.EnvFiles);
             var inputs = inputPaths.Distinct(StringComparer.OrdinalIgnoreCase).ToDictionary(p => p, SharedFile.ReadAllBytes);
             var adapter = new LlamaB11482ArgumentAdapter();
@@ -348,7 +348,7 @@ public static class PublicationCli
                 .Select(p => ArgumentValidation.Block(recipe, schema, p.Value, "preset", p.Key, recipe.PresetArgsMode(p.Key), backend)).ToArray();
             foreach (var block in blocks)
             {
-                foreach (var diagnostic in block.Diagnostics) error.WriteLine($"Aviso: {diagnostic.Code}. {diagnostic.Detail}");
+                foreach (var diagnostic in block.Diagnostics) error.WriteLine(Messages.OutputWarning.Format(diagnostic.Code, diagnostic.Detail));
                 _ = ArgumentEmission.Ini(recipe, block, name + "/" + block.Key, adapter, _ => "prepared-resource");
             }
             using var transport = new HuggingFaceTransport();
@@ -359,7 +359,7 @@ public static class PublicationCli
                 new HeldModelSelection(frontend?.Models ?? new ConsoleModelSelectionInteraction(), steps), warning: message => { if (warned.Add(message)) error.WriteLine(message); },
                 downloadProgress: operation => { if (preparing is not null) using (var detail = preparing.Writer()) DownloadCli.Show(operation, detail); });
             PreparedCombination prepared;
-            preparing = steps.Begin("Preparar backend y modelos");
+            preparing = steps.Begin(Messages.StepPrepareResources);
             ConsoleCancelEventHandler cancel = (_, e) => { e.Cancel = true; stopped.Cancel(); };
             Console.CancelKeyPress += cancel;
             try
@@ -375,7 +375,7 @@ public static class PublicationCli
             {
                 if (inputs.Any(p => !File.Exists(p.Key) || !SharedFile.ReadAllBytes(p.Key).AsSpan().SequenceEqual(p.Value)) ||
                     !JsonNode.DeepEquals(CombinationPreparation.Expanded(recipe.Root), CombinationPreparation.Expanded(RecipeReader.Read(selection).Root)))
-                    throw new StorageException("intention-conflict", "Cambió la intención durante la publicación.");
+                    throw new StorageException("intention-conflict", Messages.PublicationIntentChanged);
             };
             validate();
             string Resolve(ArgumentReference reference) => prepared.Resources.Single(r => r.Kind == reference.Kind && r.Key.Equals(reference.Name, StringComparison.OrdinalIgnoreCase)).EntryPath;
@@ -387,12 +387,12 @@ public static class PublicationCli
                     ArgumentEmission.Cli(recipe, block with { Arguments = block.Arguments.Where(p => adapter.Supports(p.Key, "preset", "cli")).ToDictionary(p => p.Key, p => p.Value) }, adapter, Resolve).ToArray(), bindings, recipe.PresetWarmup(block.Key)));
             }
         }
-        var publishing = steps.Begin(withdrawing ? "Retirar los presets" : running ? "Publicar y cargar los presets" : "Publicar los presets");
+        var publishing = steps.Begin(withdrawing ? Messages.StepWithdrawPresets : running ? Messages.StepPublishLoadPresets : Messages.StepPublishPresets);
         PublicationResult result;
         try { result = await manager.PublishAsync(identity.RecipeId, presets.ToArray(), combination, name, !running, true, Confirm, router, validate, cancellation); }
         catch { publishing.Fail(); throw; }
         if (result.Confirmed && !result.WarmupFailed) publishing.Done(); else publishing.Fail();
-        if (result.WarmupFailed) error.WriteLine("Error: no cargaron estos presets: " + string.Join(", ", result.FailedEntries ?? []) + " (preset-load-failed).");
+        if (result.WarmupFailed) error.WriteLine(Messages.PresetsNotLoaded.Format(string.Join(", ", result.FailedEntries ?? [])));
         if (result.Confirmed && !result.WarmupFailed)
         {
             var previous = (publication?["presets"] as JsonArray ?? []).Select(p => FromNode(p!)).ToArray();
@@ -403,13 +403,13 @@ public static class PublicationCli
                 var argsForPreset = definition?.ExpectedArguments ?? [];
                 var modelIndex = Array.IndexOf(argsForPreset, "--model");
                 var model = modelIndex >= 0 && modelIndex + 1 < argsForPreset.Length
-                    ? $" | modelo {Path.GetFileName(argsForPreset[modelIndex + 1])}" : "";
-                output.WriteLine($"{(current is null ? "Retirado" : "Publicado")}: {changed}{model}");
+                    ? Messages.PublishedModel.Format(Path.GetFileName(argsForPreset[modelIndex + 1])) : "";
+                output.WriteLine((current is null ? Messages.PresetWithdrawn : Messages.PresetPublished).Format(changed, model));
             }
-            if (result.ChangedEntries is null) output.WriteLine("Sin cambios en los presets.");
+            if (result.ChangedEntries is null) output.WriteLine(Messages.PresetsNoChanges);
             return 0;
         }
-        output.WriteLine(result.Confirmed ? (result.WarmupFailed ? (result.Restored ? "Carga fallida; entradas afectadas restauradas sin reiniciar." : "Carga fallida; no se dispone de un snapshot distinto para restaurar.") : "Composición confirmada; carga no comprobada salvo warmup explícito.") : "Resultado no confirmado; operación y recursos conservados.");
+        output.WriteLine(result.Confirmed ? (result.WarmupFailed ? (result.Restored ? Messages.LoadFailedEntriesRestored : Messages.LoadFailedNoSnapshot) : Messages.CompositionConfirmed) : Messages.ResultUnconfirmed);
         return !result.Confirmed ? 9 : result.WarmupFailed ? 8 : 0;
     }
 
@@ -424,33 +424,33 @@ public static class PublicationCli
         string? serviceName = null, BackendIntent? backend = null, CancellationToken cancellation = default, ServiceCreationOptions? options = null,
         bool installed = false)
     {
-        if (!context.IsGlobal) throw new ArgumentException("La provisión requiere ámbito global.");
+        if (!context.IsGlobal) throw new ArgumentException(Messages.ProvisionNeedsGlobal);
         var store = new ScopeStore(context); var snapshot = store.Read();
         var services = new RecipeRegistry(store).Services();
         var hasDefault = snapshot.State?["data"]?["aliases"]?["default"] is not null;
         if (serviceName is null)
         {
             if (hasDefault) return;
-            if (services.Length != 0) throw new StorageException("default-required", "Hay servicios globales: elegir uno con service default set.");
+            if (services.Length != 0) throw new StorageException("default-required", Messages.ProvisionDefaultRequired);
         }
         else
         {
-            if (serviceName is "global" or "default" or "self") throw new StorageException("reserved-service-name", "Nombre de servicio reservado.");
+            if (serviceName is "global" or "default" or "self") throw new StorageException("reserved-service-name", Messages.ServiceNameReserved);
             if (string.IsNullOrWhiteSpace(serviceName) || serviceName.IndexOfAny(['\0', '\r', '\n', ':', '/', '\\']) >= 0)
-                throw new ArgumentException("Nombre de servicio inválido.");
-            if (services.Any(s => s.Name == serviceName)) throw new StorageException("service-name-conflict", "Ya existe un servicio con ese nombre.");
+                throw new ArgumentException(Messages.ServiceNameInvalid);
+            if (services.Any(s => s.Name == serviceName)) throw new StorageException("service-name-conflict", Messages.ServiceNameExists);
         }
         var name = serviceName ?? "coquena";
         backend?.Validate();
         var server = options?.Server(backend?.Executable is not null);
         if (backend?.Executable is { } executable && !File.Exists(Path.GetFullPath(executable, context.Base)))
-            throw new BackendException("backend-executable-absent", "No existe el ejecutable externo seleccionado.");
+            throw new BackendException("backend-executable-absent", Messages.ExternalExecutableMissing);
         using var http = new HttpClient();
         // An installed backend was already resolved and checked when the scope prepared it.
-        if (installed && backend is null) throw new ArgumentException("Un backend instalado requiere su selección.");
+        if (installed && backend is null) throw new ArgumentException(Messages.InstalledBackendNeedsSelection);
         var selected = backend?.Executable is not null || installed ? null :
             (select is null ? (await new OfficialBackendSource(http).ResolveAsync(HardwareProbe.Inspect(), backend?.Variant, backend?.Version ?? "latest", cancellation)).Selected : await select())
-            ?? throw new BackendException("publication-unsupported", "No se encontró una variante compatible.");
+            ?? throw new BackendException("publication-unsupported", Messages.NoCompatibleVariant);
         if (selected is not null && backend is not null) ScopedBackends.CheckCompatibility(selected, HardwareProbe.Inspect(), false, message => output.WriteLine(message));
         backend ??= new("latest", selected!.Variant);
         cancellation.ThrowIfCancellationRequested();
@@ -475,9 +475,9 @@ public static class PublicationCli
         docs["local/recipes.json"] = ProjectDocuments.Create("recipe-registry", docs.GetValueOrDefault("local/recipes.json")?["revision"]?.GetValue<long>() ?? 1,
             new JsonObject { ["recipes"] = recipes });
         ScopeStore.CommitTogether([new(store, snapshot.Revision, docs, DefaultServiceId: services.Length == 0 ? serviceId : null)]);
-        output.WriteLine(backend.Executable is not null ? $"Servicio global {name}: ejecutable externo; no iniciado."
-            : selected is null ? $"Servicio global {name}: backend {backend.Variant} · {backend.Version} del ámbito; no iniciado."
-            : $"Servicio global {name}: llama.cpp {selected.Release}, {selected.Variant}; {selected.Diagnostic}");
+        output.WriteLine(backend.Executable is not null ? Messages.GlobalServiceExternal.Format(name)
+            : selected is null ? Messages.GlobalServiceScoped.Format(name, backend.Variant, backend.Version)
+            : Messages.GlobalServiceRelease.Format(name, selected.Release, selected.Variant, selected.Diagnostic));
     }
 
     // Names what an interrupted «up» was publishing, so the user knows what was completed.
@@ -485,7 +485,7 @@ public static class PublicationCli
     {
         var recipe = operation["recipe-name"]?.GetValue<string>();
         var presets = (operation["affected"] as JsonArray)?.Select(item => item?.GetValue<string>()).OfType<string>().ToArray() ?? [];
-        return "Un «up» anterior" + (recipe is null ? "" : " de «" + recipe + "»") + " había quedado sin terminar" +
+        return (recipe is null ? Messages.UnfinishedUp.ToString() : Messages.UnfinishedUpOf.Format(recipe)) +
             (presets.Length == 0 ? "" : " (presets: " + string.Join(", ", presets) + ")");
     }
 }

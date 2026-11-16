@@ -15,22 +15,22 @@ internal static partial class PhysicalDirectory
     internal static long DeleteOwnedFile(string path, string volume, string fileId)
     {
         using var handle = Open(Path.GetFullPath(path), 0x10080, 1, 0, 3, 0, 0);
-        if (handle.IsInvalid) throw new IOException("No se pudo abrir el archivo propio para retirada.", new Win32Exception(Marshal.GetLastPInvokeError()));
+        if (handle.IsInvalid) throw new IOException(Messages.ProjectCouldNotOpenManagedFileForRemoval.ToString(), new Win32Exception(Marshal.GetLastPInvokeError()));
         if (!Information(handle, 18, out var value, 24) || value.Volume.ToString("x16") != volume ||
             value.Low.ToString("x16") + value.High.ToString("x16") != fileId)
-            throw new StorageException("file-ownership-uncertain", "La identidad del archivo no coincide con su publicación.");
+            throw new StorageException("file-ownership-uncertain", Messages.ProjectFileIdentityDoesNotMatchItsPublication.ToString());
         var size = new FileInfo(path).Length;
         var disposition = 1;
         if (!Disposition(handle, 4, ref disposition, 4))
-            throw new IOException("No se pudo retirar el archivo propio.", new Win32Exception(Marshal.GetLastPInvokeError()));
+            throw new IOException(Messages.ProjectCouldNotRemoveManagedFile.ToString(), new Win32Exception(Marshal.GetLastPInvokeError()));
         return size;
     }
     internal static DirectoryIdentity Read(string path)
     {
-        if (!OperatingSystem.IsWindows()) throw new PlatformNotSupportedException("Identidad de proyecto requiere Windows.");
+        if (!OperatingSystem.IsWindows()) throw new PlatformNotSupportedException(Messages.ProjectIdentityRequiresWindows.ToString());
         using var handle = Open(Path.GetFullPath(path), 0, 7, 0, 3, 0x02000000, 0);
         if (handle.IsInvalid || !Information(handle, 18, out var value, 24))
-            throw new StorageException("directory-identity-unavailable", "No se pudo verificar identidad física del directorio.",
+            throw new StorageException("directory-identity-unavailable", Messages.ProjectDirectoryIdentityUnverified.ToString(),
                 inner: new Win32Exception(Marshal.GetLastPInvokeError()));
         return new(value.Volume.ToString("x16"), value.Low.ToString("x16") + value.High.ToString("x16"));
     }

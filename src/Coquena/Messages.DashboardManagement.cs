@@ -1,0 +1,53 @@
+namespace Coquena;
+
+public static partial class Messages
+{
+    public static readonly Text ServiceNoLongerExists = new("The selected service no longer exists; select it again.");
+    public static readonly Text ServiceRemoveTitle = new("Remove service");
+    public static readonly Text ServiceMayInterruptRequests = new("{0} \u201C{1}\u201D ({2}) may interrupt active requests.");
+    public static readonly Text ManagementGoToBackendsButton = new(" Go to backends ");
+    public static readonly Text ManagementProcessArgumentsButton = new(" Process arguments\u2026 ");
+    public static readonly Text ManagementHealthUrlField = new("Health URL");
+    public static readonly Text ManagementCreateServiceHint = new("Create saves the definition; it does not start the process.");
+    public static readonly Text ManagementAddButton = new(" Add ");
+    public static readonly Text ManagementChooseBackendError = new("Choose a backend.");
+    public static readonly Text ManagementEnterServiceNameError = new("Enter a service name.");
+    public static readonly Text ServiceInvalidPort = new("Invalid port.");
+    public static readonly Text ManagementExternalExecutableCheck = new("external executable (without copying files)");
+    public static readonly Text ManagementChooseVariantButton = new(" Choose variant\u2026 ");
+    public static readonly Text ManagementVariantEvidenceTitle = new("Variant \u00B7 system evidence");
+    public static readonly Text ManagementNativeArchitecture = new("native architecture");
+    public static readonly Text ManagementNoProbe = new("no probe");
+    public static readonly Text ManagementCompatibilityDeferredHint = new("compatibility: checked when resolving the selection");
+    public static readonly Text ManagementProbeSummary = new("probe: CUDA {0} \u00B7 Vulkan {1}");
+    public static readonly Text ManagementVersionField = new("version");
+    public static readonly Text ManagementPrepareBackendHint = new("Prepares the backend in the scope; does not assign it to a service.");
+    public static readonly Text ManagementProcessArgsTitle = new("Process arguments \u00B7 changes only in this form");
+    public static readonly Text ManagementAssignButton = new(" Assign ");
+    public static readonly Text ManagementRemoveButton = new(" Remove ");
+    public static readonly Text ManagementArgNameValidation = new("Name without leading dashes; host/port have their own fields.");
+    public static readonly Text ManagementArgValueValidation = new("Use text, a number, true/false or a list.");
+    public static readonly Text ManagementArgAssignedStatus = new("Assigned to the form; saved when creating the service.");
+    public static readonly Text PublishAnywayButton = new("Publish anyway");
+    public static readonly Text PublishStartTargetConfirm = new("Publication requires starting the target service. Start now?");
+    public static readonly Text DefinitionsNoRegisteredServices = new("No registered services.");
+    public static readonly Text DefinitionsNoRecipeService = new("The recipe has no registered service.");
+    public static readonly Text DefinitionsDefaultButton = new("\u2605 Default");
+    public static readonly Text DefinitionsAddButton = new("\u002B Add");
+    public static readonly Text ServicesInScope = new("Services in {0}");
+    public static readonly Text ServiceInScope = new("Service in {0}");
+    public static readonly Text TransferStateSummary = new("State: {0} \u00B7 {1}{2}");
+    public static readonly Text BackendExternalLabel = new("external \u00B7 {0}");
+    public static readonly Text ManagementAddServiceTo = new("Add service to {0}");
+    public static readonly Text ManagementNoBackendsInScope = new("No backends in {0}: download or register them in Backends.");
+    public static readonly Text ManagementOnlyPreparedBackendsInScope = new("Only backends already prepared in {0}.");
+    public static readonly Text ManagementAddBackendTo = new("Add backend to {0}");
+    public static readonly Text BackendPreparedInScope = new("Backend prepared in {0}; not assigned to any service.");
+    public static readonly Text ServiceRemoveConfirm = new("Remove \u201C{0}\u201D. Files and logs are preserved; usage protections will be checked.");
+    public static readonly Text ServiceRemovedNotice = new("Service \u201C{0}\u201D removed; files and logs preserved.");
+    public static readonly Text ServiceActionTitle = new("{0} service");
+    public static readonly Text ServiceRestartPreservedInstance = new("Restart preserved the previous instance. {0}");
+    public static readonly Text PublishToTargetTitle = new("Publish to target \u00B7 {0}");
+    public static readonly Text PublishToDestinationTitle = new("Publish to {0}");
+    public static readonly Text PublishTargetStoppedTitle = new("Target stopped \u00B7 {0}");
+}

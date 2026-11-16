@@ -16,9 +16,9 @@ public sealed class RecipeUpdatePlans(ScopeContext context)
     public async Task<JsonObject> UpdateAsync(IReadOnlyList<RecipeSelection> selections,
         IReadOnlySet<string> selectors, ResourceUpdateProbe probe, CancellationToken cancellation = default)
     {
-        if (selections.Count == 0) throw new StorageException("update-selection-required", "No hay definiciones registradas que consultar.");
+        if (selections.Count == 0) throw new StorageException("update-selection-required", Messages.ProjectNoRegisteredDefinitionsToQuery.ToString());
         if (selections.Any(s => !s.Base.Equals(context.Base, StringComparison.OrdinalIgnoreCase)))
-            throw new ArgumentException("La selección debe pertenecer a la base del ámbito.");
+            throw new ArgumentException(Messages.ProjectSelectionMustBelongToTheScopeBase.ToString());
         var snapshot = store.Read();
         var filters = selectors.Select(ResourceSelector.Parse).ToArray();
         var key = ReadKey();
@@ -27,7 +27,7 @@ public sealed class RecipeUpdatePlans(ScopeContext context)
         var recipes = selections.Select(s => RecipeReader.Read(s)).ToArray();
         var inputs = Inputs(recipes);
         if (originalInputs.Any(p => !inputs[p.Key].SequenceEqual(p.Value)))
-            throw new StorageException("stale-update-plan", "Cambió la intención al leerla.");
+            throw new StorageException("stale-update-plan", Messages.ProjectIntentionChangedWhileReading.ToString());
         var requests = recipes.SelectMany(recipe => Requests(recipe)
             .Select(request =>
             {
@@ -42,7 +42,7 @@ public sealed class RecipeUpdatePlans(ScopeContext context)
         foreach (var filter in filters)
         {
             if (!requests.Any(p => filter.Matches(p.Request.Kind, p.Request.Key, p.Resource, p.Installation, p.Request)))
-                throw new ArgumentException("Selector desconocido; no se amplía la selección.");
+                throw new ArgumentException(Messages.ProjectUnknownSelectorSelectionNotExpanded.ToString());
             filter.CheckAmbiguity(requests.Where(p => filter.Matches(p.Request.Kind, p.Request.Key, p.Resource, p.Installation, p.Request)).Select(p => p.Request.ProjectName));
         }
         var chosen = requests.Where(p => filters.Length == 0 || filters.Any(f => f.Matches(p.Request.Kind, p.Request.Key, p.Resource, p.Installation, p.Request))).ToArray();
@@ -82,7 +82,7 @@ public sealed class RecipeUpdatePlans(ScopeContext context)
         {
             if (!ReadKey().SequenceEqual(key) || inputs.Any(p => !SharedFile.ReadAllBytes(p.Key).SequenceEqual(p.Value)) ||
                 Fingerprint(key, selections.Select(s => RecipeReader.Read(s)).ToArray(), inputs) != plan["intent-hmac"]!.GetValue<string>())
-                throw new StorageException("stale-update-plan", "Cambió la intención durante la consulta.");
+                throw new StorageException("stale-update-plan", Messages.ProjectIntentionChangedDuringQuery.ToString());
         })]);
         return plan;
     }
@@ -94,12 +94,12 @@ public sealed class RecipeUpdatePlans(ScopeContext context)
     {
         var state = store.Read();
         var plan = state.Documents.GetValueOrDefault(PathName)?["data"]?["plans"]?[PlanId(selections)]?.AsObject()
-            ?? throw new StorageException("update-plan-required", "Ejecutar update para esta selección.");
+            ?? throw new StorageException("update-plan-required", Messages.ProjectRunUpdateForThisSelection.ToString());
         var recipes = selections.Select(s => RecipeReader.Read(s)).ToArray();
         if (plan["scope-id"]?.GetValue<string>() != state.ScopeId || plan["intent-hmac"]!.GetValue<string>() != Fingerprint(ReadKey(), recipes, Inputs(recipes)))
-            throw new StorageException("stale-update-plan", "Cambió la intención; se requiere un update nuevo.");
+            throw new StorageException("stale-update-plan", Messages.ProjectIntentionChangedANewUpdateIsRequired.ToString());
         if (plan["resolution-hmac"]?.GetValue<string>() != ResolutionFingerprint(ReadKey(), state, recipes))
-            throw new StorageException("stale-update-plan", "Cambió la revisión de partida; se requiere un update nuevo.");
+            throw new StorageException("stale-update-plan", Messages.ProjectBaselineRevisionChanged.ToString());
         foreach (var observation in plan["resources"]!.AsArray().Where(r => r!["installation-id"] is not null))
         {
             var recipe = recipes.Single(r => CombinationIdentity.FromSelection(r.Selection).Id == observation!["combination-id"]!.GetValue<string>());
@@ -107,7 +107,7 @@ public sealed class RecipeUpdatePlans(ScopeContext context)
                 r.Key == observation!["key"]!.GetValue<string>() && r.Kind == observation["kind"]!.GetValue<string>());
             var binding = CombinationPreparation.VerificationBinding(context, recipe, request, false);
             if (binding.ResourceId != observation!["resource-id"]!.GetValue<string>() || binding.InstallationId != observation["installation-id"]!.GetValue<string>())
-                throw new StorageException("stale-update-plan", "Cambió la resolución de partida; se requiere un update nuevo.");
+                throw new StorageException("stale-update-plan", Messages.ProjectBaselineResolutionChanged.ToString());
         }
         return plan.DeepClone().AsObject();
     }
@@ -133,7 +133,7 @@ public sealed class RecipeUpdatePlans(ScopeContext context)
     {
         var path = context.PathFor("local/intent.key");
         if (!File.Exists(path) || SharedFile.ReadAllBytes(path) is not { Length: 32 } key)
-            throw new StorageException("update-preparation-required", "Preparar la combinación antes de consultar un plan; falta la identidad local de intención.");
+            throw new StorageException("update-preparation-required", Messages.ProjectPrepareBeforeUpdatePlan.ToString());
         return key;
     }
     // The --select references a user can choose for these selections: one per declared resource,
@@ -195,7 +195,7 @@ public sealed class RecipeUpdatePlans(ScopeContext context)
         {
             if (!ReadKey().SequenceEqual(key) || inputs.Any(p => !SharedFile.ReadAllBytes(p.Key).SequenceEqual(p.Value)) ||
                 Fingerprint(key, selections.Select(s => RecipeReader.Read(s)).ToArray(), inputs) != fingerprint)
-                throw new StorageException("stale-update-plan", "Cambió la intención; ejecutar update de nuevo.");
+                throw new StorageException("stale-update-plan", Messages.ProjectIntentionChangedRunUpdate.ToString());
         };
     }
 }

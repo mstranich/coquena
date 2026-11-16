@@ -10,7 +10,7 @@ internal static partial class WindowsFileIdentity
 {
     internal static bool Same(FileStream first, FileStream second)
     {
-        if (!OperatingSystem.IsWindows()) throw new PlatformNotSupportedException("Publicación por identidad requiere Windows.");
+        if (!OperatingSystem.IsWindows()) throw new PlatformNotSupportedException(Messages.StoragePublicationByIdentityRequiresWindows.ToString());
         var a = Read(first.SafeFileHandle); var b = Read(second.SafeFileHandle);
         return a.Volume == b.Volume && a.Low == b.Low && a.High == b.High;
     }
@@ -18,7 +18,7 @@ internal static partial class WindowsFileIdentity
     private static Identity Read(SafeFileHandle handle)
     {
         if (!GetFileInformationByHandleEx(handle, 18 /* FileIdInfo */, out var value, 24))
-            throw new StorageException("file-identity-unavailable", "No se pudo comprobar identidad de archivo; no se confirma publicación.",
+            throw new StorageException("file-identity-unavailable", Messages.StorageFileIdentityUnverified.ToString(),
                 inner: new Win32Exception(Marshal.GetLastPInvokeError()));
         return value;
     }

@@ -13,7 +13,7 @@ public static class CleanupCli
         try
         {
             if (args.Any(a => a is "--help" or "-h"))
-            { output.WriteLine("combination list|forget <combination-id> [--global|--project-directory ruta]"); return 0; }
+            { output.WriteLine(Messages.CombinationUsage); return 0; }
             var files = new List<string>(); var env = new List<string>(); var words = new List<string>();
             var flags = new HashSet<string>(); string? directory = null;
             for (var i = 0; i < args.Length; i++)
@@ -93,7 +93,7 @@ public static class CleanupCli
             {
                 if (Console.IsInputRedirected) { error.WriteLine(Messages.PruneConfirmationRequired); return 3; }
                 output.Write(Messages.PruneAsk); output.Flush();
-                if (Console.ReadLine()?.Trim().ToLowerInvariant() is not ("s" or "si" or "sí" or "y" or "yes")) return 0;
+                if (!Messages.IsYes(Console.ReadLine())) return 0;
             }
             var failed = false;
             foreach (var (scope, original) in plans)

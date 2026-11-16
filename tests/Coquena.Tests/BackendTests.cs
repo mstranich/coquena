@@ -75,7 +75,7 @@ internal static class BackendTests
         var incompatible = hardware with { Cuda = new("incompatible", "No CUDA"), Vulkan = new("incompatible", "No Vulkan") };
         Check(BackendCatalog.Resolve([older], incompatible).Selected?.Variant == "cpu", "incompatible acceleration CPU fallback");
         Check(BackendCatalog.Resolve([older], Unknown(), "cuda@13").Selected?.Compatibility == "unknown", "explicit unknown preserved");
-        Check(BackendCatalog.Resolve([older], incompatible, "vulkan").Selected?.Compatibility == "incompatible", "explicit incompatible preserved");
+        Check(BackendCatalog.Resolve([older], incompatible, "vulkan").Selected?.Compatibility == Messages.Incompatible.ToString(), "explicit incompatible preserved");
         Check(BackendCatalog.Resolve([older], hardware, "cuda@12", "b10010").Selected is null, "explicit build no substitution");
         Check(BackendCatalog.Resolve([older], hardware, "cuda@12", "b10009").Selected?.Variant == "cuda@12", "CUDA major not llama build");
         Check(BackendCatalog.Resolve([Release("b10011", "cpu-arm64", "cuda-13.4-arm64")], hardware, "cpu").Selected is null, "explicit wrong platform rejected");

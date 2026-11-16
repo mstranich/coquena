@@ -62,7 +62,7 @@ internal static class DashboardLogTests
         bool Has(ServiceLogSession session, string text) => session.Read(false).Rows.Any(row => row.Contains(text, StringComparison.Ordinal));
         try
         {
-            await Wait(() => first.Status.Contains("Espera"), "waiting service is explicit");
+            await Wait(() => first.Status.Contains(Messages.ObservationWaitingStopped.ToString()), "waiting service is explicit");
             var a = Register(one, "ONE-α\n" ); var b = Register(two, "TWO-β\n");
             await Wait(() => Has(first, "ONE-α") && Has(second, "TWO-β"), "two service streams captured independently");
             check(!Has(first, "TWO-β") && !Has(second, "ONE-α"), "service identity never mixes log destinations");
@@ -73,7 +73,7 @@ internal static class DashboardLogTests
             var next = Register(one, "NEW-INSTANCE\n");
             await Wait(() => Has(first, "NEW-INSTANCE"), "live session transitions to next registered instance");
             first.SelectHistory(Path.GetFileNameWithoutExtension(a));
-            await Wait(() => first.Historical && first.Status.Contains("completada") && Has(first, "ONE-α"), "historical file selected by instance");
+            await Wait(() => first.Historical && first.Status.Contains(Messages.ObservationFixedReadingCompleted.ToString()) && Has(first, "ONE-α"), "historical file selected by instance");
             check(!Has(first, "NEW-INSTANCE"), "historical and current executions stay separate");
             File.AppendAllText(next, "LIVE-WHILE-HISTORY\n");
             await Task.Delay(400);
@@ -90,10 +90,10 @@ internal static class DashboardLogTests
                 catch (OperationCanceledException) { check(true, "historical reader supports cooperative cancellation"); }
             }
             File.WriteAllText(next, "TRUNC\n");
-            await Wait(() => Has(first, "Archivo truncado") && Has(first, "TRUNC"), "truncation visible and capture resumes");
+            await Wait(() => Has(first, Messages.ServerLogsFileTruncated.ToString().Trim()) && Has(first, "TRUNC"), "truncation visible and capture resumes");
             var unavailable = Register(one, "RESTORED-ACCESS\n");
             File.Delete(unavailable);
-            await Wait(() => first.Status.Contains(Messages.LogFileUnavailable.Split(';')[0]), "unavailable live file is reported without blocking capture");
+            await Wait(() => first.Status.Contains(Messages.LogFileUnavailable.ToString().Split(';')[0]), "unavailable live file is reported without blocking capture");
             File.WriteAllText(unavailable, "RESTORED-ACCESS\n");
             await Wait(() => Has(first, "RESTORED-ACCESS"), "missing live file recovers on bounded retry");
             for (var i = 0; i < 20; i++) first.SelectHistory(Path.GetFileNameWithoutExtension(b));
@@ -101,7 +101,7 @@ internal static class DashboardLogTests
             first.Current();
             registry.RemoveStoppedService(one.ServiceId);
             registry.EnsureProjectService(["one.yaml"], "one");
-            await Wait(() => first.Status.Contains("Desconectado"), "recreated name disconnects original service identity");
+            await Wait(() => first.Status.Contains(Messages.ObservationDisconnectedError.Format("")), "recreated name disconnects original service identity");
             check(!Has(first, "TWO-β"), "disconnection cannot redirect stream");
         }
         finally { await Task.WhenAll(first.CloseAsync(), second.CloseAsync()); }

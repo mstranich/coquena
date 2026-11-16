@@ -34,25 +34,25 @@ public sealed partial class LocalStore
             // reconstructed from the before snapshot rather than trusted verbatim.
             if (!value.Backends.Backends.Any(b => b.Ownership == "managed" && b.Origin == "ggml" && paths.Slot(b).Equals(move.Destination, StringComparison.OrdinalIgnoreCase)) ||
                 !value.BeforeBackends.Backends.Any(b => b.Ownership == "managed" && b.Origin == "ggml" && paths.Slot(b).Equals(move.Source, StringComparison.OrdinalIgnoreCase)))
-                throw new StorageException("unsafe-directory-transaction", "Destino no pertenece al catálogo publicado.");
+                throw new StorageException("unsafe-directory-transaction", Messages.StorageTargetDoesNotBelongToThePublished.ToString());
         }
         return value;
     }
     private static void ValidateBackendDirectory(BackendDirectoryTransaction value)
     {
         ContractJson.Check(value.SchemaVersion == 1 && value.Config is not null && value.Backends is not null &&
-            value.Moves is not null && value.Directories is not null && value.Files is not null, "Traslado inválido.");
+            value.Moves is not null && value.Directories is not null && value.Files is not null, Messages.StorageInvalidMove.ToString());
         ContractValidation.Config(value.Config!); ContractValidation.Backends(value.Backends!);
         ContractValidation.Config(value.BeforeConfig); ContractValidation.Backends(value.BeforeBackends);
         foreach (var move in value.Moves!)
             ContractJson.Check(Path.IsPathFullyQualified(move.Source) && Path.IsPathFullyQualified(move.Destination) &&
-                !BackendPaths.Within(move.Source, move.Destination) && !BackendPaths.Within(move.Destination, move.Source), "Directorios de traslado inválidos.");
+                !BackendPaths.Within(move.Source, move.Destination) && !BackendPaths.Within(move.Destination, move.Source), Messages.StorageInvalidMoveDirectories.ToString());
         foreach (var f in value.Files!)
             ContractJson.Check(f.Hash.Length == 64 && (f.PreviousHash is null || f.PreviousHash.Length == 64) &&
                 value.Moves.Any(m => BackendPaths.Within(f.Source, m.Source) &&
-                    Path.Combine(m.Destination, Path.GetRelativePath(m.Source, f.Source)).Equals(f.Destination, StringComparison.OrdinalIgnoreCase)), "Archivo fuera del traslado.");
+                    Path.Combine(m.Destination, Path.GetRelativePath(m.Source, f.Source)).Equals(f.Destination, StringComparison.OrdinalIgnoreCase)), Messages.StorageFileOutsideTheMove.ToString());
         foreach (var d in value.Directories!)
-            ContractJson.Check(value.Moves.Any(m => BackendPaths.Within(d, m.Destination)), "Directorio fuera del traslado.");
+            ContractJson.Check(value.Moves.Any(m => BackendPaths.Within(d, m.Destination)), Messages.StorageDirectoryOutsideTheMove.ToString());
     }
     private byte[]? BackendDirectoryBytes(DocumentKind kind)
     {
@@ -67,12 +67,12 @@ public sealed partial class LocalStore
     {
         ValidateBackendDirectory(plan);
         var bytes = Encoding.UTF8.GetBytes(DirectoryPlanSignature(plan));
-        if (bytes.Length > MaxDocumentBytes) throw new StorageException("document-too-large", "Traslado supera 16 MiB.");
+        if (bytes.Length > MaxDocumentBytes) throw new StorageException("document-too-large", Messages.StorageMoveExceedsMiB.ToString());
         AtomicCheckpoint(BackendDirectoryTransactionPath, bytes);
     }
     internal void CommitBackendDirectoryLocked(BackendDirectoryTransaction plan, Action<BackendDirectoryStage>? stage)
     {
-        if (PendingBackendDirectory() is not null) throw new StorageException("directory-transaction-pending", "Traslado pendiente de recuperación.");
+        if (PendingBackendDirectory() is not null) throw new StorageException("directory-transaction-pending", Messages.StorageMovePendingRecovery.ToString());
         SaveBackendDirectory(plan);
         RecoverBackendDirectoryTransaction(stage);
     }
@@ -90,24 +90,24 @@ public sealed partial class LocalStore
                 var before = ContractJson.Write(config is null ? new(1, null, null, new(5)) : ContractJson.Read(Encoding.UTF8.GetString(config), ContractJsonContext.Default.ConfigDocument, ContractValidation.Config), ContractJsonContext.Default.ConfigDocument) + "\n" +
                     ContractJson.Write(catalog is null ? new(1, []) : ContractJson.Read(Encoding.UTF8.GetString(catalog), ContractJsonContext.Default.BackendsDocument, ContractValidation.Backends), ContractJsonContext.Default.BackendsDocument);
                 if (before != ContractJson.Write(plan.BeforeConfig, ContractJsonContext.Default.ConfigDocument) + "\n" + ContractJson.Write(plan.BeforeBackends, ContractJsonContext.Default.BackendsDocument))
-                    throw new StorageException("stale-directory-transaction", "Catálogo/configuración modificados durante un traslado pendiente.");
+                    throw new StorageException("stale-directory-transaction", Messages.StorageModifiedDuringMove.ToString());
                 BackendDirectoryManager.CheckAccess(plan);
                 foreach (var f in plan.Files)
                 {
-                    if (BackendDirectoryManager.Hash(f.Source) != f.Hash) throw new IOException($"Origen modificado: {f.Source}");
+                    if (BackendDirectoryManager.Hash(f.Source) != f.Hash) throw new IOException(Messages.StorageSourceModified.Format(f.Source));
                     var observed = File.Exists(f.Destination) ? BackendDirectoryManager.Hash(f.Destination) : null;
                     if (observed == f.Hash) continue; // Already verified and published by this plan.
-                    if (observed != f.PreviousHash) throw new IOException($"Colisión nueva o modificada, sin autorización: {f.Destination}");
+                    if (observed != f.PreviousHash) throw new IOException(Messages.StorageUnauthorizedCollision.Format(f.Destination));
                     var temporary = f.Destination + ".coquena-" + Guid.NewGuid().ToString("N") + ".tmp";
                     try
                     {
                         using (var input = new FileStream(f.Source, FileMode.Open, FileAccess.Read, FileShare.Read))
                         using (var output = new FileStream(temporary, FileMode.CreateNew, FileAccess.Write, FileShare.None))
                         { input.CopyTo(output); output.Flush(true); }
-                        if (BackendDirectoryManager.Hash(temporary) != f.Hash) throw new IOException("Copia no verificada.");
+                        if (BackendDirectoryManager.Hash(temporary) != f.Hash) throw new IOException(Messages.StorageCopyUnverified.ToString());
                         Home.CheckLinks(f.Destination);
                         if ((File.Exists(f.Destination) ? BackendDirectoryManager.Hash(f.Destination) : null) != f.PreviousHash)
-                            throw new IOException($"Colisión modificada: {f.Destination}");
+                            throw new IOException(Messages.StorageCollisionModified.Format(f.Destination));
                         if (f.PreviousHash is null) File.Move(temporary, f.Destination);
                         else File.Replace(temporary, f.Destination, null);
                     }
@@ -117,7 +117,7 @@ public sealed partial class LocalStore
                 stage?.Invoke(BackendDirectoryStage.BeforeCommit);
                 foreach (var f in plan.Files)
                     if (BackendDirectoryManager.Hash(f.Source) != f.Hash || BackendDirectoryManager.Hash(f.Destination) != f.Hash)
-                        throw new IOException("Archivos modificados antes de publicar; orígenes conservados.");
+                        throw new IOException(Messages.StorageFilesModifiedBeforePublish.ToString());
                 plan = plan with { Committed = true };
                 SaveBackendDirectory(plan);
                 stage?.Invoke(BackendDirectoryStage.AfterCommit);
@@ -135,9 +135,9 @@ public sealed partial class LocalStore
                 if (actual.Any(p => !expected.TryGetValue(p, out var f) || BackendDirectoryManager.Hash(p) != f.Hash) ||
                     Directory.GetDirectories(move.Source, "*", SearchOption.AllDirectories).Any(d =>
                         !plan.Directories.Contains(Path.Combine(move.Destination, Path.GetRelativePath(move.Source, d)), StringComparer.OrdinalIgnoreCase)))
-                    throw new IOException($"El origen cambió; no se elimina: {move.Source}");
+                    throw new IOException(Messages.StorageSourceChangedNotDeleted.Format(move.Source));
                 foreach (var f in expected.Values)
-                    if (BackendDirectoryManager.Hash(f.Destination) != f.Hash) throw new IOException($"Destino modificado; origen conservado: {f.Destination}");
+                    if (BackendDirectoryManager.Hash(f.Destination) != f.Hash) throw new IOException(Messages.StorageTargetModifiedSourcePreserved.Format(f.Destination));
                 BackendPaths.RemoveOwnedTree(move.Source);
             }
             AppendJournal(new(DateTimeOffset.UtcNow, Guid.NewGuid(), DocumentKind.Backends, null), DefaultJournalBytes);
@@ -146,8 +146,8 @@ public sealed partial class LocalStore
         catch (Exception error)
         {
             var message = plan.Committed
-                ? "Ubicación publicada; checkpoint o limpieza pendiente. El siguiente comando de escritura reintenta la recuperación."
-                : "Traslado interrumpido; catálogo y configuración anteriores conservados, orígenes retenidos. El siguiente comando de escritura reintenta la copia verificada.";
+                ? Messages.StorageLocationPublishedCleanupPending.ToString()
+                : Messages.StorageMoveInterruptedPreserved.ToString();
             throw new StorageException("directory-recovery-pending", message + " " + error.Message, plan.Committed, error);
         }
     }

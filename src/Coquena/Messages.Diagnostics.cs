@@ -1,0 +1,52 @@
+namespace Coquena;
+
+public static partial class Messages
+{
+    public static readonly Text DiagnosticsOperatingSystemOrArchitectureDiffersFromThe = new("Operating system or architecture differs from the native platform.");
+    public static readonly Text DiagnosticsNativeCPUArchitectureOfficialPortableFallback = new("Native CPU architecture; official portable fallback.");
+    public static readonly Text DiagnosticsCoquenaCannotYetCheckCUDABackendsThey = new("Coquena cannot yet check CUDA {0} backends; they may work, but this is not guaranteed.");
+    public static readonly Text DiagnosticsCouldNotReadTheNVIDIADriverVersion = new("Could not read the NVIDIA driver version or detect GPUs; backend compatibility is unconfirmed.");
+    public static readonly Text DiagnosticsNoDetectedGPUIsRecentEnoughFor = new("No detected GPU is recent enough for CUDA {0} (requires compute capability {1}.{2} or later).");
+    public static readonly Text DiagnosticsTheInstalledNVIDIADriverSupportsUpTo = new("The installed NVIDIA driver supports up to CUDA {0}.{1}; this backend requires CUDA {2}. Update the driver or choose another variant.");
+    public static readonly Text DiagnosticsTheInstalledNVIDIADriverSupportsCUDAThis = new("The installed NVIDIA driver supports CUDA {0}.{1}; this backend uses CUDA {2}.{3}. It may work, but this is not guaranteed; update the NVIDIA driver if model loading fails.");
+    public static readonly Text DiagnosticsBlackwellGPUsRequireCUDAOrLaterThis = new("Blackwell GPUs require CUDA 12.8 or later; this backend uses CUDA {0}.{1} and may not work.");
+    public static readonly Text DiagnosticsTheDetectedGPUsAreNewerThanThose = new("The detected GPUs are newer than those Coquena can check; they may work, but this is not guaranteed.");
+    public static readonly Text DiagnosticsNVIDIADriverAndGPUCompatibleWithCUDA = new("NVIDIA driver and GPU compatible with CUDA {0}.{1} (basic check).");
+    public static readonly Text DiagnosticsCUDAProbingIsOnlyImplementedOnWindows = new("CUDA probing is only implemented on Windows.");
+    public static readonly Text DiagnosticsVulkanProbingIsOnlyImplementedOnWindows = new("Vulkan probing is only implemented on Windows.");
+    public static readonly Text DiagnosticsTheCUDADriverFoundNoUsableDevices = new("The CUDA driver found no usable devices.");
+    public static readonly Text DiagnosticsCuInitFailedGPUAbsenceIsNotInferred = new("cuInit failed ({0}); GPU absence is not inferred.");
+    public static readonly Text DiagnosticsCouldNotObtainCompleteCUDADriverEvidence = new("Could not obtain complete CUDA driver evidence.");
+    public static readonly Text DiagnosticsIncompleteCUDAEnumeration = new("Incomplete CUDA enumeration.");
+    public static readonly Text DiagnosticsCUDADriverAndDevicesDetected = new("CUDA driver and devices detected.");
+    public static readonly Text DiagnosticsCompleteCUDAEnumerationWithoutDevices = new("Complete CUDA enumeration without devices.");
+    public static readonly Text DiagnosticsNVIDIADriverAPIUnavailableGPUAbsenceIs = new("NVIDIA driver API unavailable; GPU absence is not inferred.");
+    public static readonly Text DiagnosticsCouldNotQueryTheVulkanLoader = new("Could not query the Vulkan loader ({0}).");
+    public static readonly Text DiagnosticsVulkanLoaderOlderThan = new("Vulkan loader older than 1.2.");
+    public static readonly Text DiagnosticsCouldNotCreateAVulkanInstance = new("Could not create a Vulkan 1.2 instance ({0}).");
+    public static readonly Text DiagnosticsIncompleteOrExcessiveVulkanEnumeration = new("Incomplete or excessive Vulkan enumeration.");
+    public static readonly Text DiagnosticsCompleteVulkanEnumerationWithoutDevices = new("Complete Vulkan enumeration without devices.");
+    public static readonly Text DiagnosticsVulkanInventoryChangedOrCouldNotBe = new("Vulkan inventory changed or could not be completed.");
+    public static readonly Text DiagnosticsTooManyVulkanQueueFamilies = new("Too many Vulkan queue families.");
+    public static readonly Text DiagnosticsVulkanQueueInventoryChanged = new("Vulkan queue inventory changed.");
+    public static readonly Text DiagnosticsVulkanGPUComputeQueueAndBitStorage = new("Vulkan 1.2, GPU, compute queue and 16-bit storage: {0}. Compatible according to a basic check.");
+    public static readonly Text DiagnosticsNoEnumeratedVulkanGPUMeetsTheBasic = new("No enumerated Vulkan GPU meets the basic check (1.2, compute and 16-bit storage).");
+    public static readonly Text DiagnosticsVulkanAPIUnavailableOrIncompleteSupportIs = new("Vulkan API unavailable or incomplete; support is not inferred from the manufacturer.");
+    public static readonly Text DiagnosticsExternalResourceWithoutTracking = new("External resource without tracking.");
+    public static readonly Text DiagnosticsTheSelectionIsNotACompleteGGUF = new("The selection is not a complete GGUF set.");
+    public static readonly Text DiagnosticsMissingOrIncomparableIdentitiesEqualityIsNot = new("Missing or incomparable identities; equality is not inferred from commit or size.");
+    public static readonly Text DiagnosticsSelectedContentUnchanged = new("Selected content unchanged.");
+    public static readonly Text DiagnosticsContentOrPathChangesIdentifiedAtA = new("Content or path changes identified at a fixed commit.");
+    public static readonly Text DiagnosticsCouldNotReadTheCompleteSourceFile = new("Could not read the complete source file list.");
+    public static readonly Text DiagnosticsOneExactRelocationOfTheCompleteSet = new("One exact relocation of the complete set; reuse without downloading.");
+    public static readonly Text DiagnosticsMultipleExactRelocationsChooseWhichToFollow = new("Multiple exact relocations; choose which to follow.");
+    public static readonly Text DiagnosticsPathsDisappearedCandidatesWithoutProvenSuccession = new("Paths disappeared; candidates without proven succession.");
+    public static readonly Text DiagnosticsNoResolvableSuccessorGGUFEvidenceIsIncomplete = new("No resolvable successor; GGUF evidence is incomplete or has a different role.");
+    public static readonly Text DiagnosticsCompleteInventoryWithoutTrackedSelectionOrCandidates = new("Complete inventory without tracked selection or candidates.");
+    public static readonly Text DiagnosticsSelectionAbsentWithoutSuccessorOrCandidatesIn = new("Selection absent without successor or candidates in the complete inventory.");
+    public static readonly Text DiagnosticsFilesChosenManually = new("Files chosen manually.");
+    public static readonly Text DiagnosticsCurrentPathsConflictWithQuantizationOrType = new("Current paths conflict with quantization or type; selection is unchanged.");
+    public static readonly Text DiagnosticsUpdateDetectedInstallationUnchanged = new("Update detected; installation unchanged.");
+    public static readonly Text DiagnosticsNoBuildNewerThanTheInstalledOne = new("No build newer than the installed one within the queried filter.");
+    public static readonly Text DiagnosticsPlanAppliedInstalledRevisionFixed = new("Plan applied; installed revision fixed.");
+}

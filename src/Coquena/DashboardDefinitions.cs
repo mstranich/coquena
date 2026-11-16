@@ -75,26 +75,26 @@ internal static partial class DashboardCli
         {
             var scope = place.Scope;
             if (!scope.Accessible) return View.Inaccessible(scope.Name);
-            if (view == "Receta") return View.NoRecipe(scope.Name);
+            if (view == "recipe") return View.NoRecipe(scope.Name);
             var context = place.Context!;
             try
             {
                 return view switch
                 {
-                    "Recetas" => Recipes(place),
-                    "Presets" => Presets(place, targets, snapshots),
-                    "Servicios" or "Servicio" => Services(place, targets, snapshots),
-                    "Modelos" => View.Models(scope.Name, Models(context)),
-                    "Backends" => View.Backends(scope.Name, Backends(context)),
-                    "Parámetros" => View.Parameters(scope.Name, new ParameterManager(home).List()
+                    "recipes" => Recipes(place),
+                    "presets" => Presets(place, targets, snapshots),
+                    "services" or "service" => Services(place, targets, snapshots),
+                    "models" => View.Models(scope.Name, Models(context)),
+                    "backends" => View.Backends(scope.Name, Backends(context)),
+                    "parameters" => View.Parameters(scope.Name, new ParameterManager(home).List()
                         .Select(item => new View.Parameter(item.Name, item.Type, item.Application, item.Default)).ToArray(), rows),
-                    "Actualizaciones" => Updates(place),
+                    "updates" => Updates(place),
                     _ => View.Maintenance(scope.Name)
                 };
             }
             catch (Exception error) when (ServiceObservation.ObservationError(error) || error is RecipeException or ConfigurationException)
             {
-                return View.Problem(view + " de " + scope.Name, error.Message);
+                return View.Problem(Messages.DashboardScopeOf.Format(view, scope.Name), error.Message);
             }
         }
 

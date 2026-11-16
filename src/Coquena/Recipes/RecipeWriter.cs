@@ -94,7 +94,7 @@ internal static class RecipeWriter
         EditSequence sequence => string.Concat(sequence.Items.Select(item =>
             newline + new string(' ', indent) + "-" + Item(item, indent + 2, step, newline))),
         EditText text => string.Concat(text.Lines.Select(line => newline + (line.Length == 0 ? "" : new string(' ', indent) + line))),
-        _ => throw new InvalidOperationException("Valor de edición no representable.")
+        _ => throw new InvalidOperationException(Messages.RecipeEditValueCannotBeRepresented.ToString())
     };
 
     // A sequence item: a map starts on the dash line and continues aligned after it.
@@ -112,6 +112,6 @@ internal static class RecipeWriter
         EditMap map => "{" + string.Join(", ", map.Fields.Select(field => Key(field.Key) + ": " + Flow(field.Value))) + "}",
         EditSequence sequence => "[" + string.Join(", ", sequence.Items.Select(Flow)) + "]",
         EditText text => Flow(text.Fallback),
-        _ => throw new InvalidOperationException("Valor de edición no representable.")
+        _ => throw new InvalidOperationException(Messages.RecipeEditValueCannotBeRepresented.ToString())
     };
 }

@@ -12,9 +12,9 @@ public sealed unsafe partial class WindowsServerProcess
     internal static (long CpuTicks, ulong? PrivateBytes, IReadOnlyList<MetricSample> WorkingSets) ReadInstanceMetrics(InstanceDocument instance)
     {
         using var root = Verified(instance, out var ended);
-        if (ended) throw new InvalidOperationException("El proceso terminó durante la muestra.");
+        if (ended) throw new InvalidOperationException(Messages.ServerProcessEndedDuringSample.ToString());
         using var group = VerifiedGroup(instance, root!);
-        if (!QueryInformationJobObject(group, 1, out var accounting, (uint)sizeof(JobAccounting), 0)) throw Error("Leer CPU del grupo");
+        if (!QueryInformationJobObject(group, 1, out var accounting, (uint)sizeof(JobAccounting), 0)) throw Error(Messages.ServerReadGroupCPU.ToString());
         var size = 8 + 4096 * sizeof(nuint);
         var buffer = Marshal.AllocHGlobal(size);
         try

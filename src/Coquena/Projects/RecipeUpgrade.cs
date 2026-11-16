@@ -44,7 +44,7 @@ public sealed class RecipeUpgrade(ScopeContext context, Action? transferReserved
         foreach (var filter in filters)
         {
             var matched = observations.Where(o => Matches(filter, o)).ToArray();
-            if (matched.Length == 0) throw new ArgumentException("El selector no pertenece al plan vigente; ejecutar update.");
+            if (matched.Length == 0) throw new ArgumentException(Messages.ProjectSelectorNotInPlan.ToString());
             filter.CheckAmbiguity(matched.Select(o => Request(o).ProjectName));
         }
         var chosen = observations.Where(o => filters.Length == 0 || filters.Any(f => Matches(f, o))).ToArray();
@@ -117,7 +117,7 @@ public sealed class RecipeUpgrade(ScopeContext context, Action? transferReserved
                     });
             }
             var operation = Guid.Parse(unit!["operation-id"]!.GetValue<string>());
-            progress?.Invoke("Operación de upgrade: " + operation.ToString("D"));
+            progress?.Invoke(Messages.ProjectUpgradeOperationProgress.Format(operation.ToString("D")));
             if (unit["candidate"] is null)
             {
                 if (!File.Exists(context.PathFor($"downloads/{operation:D}/operation.json")))
@@ -125,7 +125,7 @@ public sealed class RecipeUpgrade(ScopeContext context, Action? transferReserved
                 var pending = await transfers.RunAsync(operation, observation["kind"]!.GetValue<string>() == "backend" ? backends :
                     new ReuseTransport(context, observation, Resource(observation)!, models),
                     cancellation: cancellation);
-                if (pending is not null) throw new DownloadException(pending.Diagnostic ?? (pending.State == "paused" ? "transfer-paused" : "upgrade-incomplete"), "Preparación incompleta; repetir upgrade con el mismo plan.");
+                if (pending is not null) throw new DownloadException(pending.Diagnostic ?? (pending.State == "paused" ? "transfer-paused" : "upgrade-incomplete"), Messages.ProjectUpgradePreparationIncomplete.ToString());
             }
         }
         // Candidates resumed by download are still checked as a complete set here.
@@ -136,13 +136,13 @@ public sealed class RecipeUpgrade(ScopeContext context, Action? transferReserved
         {
             foreach (var unit in completed)
             {
-                var candidate = unit!["candidate"] ?? throw new StorageException("upgrade-incomplete", "Faltan candidatas verificadas.");
+                var candidate = unit!["candidate"] ?? throw new StorageException("upgrade-incomplete", Messages.ProjectVerifiedCandidatesMissing.ToString());
                 var observation = unit["observation"]!;
                 var selected = candidate["selection"]?[observation["kind"]!.GetValue<string>() == "backend" ? "backendSelection" : "modelSelection"];
                 var expectedSelection = observation["kind"]!.GetValue<string>() == "backend" ? JsonNode.Parse(ContractJson.Write(
                     ContractJson.Read(observation["proposed"]!.ToJsonString(), ContractJsonContext.Default.BackendDownloadSelection, _ => { }), ContractJsonContext.Default.BackendDownloadSelection)) : observation["proposed"];
                 if (!JsonNode.DeepEquals(selected, expectedSelection) || candidate["operation-id"]?.GetValue<string>() != unit["operation-id"]!.GetValue<string>())
-                    throw new StorageException("upgrade-candidate-conflict", "La candidata no corresponde al plan exacto.");
+                    throw new StorageException("upgrade-candidate-conflict", Messages.ProjectCandidatePlanMismatch.ToString());
                 if (candidate["selection"]?["backendSelection"] is JsonObject backendSelection)
                     _ = ContractJson.Read(backendSelection.ToJsonString(), ContractJsonContext.Default.BackendDownloadSelection,
                         s => ScopedBackends.CheckSelection(s, hardware, false, progress));
@@ -153,7 +153,7 @@ public sealed class RecipeUpgrade(ScopeContext context, Action? transferReserved
                     var expected = file["integrity"]!;
                     var verified = await FileIntegrity.VerifyAsync(path, new(expected["algorithm"]!.GetValue<string>(),
                         expected["domain"]!.GetValue<string>(), expected["value"]!.GetValue<string>()), cancellation);
-                    if (verified.Status != "verified") throw new StorageException("upgrade-integrity-failed", "La candidata no conserva su integridad.");
+                    if (verified.Status != "verified") throw new StorageException("upgrade-integrity-failed", Messages.ProjectCandidateDoesNotRetainIntegrity.ToString());
                 }
             }
             current = store.Read();
@@ -173,9 +173,9 @@ public sealed class RecipeUpgrade(ScopeContext context, Action? transferReserved
     private static FileStream Lease(string path)
     {
         try { return new(path, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None); }
-        catch (IOException e) { throw new StorageException("upgrade-in-progress", "Otro ejecutor conserva esta actualización.", inner: e); }
+        catch (IOException e) { throw new StorageException("upgrade-in-progress", Messages.ProjectAnotherExecutorRetainsThisUpdate.ToString(), inner: e); }
     }
-    private static void Stale() => throw new StorageException("stale-update-plan", "Cambió el plan; se requiere update nuevo.");
+    private static void Stale() => throw new StorageException("stale-update-plan", Messages.ProjectPlanChangedANewUpdateIsRequired.ToString());
     private static JsonObject? Batch(ScopeSnapshot state, string id) => state.Documents.GetValueOrDefault(Plans)?["data"]?["upgrades"]?[id]?.AsObject();
 
     private sealed class ReuseTransport(ScopeContext context, JsonObject observation, JsonNode resource, IDownloadTransport remote) : IDownloadTransport
@@ -190,7 +190,7 @@ public sealed class RecipeUpgrade(ScopeContext context, Action? transferReserved
             var original = ContractJson.Read(installation["selection"]!["modelSelection"]!.ToJsonString(), ContractJsonContext.Default.RemoteSelection, ContractValidation.Remote)
                 .Files.Single(f => f.Path == sourcePath);
             if (!ModelUpdateComparer.Same(original.Identity, file.Identity))
-                throw new StorageException("upgrade-reuse-integrity-failed", "La identidad remota no demuestra correspondencia.");
+                throw new StorageException("upgrade-reuse-integrity-failed", Messages.ProjectRemoteIdentityUnproven.ToString());
             var reference = installation["files"]!.AsArray().Single(f => f!["path"]!.GetValue<string>() == sourcePath)!["integrity"]!;
             var path = context.PathFor(installation["location"]!.GetValue<string>() + "/" + sourcePath);
             var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
@@ -198,7 +198,7 @@ public sealed class RecipeUpgrade(ScopeContext context, Action? transferReserved
             {
                 var check = await FileIntegrity.VerifyAsync(path, new(reference["algorithm"]!.GetValue<string>(), reference["domain"]!.GetValue<string>(), reference["value"]!.GetValue<string>()), cancellation);
                 if (check.Status != "verified" || stream.Length != file.Size)
-                    throw new StorageException("upgrade-reuse-integrity-failed", "No se puede demostrar el contenido reutilizado.");
+                    throw new StorageException("upgrade-reuse-integrity-failed", Messages.ProjectReusedContentCannotBeProven.ToString());
                 stream.Position = offset;
                 var response = new HttpResponseMessage(offset == 0 ? HttpStatusCode.OK : HttpStatusCode.PartialContent) { Content = new StreamContent(stream) };
                 response.Content.Headers.ContentLength = stream.Length - offset;
@@ -218,13 +218,13 @@ public sealed class RecipeUpgrade(ScopeContext context, Action? transferReserved
         if (resource is null)
         {
             if (resources.Any(r => r!["logical-key"]!.GetValue<string>() == unit["logical-key"]!.GetValue<string>() && r["kind"]!.GetValue<string>() == request.Kind))
-                throw new StorageException("scope-conflict", "Otra operación publicó el mismo recurso.");
+                throw new StorageException("scope-conflict", Messages.ProjectConcurrentResourcePublication.ToString());
             resource = new JsonObject { ["resource-id"] = unit["resource-id"]!.DeepClone(), ["logical-key"] = unit["logical-key"]!.DeepClone(),
                 ["kind"] = request.Kind, ["ownership"] = "managed", ["installations"] = new JsonArray() };
             resources.Add(resource);
         }
         if (resource["ownership"]!.GetValue<string>() != "managed" || resource["removal-pending"]?.GetValue<bool>() == true)
-            throw new StorageException("resource-ownership-conflict", "El recurso ya no admite la revisión propuesta.");
+            throw new StorageException("resource-ownership-conflict", Messages.ProjectProposedRevisionRejected.ToString());
         var installations = resource["installations"]!.AsArray();
         if (!installations.Any(i => i!["installation-id"]!.GetValue<string>() == candidate["installation-id"]!.GetValue<string>())) installations.Add(candidate.DeepClone());
         var backend = request.Kind == "backend";

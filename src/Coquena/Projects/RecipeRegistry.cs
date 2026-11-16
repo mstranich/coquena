@@ -65,7 +65,7 @@ public sealed class RecipeRegistry(ScopeStore store)
         ProjectDocuments.Uuid(JsonValue.Create(recipeId));
         var snapshot = store.Read();
         if (!snapshot.Documents.TryGetValue(RegistryPath, out var document))
-            throw new StorageException("unknown-recipe", "Receta no registrada.");
+            throw new StorageException("unknown-recipe", Messages.ProjectRecipeNotRegistered.ToString());
         return Recipe(FindRecipe(document["data"]!.AsObject(), recipeId));
     }
 
@@ -78,10 +78,10 @@ public sealed class RecipeRegistry(ScopeStore store)
         var existing = recipe["entities"]!.AsArray().FirstOrDefault(x => x!["kind"]!.GetValue<string>() == "service");
         if (existing is not null) return new(existing["id"]!.GetValue<string>(), recipeId, existing["name"]!.GetValue<string>());
         var name = recipe["name"]!.GetValue<string>();
-        if (name is "self" or "global" or "default") throw new StorageException("reserved-service-name", "Nombre de servicio reservado.");
+        if (name is "self" or "global" or "default") throw new StorageException("reserved-service-name", Messages.ProjectReservedServiceName.ToString());
         var entities = registry["recipes"]!.AsArray().SelectMany(x => x!["entities"]!.AsArray());
         if (entities.Any(x => x!["kind"]!.GetValue<string>() == "service" && x["name"]!.GetValue<string>() == name))
-            throw new StorageException("service-name-conflict", "Nombre de servicio ya registrado en el ámbito.");
+            throw new StorageException("service-name-conflict", Messages.ProjectServiceNameAlreadyRegisteredInScope.ToString());
         var id = ProjectDocuments.Id();
         recipe["entities"]!.AsArray().Add((JsonNode)new JsonObject { ["kind"] = "service", ["id"] = id, ["name"] = name, ["owner"] = recipeId });
         recipe["revision"] = checked(recipe["revision"]!.GetValue<long>() + 1);
@@ -98,14 +98,14 @@ public sealed class RecipeRegistry(ScopeStore store)
     // Existing unassociated records are never adopted solely by matching names.
     public ServiceIdentity EnsureProjectService(IReadOnlyList<string> files, string? declaredName)
     {
-        if (store.Context.IsGlobal) throw new StorageException("project-scope-required", "El alta propia requiere un proyecto.");
+        if (store.Context.IsGlobal) throw new StorageException("project-scope-required", Messages.ProjectOwnRegistrationRequiresAProject.ToString());
         var normalized = Normalize(files);
         var selection = normalized[0];
         var snapshot = store.Read(); var docs = Next(snapshot);
         var registry = Data(docs, RegistryPath, "recipe-registry", "recipes");
         var recipes = registry["recipes"]!.AsArray();
         var matches = recipes.Where(r => r!["service-selection"]?.GetValue<string>() == selection).ToArray();
-        if (matches.Length > 1) throw new StorageException("recipe-identity-conflict", "Varias recetas reclaman la misma selección.");
+        if (matches.Length > 1) throw new StorageException("recipe-identity-conflict", Messages.ProjectMultipleRecipesClaimTheSameSelection.ToString());
         if (matches.Length == 1)
         {
             var recipe = matches[0]!;
@@ -114,9 +114,9 @@ public sealed class RecipeRegistry(ScopeStore store)
         }
         var name = declaredName ?? Path.GetFileName(store.Context.Base);
         ValidateName(name);
-        if (name is "self" or "global" or "default") throw new StorageException("reserved-service-name", "Nombre de servicio reservado.");
+        if (name is "self" or "global" or "default") throw new StorageException("reserved-service-name", Messages.ProjectReservedServiceName.ToString());
         if (recipes.SelectMany(r => r!["entities"]!.AsArray()).Any(e => e!["kind"]!.GetValue<string>() == "service" && e["name"]!.GetValue<string>() == name))
-            throw new StorageException("service-name-conflict", "Nombre de servicio ya registrado en el ámbito.");
+            throw new StorageException("service-name-conflict", Messages.ProjectServiceNameAlreadyRegisteredInScope.ToString());
         var recipeEntry = matches.Length == 1 ? matches[0]!.AsObject() : new JsonObject
         {
             ["recipe-id"] = ProjectDocuments.Id(), ["consumer-id"] = ProjectDocuments.Id(), ["files"] = Strings(normalized),
@@ -133,14 +133,14 @@ public sealed class RecipeRegistry(ScopeStore store)
 
     public ServiceIdentity FindProjectService(IReadOnlyList<string> files)
     {
-        if (store.Context.IsGlobal) throw new StorageException("project-scope-required", "Self requiere un proyecto.");
+        if (store.Context.IsGlobal) throw new StorageException("project-scope-required", Messages.ProjectSelfRequiresAProject.ToString());
         var selection = Normalize(files)[0];
         var document = store.Read().Documents.GetValueOrDefault(RegistryPath);
         var matches = document?["data"]?["recipes"]?.AsArray().Where(r => r!["service-selection"]?.GetValue<string>() == selection).ToArray() ?? [];
-        if (matches.Length != 1) throw new StorageException(matches.Length == 0 ? "unknown-service" : "recipe-identity-conflict", "No se pudo resolver el servicio propio registrado.");
+        if (matches.Length != 1) throw new StorageException(matches.Length == 0 ? "unknown-service" : "recipe-identity-conflict", Messages.ProjectCouldNotResolveRegisteredOwnService.ToString());
         var recipe = matches[0]!;
         var service = recipe["entities"]!.AsArray().SingleOrDefault(e => e!["kind"]!.GetValue<string>() == "service");
-        return service is null ? throw new StorageException("unknown-service", "El servicio propio no está registrado.") :
+        return service is null ? throw new StorageException("unknown-service", Messages.ProjectOwnServiceNotRegistered.ToString()) :
             new(service["id"]!.GetValue<string>(), recipe["recipe-id"]!.GetValue<string>(), service["name"]!.GetValue<string>());
     }
 
@@ -153,7 +153,7 @@ public sealed class RecipeRegistry(ScopeStore store)
         var documents = Next(snapshot);
         var activePath = store.RuntimeDocumentPath(serviceId, "active");
         if (snapshot.Documents.TryGetValue(activePath, out var active) && active["data"]?["terminated"]?.GetValue<bool>() != true)
-            throw new StorageException("service-in-use", "El servicio conserva evidencia de una instancia no reconciliada.");
+            throw new StorageException("service-in-use", Messages.ProjectServiceHasUnreconciledInstance.ToString());
         var registry = Data(documents, RegistryPath, "recipe-registry", "recipes");
         foreach (var recipe in registry["recipes"]!.AsArray())
         {
@@ -162,13 +162,13 @@ public sealed class RecipeRegistry(ScopeStore store)
             if (service is null) continue;
             if (service["instance"] is not null || service["publication-operation"] is not null || service["consumers"] is JsonArray consumers && consumers.Count != 0 ||
                 service["preparations"] is JsonArray preparations && preparations.Count != 0)
-                throw new StorageException("service-in-use", "El servicio conserva una instancia o referencias; no se puede retirar.");
+                throw new StorageException("service-in-use", Messages.ProjectServiceInUseCannotRemove.ToString());
             entities.Remove(service);
             recipe["revision"] = checked(recipe["revision"]!.GetValue<long>() + 1);
             ScopeStore.CommitTogether([new(store, snapshot.Revision, documents, RemovedServiceId: store.Context.IsGlobal ? serviceId : null)]);
             return;
         }
-        throw new StorageException("unknown-service", "Servicio no registrado.");
+        throw new StorageException("unknown-service", Messages.ProjectServiceNotRegistered.ToString());
     }
 
     public ResourceIdentity RegisterResource(string logicalKey, string kind, string ownership)
@@ -177,10 +177,10 @@ public sealed class RecipeRegistry(ScopeStore store)
         {
             var selector = Coquena.Models.ModelRequest.Parse(logicalKey);
             if (selector.Quantization is null || (kind == "companion") != (selector.CompanionType is not null))
-                throw new StorageException("invalid-resource-name", "Se requiere selección canónica completa y rol coincidente.");
+                throw new StorageException("invalid-resource-name", Messages.ProjectCompleteSelectionRoleRequired.ToString());
         }
         else ValidateName(logicalKey);
-        if (kind is not ("model" or "companion" or "backend") || ownership is not ("managed" or "external")) throw new ArgumentException("Tipo/propiedad inválidos.");
+        if (kind is not ("model" or "companion" or "backend") || ownership is not ("managed" or "external")) throw new ArgumentException(Messages.ProjectInvalidTypeOrOwnership.ToString());
         var snapshot = store.Read();
         var documents = Next(snapshot);
         var inventory = Data(documents, InventoryPath, "inventory", "resources");
@@ -188,7 +188,7 @@ public sealed class RecipeRegistry(ScopeStore store)
         var existing = resources.FirstOrDefault(x => x!["logical-key"]!.GetValue<string>().Equals(logicalKey, StringComparison.OrdinalIgnoreCase) && x["kind"]!.GetValue<string>() == kind);
         if (existing is not null)
         {
-            if (existing["ownership"]!.GetValue<string>() != ownership) throw new StorageException("resource-ownership-conflict", "La ubicación o clave no autoriza cambiar propiedad.");
+            if (existing["ownership"]!.GetValue<string>() != ownership) throw new StorageException("resource-ownership-conflict", Messages.ProjectLocationOrKeyDoesNotAuthorizeChanging.ToString());
             return Resource(existing);
         }
         var entry = new JsonObject { ["resource-id"] = ProjectDocuments.Id(), ["logical-key"] = logicalKey,
@@ -209,13 +209,13 @@ public sealed class RecipeRegistry(ScopeStore store)
 
     public string ResolveGlobalService(string selector)
     {
-        if (!store.Context.IsGlobal) throw new StorageException("global-scope-required", "La consulta requiere el ámbito global.");
+        if (!store.Context.IsGlobal) throw new StorageException("global-scope-required", Messages.ProjectQueryRequiresGlobalScope.ToString());
         var snapshot = store.Read();
         var services = snapshot.State?["data"]?["services"] as JsonArray ?? new JsonArray();
         var id = selector == "default" ? snapshot.State?["data"]?["aliases"]?["default"]?.GetValue<string>()
             : services.SingleOrDefault(s => s!["name"]!.GetValue<string>() == selector)?["id"]?.GetValue<string>();
         if (id is null || !services.Any(s => s!["id"]!.GetValue<string>() == id))
-            throw new StorageException("unknown-service", "No resuelve el servicio global seleccionado; no se elige sustituto.");
+            throw new StorageException("unknown-service", Messages.ProjectGlobalServiceUnresolved.ToString());
         return id;
     }
 
@@ -223,14 +223,14 @@ public sealed class RecipeRegistry(ScopeStore store)
     // or a name is not sufficient evidence of ownership.
     public ServiceIdentity ResolveOwnService(string recipeId)
     {
-        if (store.Context.IsGlobal) throw new StorageException("project-scope-required", "Self requiere un proyecto.");
+        if (store.Context.IsGlobal) throw new StorageException("project-scope-required", Messages.ProjectSelfRequiresAProject.ToString());
         ProjectDocuments.Uuid(JsonValue.Create(recipeId));
         var snapshot = store.Read();
         if (!snapshot.Documents.TryGetValue(RegistryPath, out var document))
-            throw new StorageException("unknown-recipe", "Receta no registrada.");
+            throw new StorageException("unknown-recipe", Messages.ProjectRecipeNotRegistered.ToString());
         var recipe = FindRecipe(document["data"]!.AsObject(), recipeId);
         var service = recipe["entities"]!.AsArray().SingleOrDefault(e => e!["kind"]!.GetValue<string>() == "service");
-        return service is null ? throw new StorageException("unknown-service", "La receta no tiene un servicio registrado.") :
+        return service is null ? throw new StorageException("unknown-service", Messages.ProjectRecipeHasNoRegisteredService.ToString()) :
             new(service["id"]!.GetValue<string>(), recipeId, service["name"]!.GetValue<string>());
     }
 
@@ -249,19 +249,19 @@ public sealed class RecipeRegistry(ScopeStore store)
         var targetRegistry = Data(targetDocs, RegistryPath, "recipe-registry", "recipes");
         var targetService = targetRegistry["recipes"]!.AsArray().SelectMany(x => x!["entities"]!.AsArray())
             .SingleOrDefault(x => x!["kind"]!.GetValue<string>() == "service" && x["id"]!.GetValue<string>() == serviceId);
-        if (targetService is null) throw new StorageException("unknown-service", "El servicio destino no está registrado en ese ámbito.");
+        if (targetService is null) throw new StorageException("unknown-service", Messages.ProjectTargetServiceNotRegisteredInThatScope.ToString());
         var resources = ownDocs.TryGetValue(InventoryPath, out var inv) ? inv["data"]!["resources"]!.AsArray() : new JsonArray();
         foreach (var id in resourceIds)
-            if (!resources.Any(x => x!["resource-id"]!.GetValue<string>() == id)) throw new StorageException("unknown-resource", "Recurso no registrado en el ámbito consumidor.");
+            if (!resources.Any(x => x!["resource-id"]!.GetValue<string>() == id)) throw new StorageException("unknown-resource", Messages.ProjectResourceNotRegisteredInConsumerScope.ToString());
         var consumerId = recipe["consumer-id"]!.GetValue<string>();
         var contributions = targetService["consumers"] as JsonArray ?? new JsonArray();
         foreach (var name in publishedNames)
         {
             var parts = name.Split('/');
-            if (parts.Length != 2) throw new StorageException("invalid-published-name", "Se requiere receta/preset.");
+            if (parts.Length != 2) throw new StorageException("invalid-published-name", Messages.ProjectRecipePresetRequired.ToString());
             foreach (var part in parts) ValidateName(part);
             if (contributions.Any(x => x!["consumer-id"]!.GetValue<string>() != consumerId && x["names"]!.AsArray().Any(y => y!.GetValue<string>() == name)))
-                throw new StorageException("preset-name-conflict", "Nombre publicado por otro consumidor.");
+                throw new StorageException("preset-name-conflict", Messages.ProjectNamePublishedByAnotherConsumer.ToString());
         }
         var previous = contributions.FirstOrDefault(x => x!["consumer-id"]!.GetValue<string>() == consumerId);
         if (previous is not null) contributions.Remove(previous);
@@ -279,14 +279,14 @@ public sealed class RecipeRegistry(ScopeStore store)
     {
         ProjectDocuments.Uuid(JsonValue.Create(instanceId));
         if (processIdentity["pid"]?.GetValue<int>() is not > 0 || processIdentity["started-at"] is null || processIdentity["executable"] is null)
-            throw new StorageException("invalid-instance-identity", "Se requiere PID, inicio e identidad del ejecutable.");
+            throw new StorageException("invalid-instance-identity", Messages.ProjectProcessIdentityFieldsRequired.ToString());
         var snapshot = store.Read();
         var documents = Next(snapshot);
         var registry = Data(documents, RegistryPath, "recipe-registry", "recipes");
         var service = registry["recipes"]!.AsArray().SelectMany(x => x!["entities"]!.AsArray())
             .SingleOrDefault(x => x!["kind"]!.GetValue<string>() == "service" && x["id"]!.GetValue<string>() == serviceId);
-        if (service is null) throw new StorageException("unknown-service", "Servicio no registrado.");
-        if (service["instance"] is not null) throw new StorageException("instance-already-registered", "El servicio ya conserva una instancia; se exige reconciliar antes de reemplazarla.");
+        if (service is null) throw new StorageException("unknown-service", Messages.ProjectServiceNotRegistered.ToString());
+        if (service["instance"] is not null) throw new StorageException("instance-already-registered", Messages.ProjectServiceRetainsInstanceReconcile.ToString());
         service["instance"] = new JsonObject { ["instance-id"] = instanceId, ["process"] = processIdentity.DeepClone() };
         store.Commit(snapshot.Revision, documents);
     }
@@ -302,17 +302,17 @@ public sealed class RecipeRegistry(ScopeStore store)
             process["executable"]?.GetValue<string>() is not string executable || !Path.IsPathFullyQualified(executable) ||
             active["resources"] is not JsonArray || active["snapshot"] is not JsonObject || active["endpoint"] is not JsonObject ||
             active["log"]?.GetValue<string>() is not string || active["combination"]?.GetValue<string>() is not string || active["terminated"] is not null)
-            throw new StorageException("invalid-instance-identity", "La instancia requiere identidad, snapshot, recursos, endpoint y log.");
+            throw new StorageException("invalid-instance-identity", Messages.ProjectInstanceMissingRequiredFields.ToString());
         var snapshot = store.Read();
         var docs = Next(snapshot);
         ValidateRuntimeBindings(snapshot, active["resources"]!.AsArray());
         var registry = Data(docs, RegistryPath, "recipe-registry", "recipes");
         var service = registry["recipes"]!.AsArray().SelectMany(x => x!["entities"]!.AsArray())
             .SingleOrDefault(x => x!["kind"]!.GetValue<string>() == "service" && x["id"]!.GetValue<string>() == serviceId)
-            ?? throw new StorageException("unknown-service", "Servicio no registrado.");
+            ?? throw new StorageException("unknown-service", Messages.ProjectServiceNotRegistered.ToString());
         var path = ActivePath(serviceId);
         if (service["instance"] is not null || snapshot.Documents.TryGetValue(path, out var previous) && previous["data"]?["terminated"]?.GetValue<bool>() != true)
-            throw new StorageException("instance-already-registered", "La instancia anterior requiere reconciliación.");
+            throw new StorageException("instance-already-registered", Messages.ProjectPreviousInstanceRequiresReconciliation.ToString());
         service["instance"] = new JsonObject { ["instance-id"] = instanceId, ["process"] = process.DeepClone() };
         var revision = docs.GetValueOrDefault(path)?["revision"]?.GetValue<long>() ?? 1;
         docs[path] = ProjectDocuments.Create("active", revision, active);
@@ -331,7 +331,7 @@ public sealed class RecipeRegistry(ScopeStore store)
         var service = registry["recipes"]!.AsArray().SelectMany(x => x!["entities"]!.AsArray())
             .SingleOrDefault(x => x!["kind"]!.GetValue<string>() == "service" && x["id"]!.GetValue<string>() == serviceId);
         if (active?["instance-id"]?.GetValue<string>() != instanceId || service?["instance"]?["instance-id"]?.GetValue<string>() != instanceId)
-            throw new StorageException("instance-conflict", "La identidad registrada cambió; se conserva la evidencia.");
+            throw new StorageException("instance-conflict", Messages.ProjectRegisteredIdentityChanged.ToString());
         active["terminated"] = true;
         service!["instance"] = null;
         store.Commit(snapshot.Revision, docs);
@@ -341,11 +341,11 @@ public sealed class RecipeRegistry(ScopeStore store)
         TimeSpan? timeout = null, TimeSpan? interval = null)
     {
         if (statusCode is < 200 or >= 300 || !healthUrl.IsAbsoluteUri || !string.IsNullOrEmpty(healthUrl.UserInfo))
-            throw new StorageException("invalid-health-evidence", "La promoción requiere salud HTTP 2xx sin credenciales en la URL.");
+            throw new StorageException("invalid-health-evidence", Messages.ProjectPromotionRequiresCleanHealth.ToString());
         var snapshot = store.Read(); var docs = Next(snapshot);
         var active = docs.GetValueOrDefault(ActivePath(serviceId))?["data"]?.AsObject();
         if (active?["instance-id"]?.GetValue<string>() != instanceId || active["terminated"]?.GetValue<bool>() == true)
-            throw new StorageException("instance-conflict", "La instancia cambió antes de promover salud.");
+            throw new StorageException("instance-conflict", Messages.ProjectInstanceChangedBeforePromotingHealth.ToString());
         if (active["draft"]?.GetValue<bool>() == true &&
             active["snapshot"]?["service"]?["recovery"]?["allow-draft-last-good"]?["value"]?.GetValue<string>() != "true")
             return;
@@ -373,9 +373,9 @@ public sealed class RecipeRegistry(ScopeStore store)
             var installation = resource?["installations"]?.AsArray().SingleOrDefault(item => item!["installation-id"]!.GetValue<string>() == installationId);
             if (resource is null || installation is null || resource["removal-pending"]?.GetValue<bool>() == true ||
                 installation["availability"]?.GetValue<string>() == "missing")
-                throw new StorageException("unknown-resource", "La instancia requiere instalaciones registradas en su ámbito.");
+                throw new StorageException("unknown-resource", Messages.ProjectInstanceRequiresScopedInstallations.ToString());
             if (installation["integrity-status"]?.GetValue<string>() is "invalid" or "mismatch")
-                throw new StorageException("resource-integrity-invalid", "La instalación tiene integridad inválida conocida.");
+                throw new StorageException("resource-integrity-invalid", Messages.ProjectInstallationHasKnownInvalidIntegrity.ToString());
         }
     }
 
@@ -383,7 +383,7 @@ public sealed class RecipeRegistry(ScopeStore store)
 
     private string[] Normalize(IReadOnlyList<string> files)
     {
-        if (files.Count == 0) throw new ArgumentException("Selección vacía.");
+        if (files.Count == 0) throw new ArgumentException(Messages.ProjectEmptySelection.ToString());
         return files.Select(file => Path.GetRelativePath(store.Context.Base, Path.GetFullPath(file, store.Context.Base)).Replace('\\', '/')).ToArray();
     }
     internal static Dictionary<string, JsonObject> Next(ScopeSnapshot snapshot) => snapshot.Documents.ToDictionary(x => x.Key,
@@ -398,7 +398,7 @@ public sealed class RecipeRegistry(ScopeStore store)
         return document["data"]!.AsObject();
     }
     private static JsonNode FindRecipe(JsonObject registry, string id) => registry["recipes"]!.AsArray()
-        .SingleOrDefault(x => x!["recipe-id"]!.GetValue<string>() == id) ?? throw new StorageException("unknown-recipe", "Receta no registrada.");
+        .SingleOrDefault(x => x!["recipe-id"]!.GetValue<string>() == id) ?? throw new StorageException("unknown-recipe", Messages.ProjectRecipeNotRegistered.ToString());
     private static JsonArray Strings(IEnumerable<string> values) => new(values.Select(x => (JsonNode?)JsonValue.Create(x)).ToArray());
     private static RecipeIdentity Recipe(JsonNode node) => new(ProjectDocuments.Uuid(node["recipe-id"]), ProjectDocuments.Uuid(node["consumer-id"]),
         node["name"]!.GetValue<string>(), node["files"]!.AsArray().Select(x => x!.GetValue<string>()).ToArray());
@@ -406,6 +406,6 @@ public sealed class RecipeRegistry(ScopeStore store)
     private static void ValidateName(string name)
     {
         if (string.IsNullOrWhiteSpace(name) || name.IndexOfAny(['\0', '\r', '\n', ':', '/', '\\']) >= 0)
-            throw new StorageException("invalid-entity-name", "Nombre inválido; se requiere un componente explícito válido.");
+            throw new StorageException("invalid-entity-name", Messages.RecipeInvalidExplicitName.ToString());
     }
 }

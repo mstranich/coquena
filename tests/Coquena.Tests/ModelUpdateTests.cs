@@ -115,7 +115,7 @@ internal static class ModelUpdateTests
             Check(result.Update!.State == "orphaned" && result.Update.Plan is null, "confirmed selection loss clears candidate only");
             handler.Mode = "same"; handler.Paths = ["a-Q4_0.gguf", "b-Q4_0.gguf"];
             result = await updater.CheckAsync(Read(), source, new Interaction(options =>
-            { Check(options.Count == 3 && options[0].Contains("reuse") && options[^1].Contains("Cancelar"), "menu differences and cancel"); return 1; }));
+            { Check(options.Count == 3 && options[0].Contains("reuse") && options[^1] == Messages.ModelCancelPreserveUnresolvedTracking.ToString(), "menu differences and cancel"); return 1; }));
             Check(result.Update!.Plan!.ExplicitChoice && result.Update.Followed!.Files[0].Path == "b-Q4_0.gguf" && result.Files[0].RemotePath == "old-Q4_0.gguf", "explicit follow separate from installed");
             result = await updater.CheckAsync(Read(), source, noMenu);
             Check(result.Update!.State == "update-available" && result.Update.Plan!.Target.Files[0].Path == "b-Q4_0.gguf", "repeat follows chosen relocation");

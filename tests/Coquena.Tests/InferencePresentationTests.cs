@@ -30,8 +30,8 @@ internal static class InferencePresentationTests
         tasks.Observe(Capture(100));
         check(InferencePresentation.Rows(tasks, "global", "service").Any(task => task.Identity == selected), "stable selection uses full task identity through refresh");
         var detail = InferencePresentation.Detail(rows[0]);
-        check(detail.Contains("fixture.gguf") && detail.Contains(Messages.NoProgressDenominator) && detail.Contains("no latencia completa"), "task detail preserves model and explicitly limits progress and timing claims");
-        check(InferencePresentation.Row(rows[0], 40).Contains("GENERACIÓN") && InferencePresentation.Row(rows[0], 40).Contains("G 99"), "compact rows retain entry, phase and observed tokens");
+        check(detail.Contains("fixture.gguf") && detail.Contains(Messages.NoProgressDenominator) && detail.Contains(Messages.InferenceDetailNoteTime.ToString()), "task detail preserves model and explicitly limits progress and timing claims");
+        check(InferencePresentation.Row(rows[0], 40).Contains(Messages.InferencePhaseGeneration.ToString()) && InferencePresentation.Row(rows[0], 40).Contains("G 99"), "compact rows retain entry, phase and observed tokens");
         check(InferencePresentation.Row(rows[0], 57).Contains("s0/t1") && InferencePresentation.Row(rows[1], 57).Contains("s1/t2"),
             "a compact split pane distinguishes simultaneous tasks of the same entry by slot and task");
         tasks.Observe(Capture(101, empty: true));

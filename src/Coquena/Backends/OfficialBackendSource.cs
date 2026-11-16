@@ -13,8 +13,8 @@ public sealed class OfficialBackendSource(HttpClient client)
     {
         _ = BackendCatalog.BuildNumber(release);
         var value = await ReadAsync($"/tags/{release}", cancellation)
-            ?? throw new BackendException("release-not-found", "Release fijado no disponible.");
-        if (value.Tag != release) throw new BackendException("invalid-metadata", "Release distinto del fijado.");
+            ?? throw new BackendException("release-not-found", Messages.BackendFixedReleaseUnavailable.ToString());
+        if (value.Tag != release) throw new BackendException("invalid-metadata", Messages.BackendReleaseDiffersFromFixedRelease.ToString());
         return value;
     }
 
@@ -24,7 +24,7 @@ public sealed class OfficialBackendSource(HttpClient client)
     public async Task<BackendResolution> ResolveAsync(HardwareContext hardware, string? family,
         string release, CancellationToken cancellation = default)
     {
-        if (!BackendCatalog.ValidFamily(family)) throw new BackendException("invalid-family", "Familias: cpu, vulkan, cuda@<mayor>.");
+        if (!BackendCatalog.ValidFamily(family)) throw new BackendException("invalid-family", Messages.OutputSupportedFamilies.ToString());
         if (release != "latest") _ = BackendCatalog.BuildNumber(release);
         using var budget = CancellationTokenSource.CreateLinkedTokenSource(cancellation);
         budget.CancelAfter(TimeSpan.FromSeconds(60));
@@ -32,9 +32,9 @@ public sealed class OfficialBackendSource(HttpClient client)
         {
             var first = release == "latest" ? await LatestBuildAsync(budget.Token)
                 : await ReadAsync($"/tags/{release}", budget.Token)
-                ?? throw new BackendException("release-not-found", "Release oficial no encontrado.");
+                ?? throw new BackendException("release-not-found", Messages.BackendOfficialReleaseNotFound.ToString());
             if (release != "latest" && first.Tag != release)
-                throw new BackendException("invalid-metadata", "El release recibido no coincide con el solicitado.");
+                throw new BackendException("invalid-metadata", Messages.BackendReleaseMismatch.ToString());
             List<OfficialRelease> releases = [first];
             var result = BackendCatalog.Resolve(releases, hardware, family, release);
             if (release != "latest" || result.Selected is not null) return result;
@@ -44,18 +44,18 @@ public sealed class OfficialBackendSource(HttpClient client)
                 var tag = $"b{number - probe}";
                 var previous = await ReadAsync($"/tags/{tag}", budget.Token);
                 if (previous is null) continue; // A numeric tag need not have a published release.
-                if (previous.Tag != tag) throw new BackendException("invalid-metadata", "El release recibido no coincide con el solicitado.");
+                if (previous.Tag != tag) throw new BackendException("invalid-metadata", Messages.BackendReleaseMismatch.ToString());
                 releases.Add(previous);
                 result = BackendCatalog.Resolve(releases, hardware, family);
                 if (result.Selected is not null) return result;
             }
             if (number <= MaxBuildProbes) return result;
-            throw new BackendException("discovery-limit", $"Sin selección en {MaxBuildProbes} builds; búsqueda incompleta. Indicar un release explícito.");
+            throw new BackendException("discovery-limit", Messages.BackendNoSelectionInBuilds.Format(MaxBuildProbes));
         }
         catch (Exception e) when (e is HttpRequestException or IOException)
-        { throw new BackendException("remote-unavailable", "No se pudo consultar GitHub; no se resolvió ninguna selección."); }
+        { throw new BackendException("remote-unavailable", Messages.BackendCouldNotQueryGitHubNoSelectionResolved.ToString()); }
         catch (OperationCanceledException) when (!cancellation.IsCancellationRequested)
-        { throw new BackendException("remote-timeout", "Se agotó el tiempo de consulta; selección no resuelta."); }
+        { throw new BackendException("remote-timeout", Messages.BackendQueryTimedOutSelectionUnresolved.ToString()); }
     }
 
     private async Task<OfficialRelease> LatestBuildAsync(CancellationToken cancellation)
@@ -63,7 +63,7 @@ public sealed class OfficialBackendSource(HttpClient client)
         for (var page = 1; page <= 8; page++)
         {
             var bytes = await ReadBytesAsync($"?per_page=30&page={page}", cancellation)
-                ?? throw new BackendException("release-not-found", "Listado oficial no encontrado.");
+                ?? throw new BackendException("release-not-found", Messages.BackendOfficialListNotFound.ToString());
             try
             {
                 using var document = JsonDocument.Parse(bytes, new JsonDocumentOptions { MaxDepth = 32 });
@@ -81,12 +81,12 @@ public sealed class OfficialBackendSource(HttpClient client)
                 }
                 if (newest is not null) return newest;
                 if (document.RootElement.GetArrayLength() == 0)
-                    throw new BackendException("release-not-found", "No hay builds oficiales bNNNN publicados.");
+                    throw new BackendException("release-not-found", Messages.BackendNoOfficialBNNNNBuildsPublished.ToString());
             }
             catch (Exception e) when (e is JsonException or InvalidOperationException or KeyNotFoundException)
-            { throw new BackendException("invalid-metadata", "Listado oficial inválido."); }
+            { throw new BackendException("invalid-metadata", Messages.BackendInvalidOfficialList.ToString()); }
         }
-        throw new BackendException("discovery-limit", "Sin builds bNNNN en las páginas consultadas; búsqueda incompleta.");
+        throw new BackendException("discovery-limit", Messages.BackendNoBNNNNBuildsInQueriedPagesSearch.ToString());
     }
 
     private async Task<OfficialRelease?> ReadAsync(string endpoint, CancellationToken cancellation)
@@ -104,18 +104,18 @@ public sealed class OfficialBackendSource(HttpClient client)
         using var response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellation);
         if (response.StatusCode == HttpStatusCode.NotFound) return null;
         if (response.StatusCode is HttpStatusCode.Forbidden or HttpStatusCode.TooManyRequests)
-            throw new BackendException("remote-rate-limit", "GitHub rechazó la consulta por permisos/límite; reintente más tarde.");
+            throw new BackendException("remote-rate-limit", Messages.BackendGitHubRejectedTheQueryDueToPermissions.ToString());
         if (!response.IsSuccessStatusCode)
-            throw new BackendException("remote-status", $"GitHub devolvió HTTP {(int)response.StatusCode}; selección no resuelta.");
+            throw new BackendException("remote-status", Messages.BackendGitHubReturnedHTTPSelectionUnresolved.Format((int)response.StatusCode));
         if (response.Content.Headers.ContentLength > MaxMetadataBytes)
-            throw new BackendException("metadata-limit", "Metadatos demasiado grandes.");
+            throw new BackendException("metadata-limit", Messages.BackendMetadataTooLarge.ToString());
         await using var stream = await response.Content.ReadAsStreamAsync(cancellation);
         using var bytes = new MemoryStream();
         var buffer = new byte[16 * 1024];
         int count;
         while ((count = await stream.ReadAsync(buffer, cancellation)) != 0)
         {
-            if (bytes.Length + count > MaxMetadataBytes) throw new BackendException("metadata-limit", "Metadatos demasiado grandes.");
+            if (bytes.Length + count > MaxMetadataBytes) throw new BackendException("metadata-limit", Messages.BackendMetadataTooLarge.ToString());
             bytes.Write(buffer, 0, count);
         }
         return bytes.ToArray();
@@ -149,7 +149,7 @@ public sealed class OfficialBackendSource(HttpClient client)
             return new(tag, assets.ToArray());
         }
         catch (Exception e) when (e is JsonException or InvalidOperationException or KeyNotFoundException or FormatException or OverflowException)
-        { throw new BackendException("invalid-metadata", "Metadatos oficiales inválidos o ambiguos."); }
+        { throw new BackendException("invalid-metadata", Messages.BackendInvalidOfficialMetadata.ToString()); }
     }
 
     private static void Unique(JsonElement value)

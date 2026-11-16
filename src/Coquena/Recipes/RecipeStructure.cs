@@ -21,22 +21,22 @@ internal static partial class RecipeStructure
         // that service exists is checked when the operational target is resolved.
         if (root.Get("publish-to") is { } target) Name(target.Text!, target);
         if (root.Get("publish-to")?.Text == "self" && root.Get("service") is null)
-            throw root.Get("publish-to")!.Error("self-requires-service", "validation", "publish-to: self requiere service.");
+            throw root.Get("publish-to")!.Error("self-requires-service", "validation", Messages.RecipePublishToSelfRequiresService.ToString());
         if (root.Get("service") is { } service)
         {
-            var backend = service.Get("backend") ?? throw service.Error("backend-required", "validation", "Service requiere un backend efectivo.");
+            var backend = service.Get("backend") ?? throw service.Error("backend-required", "validation", Messages.RecipeServiceRequiresAnEffectiveBackend.ToString());
             var external = backend.Get("executable");
             var version = backend.Get("version"); var variant = backend.Get("variant");
             if (external is null ? version is null || variant is null : version is not null || variant is not null)
-                throw backend.Error("invalid-backend-selection", "validation", "Usar version y variant, o executable, excluyentes.");
+                throw backend.Error("invalid-backend-selection", "validation", Messages.RecipeVersionVariantOrExecutableExclusive.ToString());
             foreach (var child in backend.Fields.Values) Nonempty(child);
             if (backend.Get("name") is { } alias && (alias.Text!.IndexOfAny([':', '/', '\\']) >= 0 || alias.Text.Any(char.IsControl)))
-                throw alias.Error("invalid-backend-name", "validation", "El alias del backend es un componente, sin separadores.");
+                throw alias.Error("invalid-backend-name", "validation", Messages.RecipeTheBackendAliasIsAComponentWithout.ToString());
             if (service.Get("server")?.Get("health")?.Get("interval-ms") is { } interval &&
                 (BigInteger.Parse(interval.Text!, CultureInfo.InvariantCulture) < 100 || BigInteger.Parse(interval.Text!, CultureInfo.InvariantCulture) > 10000))
-                throw interval.Error("invalid-health-interval", "validation", "Interval-ms debe estar entre 100 y 10000.");
+                throw interval.Error("invalid-health-interval", "validation", Messages.RecipeHealthIntervalOutOfRange.ToString());
             if (service.Get("server")?.Get("hooks")?.Get("start-failed") is { } hook)
-                Nonempty(hook.Get("command") ?? throw hook.Error("hook-command-required", "validation", "Hook requiere command."));
+                Nonempty(hook.Get("command") ?? throw hook.Error("hook-command-required", "validation", Messages.RecipeHookRequiresCommand.ToString()));
         }
         foreach (var group in new[] { "models", "companions" })
             if (root.Get(group) is { } resources)
@@ -45,25 +45,25 @@ internal static partial class RecipeStructure
                     var repository = resource.Get("repository"); var files = resource.Get("files"); var quantization = resource.Get("quantization");
                     if (repository is not null)
                     {
-                        if (!ValidRepository(repository.Text!)) throw repository.Error("invalid-repository", "validation", "Se requiere publicador/repositorio.");
-                        if ((quantization is null) == (files is null)) throw resource.Error("invalid-resource-selection", "validation", "Repository requiere quantization o files, excluyentes.");
+                        if (!ValidRepository(repository.Text!)) throw repository.Error("invalid-repository", "validation", Messages.RecipePublisherRepositoryRequired.ToString());
+                        if ((quantization is null) == (files is null)) throw resource.Error("invalid-resource-selection", "validation", Messages.RecipeRepoQuantizationOrFilesExclusive.ToString());
                     }
                     else if (files is null || quantization is not null || resource.Get("revision") is not null)
-                        throw resource.Error("invalid-local-selection", "validation", "Recurso local requiere files y no admite revision ni quantization.");
+                        throw resource.Error("invalid-local-selection", "validation", Messages.RecipeALocalResourceRequiresFilesAndAccepts.ToString());
                     if (files is not null)
                     {
-                        if (files.Items.Count == 0) throw files.Error("empty-files", "validation", "Files requiere una lista no vacía.");
+                        if (files.Items.Count == 0) throw files.Error("empty-files", "validation", Messages.RecipeFilesRequiresANonEmptyList.ToString());
                         foreach (var file in files.Items)
                         {
                             Nonempty(file);
                             if (repository is not null && (Path.IsPathRooted(file.Text!) || Uri.TryCreate(file.Text, UriKind.Absolute, out _)))
-                                throw file.Error("mixed-resource-paths", "validation", "Files con repository requiere rutas del repositorio, no rutas locales o URLs.");
+                                throw file.Error("mixed-resource-paths", "validation", Messages.RecipeFilesWithRepoPathsOnly.ToString());
                         }
                     }
                     if (quantization is not null) Nonempty(quantization);
                     if (resource.Get("revision") is { } revision) Nonempty(revision);
                     if (group == "companions" && resource.Get("type")?.Text is not ("mmproj" or "mtp"))
-                        throw resource.Error("invalid-companion-type", "validation", "Companion requiere type mmproj o mtp.");
+                        throw resource.Error("invalid-companion-type", "validation", Messages.RecipeCompanionRequiresTypeMmprojOrMtp.ToString());
                 }
     }
 
@@ -91,16 +91,16 @@ internal static partial class RecipeStructure
         // Prior to expansion this is checked only as a string, not as a selector.
         var separator = value.Text!.IndexOf(':');
         if (separator <= 0 || separator != value.Text.LastIndexOf(':') || separator == value.Text.Length - 1 || !ValidRepository(value.Text[..separator]))
-            throw value.Error("invalid-model-shorthand", "validation", "Modelo escalar requiere publicador/repositorio:cuantización.");
+            throw value.Error("invalid-model-shorthand", "validation", Messages.RecipeScalarModelFormatInvalid.ToString());
         return (value.Text[..separator], value.Text[(separator + 1)..]);
     }
     private static bool ValidRepository(string text) => text.Split('/') is [var owner, var repo] &&
         owner.Length > 0 && repo.Length > 0 && !text.Any(c => char.IsWhiteSpace(c) || c is ':' or '\\' or '#' or '\0');
     private static void Nonempty(RecipeValue value)
-    { if (string.IsNullOrWhiteSpace(value.Text)) throw value.Error("empty-value", "validation", "Se requiere texto no vacío."); }
+    { if (string.IsNullOrWhiteSpace(value.Text)) throw value.Error("empty-value", "validation", Messages.RecipeNonEmptyTextRequired.ToString()); }
     private static void Name(string text, RecipeValue value)
     {
         if (string.IsNullOrWhiteSpace(text) || text.IndexOfAny(['\0', '\r', '\n', ':', '/', '\\']) >= 0)
-            throw value.Error("invalid-name", "structure", "Nombre inválido; se requiere un componente explícito válido.");
+            throw value.Error("invalid-name", "structure", Messages.RecipeInvalidExplicitName.ToString());
     }
 }

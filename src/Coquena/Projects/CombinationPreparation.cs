@@ -89,7 +89,7 @@ public sealed class CombinationPreparation(ScopeContext context)
         bool presetsOnly = false, string? presetKey = null)
     {
         if (!string.Equals(selection.Base, context.Base, StringComparison.OrdinalIgnoreCase))
-            throw new StorageException("preparation-base-conflict", "La selección debe pertenecer a la base del ámbito.");
+            throw new StorageException("preparation-base-conflict", Messages.ProjectSelectionMustBelongToTheScopeBase.ToString());
         var identity = CombinationIdentity.FromSelection(selection, privateSelection);
         var inputs = new Dictionary<string, byte[]>(StringComparer.OrdinalIgnoreCase);
         foreach (var path in selection.Files.Concat(selection.EnvFiles)) inputs[path] = SharedFile.ReadAllBytes(path);
@@ -105,7 +105,7 @@ public sealed class CombinationPreparation(ScopeContext context)
         {
             foreach (var path in inputs.Keys.Concat(LocalReferences(recipe, requests)))
                 if (Outside(selection.Base, path))
-                    throw new StorageException("private-reference", "Una referencia exterior requiere --private antes de publicar resoluciones.");
+                    throw new StorageException("private-reference", Messages.ProjectExternalRefRequiresPrivate.ToString());
         }
         // Concrete resource origins derived from environment values stay local too.
         if (requests.Any(r => r.SensitiveSelection || Sensitive(r.Intent))) identity = identity with { Private = true };
@@ -146,8 +146,8 @@ public sealed class CombinationPreparation(ScopeContext context)
                 : null;
             var result = await resources.PrepareAsync(request, exact?.DeepClone().AsObject(), cancellation);
             if (exact?["artifacts"] is { } expected && !JsonNode.DeepEquals(expected, result.Resolution["artifacts"]))
-                throw new StorageException("resource-content-conflict", "Los artefactos preparados no coinciden con la referencia fijada.");
-            if (result.Key != request.Key || result.Kind != request.Kind) throw new StorageException("invalid-preparation-result", "El recurso preparado no corresponde a la selección.");
+                throw new StorageException("resource-content-conflict", Messages.ProjectPreparedArtifactsDoNotMatchTheFixed.ToString());
+            if (result.Key != request.Key || result.Kind != request.Kind) throw new StorageException("invalid-preparation-result", Messages.ProjectPreparedResourceDoesNotMatchSelection.ToString());
             ProjectDocuments.Uuid(JsonValue.Create(result.ResourceId)); ProjectDocuments.Uuid(JsonValue.Create(result.InstallationId));
             prepared.Add(result);
         }
@@ -156,7 +156,7 @@ public sealed class CombinationPreparation(ScopeContext context)
         var entry = current.Documents[LocalIndex]["data"]!["combinations"]![identity.Id]!.AsObject();
         if ((entry["preparation-revision"]?.GetValue<long>() ?? 0) != version ||
             entry["attempt-id"]?.GetValue<string>() != previousEntry["attempt-id"]?.GetValue<string>())
-            throw new StorageException("scope-conflict", "Otra preparación cambió la combinación; se conserva su conjunto completo.");
+            throw new StorageException("scope-conflict", Messages.ProjectCombinationChangedPreserved.ToString());
         var docs = RecipeRegistry.Next(current);
         var nextEntry = docs[LocalIndex]["data"]!["combinations"]![identity.Id]!;
         nextEntry["preparation-revision"] = checked(version + 1);
@@ -202,7 +202,7 @@ public sealed class CombinationPreparation(ScopeContext context)
         {
             CheckInputs(inputs);
             if (!SharedFile.ReadAllBytes(context.PathFor("local/intent.key")).AsSpan().SequenceEqual(key))
-                throw new StorageException("scope-conflict", "Cambió la clave local durante la preparación.");
+                throw new StorageException("scope-conflict", Messages.ProjectLocalKeyChangedDuringPreparation.ToString());
         }));
         ScopeStore.CommitTogether(changes, fault);
         return new(identity.Id, identity.Private, checked(version + 1), prepared.AsReadOnly());
@@ -214,7 +214,7 @@ public sealed class CombinationPreparation(ScopeContext context)
         bool privateSelection = false, IReadOnlyDictionary<string, string?>? environment = null, CancellationToken cancellation = default)
     {
         if (!string.Equals(selection.Base, context.Base, StringComparison.OrdinalIgnoreCase))
-            throw new StorageException("preparation-base-conflict", "La selección debe pertenecer a la base del ámbito.");
+            throw new StorageException("preparation-base-conflict", Messages.ProjectSelectionMustBelongToTheScopeBase.ToString());
         var identity = CombinationIdentity.FromSelection(selection, privateSelection);
         var inputs = new Dictionary<string, byte[]>(StringComparer.OrdinalIgnoreCase);
         foreach (var path in selection.Files.Concat(selection.EnvFiles)) inputs[path] = SharedFile.ReadAllBytes(path);
@@ -224,7 +224,7 @@ public sealed class CombinationPreparation(ScopeContext context)
         var requests = Requests(recipe, blocks.Where(block => block.Scope == "server").ToArray());
         if (!identity.Private)
             foreach (var path in inputs.Keys.Concat(LocalReferences(recipe, requests)))
-                if (Outside(selection.Base, path)) throw new StorageException("private-reference", "Una referencia exterior requiere --private.");
+                if (Outside(selection.Base, path)) throw new StorageException("private-reference", Messages.ProjectAnExternalReferenceRequiresPrivate.ToString());
         if (requests.Any(r => r.SensitiveSelection || Sensitive(r.Intent))) identity = identity with { Private = true };
         EnsureIgnore(identity);
         var before = store.Read();
@@ -259,7 +259,7 @@ public sealed class CombinationPreparation(ScopeContext context)
                     r!["key"]!.GetValue<string>() == request.Key && r["kind"]!.GetValue<string>() == request.Kind)?.AsObject();
             var item = await resources.PrepareAsync(request, exact?.DeepClone().AsObject(), cancellation);
             if (item.Key != request.Key || item.Kind != request.Kind || exact?["artifacts"] is { } artifacts && !JsonNode.DeepEquals(artifacts, item.Resolution["artifacts"]))
-                throw new StorageException("resource-content-conflict", "El recurso no coincide con la resolución fijada.");
+                throw new StorageException("resource-content-conflict", Messages.ProjectResourceDoesNotMatchFixedResolution.ToString());
             prepared.Add(item);
         }
         cancellation.ThrowIfCancellationRequested();
@@ -269,7 +269,7 @@ public sealed class CombinationPreparation(ScopeContext context)
         var combinations = index["data"]!["combinations"]!.AsObject();
         var entry = combinations[identity.Id] as JsonObject;
         if ((entry?["service-preparation"]?["revision"]?.GetValue<long>() ?? 0) != version)
-            throw new StorageException("scope-conflict", "Otra operación cambió la preparación del servicio.");
+            throw new StorageException("scope-conflict", Messages.ProjectServicePreparationChanged.ToString());
         if (entry is null) { entry = Selection(identity); entry["private"] = identity.Private; combinations[identity.Id] = entry; }
         foreach (var item in prepared) ValidateBinding(current, item);
         var resolutions = new JsonArray(prepared.Select(item =>
@@ -283,7 +283,7 @@ public sealed class CombinationPreparation(ScopeContext context)
         {
             CheckInputs(inputs);
             if (!SharedFile.ReadAllBytes(context.PathFor("local/intent.key")).AsSpan().SequenceEqual(key))
-                throw new StorageException("scope-conflict", "Cambió la clave local durante la preparación.");
+                throw new StorageException("scope-conflict", Messages.ProjectLocalKeyChangedDuringPreparation.ToString());
         })]);
         return new(identity.Id, identity.Private, checked(version + 1), prepared.AsReadOnly(), true);
     }
@@ -327,7 +327,7 @@ public sealed class CombinationPreparation(ScopeContext context)
                     if (reference is null) continue;
                     var intent = reference.Canonical ? value : recipe.Root.Get(reference.Kind == "model" ? "models" : "companions")?.Fields
                         .SingleOrDefault(p => p.Key.Equals(reference.Name, StringComparison.OrdinalIgnoreCase)).Value
-                        ?? throw value.Error("unknown-resource", "preparation", "Referencia sin declaración.");
+                        ?? throw value.Error("unknown-resource", "preparation", Messages.ProjectReferenceWithoutDeclaration.ToString());
                     result[reference.Kind + ":" + reference.Name] = new(reference.Name, reference.Kind, intent, reference, value.Sensitive, recipe.Name);
                 }
             }
@@ -343,7 +343,7 @@ public sealed class CombinationPreparation(ScopeContext context)
             foreach (var path in paths)
             {
                 if (Path.IsPathRooted(path.Text!))
-                    throw new StorageException("private-reference", "Una ruta física absoluta requiere --private antes de publicar resoluciones.");
+                    throw new StorageException("private-reference", Messages.ProjectAbsolutePathRequiresPrivate.ToString());
                 yield return recipe.Selection.ResolvePath(path.Text!);
             }
         }
@@ -371,7 +371,7 @@ public sealed class CombinationPreparation(ScopeContext context)
         catch (IOException) when (File.Exists(path))
         {
             var bytes = SharedFile.ReadAllBytes(path);
-            if (bytes.Length != 32) throw new StorageException("invalid-intent-key", "La clave local no es válida.");
+            if (bytes.Length != 32) throw new StorageException("invalid-intent-key", Messages.ProjectLocalKeyIsInvalid.ToString());
             return bytes;
         }
     });
@@ -410,7 +410,7 @@ public sealed class CombinationPreparation(ScopeContext context)
     {
         foreach (var input in inputs)
             if (!File.Exists(input.Key) || !SharedFile.ReadAllBytes(input.Key).AsSpan().SequenceEqual(input.Value))
-                throw new StorageException("intention-conflict", "Cambió un YAML, env o schema durante la preparación.");
+                throw new StorageException("intention-conflict", Messages.ProjectAYAMLEnvOrSchemaChangedDuring.ToString());
     }
     private static JsonObject Selection(CombinationIdentity identity) => new()
     {
@@ -424,11 +424,11 @@ public sealed class CombinationPreparation(ScopeContext context)
             .SingleOrDefault(r => r!["resource-id"]!.GetValue<string>() == resource.ResourceId && r["kind"]!.GetValue<string>() == resource.Kind);
         if (found is null || found["removal-pending"]?.GetValue<bool>() == true ||
             !found["installations"]!.AsArray().Any(i => i!["installation-id"]!.GetValue<string>() == resource.InstallationId))
-            throw new StorageException("stale-resource", "La instalación preparada ya no está disponible en el inventario.");
+            throw new StorageException("stale-resource", Messages.ProjectPreparedInstallationMissing.ToString());
     }
     private static void ValidateTarget(ScopeSnapshot snapshot, string id) => _ = Service(snapshot.Documents, id);
     private static JsonNode Service(IReadOnlyDictionary<string, JsonObject> docs, string id) =>
         docs.GetValueOrDefault("local/recipes.json")?["data"]?["recipes"]?.AsArray().SelectMany(r => r!["entities"]!.AsArray())
             .SingleOrDefault(e => e!["kind"]!.GetValue<string>() == "service" && e["id"]!.GetValue<string>() == id)
-        ?? throw new StorageException("unknown-service", "El servicio destino no está registrado en ese ámbito.");
+        ?? throw new StorageException("unknown-service", Messages.ProjectTargetServiceNotRegisteredInThatScope.ToString());
 }

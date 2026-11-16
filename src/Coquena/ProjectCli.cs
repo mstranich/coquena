@@ -7,7 +7,7 @@ namespace Coquena;
 // project list|forget: the known-projects index, including folders that no longer resolve.
 public static class ProjectCli
 {
-    private const string Help = Messages.ProjectHelp;
+    private static string Help => Messages.ProjectHelp;
 
     public static int Run(string[] args, TextWriter output, TextWriter error)
     {
@@ -37,7 +37,7 @@ public static class ProjectCli
                 {
                     if (Console.IsInputRedirected) { error.WriteLine(Messages.ProjectForgetConfirmationRequired); return 3; }
                     output.Write(Messages.ProjectForgetAsk); output.Flush();
-                    if (Console.ReadLine()?.Trim().ToLowerInvariant() is not ("s" or "si" or "sí" or "y" or "yes")) return 0;
+                    if (!Messages.IsYes(Console.ReadLine())) return 0;
                 }
                 index.Forget(plan);
                 foreach (var project in plan.Projects) output.WriteLine(Messages.ProjectForgotten(project.Base));

@@ -47,7 +47,7 @@ const TABS=(k0,open)=>{let k=k0===true?0:k0===false?1:k0;const n=["● En vivo",
  // Configuración es sólo el ícono ≡, en el extremo derecho, después de los indicadores.
  const cf=cfg?"{sel| ≡ }":" {nav|≡} ";
  return [["z1",80,n.map((x,i)=>i===k?"{sel| "+x+" }":" {nav|"+x+"} ").join("")+"{pad}"+dl+nt+cf]];};
-const CT=(sel,i)=>{const t=[" Coquena"," TUI"," Sistema"];const x=t[i]??"";return x.trim()===sel?"{focb|"+fill(x,23)+"}":(x?" {nav|"+x.trim()+"}":x);};
+const CT=(sel,i)=>{const t=[" General"," TUI"," Sistema"];const x=t[i]??"";return x.trim()===sel?"{focb|"+fill(x,23)+"}":(x?" {nav|"+x.trim()+"}":x);};
 const TOPF=(t1,w,t2)=>[["hd",w-1," "+t1],["z0",1,""],["hd",80-w," "+t2]];
 const ROW=(l,w,r)=>[["z1",w-1,l],["z0",1,""],["z0",80-w,r]];
 const MIDF=t=>[["hd",80," "+t]];
@@ -188,10 +188,12 @@ TOPF("",24,"Modelos de Global  {mut|12 locales}"),
 " {btnf| Descargar }"][i]??"")),
 HW1,HW2
 ]],
-["E · ≡ Configuración › Coquena — lo mismo que coquena config",[
+["E · ≡ Configuración › General — lo mismo que coquena config",[
 TABS(2),
-TOPF("",24,"Coquena  {mut|$CoquenaHome\\config.json}"),
-...[...Array(18)].map((_,i)=>ROW(CT("Coquena",i),24,[
+TOPF("",24,"General  {mut|$CoquenaHome\\config.json}"),
+...[...Array(18)].map((_,i)=>ROW(CT("General",i),24,[
+" {mut|IDIOMA}",
+"  {btn| Automático (es-AR) }",
 " {mut|DIRECTORIOS}",
 "  Modelos     {focb| $CoquenaHome\\models      }  {mut|predet.}",
 "  Backends    {focb| $CoquenaHome\\backends    }  {mut|predet.}",

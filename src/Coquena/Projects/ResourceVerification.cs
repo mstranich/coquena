@@ -38,9 +38,9 @@ public sealed class ResourceVerification(ScopeContext context, Action<int>? afte
                         var candidate = ScopeContext.Project(Path.Combine(location, "coquena.yaml"));
                         if (new ScopeStore(candidate).Read().ScopeId == scopeId) { owner = candidate; break; }
                     }
-                if (owner is null) throw new StorageException("resource-integrity-unknown", "No se localizó el ámbito propietario de una contribución; no se inicia sin comprobar sus fallos conocidos.");
+                if (owner is null) throw new StorageException("resource-integrity-unknown", Messages.ProjectContributionOwnerNotFound.ToString());
                 source = new ScopeStore(owner).Read();
-                if (source.ScopeId != scopeId) throw new StorageException("resource-integrity-unknown", "La identidad del propietario cambió; no se inicia la composición.");
+                if (source.ScopeId != scopeId) throw new StorageException("resource-integrity-unknown", Messages.ProjectOwnerIdentityChanged.ToString());
             }
             RecipeRegistry.ValidateRuntimeBindings(source, bindings);
         }
@@ -51,8 +51,8 @@ public sealed class ResourceVerification(ScopeContext context, Action<int>? afte
         var snapshot = store.Read();
         var resource = snapshot.Documents.GetValueOrDefault("local/inventory.json")?["data"]?["resources"]?.AsArray()
             .SingleOrDefault(r => r!["resource-id"]!.GetValue<string>() == resourceId)
-            ?? throw new ArgumentException("Recurso inexistente.");
-        if (resource["ownership"]!.GetValue<string>() != "external") throw new ArgumentException("Sólo se establece baseline explícita en externos.");
+            ?? throw new ArgumentException(Messages.ProjectResourceDoesNotExist.ToString());
+        if (resource["ownership"]!.GetValue<string>() != "external") throw new ArgumentException(Messages.ProjectBaselineOnlyForExternal.ToString());
         var installation = resource["installations"]!.AsArray().Single(i => i!["installation-id"]!.GetValue<string>() == installationId)!;
         var files = installation["files"]!.DeepClone().AsArray();
         if (resource["kind"]!.GetValue<string>() == "backend") files = new JsonArray(new JsonObject { ["path"] = installation["executable"]!.DeepClone() });
@@ -62,7 +62,7 @@ public sealed class ResourceVerification(ScopeContext context, Action<int>? afte
             var path = Path.GetFullPath(file!["path"]!.GetValue<string>(), context.Base);
             var info = new FileInfo(path); stamps.Add((path, info.Length, info.LastWriteTimeUtc.Ticks));
             var result = await FileIntegrity.VerifyAsync(path, null, cancellation);
-            if (result.Observed is null) throw new StorageException("baseline-read-failed", "No se estableció la base de la unidad; referencias anteriores conservadas.");
+            if (result.Observed is null) throw new StorageException("baseline-read-failed", Messages.ProjectUnitBaselineNotSet.ToString());
             observed.Add(result.Observed);
         }
         void Validate()
@@ -71,7 +71,7 @@ public sealed class ResourceVerification(ScopeContext context, Action<int>? afte
             {
                 var info = new FileInfo(stamp.Path);
                 if (!info.Exists || info.Length != stamp.Size || info.LastWriteTimeUtc.Ticks != stamp.Date)
-                    throw new StorageException("baseline-read-failed", "La unidad cambió; referencias anteriores conservadas.");
+                    throw new StorageException("baseline-read-failed", Messages.ProjectUnitChangedPreviousReferencesPreserved.ToString());
             }
         }
         var docs = RecipeRegistry.Next(snapshot);

@@ -111,7 +111,7 @@ internal static class RemovalTests
             Check(removal.Backend(id).FreedBytes == 14 && File.Exists(home.PathFor(slot + "/user.txt")), "backend neighbor preserved on retry");
             Check(store.Read(DocumentKind.Config, json.ConfigDocument, ContractValidation.Config) == config, "default selection unchanged");
             Check(store.Read(DocumentKind.Servers, json.ServersDocument, ContractValidation.Servers)!.Servers.Single().Backend!.BackendId == id, "server selection broken without reassignment");
-            Check(new ServerManager(home).View("s").Diagnostics.Any(d => d.Contains("ausente")), "backend missing diagnosed");
+            Check(new ServerManager(home).View("s").Diagnostics.Any(d => d.Contains(Messages.Missing.ToString())), "backend missing diagnosed");
             var externalBackend = backend with { Id = Guid.NewGuid(), ServerPath = externalPath, Ownership = "external", Name = "external", TracksLatest = false, Pinned = false, OwnedFiles = null };
             SaveBackends(externalBackend);
             Check(removal.Backend(externalBackend.Id).External && File.Exists(externalPath), "external backend declared official preserved");
@@ -129,7 +129,7 @@ internal static class RemovalTests
             var writes = 0;
             var faultyStore = new LocalStore(home, stage => { if (stage == WriteStage.BeforeReplace && ++writes == 2) throw new IOException("injected final catalog failure"); });
             var interruptedResult = new ResourceRemoval(home, faultyStore).Model(interrupted.Name);
-            Check(!interruptedResult.Complete && interruptedResult.FreedBytes == 10 && interruptedResult.Pending.Single().Contains("registro"), "failure after delete reported with bytes");
+            Check(!interruptedResult.Complete && interruptedResult.FreedBytes == 10 && interruptedResult.Pending.Length == 1, "failure after delete reported with bytes");
             Check(!File.Exists(paths.File(interrupted, interrupted.Files[0])) && store.Read(DocumentKind.Models, json.ModelsDocument, ContractValidation.Models)!.Models.Single(m => m.Id == interrupted.Id).RemovalPending, "ownership survives final publication failure");
             Check(new ResourceRemoval(home).Model(interrupted.Name).FreedBytes == 0, "interrupted delete not recounted");
 

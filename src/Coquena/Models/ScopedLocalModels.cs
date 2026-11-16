@@ -200,7 +200,7 @@ public sealed partial class ScopedModels
         if (!reference.Canonical)
         {
             var intent = ModelIntent.FromRecipe(recipe).SingleOrDefault(i => i.Kind == reference.Kind && i.Key.Equals(reference.Name, StringComparison.OrdinalIgnoreCase))
-                ?? throw new ModelSourceException("unknown-resource-reference", "La referencia no existe en la receta.");
+                ?? throw new ModelSourceException("unknown-resource-reference", Messages.ModelReferenceDoesNotExistInTheRecipe.ToString());
             if (intent.Request is null) { cancellation.ThrowIfCancellationRequested(); return PrepareLocal(intent, recipe.Selection.Base, allowNewRevision: true); }
             return await PrepareAsync(intent, source, transport, interaction, inspector, cancellation);
         }
@@ -225,7 +225,7 @@ public sealed partial class ScopedModels
         var paths = ExternalPaths(installation);
         ModelRequest request;
         try { request = ModelRequest.Parse(resource["logical-key"]!.GetValue<string>()); }
-        catch (ModelSourceException) { interaction.Show("Registro local sin repositorio declarado; se conserva sin emparejamiento."); return; }
+        catch (ModelSourceException) { interaction.Show(Messages.ModelLocalRecordWithoutRepo.ToString()); return; }
         var record = new ModelRecord(Guid.Parse(prepared.ResourceId), resource["logical-key"]!.GetValue<string>(), null,
             paths.Select((p, i) => new InstalledFile("", p, installation["files"]![i]!["size"]!.GetValue<long>())).ToArray(), [],
             Ownership: "external", CompanionType: request.CompanionType);

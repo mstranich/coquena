@@ -14,7 +14,7 @@ public static class ObservationCli
         {
             var ps = Array.IndexOf(args, "ps");
             if (ps < 0 || args.Count(a => a == "ps") != 1 || args.Count(a => a is "-w" or "--watch") > 1)
-                throw new ArgumentException("Usar ps [-w|--watch] con una selección de servicio válida.");
+                throw new ArgumentException(Messages.PsUsage);
             var watch = args.Any(a => a is "-w" or "--watch");
             var options = args.Where((a, i) => i != ps && a is not ("-w" or "--watch")).ToArray();
             // Use the same selector and recipe rules as service logs, without
@@ -40,11 +40,11 @@ public static class ObservationCli
                     }
                 }
                 catch (OperationCanceledException) when (cancellation.IsCancellationRequested) { throw; }
-                catch (Exception e) when (ServiceObservation.ObservationError(e)) { error.WriteLine("Hardware no disponible: " + e.Message); }
+                catch (Exception e) when (ServiceObservation.ObservationError(e)) { error.WriteLine(Messages.HardwareUnavailable.Format(e.Message)); }
                 if (!OperatingSystem.IsWindows())
                 {
                     if (watch) return WatchAsync([], output, cancellation.Token).GetAwaiter().GetResult();
-                    output.WriteLine("Servicios: identidad persistida sólo soportada en Windows; no se consultan PID/API desde Linux.");
+                    output.WriteLine(Messages.PsLinuxServices);
                     return 0;
                 }
                 var home = Home.Resolve(); var targets = new List<(ScopeStore Store, ServiceIdentity Service, RecipeSelection? Selection)>();
@@ -64,14 +64,14 @@ public static class ObservationCli
                 {
                     var snapshot = new ServiceObservation(target.Store).CaptureAsync(target.Service, target.Selection, cancellation.Token).GetAwaiter().GetResult();
                     shown = true;
-                    output.WriteLine($"Servicio {snapshot.Name}{(snapshot.IsDefault ? " (default)" : "")} | {snapshot.ProcessState} | {snapshot.Health}");
+                    output.WriteLine(Messages.DisplayService.Format(snapshot.Name, (snapshot.IsDefault ? " (default)" : ""), snapshot.ProcessState, snapshot.Health));
                     var metrics = snapshot.Metrics.Where(m => m.Value is not null && m.Name is "cpu.utilization" or "ram.private-commit").Select(CompactSample).ToArray();
                     if (metrics.Length != 0) output.WriteLine("  " + string.Join(" | ", metrics));
                     foreach (var entry in snapshot.Entries)
-                        output.WriteLine($"  {entry.Name} | {entry.State switch { "loaded" => "cargado", "unloaded" => "publicado, sin cargar", _ => entry.State }}");
-                    if (snapshot.Entries.Count == 0 && snapshot.ApiState == "available") output.WriteLine("  Sin presets publicados.");
+                        output.WriteLine($"  {entry.Name} | {Messages.PresetState(entry.State)}");
+                    if (snapshot.Entries.Count == 0 && snapshot.ApiState == "available") output.WriteLine(Messages.PsNoPresets);
                 }
-                if (!shown) output.WriteLine("Sin servicios conocidos en la selección.");
+                if (!shown) output.WriteLine(Messages.PsNoServices);
                 void RefreshTargets()
                 {
                     targets.Clear(); discovered.Clear();
@@ -81,7 +81,7 @@ public static class ObservationCli
                         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
                         var locations = new List<string>();
                         try { locations.AddRange(new ProjectIndex(home).Locations()); }
-                        catch (Exception e) when (ServiceObservation.ObservationError(e)) { error.WriteLine("Índice de proyectos: " + e.Message); }
+                        catch (Exception e) when (ServiceObservation.ObservationError(e)) { error.WriteLine(Messages.PsProjectIndex.Format(e.Message)); }
                         locations.Add(Environment.CurrentDirectory);
                         foreach (var location in locations)
                         {
@@ -91,7 +91,7 @@ public static class ObservationCli
                                 if (!seen.Add(Path.GetFullPath(location)) || !Directory.Exists(Path.Combine(location, ".coquena"))) continue;
                                 Discover(new ScopeStore(ScopeContext.Project(Path.Combine(location, "coquena.yaml"))));
                             }
-                            catch (Exception e) when (ServiceObservation.ObservationError(e)) { error.WriteLine($"Proyecto {location}: {e.Message}"); }
+                            catch (Exception e) when (ServiceObservation.ObservationError(e)) { error.WriteLine(Messages.DisplayProject.Format(location, e.Message)); }
                         }
                     }
                 }
@@ -104,14 +104,14 @@ public static class ObservationCli
                         if (!discovered.Add(store.Context.PhysicalBase)) return;
                         foreach (var service in new RecipeRegistry(store).Services()) targets.Add((store, service, null));
                     }
-                    catch (Exception e) when (ServiceObservation.ObservationError(e)) { error.WriteLine($"Ámbito {store.Context.Base}: {e.Message}"); }
+                    catch (Exception e) when (ServiceObservation.ObservationError(e)) { error.WriteLine(Messages.PsScopeError.Format(store.Context.Base, e.Message)); }
                 }
                 return 0;
             }
             finally { Console.CancelKeyPress -= handler; }
         }
         catch (OperationCanceledException) { return 130; }
-        catch (Exception e) when (ServiceObservation.ObservationError(e)) { error.WriteLine("Error: " + e.Message + " Ver coquena --help."); return 2; }
+        catch (Exception e) when (ServiceObservation.ObservationError(e)) { error.WriteLine(Messages.ErrorSeeHelp.Format(e.Message)); return 2; }
     }
 
     public static async Task<int> WatchAsync(
@@ -140,7 +140,7 @@ public static class ObservationCli
                 if (discover is not null && discoveryClock.Elapsed >= TimeSpan.FromSeconds(5))
                 { Add(discover()); discoveryClock.Restart(); }
                 using var frame = new StringWriter(CultureInfo.InvariantCulture);
-                frame.WriteLine($"{Messages.ObservationFrame} | Ctrl+C: cerrar observador | {DateTimeOffset.UtcNow:O}");
+                frame.WriteLine(Messages.DisplayCtrlCCloseObserverO.Format(Messages.ObservationFrame, DateTimeOffset.UtcNow));
                 lock (sync)
                 {
                     if (hardware is not null)
@@ -148,28 +148,28 @@ public static class ObservationCli
                         if (interactive) WriteCompactHardware(hardware, frame);
                         else WriteHardware(hardware, frame);
                     }
-                    else frame.WriteLine("Hardware: " + (hardwareError ?? "esperando muestra"));
+                    else frame.WriteLine("Hardware: " + (hardwareError ?? Messages.DisplayWaitingForSample.ToString()));
                     foreach (var sample in latest.Values)
                     {
-                        if (sample is null) { frame.WriteLine("Servicio: esperando muestra"); continue; }
+                        if (sample is null) { frame.WriteLine(Messages.DisplayServiceWaitingForSample.ToString()); continue; }
                         if (interactive && sample.Snapshot is { } snapshot)
                         {
-                            frame.WriteLine($"{snapshot.Name} | {snapshot.CompletedAt:HH:mm:ss} | proceso {snapshot.ProcessState} | API {snapshot.ApiState} | salud {snapshot.Health}");
-                            frame.WriteLine($"  Instancia {snapshot.InstanceId ?? "ninguna"}");
-                            frame.WriteLine("  Eventos: " + sample.Events);
+                            frame.WriteLine(Messages.DisplayHHMmSsProcessAPIHealth.Format(snapshot.Name, snapshot.CompletedAt, snapshot.ProcessState, snapshot.ApiState, snapshot.Health));
+                            frame.WriteLine(Messages.PsInstance.Format(snapshot.InstanceId ?? Messages.NoneFeminine));
+                            frame.WriteLine(Messages.OutputEventsLine.Format(sample.Events));
                             frame.WriteLine("  " + string.Join("; ", snapshot.Metrics.Where(m => m.Name is "cpu.utilization" or "ram.private-commit").Select(CompactSample)));
                             foreach (var entry in snapshot.Entries)
-                                frame.WriteLine($"  {entry.Name}: {entry.State} | catálogo {entry.ObservedAt:HH:mm:ss} | " + string.Join("; ", entry.Metrics.Where(m => m.Unit.Contains("tokens/s")).Select(CompactSample)));
+                                frame.WriteLine(Messages.PsWatchEntry.Format(entry.Name, entry.State, entry.ObservedAt.ToString("HH:mm:ss")) + string.Join("; ", entry.Metrics.Where(m => m.Unit.Contains("tokens/s")).Select(CompactSample)));
                         }
                         else
                         {
-                            frame.WriteLine("Eventos: " + sample.Events);
+                            frame.WriteLine(Messages.OutputEventsIndentedLine.Format(sample.Events));
                             if (sample.Snapshot is not null) WriteService(sample.Snapshot, frame);
                         }
                         if (sample.Transition is not null) frame.WriteLine(sample.Transition);
                     }
                 }
-                if (latest.Count == 0) frame.WriteLine("Sin servicios conocidos en la selección.");
+                if (latest.Count == 0) frame.WriteLine(Messages.PsNoServices);
                 if (interactive)
                 {
                     output.Write("\u001b[H\u001b[2J");
@@ -222,7 +222,7 @@ public static class ObservationCli
                 }
                 catch (OperationCanceledException) when (stop.IsCancellationRequested) { return; }
                 catch (Exception e) when (ServiceObservation.ObservationError(e))
-                { lock (sync) { hardware = null; hardwareError = "no disponible: " + e.GetType().Name; } }
+                { lock (sync) { hardware = null; hardwareError = Messages.UnavailableReason.Format(e.GetType().Name); } }
                 await Task.Delay(TimeSpan.FromSeconds(2), stop.Token);
             }
         }
@@ -236,7 +236,7 @@ public static class ObservationCli
     }
     private static void WriteCompactHardware(HardwareSnapshot hardware, TextWriter output)
     {
-        output.WriteLine($"Hardware {hardware.Environment} | {hardware.CompletedAt:HH:mm:ss} | alcance máquina");
+        output.WriteLine(Messages.PsHardware.Format(hardware.Environment, hardware.CompletedAt.ToString("HH:mm:ss")));
         output.WriteLine("  " + string.Join("; ", hardware.Samples.Where(m => m.Value is not null).Select(CompactSample)));
         foreach (var device in hardware.Devices.Where(d => d.Samples.Any(m => m.Value > 0)))
             output.WriteLine($"  GPU {device.Name}: " + string.Join("; ", device.Samples.Where(m => m.Value is not null).Select(CompactSample)));
@@ -244,42 +244,42 @@ public static class ObservationCli
 
     public static void WriteHardware(HardwareSnapshot snapshot, TextWriter output)
     {
-        output.WriteLine($"Hardware | {snapshot.Environment} | {snapshot.StartedAt:O} — {snapshot.CompletedAt:O}");
+        output.WriteLine(Messages.DisplayHardwareOO.Format(snapshot.Environment, snapshot.StartedAt, snapshot.CompletedAt));
         foreach (var sample in snapshot.Samples) WriteSample(sample, output);
         foreach (var device in snapshot.Devices)
         {
-            output.WriteLine($"GPU {device.Name} | {device.Id} | compartida por la máquina");
+            output.WriteLine(Messages.PsGpu.Format(device.Name, device.Id));
             foreach (var sample in device.Samples) WriteSample(sample, output);
         }
-        foreach (var diagnostic in snapshot.Diagnostics) output.WriteLine("  Diagnóstico: " + diagnostic);
+        foreach (var diagnostic in snapshot.Diagnostics) output.WriteLine(Messages.DiagnosticIndented.Format(diagnostic));
     }
     public static void WriteService(ServiceSnapshot snapshot, TextWriter output)
     {
-        output.WriteLine($"Servicio {snapshot.Name}{(snapshot.IsDefault ? " (default)" : "")} | {snapshot.ServiceId} | {snapshot.Scope} | instancia {snapshot.InstanceId ?? "ninguna"}");
-        output.WriteLine($"  {snapshot.StartedAt:O} — {snapshot.CompletedAt:O} | proceso {snapshot.ProcessState} | API {snapshot.ApiState} | salud {snapshot.Health}");
-        output.WriteLine($"  Intención: {snapshot.IntentComparison}; recuperación: {snapshot.Recovery}; composición confirmada en API: {snapshot.CompositionCurrent}");
+        output.WriteLine(Messages.PsService.Format(snapshot.Name + (snapshot.IsDefault ? " (default)" : ""), snapshot.ServiceId, snapshot.Scope, snapshot.InstanceId ?? Messages.NoneFeminine));
+        output.WriteLine(Messages.DisplayOOProcessAPIHealth.Format(snapshot.StartedAt, snapshot.CompletedAt, snapshot.ProcessState, snapshot.ApiState, snapshot.Health));
+        output.WriteLine(Messages.PsIntention.Format(snapshot.IntentComparison, snapshot.Recovery, snapshot.CompositionCurrent));
         if (snapshot.CurrentIntention is { } intention)
-            output.WriteLine("  Presets en intención actual de la receta: " + string.Join(", ", (intention["presets"] as System.Text.Json.Nodes.JsonObject ?? []).Select(p => p.Key)));
+            output.WriteLine(Messages.PsIntentPresets.Format(string.Join(", ", (intention["presets"] as System.Text.Json.Nodes.JsonObject ?? []).Select(p => p.Key))));
         if (snapshot.ActiveComposition is { } active)
         {
-            output.WriteLine($"  Composición registrada de ejecución: {active["combination"]}; borrador: {active["draft"]}");
+            output.WriteLine(Messages.PsActiveComposition.Format(active["combination"], active["draft"]));
             var names = (active["preset-composition"] as System.Text.Json.Nodes.JsonArray ?? [])
                 .SelectMany(c => c!["presets"]!.AsArray()).Select(p => p!["name"]!.GetValue<string>());
-            output.WriteLine("  Entradas registradas: " + string.Join(", ", names));
+            output.WriteLine(Messages.DisplayRegisteredEntriesList.Format(string.Join(", ", names)));
         }
         foreach (var sample in snapshot.Metrics) WriteSample(sample, output);
         foreach (var entry in snapshot.Entries)
         {
-            output.WriteLine($"  Entrada {entry.Name}: {entry.State} | {entry.ObservedAt:O} | {entry.Diagnostic}");
+            output.WriteLine(Messages.DisplayEntryO.Format(entry.Name, entry.State, entry.ObservedAt, entry.Diagnostic));
             foreach (var sample in entry.Metrics) WriteSample(sample, output);
         }
-        foreach (var diagnostic in snapshot.Diagnostics) output.WriteLine("  Diagnóstico: " + diagnostic);
+        foreach (var diagnostic in snapshot.Diagnostics) output.WriteLine(Messages.DiagnosticIndented.Format(diagnostic));
     }
     private static void WriteSample(MetricSample sample, TextWriter output)
     {
-        var value = sample.Value is not double number ? "no disponible: " + sample.UnavailableReason :
+        var value = sample.Value is not double number ? Messages.UnavailableReason.Format(sample.UnavailableReason) :
             sample.Unit == "bytes" && number <= long.MaxValue ? ByteSize.Format((long)number) : number.ToString("0.##", CultureInfo.InvariantCulture) + " " + sample.Unit;
-        output.WriteLine($"  {sample.Name}: {value} | fuente {sample.Source} | alcance {sample.Scope} | {sample.ObservedAt:O}" +
-            (sample.Window is { } window ? $" | ventana {window.TotalMilliseconds:0} ms" : " | ventana no informada/puntual"));
+        output.WriteLine(Messages.PsSample.Format(sample.Name, value, sample.Source, sample.Scope, sample.ObservedAt.ToString("O")) +
+            (sample.Window is { } window ? Messages.PsSampleWindow.Format(window.TotalMilliseconds.ToString("0", CultureInfo.InvariantCulture)) : Messages.PsSampleNoWindow));
     }
 }

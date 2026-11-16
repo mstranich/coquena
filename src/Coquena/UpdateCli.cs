@@ -25,7 +25,7 @@ public static class UpdateCli
                 RecipeException r => Messages.Error(r.Code, r.Message), StorageException s => Messages.Error(s.Code, s.Message),
                 ModelSourceException m => Messages.Error(m.Code, m.Message), BackendException b => Messages.Error(b.Code, b.Message),
                 DownloadException d => Messages.Error(d.Code, d.Message), ContractException c => Messages.Error(c.Code, c.Message),
-                OperationCanceledException => Messages.Error("cancelled", "Se canceló"), _ => Messages.Error("update-failed", e.Message)
+                OperationCanceledException => Messages.Error("cancelled", Messages.Cancelled), _ => Messages.Error("update-failed", e.Message)
             });
             return e is OperationCanceledException ? 130 : 2;
         }
@@ -43,7 +43,7 @@ public static class UpdateCli
         var files = new List<string>(); var env = new List<string>(); var selectors = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         string? directory = null; var seen = new HashSet<string>(); var global = false; var json = false;
         if (args.Any(a => a is "--help" or "-h"))
-        { output.WriteLine($"{(upgrade ? "upgrade" : "update")} [-f archivo]... [--env-file archivo]... [--project-directory ruta] [--select referencia]... [--json]\n{(upgrade ? "upgrade" : "update")} --global [--select referencia]... [--json]\nReferencias: backend://variante, backend://alias, backend://proyecto/alias, model://clave, companion://clave"); return 0; }
+        { output.WriteLine(Messages.DisplayUpUsage.Format((upgrade ? "upgrade" : "update"), (upgrade ? "upgrade" : "update"))); return 0; }
         for (var i = 0; i < args.Length; i++)
         {
             var arg = args[i] switch { "-f" => "--file", "--base" => "--project-directory", "-g" => "--global", _ => args[i] };

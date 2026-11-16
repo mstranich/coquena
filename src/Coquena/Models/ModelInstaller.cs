@@ -28,7 +28,7 @@ public sealed partial class ModelInstaller(Home home, LocalStore? storage = null
         Json.OperationDocument, ContractValidation.Operation, _ => value, operation: value.Id);
     private OperationDocument SaveLocked(OperationDocument value) => store.UpdateLocked(DocumentKind.Operation,
         Json.OperationDocument, ContractValidation.Operation, _ => value, operation: value.Id);
-    private static void Fail(string code) => throw new DownloadException(code, "Modelo no confirmado; no se sobrescriben archivos ni registros.");
+    private static void Fail(string code) => throw new DownloadException(code, Messages.ModelUnconfirmedNothingOverwritten.ToString());
 
     public ModelRecord? ExternalTransition(string name) => Catalog().Models.SingleOrDefault(m =>
         m.Ownership == "external" && m.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
@@ -90,7 +90,7 @@ public sealed partial class ModelInstaller(Home home, LocalStore? storage = null
             }
             CheckSpace(operation);
             return store.UpdateLocked(DocumentKind.Operation, Json.OperationDocument, ContractValidation.Operation,
-                old => old is null ? operation : throw new DownloadException("already-exists", "GUID ocupado."), operation: id);
+                old => old is null ? operation : throw new DownloadException("already-exists", Messages.ModelGUIDBusy.ToString()), operation: id);
         });
     }
 
@@ -179,7 +179,7 @@ public sealed partial class ModelInstaller(Home home, LocalStore? storage = null
                 }
                 catch (Exception e) when (e is IOException or UnauthorizedAccessException) { return false; }
             }).Any(x => x);
-            return new LocalModel(record, availability, changed, unit.Diagnostics.Concat(unit.Missing.Select(p => "Archivo ausente: " + p)).ToArray());
+            return new LocalModel(record, availability, changed, unit.Diagnostics.Concat(unit.Missing.Select(p => Messages.ModelMissingFile.Format(p))).ToArray());
         }).ToArray();
     }
 
@@ -438,7 +438,7 @@ public sealed partial class ModelInstaller(Home home, LocalStore? storage = null
         catch (Exception e) when (e is IOException or UnauthorizedAccessException or StorageException or DownloadException)
         {
             Save(operation with { State = "completed", Phase = "cleanup", Diagnostic = "cleanup-pending" });
-            throw new DownloadException("cleanup-pending", "Modelo publicado; limpieza pendiente; reanudar la operación.");
+            throw new DownloadException("cleanup-pending", Messages.ModelPublishedCleanupPending.ToString());
         }
     }
 }

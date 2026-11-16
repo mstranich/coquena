@@ -47,26 +47,27 @@ internal static partial class DashboardCli
         return rows.ToArray();
     }
 
-    internal static DefinitionsPresentation.Page PresetsPage(string scope, IReadOnlyList<PresetRow> presets, string? selected, int width, string combination = "Combinación")
+    internal static DefinitionsPresentation.Page PresetsPage(string scope, IReadOnlyList<PresetRow> presets, string? selected, int width, string? combination = null)
     {
-        var rows = new List<string> { " " + Markup.Style("mut", "PRESET                 MODELO              EN VIVO") };
+        combination ??= Messages.AuthoringCombinationDefault;
+        var rows = new List<string> { " " + Markup.Style("mut", Messages.AuthoringPresetTableHeader.ToString()) };
         var chosen = presets.FirstOrDefault(item => item.Id == selected) ?? presets.FirstOrDefault();
         var position = chosen is null ? 0 : presets.ToList().IndexOf(chosen);
         foreach (var item in presets.Skip(position / 4 * 4).Take(4))
             rows.Add(" " + Markup.Style(item.Id == chosen?.Id ? "sel" : "nav", DashboardPresentation.Fit(item.Name, 21).PadRight(22), "preset:" + item.Id) +
                 Markup.Escape(DashboardPresentation.Fit(item.Value.Get("args")?.Get("model")?.Redacted()?.ToString() ?? "—", 18).PadRight(19)) +
-                Markup.Style(item.State == "loaded" ? "ok" : "mut", item.State ?? "sin señal"));
-        if (presets.Count == 0) rows.Add(" " + Markup.Style("mut", "Sin presets en la selección."));
+                Markup.Style(item.State == "loaded" ? "ok" : "mut", item.State ?? Messages.AuthoringPresetNoSignal.ToString()));
+        if (presets.Count == 0) rows.Add(" " + Markup.Style("mut", Messages.AuthoringNoPresetsInSelection.ToString()));
         if (presets.Count > 4) rows.Add(" " + ManagementPresentation.Button("◂", "preset-prev") + " " + ManagementPresentation.Button("▸", "preset-next"));
         if (chosen is not null)
         {
             var layers = chosen.Recipe.Selection;
             var legend = DashboardPresentation.Fit(LayerLegend(layers), Math.Max(1, 52 - Math.Min(21, chosen.Name.Length)));
-            rows.Add(""); rows.Add(" " + Markup.Style("hi", DashboardPresentation.Fit(chosen.Name, 21)) + " " + Markup.Style("mut", "capas ") + Markup.Escape(legend));
+            rows.Add(""); rows.Add(" " + Markup.Style("hi", DashboardPresentation.Fit(chosen.Name, 21)) + " " + Markup.Style("mut", Messages.AuthoringLayersLabel.ToString()) + Markup.Escape(legend));
             var args = chosen.Value.Get("args");
             foreach (var argument in args?.Fields.Where(pair => pair.Key == "model" || pair.Value.Text?.StartsWith("companion://", StringComparison.Ordinal) == true) ?? [])
                 rows.Add(" " + Markup.Style("mut", argument.Key + " ") + Markup.Style("mut", LayerMark(layers, argument.Value.Origin.File) + " ") + Markup.Style("nav", argument.Value.Redacted()?.ToString() ?? "—", "preset-resource:" + Convert.ToHexString(System.Text.Encoding.UTF8.GetBytes(argument.Key))));
-            rows.Add(" " + Markup.Style("mut", "ARGUMENTO       PUBLICADO          RECETA          CAPA"));
+            rows.Add(" " + Markup.Style("mut", Messages.AuthoringPresetArgsHeader.ToString()));
             var published = PublishedValues(chosen.Published?["ini"]?.GetValue<string>());
             var schema = ArgumentSchema.Load(chosen.Recipe);
             foreach (var pair in args?.Fields.Where(pair => pair.Key != "model").Take(4) ?? [])
@@ -76,11 +77,11 @@ internal static partial class DashboardCli
                 rows.Add(" " + Markup.Escape(DashboardPresentation.Fit(pair.Key, 14).PadRight(15) + DashboardPresentation.Fit(prior, 18).PadRight(19) +
                     DashboardPresentation.Fit(pair.Value.Redacted()?.ToString() ?? "null", 15).PadRight(16) + LayerMark(layers, pair.Value.Origin.File)));
             }
-            rows.Add(" " + Markup.Style("mut", "Publicado: snapshot registrado; — sin evidencia."));
-            rows.Add(" " + ManagementPresentation.Button("Clonar…", "preset-clone") + " " + ManagementPresentation.Button("Editar YAML", "preset-edit") + " " + ManagementPresentation.Button("Eliminar", "preset-remove"));
-            rows.Add(" " + (chosen.Target is null ? DefinitionsPresentation.Off("Ver en vivo") : ManagementPresentation.Button("Ver en vivo", "preset-live")) + " " + ManagementPresentation.Button("Detalle…", "preset-detail"));
+            rows.Add(" " + Markup.Style("mut", Messages.AuthoringPublishedSnapshotNote.ToString()));
+            rows.Add(" " + ManagementPresentation.Button(Messages.LabelsClone.ToString(), "preset-clone") + " " + ManagementPresentation.Button(Messages.AuthoringEditYamlButton.ToString(), "preset-edit") + " " + ManagementPresentation.Button(Messages.LabelsRemove.ToString(), "preset-remove"));
+            rows.Add(" " + (chosen.Target is null ? DefinitionsPresentation.Off(Messages.AuthoringViewLiveButton.ToString()) : ManagementPresentation.Button(Messages.AuthoringViewLiveButton.ToString(), "preset-live")) + " " + ManagementPresentation.Button(Messages.LabelsDetails.ToString(), "preset-detail"));
         }
-        return new("Presets de " + Markup.Escape(scope) + "{pad}" + ManagementPresentation.CombinationButton(combination), rows);
+        return new(Messages.PresetsInScope.Format(Markup.Escape(scope)) + "{pad}" + ManagementPresentation.CombinationButton(combination), rows);
     }
 
     internal static Dictionary<string, string> PublishedValues(string? ini) => (ini ?? "").Split('\n')
@@ -99,7 +100,7 @@ internal static partial class DashboardCli
         {
             var recipe = recipes[index]; var schema = schemas[index];
             var blocks = (recipe.Root.Get("presets")?.Fields ?? new Dictionary<string, RecipeValue>()).Select(preset => (Name: recipe.Name + "/" + preset.Key, Args: preset.Value.Get("args"))).ToList();
-            blocks.Add((recipe.Name + "/servicio", recipe.Root.Get("service")?.Get("server")?.Get("args")));
+            blocks.Add((Messages.AuthoringRecipeServiceScope.Format(recipe.Name), recipe.Root.Get("service")?.Get("server")?.Get("args")));
             foreach (var block in blocks)
                 foreach (var key in block.Args?.Fields.Keys ?? [])
                 {
@@ -117,35 +118,36 @@ internal static partial class DashboardCli
         static string Id(string name, RecipeValue value) => Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(value.Origin.File + "\n" + name)));
     }
 
-    internal static DefinitionsPresentation.Page ParametersPage(string scope, IReadOnlyList<DefinitionRow> definitions, string? selected, string filter, string combination = "Combinación", RecipeSelection? layers = null)
+    internal static DefinitionsPresentation.Page ParametersPage(string scope, IReadOnlyList<DefinitionRow> definitions, string? selected, string filter, string? combination = null, RecipeSelection? layers = null)
     {
-        var rows = new List<string> { " " + ManagementPresentation.Button("filtro: " + (filter.Length == 0 ? "todos" : filter), "param-filter") + " " + Markup.Style("mut", definitions.Count + " parámetros"),
-            " " + Markup.Style("mut", "PARÁMETRO          TIPO      ÁMBITO     PREDET.  " + (layers is null ? "" : "CAPA")) };
+        combination ??= Messages.AuthoringCombinationDefault;
+        var rows = new List<string> { " " + ManagementPresentation.Button(Messages.DashboardFilterValue.Format(filter.Length == 0 ? Messages.LabelsAll.ToString() : filter), "param-filter") + " " + Markup.Style("mut", Messages.AuthoringParameterCount.Format(definitions.Count)),
+            " " + Markup.Style("mut", Messages.AuthoringParameterTableHeader.ToString() + (layers is null ? "" : Messages.LabelsLAYER.ToString())) };
         var chosen = definitions.FirstOrDefault(row => row.Id == selected) ?? definitions.FirstOrDefault();
         var index = chosen is null ? 0 : definitions.ToList().IndexOf(chosen);
         foreach (var item in definitions.Skip(index / 4 * 4).Take(4))
             rows.Add(" " + Markup.Style(item.Id == chosen?.Id ? "sel" : "nav", DashboardPresentation.Fit(item.Name, 18).PadRight(19), "param:" + item.Id) + Markup.Escape(
                 DashboardPresentation.Fit(item.Value.Get("type")?.Text ?? "any-of", 9).PadRight(10) +
-                DashboardPresentation.Fit(item.Value.Get("scope")?.Text ?? "ambos", 10).PadRight(11) + DashboardPresentation.Fit(item.Value.Get("default")?.Redacted()?.ToString() ?? "—", 8).PadRight(9) + (layers is null ? "" : LayerMark(layers, item.Value.Origin.File))));
+                DashboardPresentation.Fit(item.Value.Get("scope")?.Text ?? Messages.LabelsBoth.ToString(), 10).PadRight(11) + DashboardPresentation.Fit(item.Value.Get("default")?.Redacted()?.ToString() ?? "—", 8).PadRight(9) + (layers is null ? "" : LayerMark(layers, item.Value.Origin.File))));
         if (definitions.Count > 4) rows.Add(" " + ManagementPresentation.Button("◂", "param-prev") + " " + ManagementPresentation.Button("▸", "param-next"));
-        if (chosen is null) rows.Add(" " + Markup.Style("mut", "Sin definiciones efectivas para este filtro."));
+        if (chosen is null) rows.Add(" " + Markup.Style("mut", Messages.AuthoringNoDefinitionsForFilter.ToString()));
         else
         {
             // Detail rows are clipped here so the canvas never cuts them without an ellipsis.
             const int detail = 54;
             var name = DashboardPresentation.Fit(chosen.Name, detail);
             rows.Add(""); rows.Add(" " + Markup.Style("hi", name) + " " + Markup.Style("mut", DashboardPresentation.Fit(chosen.Value.Get("aliases")?.Items is { Count: > 0 } aliases ?
-                "alias " + string.Join(", ", aliases.Select(item => item.Redacted()?.ToString())) : "sin alias", Math.Max(0, detail - name.Length - 1))));
-            rows.Add(" " + Markup.Escape(DashboardPresentation.Fit(chosen.Value.Get("description")?.Redacted()?.ToString() ?? "Sin descripción.", detail)));
-            rows.Add(" " + Markup.Style("mut", "origen ") + Markup.Escape(DashboardPresentation.Fit((layers is null ? "" : LayerMark(layers, chosen.Value.Origin.File) + " ") + Path.GetFileName(chosen.Value.Origin.File), detail - 7)));
-            var uses = chosen.Uses.Length == 0 ? "sin asignaciones en la selección" : chosen.Uses.Length + ": " + string.Join(", ", chosen.Uses);
-            rows.Add(" " + Markup.Style("mut", "usado por ") + Markup.Escape(DashboardPresentation.Fit(uses, detail - 10)));
+                "alias " + string.Join(", ", aliases.Select(item => item.Redacted()?.ToString())) : Messages.AuthoringNoAlias.ToString(), Math.Max(0, detail - name.Length - 1))));
+            rows.Add(" " + Markup.Escape(DashboardPresentation.Fit(chosen.Value.Get("description")?.Redacted()?.ToString() ?? Messages.AuthoringNoDescription.ToString(), detail)));
+            rows.Add(" " + Markup.Style("mut", Messages.AuthoringSourceLabel.ToString()) + Markup.Escape(DashboardPresentation.Fit((layers is null ? "" : LayerMark(layers, chosen.Value.Origin.File) + " ") + Path.GetFileName(chosen.Value.Origin.File), detail - 7)));
+            var uses = chosen.Uses.Length == 0 ? Messages.AuthoringNoAssignmentsInSelection.ToString() : chosen.Uses.Length + ": " + string.Join(", ", chosen.Uses);
+            rows.Add(" " + Markup.Style("mut", Messages.AuthoringUsedByLabel.ToString()) + Markup.Escape(DashboardPresentation.Fit(uses, detail - 10)));
         }
-        rows.Add(" " + ManagementPresentation.Button("Definir…", "param-define") + " " +
-            (chosen is null ? DefinitionsPresentation.Off("Editar") : ManagementPresentation.Button("Editar", "param-edit")) + " " +
-            (chosen is null ? DefinitionsPresentation.Off("Quitar definición") : ManagementPresentation.Button("Quitar definición", "param-remove")));
-        if (chosen is not null) rows.Add(" " + ManagementPresentation.Button("Detalle…", "param-detail"));
-        return new("Parámetros de " + Markup.Escape(scope) + "{pad}" + ManagementPresentation.CombinationButton(combination), rows);
+        rows.Add(" " + ManagementPresentation.Button(Messages.LabelsDefine.ToString(), "param-define") + " " +
+            (chosen is null ? DefinitionsPresentation.Off(Messages.LabelsEdit.ToString()) : ManagementPresentation.Button(Messages.LabelsEdit.ToString(), "param-edit")) + " " +
+            (chosen is null ? DefinitionsPresentation.Off(Messages.AuthoringRemoveDefinitionButton.ToString()) : ManagementPresentation.Button(Messages.AuthoringRemoveDefinitionButton.ToString(), "param-remove")));
+        if (chosen is not null) rows.Add(" " + ManagementPresentation.Button(Messages.LabelsDetails.ToString(), "param-detail"));
+        return new(Messages.ParametersInScope.Format(Markup.Escape(scope)) + "{pad}" + ManagementPresentation.CombinationButton(combination), rows);
     }
 
     internal static string ParameterFile(EffectiveRecipe recipe) => recipe.Selection.Files
@@ -167,7 +169,7 @@ internal static partial class DashboardCli
     internal static void ReadUpdates(ScopeContext context, RecipeSelection[] selections, UpdateView state)
     {
         (state.Problem, state.Notice, state.Unprepared) = (null, null, false);
-        if (selections.Length == 0) { state.Plan = null; state.Problem = "No hay intenciones seleccionadas."; return; }
+        if (selections.Length == 0) { state.Plan = null; state.Problem = Messages.UpdatesNoIntentionsSelected.ToString(); return; }
         var plans = new RecipeUpdatePlans(context);
         // A plan needs the identity created when the combination is first used; Comprobar would only fail.
         if (!plans.Prepared)
@@ -177,7 +179,7 @@ internal static partial class DashboardCli
             return;
         }
         state.Plan = plans.ReadRecorded(selections);
-        if (state.Plan is null) { state.Notice = "Todavía no hay un plan para esta combinación. Comprobar consulta las novedades y guarda el plan."; return; }
+        if (state.Plan is null) { state.Notice = Messages.UpdatesNoPlanYet.ToString(); return; }
         try { _ = plans.ReadValid(selections); }
         // The CLI message names the update command; the view says what happened and what to press.
         catch (Coquena.Storage.StorageException error) when (error.Code == "stale-update-plan")
@@ -190,19 +192,20 @@ internal static partial class DashboardCli
             state.Chosen.Add(UpdateSelector(item!));
     }
 
-    internal static DefinitionsPresentation.Page UpdatesPage(string scope, UpdateView state, IReadOnlyList<string> impact, bool busy = false, string combination = "Combinación")
+    internal static DefinitionsPresentation.Page UpdatesPage(string scope, UpdateView state, IReadOnlyList<string> impact, bool busy = false, string? combination = null)
     {
+        combination ??= Messages.AuthoringCombinationDefault;
         var rows = new List<string>();
-        if (busy) rows.Add(" " + Markup.Style("warn", DashboardPresentation.Spinner() + " ") + Markup.Style("mut", "Trabajando… se puede cambiar de vista mientras sigue."));
+        if (busy) rows.Add(" " + Markup.Style("warn", DashboardPresentation.Spinner() + " ") + Markup.Style("mut", Messages.UpdatesWorkingInBackground.ToString()));
         if (state.Notice is { } notice) rows.AddRange(DashboardPresentation.Wrap(notice, 54).Take(3).Select(line => " " + Markup.Style("mut", line)));
         if (state.Problem is { } problem) rows.AddRange(DashboardPresentation.Wrap(problem, 54).Take(3).Select(line => " " + Markup.Style("warn", line)));
         if (state.Plan is { } plan)
         {
-            var date = DateTimeOffset.TryParse(plan["created-at"]?.ToString(), out var created) ? created.ToLocalTime().ToString("dd/MM HH:mm") : "fecha no disponible";
-            rows.Add(" " + Markup.Style("mut", "Comprobado el " + date + (state.Problem is null ? " · ✓ al día" : "")));
-            rows.Add(" " + Markup.Style("mut", "   RECURSO               ACTUAL    PROPUESTA  ESTADO"));
+            var date = DateTimeOffset.TryParse(plan["created-at"]?.ToString(), out var created) ? created.ToLocalTime().ToString("dd/MM HH:mm") : Messages.UpdatesDateUnavailable.ToString();
+            rows.Add(" " + Markup.Style("mut", (state.Problem is null ? Messages.UpdatesCheckedOnUpToDate.Format(date) : Messages.UpdatesCheckedOn.Format(date))));
+            rows.Add(" " + Markup.Style("mut", Messages.UpdatesTableHeader.ToString()));
             var report = RecipeUpdatePlans.Report(plan)["resources"]!.AsArray();
-            if (report.Count == 0) rows.Add(" " + Markup.Style("mut", "Sin recursos en este plan."));
+            if (report.Count == 0) rows.Add(" " + Markup.Style("mut", Messages.UpdatesNoResourcesInPlan.ToString()));
             var raw = plan["resources"]!.AsArray();
             // With every intention selected, one installation shared by several intentions is
             // reported once per intention; it is shown as a single row.
@@ -218,28 +221,28 @@ internal static partial class DashboardCli
                 var selector = string.Join("\n", selectors);
                 rows.Add(" " + (selectable ? Markup.Style("nav", selectors.All(state.Chosen.Contains) ? "☑" : "☐", "update-toggle:" + Convert.ToHexString(System.Text.Encoding.UTF8.GetBytes(selector))) : Markup.Style("mut", " — ")) + " " +
                     Markup.Escape(DashboardPresentation.Fit(item["kind"] + " " + (item["alias"] ?? item["key"]), 21).PadRight(22) + Version(item["current"]).PadRight(10) + Version(item["proposed"]).PadRight(11)) +
-                    Markup.Style(item["upgrade-allowed"]?.GetValue<bool>() == false ? "warn" : "mut", item["upgrade-allowed"]?.GetValue<bool>() == false ? "fijado" : UpdateStatus(item["status"]?.ToString())));
+                    Markup.Style(item["upgrade-allowed"]?.GetValue<bool>() == false ? "warn" : "mut", item["upgrade-allowed"]?.GetValue<bool>() == false ? Messages.LabelsFixed.ToString() : UpdateStatus(item["status"]?.ToString())));
                 if (group.Length > 1) rows.Add("   " + Markup.Style("mut", Messages.UsedByIntentions(group.Length)));
                 if (item["diagnostic"] is { } diagnostic)
-                    rows.AddRange(DashboardPresentation.Wrap("▲ " + diagnostic, 52).Select(line => "   " + Markup.Style("warn", Markup.Escape(line))));
+                    rows.AddRange(DashboardPresentation.Wrap("▲ " + MessageData.FromNode(diagnostic), 52).Select(line => "   " + Markup.Style("warn", Markup.Escape(line))));
             }
         }
-        rows.Add(" " + (busy ? DefinitionsPresentation.Off(DashboardPresentation.Spinner() + " Comprobar") : state.Unprepared ? DefinitionsPresentation.Off("Comprobar") : ManagementPresentation.Button("Comprobar", "update-check")) + " " + (!busy && state.Plan is not null && state.Problem is null && state.Chosen.Count > 0 ?
-            ManagementPresentation.Button("Actualizar " + state.Chosen.Count, "update-apply") : DefinitionsPresentation.Off("Actualizar")) + " " + ManagementPresentation.Button("Descargas", "downloads"));
-        rows.Add(""); rows.Add(" " + Markup.Style("hi", "Impacto en ejecución"));
+        rows.Add(" " + (busy ? DefinitionsPresentation.Off(DashboardPresentation.Spinner() + Messages.UpdatesCheckingButton.ToString()) : state.Unprepared ? DefinitionsPresentation.Off(Messages.LabelsCheck.ToString()) : ManagementPresentation.Button(Messages.LabelsCheck.ToString(), "update-check")) + " " + (!busy && state.Plan is not null && state.Problem is null && state.Chosen.Count > 0 ?
+            ManagementPresentation.Button(Messages.UpdatesApplyCount.Format(state.Chosen.Count), "update-apply") : DefinitionsPresentation.Off(Messages.LabelsUpdate.ToString())) + " " + ManagementPresentation.Button(Messages.LabelsDownloads.ToString(), "downloads"));
+        rows.Add(""); rows.Add(" " + Markup.Style("hi", Messages.UpdatesRuntimeImpactHeader.ToString()));
         rows.Add(" " + Markup.Style("mut", Messages.UpdateImpact));
         rows.AddRange(impact.Select(text => " " + Markup.Escape(text)));
-        return new("Actualizaciones de " + Markup.Escape(scope) + "{pad}" + ManagementPresentation.CombinationButton(combination), rows);
+        return new(Messages.UpdatesInScope.Format(Markup.Escape(scope)) + "{pad}" + ManagementPresentation.CombinationButton(combination), rows);
 
         static string Version(JsonNode? value) => DashboardPresentation.Fit(value is JsonObject ? value["release"]?.ToString() ?? value["commit"]?.ToString() ?? "—" : value?.ToString() ?? "—", 9);
     }
 
     private static string UpdateStatus(string? status) => status switch
     {
-        "unchanged" => "sin cambios", "update-available" => "↑ nueva", "not-applicable" => "no aplica",
-        "not-prepared" => "sin preparar", "inconclusive" => "▲ inconcluso", "query-failed" => "✗ falló",
-        "orphaned" => "▲ sin origen", "ambiguous" => "▲ ambiguo", "skipped" => "omitido", "blocked" => "bloqueado",
-        "prepared-for-next-application" => "preparado para la próxima aplicación", _ => status ?? "—"
+        "unchanged" => Messages.UpdatesStateUnchanged.ToString(), "update-available" => Messages.UpdatesStateNew.ToString(), "not-applicable" => Messages.UpdatesStateNotApplicable.ToString(),
+        "not-prepared" => Messages.UpdatesStateNotPrepared.ToString(), "inconclusive" => Messages.UpdatesStateInconclusive.ToString(), "query-failed" => Messages.UpdatesStateFailed.ToString(),
+        "orphaned" => Messages.UpdatesStateNoSource.ToString(), "ambiguous" => Messages.UpdatesStateAmbiguous.ToString(), "skipped" => Messages.LabelsSkipped.ToString(), "blocked" => Messages.LabelsBlocked.ToString(),
+        "prepared-for-next-application" => Messages.UpdatesStatePreparedNext.ToString(), _ => status ?? "—"
     };
 
     private static string UpdateReportText(JsonObject report) => string.Join("\n", report["resources"]!.AsArray().Select(item =>
@@ -272,11 +275,11 @@ internal static partial class DashboardCli
     {
         var available = RecipeImportSelection.Create(source);
         var collisions = ExistingImportEntities(global, source);
-        using var dialog = Modal(app, 76, 16 + Math.Clamp(collisions.Length, 1, 4), "Importar " + source.Name + " en Global");
+        using var dialog = Modal(app, 76, 16 + Math.Clamp(collisions.Length, 1, 4), Messages.AuthoringImportIntoGlobalTitle.Format(source.Name));
         var checks = new Dictionary<string, CheckBox>();
         string[] categories = ["presets", "model", "params", "service"];
         // Spanish captions for the CLI --select values, which stay unchanged.
-        var captions = new Dictionary<string, string> { ["presets"] = "Presets", ["model"] = "Modelos", ["params"] = "Parámetros", ["service"] = "Servicio" };
+        var captions = new Dictionary<string, string> { ["presets"] = "Presets", ["model"] = Messages.LabelsModels.ToString(), ["params"] = Messages.AuthoringCategoryParameters.ToString(), ["service"] = Messages.LabelsService.ToString() };
         for (var index = 0; index < categories.Length; index++)
         {
             var category = categories[index];
@@ -287,32 +290,32 @@ internal static partial class DashboardCli
                 Value = available.Categories.Contains(category) ? CheckState.Checked : CheckState.UnChecked };
             dialog.Add(checks[category]);
         }
-        var details = new Button { X = 1, Y = 4, Text = " Detalle de categorías… ", NoDecorations = true, ShadowStyle = ShadowStyles.None };
-        dialog.Add(new Label { X = 1, Y = 6, Text = "Ya existen en Global; marcar las que se reemplazan:" });
+        var details = new Button { X = 1, Y = 4, Text = Messages.AuthoringImportCategoryDetailsButton.ToString(), NoDecorations = true, ShadowStyle = ShadowStyles.None };
+        dialog.Add(new Label { X = 1, Y = 6, Text = Messages.AuthoringImportCollisionsPrompt.ToString() });
         var list = new ListView { X = 1, Y = 7, Width = Dim.Fill(1), Height = Math.Clamp(collisions.Length, 1, 4) };
         var replacements = new HashSet<string>(StringComparer.Ordinal);
-        void Refresh() => list.SetSource(new ObservableCollection<string>(collisions.Length == 0 ? ["Ninguna; nada se reemplaza."]
+        void Refresh() => list.SetSource(new ObservableCollection<string>(collisions.Length == 0 ? [Messages.AuthoringImportNoCollisions.ToString()]
             : collisions.Select(entity => (replacements.Contains(entity) ? "☑ " : "☐ ") + entity)));
-        var toggle = new Button { X = 1, Y = Pos.Bottom(list), Enabled = collisions.Length > 0, Text = " Conservar / Reemplazar ", NoDecorations = true, ShadowStyle = ShadowStyles.None };
+        var toggle = new Button { X = 1, Y = Pos.Bottom(list), Enabled = collisions.Length > 0, Text = Messages.AuthoringImportKeepReplaceButton.ToString(), NoDecorations = true, ShadowStyle = ShadowStyles.None };
         toggle.Accepting += (_, args) => { args.Handled = true; if (list.SelectedItem is int row && row >= 0 && row < collisions.Length) { var entity = collisions[row]; if (!replacements.Add(entity)) replacements.Remove(entity); Refresh(); list.SelectedItem = row; } };
-        var asDefault = new CheckBox { X = 1, Y = Pos.Bottom(toggle) + 1, Text = "usar como servicio predeterminado", Enabled = available.Categories.Contains("service") };
+        var asDefault = new CheckBox { X = 1, Y = Pos.Bottom(toggle) + 1, Text = Messages.AuthoringImportUseAsDefaultService.ToString(), Enabled = available.Categories.Contains("service") };
         // Empty unless a condition already holds; errors of Importar replace it.
         var status = new Label { X = 1, Y = Pos.Bottom(asDefault) + 1, Width = Dim.Fill(1), Height = 2, Text = HasDefaultGlobalService(global) ? ""
-            : "▲ Global no tiene servicio predeterminado: para importar presets, importá también el servicio." };
-        details.Accepting += (_, args) => { args.Handled = true; Choose(app, "Entidades de la combinación de origen", available.Entities.Select(entity => entity.Selector).ToArray(), null); };
+            : Messages.AuthoringImportNeedsDefaultServiceWarning.ToString() };
+        details.Accepting += (_, args) => { args.Handled = true; Choose(app, Messages.AuthoringImportEntitiesTitle.ToString(), available.Entities.Select(entity => entity.Selector).ToArray(), null); };
         dialog.Add(list, toggle, asDefault, status, details);
-        dialog.AddButton(new Button { Text = " Cancelar ", NoDecorations = true, ShadowStyle = ShadowStyles.None });
-        var accept = new Button { Text = " Importar ", NoDecorations = true, ShadowStyle = ShadowStyles.None };
+        dialog.AddButton(new Button { Text = Messages.DashboardCancelButton.ToString(), NoDecorations = true, ShadowStyle = ShadowStyles.None });
+        var accept = new Button { Text = Messages.AuthoringImportButton.ToString(), NoDecorations = true, ShadowStyle = ShadowStyles.None };
         ImportChoice? result = null;
         accept.Accepting += (_, args) =>
         {
             try
             {
                 var selected = string.Join(',', checks.Where(pair => pair.Value.Value == CheckState.Checked).Select(pair => pair.Key));
-                if (selected.Length == 0) throw new ArgumentException("Seleccionar al menos una categoría.");
+                if (selected.Length == 0) throw new ArgumentException(Messages.AuthoringImportSelectCategoryError.ToString());
                 // Presets are published to a Global service: without one the import would fail after confirming.
                 if (checks["presets"].Value == CheckState.Checked && checks["service"].Value != CheckState.Checked && !HasDefaultGlobalService(global))
-                    throw new ArgumentException("Los presets requieren un servicio global predeterminado: importá también el servicio o crealo en Global › Servicio.");
+                    throw new ArgumentException(Messages.AuthoringImportPresetsRequireServiceError.ToString());
                 var entities = RecipeImportSelection.Create(source, selected).Entities.Select(entity => entity.Selector).ToHashSet(StringComparer.Ordinal);
                 var replace = replacements.Where(entities.Contains).ToArray();
                 _ = RecipeImportSelection.Create(source, selected, replace, asDefault: asDefault.Value == CheckState.Checked);
@@ -336,17 +339,17 @@ internal static partial class DashboardCli
                      path.EndsWith(".yaml", StringComparison.OrdinalIgnoreCase) || path.EndsWith(".yml", StringComparison.OrdinalIgnoreCase) || Path.GetFileName(path).StartsWith(".env", StringComparison.Ordinal)))
             if (!entries.Any(entry => entry.Path.Equals(path, StringComparison.OrdinalIgnoreCase))) entries.Add((path, Path.GetFileName(path).StartsWith(".env", StringComparison.Ordinal), false));
         var newFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        using var dialog = Modal(app, 76, 19, "Nueva combinación · YAML en orden");
+        using var dialog = Modal(app, 76, 19, Messages.CombinationNewTitle.ToString());
         var list = new ListView { X = 1, Y = 0, Width = Dim.Fill(1), Height = Dim.Fill(7) };
-        var status = new Label { X = 1, Y = Pos.AnchorEnd(4), Width = Dim.Fill(1), Height = 1, Text = "Se guarda cuando la uses con Up o Iniciar. Los .env usan preparación privada." };
-        var isPrivate = new CheckBox { X = 1, Y = Pos.AnchorEnd(3), Text = "preparación privada (referencias externas)",
+        var status = new Label { X = 1, Y = Pos.AnchorEnd(4), Width = Dim.Fill(1), Height = 1, Text = Messages.CombinationNewSavedHint.ToString() };
+        var isPrivate = new CheckBox { X = 1, Y = Pos.AnchorEnd(3), Text = Messages.CombinationNewPrivateCheck.ToString(),
             Value = CombinationIdentity.FromSelection(current, privateSelection).Private ? CheckState.Checked : CheckState.UnChecked };
         void Refresh()
         {
             var selected = list.SelectedItem ?? 0; var order = 0;
             list.SetSource(new ObservableCollection<string>(entries.Select(entry =>
                 (entry.Included ? "☑ " : "☐ ") + (entry.Env ? ".env " : entry.Included ? (++order).ToString() + " · " : "— · ") +
-                Path.GetRelativePath(current.Base, entry.Path) + (newFiles.Contains(entry.Path) ? " · nuevo" : ""))));
+                (newFiles.Contains(entry.Path) ? Messages.AuthoringFileNewSuffix.Format(Path.GetRelativePath(current.Base, entry.Path)) : Path.GetRelativePath(current.Base, entry.Path)))));
             list.SelectedItem = Math.Clamp(selected, 0, Math.Max(0, entries.Count - 1));
         }
         Button Action(string text, int x, Action action)
@@ -357,31 +360,31 @@ internal static partial class DashboardCli
         }
         void Add(bool create, bool env)
         {
-            var fields = ResourceForm(app, create ? "Archivo nuevo" : "Agregar archivo existente", [("ruta", env ? ".env" : "")], "Agregar");
+            var fields = ResourceForm(app, create ? Messages.CombinationNewFileTitle.ToString() : Messages.CombinationAddFileTitle.ToString(), [(Messages.LabelsPath.ToString(), env ? ".env" : "")], Messages.LabelsAdd.ToString());
             if (fields is null) return;
             var path = Path.GetFullPath(fields[0], current.Base);
-            if (entries.Any(entry => entry.Path.Equals(path, StringComparison.OrdinalIgnoreCase))) throw new ArgumentException("El archivo ya está en la lista.");
-            if (create && File.Exists(path) || !create && !File.Exists(path)) throw new ArgumentException(create ? "El archivo ya existe." : "No existe el archivo.");
-            if (!env && !path.EndsWith(".yaml", StringComparison.OrdinalIgnoreCase) && !path.EndsWith(".yml", StringComparison.OrdinalIgnoreCase)) throw new ArgumentException("Elegir un archivo YAML.");
-            if (!Directory.Exists(Path.GetDirectoryName(path))) throw new ArgumentException("No existe la carpeta destino.");
+            if (entries.Any(entry => entry.Path.Equals(path, StringComparison.OrdinalIgnoreCase))) throw new ArgumentException(Messages.CombinationFileAlreadyListed.ToString());
+            if (create && File.Exists(path) || !create && !File.Exists(path)) throw new ArgumentException(create ? Messages.CombinationFileAlreadyExists.ToString() : Messages.CombinationFileDoesNotExist.ToString());
+            if (!env && !path.EndsWith(".yaml", StringComparison.OrdinalIgnoreCase) && !path.EndsWith(".yml", StringComparison.OrdinalIgnoreCase)) throw new ArgumentException(Messages.CombinationChooseYamlFile.ToString());
+            if (!Directory.Exists(Path.GetDirectoryName(path))) throw new ArgumentException(Messages.CombinationDestinationFolderMissing.ToString());
             entries.Add((path, env, true)); if (create) newFiles.Add(path);
         }
-        Action("Marcar", 1, () => { if (list.SelectedItem is int row && row >= 0 && row < entries.Count) entries[row] = entries[row] with { Included = !entries[row].Included }; });
+        Action(Messages.LabelsSelect.ToString(), 1, () => { if (list.SelectedItem is int row && row >= 0 && row < entries.Count) entries[row] = entries[row] with { Included = !entries[row].Included }; });
         Action("↑", 11, () => { if (list.SelectedItem is int row && row > 0) { (entries[row - 1], entries[row]) = (entries[row], entries[row - 1]); list.SelectedItem = row - 1; } });
         Action("↓", 16, () => { if (list.SelectedItem is int row && row >= 0 && row + 1 < entries.Count) { (entries[row + 1], entries[row]) = (entries[row], entries[row + 1]); list.SelectedItem = row + 1; } });
         Action("+ YAML…", 21, () => Add(false, false));
-        Action("Nuevo…", 34, () => Add(true, false));
+        Action(Messages.LabelsNew.ToString(), 34, () => Add(true, false));
         Action("+ .env…", 46, () => Add(false, true));
         dialog.Add(list, status, isPrivate);
-        dialog.AddButton(new Button { Text = " Cancelar ", NoDecorations = true, ShadowStyle = ShadowStyles.None });
+        dialog.AddButton(new Button { Text = Messages.DashboardCancelButton.ToString(), NoDecorations = true, ShadowStyle = ShadowStyles.None });
         CombinationChoice? result = null;
-        var accept = new Button { Text = " Aceptar ", NoDecorations = true, ShadowStyle = ShadowStyles.None };
+        var accept = new Button { Text = Messages.DashboardAcceptButton.ToString(), NoDecorations = true, ShadowStyle = ShadowStyles.None };
         accept.Accepting += (_, args) =>
         {
             try
             {
                 var yaml = entries.Where(entry => !entry.Env && entry.Included).Select(entry => entry.Path).ToArray();
-                if (yaml.Length == 0) throw new ArgumentException("Seleccionar al menos un YAML.");
+                if (yaml.Length == 0) throw new ArgumentException(Messages.CombinationSelectAtLeastOneYaml.ToString());
                 var selection = new RecipeSelection(current.Base, yaml, current.Base, entries.Where(entry => entry.Env && entry.Included).Select(entry => entry.Path));
                 result = new(selection, newFiles.Where(path => yaml.Contains(path, StringComparer.OrdinalIgnoreCase)).ToHashSet(StringComparer.OrdinalIgnoreCase),
                     CombinationIdentity.FromSelection(selection, isPrivate.Value == CheckState.Checked).Private);

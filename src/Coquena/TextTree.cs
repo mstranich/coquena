@@ -11,7 +11,7 @@ public static class TextTree
         var pad = new string(' ', indent);
         switch (node)
         {
-            case JsonObject obj when obj.Count == 0: output.WriteLine(pad + "(vacío)"); break;
+            case JsonObject obj when obj.Count == 0: output.WriteLine(pad + Messages.TreeEmpty); break;
             case JsonObject obj:
                 foreach (var (key, value) in obj)
                 {
@@ -19,7 +19,7 @@ public static class TextTree
                     else output.WriteLine($"{pad}{key}: {Scalar(value)}");
                 }
                 break;
-            case JsonArray array when array.Count == 0: output.WriteLine(pad + "(vacío)"); break;
+            case JsonArray array when array.Count == 0: output.WriteLine(pad + Messages.TreeEmpty); break;
             case JsonArray array:
                 foreach (var item in array)
                 {
@@ -36,8 +36,8 @@ public static class TextTree
     private static string Scalar(JsonNode? node) => node switch
     {
         null => "—",
-        JsonObject or JsonArray => "(vacío)",
-        JsonValue value when value.TryGetValue<bool>(out var flag) => flag ? "sí" : "no",
+        JsonObject or JsonArray => Messages.TreeEmpty,
+        JsonValue value when value.TryGetValue<bool>(out var flag) => flag ? Messages.TreeYes : Messages.TreeNo,
         JsonValue value when value.TryGetValue<string>(out var text) => text,
         _ => node.ToJsonString()
     };

@@ -24,11 +24,11 @@ internal static class DefinitionsPresentationTests
         check(tree.Count == 5 + 8 && tree.Count(node => node.View is not null) == 8 && tree.Where(node => node.View is not null).All(node => node.Scope == 1),
             "only the focused scope is expanded");
         var rows = tree.Select(node => Markup.Plain(View.TreeRow(node, scopes, 1, false))).ToArray();
-        check(rows[0] == " ▸ Global" && rows[1] == " ▾ código · aquí" && rows[2] == "  Recetas" && rows.Contains(" ✗ cli-project"),
+        check(rows[0] == " ▸ Global" && rows[1] == " ▾ código" + Messages.DefinitionsHerePlain && rows[2] == "  " + Messages.ViewLabel("recipes") && rows.Contains(" ✗ cli-project"),
             "scope headers show collapsed, expanded, here and inaccessible");
         check(tree.All(node => Markup.Width(View.TreeRow(node, scopes, 1, true)) == View.TreeWidth), "the selected tree row fills the column");
-        check(View.Views(scopes[0]).SequenceEqual(["Backends", "Servicios", "Modelos", "Parámetros", "Presets", "Actualizaciones", "Mantenimiento"]) &&
-              View.Views(scopes[4]).SequenceEqual(["Receta", "Mantenimiento"]) && View.Views(scopes[3]).Length == 0,
+        check(View.Views(scopes[0]).SequenceEqual(["backends", "services", "models", "parameters", "presets", "updates", "maintenance"]) &&
+              View.Views(scopes[4]).SequenceEqual(["recipe", "maintenance"]) && View.Views(scopes[3]).Length == 0,
             "Global, a recipe, a folder without recipe and an inaccessible path offer their views");
 
         View.Page[] pages =
@@ -50,7 +50,7 @@ internal static class DefinitionsPresentationTests
         check(pages[^1].Rows.SelectMany(Markup.Parse).Where(span => span.Action is not null).Select(span => span.Action).SequenceEqual(["init"]),
             "a folder without recipe only enables Inicializar");
         var recipes = string.Join('\n', pages[0].Rows.Select(Markup.Plain));
-        check(recipes.Contains("● actual") && recipes.Contains("privada") && recipes.Contains(" ▲ Up ") &&
+        check(recipes.Contains(Messages.DefinitionsStateCurrent.ToString()) && recipes.Contains(Messages.LabelsPrivate.ToString()) && recipes.Contains(" ▲ Up ") &&
               pages[0].Rows.SelectMany(Markup.Parse).Where(span => span.Text.Contains("Up")).All(span => span.Class == "off"),
             "recipes mark the current and private combinations and show Up disabled");
         check(Markup.Plain(pages[5].Rows[^3]).Contains(Messages.MoreRows(0).Split(' ')[^1]), "a long parameter list says how many rows are left out");
@@ -78,15 +78,15 @@ internal static class DefinitionsPresentationTests
             var pages = places.SelectMany(place => View.Views(place.Scope).Select(view => (view, page: source.Read(place, view, [], new Dictionary<int, ServiceSnapshot>(), 20, 56)))).ToArray();
             check(pages.All(item => !item.page.Rows.Any(row => Markup.Plain(row).Contains('✗'))),
                 "every view of an empty scope opens without a read error: " + string.Join("; ", pages.Where(item => item.page.Rows.Any(row => Markup.Plain(row).Contains('✗'))).Select(item => item.view + " " + string.Join(" ", item.page.Rows.Select(Markup.Plain)))));
-            check(pages.Any(item => item.view == "Presets" && item.page.Rows.Any(row => Markup.Plain(row).Contains("asistente") && Markup.Plain(row).Contains("principal"))),
+            check(pages.Any(item => item.view == Messages.ImportPresets.ToString() && item.page.Rows.Any(row => Markup.Plain(row).Contains("asistente") && Markup.Plain(row).Contains("principal"))),
                 "project presets are read from the recipe with their model");
-            check(pages.Any(item => item.view == "Servicios" && item.page.Rows.Any(row => Markup.Plain(row).Contains("★ shared"))),
+            check(pages.Any(item => item.view == "services" && item.page.Rows.Any(row => Markup.Plain(row).Contains("★ shared"))),
                 "global services mark the default one");
             var after = Directory.GetFileSystemEntries(root, "*", SearchOption.AllDirectories).Select(path => (path, File.Exists(path) ? File.GetLastWriteTimeUtc(path) : default)).ToHashSet();
             var written = after.Except(before).Where(item => !item.path.EndsWith(".lock", StringComparison.Ordinal)).ToArray();
             check(written.Length == 0, "reading every view writes nothing but the locks of the CLI reads: " + string.Join(", ", written.Select(item => item.path)));
             var gone = new DashboardCli.DefinitionsSource.Place(new("gone", false, false, false, true), null, null);
-            check(Markup.Plain(source.Read(gone, "Recetas", [], new Dictionary<int, ServiceSnapshot>(), 20, 56).Rows[1]).Contains(Messages.ProjectPathGone),
+            check(Markup.Plain(source.Read(gone, "recipes", [], new Dictionary<int, ServiceSnapshot>(), 20, 56).Rows[1]).Contains(Messages.ProjectPathGone),
                 "an inaccessible project says so instead of reading");
         }
         finally { try { Directory.Delete(root, true); } catch (IOException) { } }

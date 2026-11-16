@@ -31,10 +31,10 @@ public sealed class RemoteGgufInspector : IRemoteGgufInspector, IDisposable
         this.limits = limits ?? new();
         if (this.limits.BlockBytes is < 1 or > 2097152 || this.limits.HeaderBytes < 1 ||
             this.limits.SessionBytes < 1 || this.limits.UnitBytes < 1 || this.limits.Requests < 1 ||
-            this.limits.RequestSeconds < 1 || this.limits.SessionSeconds < 1) throw new ArgumentException("Presupuesto inválido.");
+            this.limits.RequestSeconds < 1 || this.limits.SessionSeconds < 1) throw new ArgumentException(Messages.ModelInvalidBudget.ToString());
         client = new(new HuggingFaceTransport.Redirects(handler, () =>
         {
-            if (++requests > this.limits.Requests) throw new ModelSourceException("inspection-limit", "Límite de peticiones agotado; exploración parcial.");
+            if (++requests > this.limits.Requests) throw new ModelSourceException("inspection-limit", Messages.ModelRequestLimitExhausted.ToString());
         })) { Timeout = Timeout.InfiniteTimeSpan };
     }
     public async Task<GgufHeader> InspectAsync(RepositoryRevision revision, RepositoryFile file, CancellationToken cancellation)
@@ -42,13 +42,13 @@ public sealed class RemoteGgufInspector : IRemoteGgufInspector, IDisposable
         HuggingFaceStore.ValidateRepository(revision.Repository);
         HuggingFaceStore.ValidatePath(file.Path);
         if (!HuggingFaceStore.Hex(revision.Commit, 40) || file.Size < 24)
-            throw new ModelSourceException("invalid-metadata", "Commit/tamaño insuficiente para cabecera.");
+            throw new ModelSourceException("invalid-metadata", Messages.ModelInsufficientCommitOrSizeForHeader.ToString());
         var key = revision.Repository + "/" + revision.Commit + "/" + file.Path;
         cancellation.ThrowIfCancellationRequested();
         if (headers.TryGetValue(key, out var cached)) return cached;
         files++;
         var remaining = TimeSpan.FromSeconds(limits.SessionSeconds) - clock.Elapsed;
-        if (remaining <= TimeSpan.Zero) throw new ModelSourceException("inspection-limit", "Tiempo de exploración agotado; exploración parcial.");
+        if (remaining <= TimeSpan.Zero) throw new ModelSourceException("inspection-limit", Messages.ModelExplorationTimedOutPartialExploration.ToString());
         using var session = CancellationTokenSource.CreateLinkedTokenSource(cancellation);
         session.CancelAfter(remaining);
         using var stream = new RangeStream(this, revision, file);
@@ -61,9 +61,9 @@ public sealed class RemoteGgufInspector : IRemoteGgufInspector, IDisposable
         catch (GgufException e) { throw new ModelSourceException("gguf-" + e.Code, e.Message); }
         catch (DownloadException e) { throw new ModelSourceException(e.Code, e.Message); }
         catch (OperationCanceledException) when (!cancellation.IsCancellationRequested)
-        { throw new ModelSourceException("inspection-timeout", "El origen tardó demasiado en responder; repetir más tarde."); }
+        { throw new ModelSourceException("inspection-timeout", Messages.ModelSourceTookTooLongToRespondRetry.ToString()); }
         catch (Exception e) when (e is IOException or HttpRequestException)
-        { throw new ModelSourceException("inspection-network", "Lectura remota interrumpida."); }
+        { throw new ModelSourceException("inspection-network", Messages.ModelRemoteReadInterrupted.ToString()); }
     }
     public void Dispose() => client.Dispose();
 
@@ -88,15 +88,15 @@ public sealed class RemoteGgufInspector : IRemoteGgufInspector, IDisposable
         private async Task<byte[]> Fetch(CancellationToken cancellation)
         {
             var size = (int)Math.Min(Math.Min(offset == 0 ? Math.Min(65536, owner.limits.BlockBytes) : owner.limits.BlockBytes, file.Size - offset), owner.limits.HeaderBytes - offset);
-            if (size <= 0) throw new ModelSourceException("inspection-limit", "Presupuesto de cabecera agotado.");
+            if (size <= 0) throw new ModelSourceException("inspection-limit", Messages.ModelHeaderBudgetExhausted.ToString());
             if (offset > owner.limits.HeaderBytes - size || owner.bytes > owner.limits.SessionBytes - size - 1 ||
                 owner.bytes - owner.unitStart > owner.limits.UnitBytes - size - 1)
-                throw new ModelSourceException("inspection-limit", "Presupuesto de bytes agotado; exploración parcial.");
+                throw new ModelSourceException("inspection-limit", Messages.ModelByteBudgetExhaustedPartialExploration.ToString());
             var end = offset + size - 1;
             for (var attempt = 0; attempt < 3; attempt++)
             {
                 if (owner.bytes > owner.limits.SessionBytes - size - 1 || owner.bytes - owner.unitStart > owner.limits.UnitBytes - size - 1)
-                    throw new ModelSourceException("inspection-limit", "Presupuesto de bytes agotado.");
+                    throw new ModelSourceException("inspection-limit", Messages.ModelByteBudgetExhausted.ToString());
                 using var timed = CancellationTokenSource.CreateLinkedTokenSource(cancellation);
                 timed.CancelAfter(TimeSpan.FromSeconds(owner.limits.RequestSeconds));
                 using var request = new HttpRequestMessage(HttpMethod.Get,
@@ -110,23 +110,23 @@ public sealed class RemoteGgufInspector : IRemoteGgufInspector, IDisposable
                 {
                     var wait = response.Headers.RetryAfter?.Delta ?? (response.Headers.RetryAfter?.Date is { } date ? date - DateTimeOffset.UtcNow : TimeSpan.FromMilliseconds(200));
                     if (attempt == 2 || wait > TimeSpan.FromSeconds(5))
-                        throw new ModelSourceException(response.StatusCode == HttpStatusCode.TooManyRequests ? "remote-rate-limit" : "inspection-http", "Espera/reintentos excedidos; reintentar más tarde.");
+                        throw new ModelSourceException(response.StatusCode == HttpStatusCode.TooManyRequests ? "remote-rate-limit" : "inspection-http", Messages.ModelWaitOrRetriesExceededRetryLater.ToString());
                     // Close without draining error bodies. The next request still consumes the session budget.
                     response.Dispose();
                     await Task.Delay(wait < TimeSpan.Zero ? TimeSpan.Zero : wait, cancellation); continue;
                 }
                 if (response.StatusCode != HttpStatusCode.PartialContent)
-                    throw new ModelSourceException(response.StatusCode == HttpStatusCode.OK ? "range-unsupported" : "inspection-http", "Se requiere 206 para inspección acotada; respuesta cerrada sin drenar.");
+                    throw new ModelSourceException(response.StatusCode == HttpStatusCode.OK ? "range-unsupported" : "inspection-http", Messages.ModelHttp206RequiredForInspection.ToString());
                 var range = response.Content.Headers.ContentRange;
                 if (range?.Unit != "bytes" || range.From != offset || range.To != end || range.Length != file.Size ||
                     response.Content.Headers.ContentLength is { } declared && declared != size || response.Content.Headers.ContentEncoding.Count != 0)
-                    throw new ModelSourceException("invalid-range", "Rango, total, longitud o codificación incoherente.");
+                    throw new ModelSourceException("invalid-range", Messages.ModelInconsistentRangeTotalLengthOrEncoding.ToString());
                 var etag = response.Headers.ETag?.ToString();
                 if (file.LfsSha256 is { } sha && response.Headers.TryGetValues("X-Linked-Etag", out var linked) &&
                     linked.Any(value => HuggingFaceStore.Hex(value.Trim('"'), 64) && !value.Trim('"').Equals(sha, StringComparison.OrdinalIgnoreCase)))
-                    throw new ModelSourceException("content-changed", "Identidad LFS de respuesta no corresponde al inventario.");
+                    throw new ModelSourceException("content-changed", Messages.ModelLfsIdentityMismatch.ToString());
                 if (validator is not null && etag is not null && validator != etag)
-                    throw new ModelSourceException("content-changed", "Identidad cambió entre rangos.");
+                    throw new ModelSourceException("content-changed", Messages.ModelIdentityChangedBetweenRanges.ToString());
                 validator ??= etag;
                 var result = new byte[size];
                 owner.peakBufferBytes = Math.Max(owner.peakBufferBytes, size + block.Length + 65537);
@@ -136,21 +136,21 @@ public sealed class RemoteGgufInspector : IRemoteGgufInspector, IDisposable
                 {
                     var n = await body.ReadAsync(result.AsMemory(read), timed.Token);
                     owner.bytes += n;
-                    if (n == 0) throw new ModelSourceException("invalid-range", "Cuerpo de rango truncado.");
+                    if (n == 0) throw new ModelSourceException("invalid-range", Messages.ModelTruncatedRangeBody.ToString());
                     read += n;
                 }
                 var extra = new byte[1]; var excessive = await body.ReadAsync(extra, timed.Token); owner.bytes += excessive;
-                if (excessive != 0) throw new ModelSourceException("invalid-range", "Cuerpo excede rango solicitado.");
+                if (excessive != 0) throw new ModelSourceException("invalid-range", Messages.ModelBodyExceedsRequestedRange.ToString());
                 offset += size; return result;
             }
-            throw new ModelSourceException("inspection-http", "Reintentos agotados.");
+            throw new ModelSourceException("inspection-http", Messages.TransferRetriesExhausted.ToString());
         }
         public override bool CanRead => true;
         public override bool CanSeek => false;
         public override bool CanWrite => false;
         public override long Length => file.Size;
         public override long Position { get => offset - block.Length + index; set => throw new NotSupportedException(); }
-        public override int Read(byte[] buffer, int offset, int count) => throw new NotSupportedException("Usar lector async.");
+        public override int Read(byte[] buffer, int offset, int count) => throw new NotSupportedException(Messages.ModelUseAsyncReader.ToString());
         public override void Flush() => throw new NotSupportedException();
         public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
         public override void SetLength(long value) => throw new NotSupportedException();

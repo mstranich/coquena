@@ -19,7 +19,7 @@ public sealed record ModelIntent(string Key, string Kind, ModelRequest? Request,
             var keys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (var (key, value) in entries.Fields)
             {
-                if (!keys.Add(key)) throw new ModelSourceException("alias-collision", "Aliases que sólo difieren en capitalización.");
+                if (!keys.Add(key)) throw new ModelSourceException("alias-collision", Messages.ModelAliasesDifferOnlyInCase.ToString());
                 ModelRequest request;
                 if (value.Kind == RecipeKind.String) request = ModelRequest.Parse(value.Text!);
                 else
@@ -35,7 +35,7 @@ public sealed record ModelIntent(string Key, string Kind, ModelRequest? Request,
                     request = ModelRequest.Parse(repository + (type is null ? "" : "#" + type) + (quant is null ? "" : ":" + quant));
                 }
                 if ((group == "companions") != (request.CompanionType is not null))
-                    throw new ModelSourceException("invalid-role", "El selector no corresponde al grupo de recursos.");
+                    throw new ModelSourceException("invalid-role", Messages.ModelSelectorDoesNotMatchResourceGroup.ToString());
                 var files = value.Get("files")?.Items.Select(f => f.Text!).ToArray() ?? [];
                 foreach (var file in files) HuggingFaceStore.ValidatePath(file);
                 result.Add(new(key, group == "models" ? "model" : "companion", request, value.Get("revision")?.Text ?? "main", files));
@@ -54,7 +54,7 @@ public sealed partial class ScopedModels(ScopeContext context)
     private readonly ScopeStore store = new(context);
     private ScopeTransfers? transfers;
     public ScopeTransfers Transfers => transfers ??= new(context);
-    private static void Fail(string code) => throw new ModelSourceException(code, "Operación de modelo no confirmada; se conserva el estado del ámbito.");
+    private static void Fail(string code) => throw new ModelSourceException(code, Messages.ModelOperationUnconfirmed.ToString());
     public JsonArray List(bool companion = false)
         => List(store.Read(), companion);
     private JsonArray List(ScopeSnapshot snapshot, bool companion)
@@ -83,7 +83,7 @@ public sealed partial class ScopedModels(ScopeContext context)
                 }
         }
         catch (Exception e) when (e is InvalidOperationException or NullReferenceException or FormatException or ArgumentException)
-        { throw new StorageException("invalid-project-document", "Inventario de modelos inválido; se conserva sin sobrescribir.", inner: e); }
+        { throw new StorageException("invalid-project-document", Messages.ModelInvalidInventoryPreserved.ToString(), inner: e); }
         return resources;
     }
     public JsonArray Query(bool companion = false)
@@ -94,7 +94,7 @@ public sealed partial class ScopedModels(ScopeContext context)
         if (!File.Exists(context.PathFor("local/state.json")))
         {
             if (Directory.GetFileSystemEntries(context.PathFor("downloads")).Length != 0)
-                throw new StorageException("missing-state-pointer", "Hay transferencias sin identidad de ámbito.");
+                throw new StorageException("missing-state-pointer", Messages.TransferMissingScopeIdentity.ToString());
             return resources;
         }
         foreach (var operation in Transfers.Downloads.List(companion ? "companion" : "model"))
@@ -115,19 +115,19 @@ public sealed partial class ScopedModels(ScopeContext context)
         var aliases = store.Read().Documents.GetValueOrDefault("local/inventory.json")?["data"]?["model-aliases"]?.AsArray() ?? [];
         return aliases.SingleOrDefault(a => a!["kind"]!.GetValue<string>() == (companion ? "companion" : "model") &&
             a["key"]!.GetValue<string>().Equals(key, StringComparison.OrdinalIgnoreCase))?["resource-id"]?.GetValue<string>()
-            ?? throw new ModelSourceException("unknown-alias", "Alias no preparado en el ámbito seleccionado.");
+            ?? throw new ModelSourceException("unknown-alias", Messages.ModelAliasNotPreparedInSelectedScope.ToString());
     }
     public async Task<SelectedModel?> SelectAsync(ModelIntent intent, HuggingFaceStore source, IModelSelectionInteraction interaction,
         IRemoteGgufInspector? inspector = null, CancellationToken cancellation = default)
     {
-        if (intent.Request is null) throw new ModelSourceException("local-resource-required", "La selección local se registra sin consultar el origen remoto.");
+        if (intent.Request is null) throw new ModelSourceException("local-resource-required", Messages.ModelLocalSelectionNoRemoteQuery.ToString());
         if (intent.Files.Length == 0)
             return await new ModelSelectionMenu(source, inspector).SelectAsync(intent.Request, interaction, cancellation, intent.Revision);
         var revision = await source.ResolveAsync(intent.Request.Repository, intent.Revision, cancellation);
         var inventory = await source.InventoryAsync(revision, cancellation);
         if (intent.Files.Distinct(StringComparer.OrdinalIgnoreCase).Count() != intent.Files.Length) Fail("selection-conflict");
         var files = intent.Files.Select(path => inventory.Files.SingleOrDefault(f => f.Path == path)
-            ?? throw new ModelSourceException("remote-file-missing", "Archivo seleccionado ausente en el commit.")).ToArray();
+            ?? throw new ModelSourceException("remote-file-missing", Messages.ModelSelectedFileMissingInCommit.ToString())).ToArray();
         using var remote = inspector is null ? new RemoteGgufInspector() : null;
         var evidence = await new ModelResolver(inspector ?? remote!).ValidateAsync(revision, new(files), interaction.Show, cancellation);
         var variant = ModelSelection.Variant(new(files), evidence);
@@ -211,13 +211,13 @@ public sealed partial class ScopedModels(ScopeContext context)
         progress?.Invoke(operation);
         var result = await Transfers.RunAsync(operation.Id, transport, progress, cancellation);
         if (result is not null) throw new DownloadException(result.State == "failed" ? "model-transfer-failed" : result.State == "paused" && result.Diagnostic is null ? "transfer-paused" : "model-transfer-interrupted",
-            $"Operación {result.Id:D}: {result.Diagnostic ?? result.State}" +
-            (result.LastIncident is { } incident ? $" ({incident.Reason}, offset {incident.Offset} bytes, {incident.ConsecutiveFailures} fallos consecutivos)" : "") +
-            $". Consultar download status {result.Id:D} o continuar con download resume {result.Id:D} en el mismo ámbito.");
+            Messages.ModelOperationD.Format(result.Id, result.Diagnostic ?? result.State) +
+            (result.LastIncident is { } incident ? Messages.ModelOffsetBytesConsecutiveFailures.Format(incident.Reason, incident.Offset, incident.ConsecutiveFailures) : "") +
+            Messages.ModelCheckDownloadStatusOrResume.Format(result.Id, result.Id));
         resource = List(selected.CompanionType is not null).SingleOrDefault(r => r!["resource-id"]!.GetValue<string>() == operation.ScopePublication!.ResourceId.ToString("D"));
         // Someone cancelled the transfer (TUI or download cancel): nothing was installed.
         if (resource is null || !resource["installations"]!.AsArray().Any(i => i!["installation-id"]!.GetValue<string>() == operation.ScopePublication!.InstallationId.ToString("D")))
-            throw new DownloadException("transfer-cancelled", "Descarga cancelada; no se instaló el modelo.");
+            throw new DownloadException("transfer-cancelled", Messages.ModelDownloadCancelledModelNotInstalled.ToString());
         return Prepared(resource!, resource!["installations"]!.AsArray().Single(i => i!["installation-id"]!.GetValue<string>() == operation.ScopePublication!.InstallationId.ToString("D"))!);
     }
     private static bool Same(RemoteSelection a, RemoteSelection b) => a.Repository == b.Repository && a.Commit == b.Commit &&
@@ -319,9 +319,9 @@ public sealed partial class ScopedModels(ScopeContext context)
                         catch (FileNotFoundException) { continue; }
                         catch (DirectoryNotFoundException) { continue; }
                         if ((attributes & (FileAttributes.Directory | FileAttributes.ReparsePoint)) != 0)
-                            throw new StorageException("file-ownership-uncertain", "La ruta ya no identifica un archivo propio regular.");
+                            throw new StorageException("file-ownership-uncertain", Messages.ModelPathNoLongerIdentifiesARegularManaged.ToString());
                         if (file["volume"]?.GetValue<string>() is not string volume || file["file-id"]?.GetValue<string>() is not string fileId)
-                            throw new StorageException("file-ownership-uncertain", "La identidad del archivo cambió.");
+                            throw new StorageException("file-ownership-uncertain", Messages.ModelFileIdentityChanged.ToString());
                         freed += PhysicalDirectory.DeleteOwnedFile(path, volume, fileId);
                     }
                     catch (Exception e) when (e is IOException or UnauthorizedAccessException or StorageException)
@@ -363,7 +363,7 @@ public sealed partial class ScopedModels(ScopeContext context)
                 foreach (var item in array) foreach (var child in Instances(item)) yield return child;
         }
         var ids = Instances(evidence).Distinct().ToArray();
-        throw new ModelSourceException("resource-in-use", ids.Length == 0 ? "Uso activo de identidad incierta; se conserva la unidad." :
-            "Instancias que requieren reconciliación: " + string.Join(", ", ids));
+        throw new ModelSourceException("resource-in-use", ids.Length == 0 ? Messages.ModelActiveUsageUncertainIdentity.ToString() :
+            Messages.ModelInstancesRequiringReconciliation.Format(string.Join(", ", ids)));
     }
 }

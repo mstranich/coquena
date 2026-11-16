@@ -19,7 +19,7 @@ internal static class ManagementPresentation
     public static DefinitionsPresentation.Page Services(string scope, bool global, IReadOnlyList<Service> services, string? selected, int width = 56, string? combination = null)
     {
         // Columns of the preview: name 15, backend 17, port 8, then the state.
-        var rows = new List<string> { " " + Style("mut", "  " + Cell("SERVICIO", 13) + Cell("BACKEND", 17) + Cell("PUERTO", 8) + "ESTADO") };
+        var rows = new List<string> { " " + Style("mut", "  " + Cell(Messages.LabelsSERVICE.ToString(), 13) + Cell("BACKEND", 17) + Cell(Messages.DisplayPORT.ToString(), 8) + Messages.LabelsSTATE.ToString()) };
         foreach (var service in services)
         {
             var line = (service.Default ? "★ " : "  ") + Cell(service.Name, 13) + Cell(service.Backend, 17) + Cell(service.Port, 8);
@@ -28,22 +28,22 @@ internal static class ManagementPresentation
                 ? Style("focb", " " + DashboardPresentation.Fit(line + state, Math.Max(1, width - 1)).PadRight(Math.Max(1, width - 1)), "service:" + service.Key)
                 : " " + Style("nav", line, "service:" + service.Key) + Style(service.Tone ?? "mut", state));
         }
-        if (services.Count == 0) rows.Add(" " + Style("mut", "Sin servicios registrados."));
+        if (services.Count == 0) rows.Add(" " + Style("mut", Messages.DefinitionsNoRegisteredServices.ToString()));
         if (services.FirstOrDefault(service => service.Key == selected) is { } item)
         {
             rows.Add("");
-            rows.Add(" " + Style("hi", item.Name) + (item.Default ? " " + Style("mut", "· predeterminado") : ""));
-            AddDetail("archivo", item.File);
+            rows.Add(" " + Style("hi", item.Name) + (item.Default ? " " + Style("mut", Messages.DisplayDefault.ToString()) : ""));
+            AddDetail(Messages.LabelsFile.ToString(), item.File);
             AddDetail("args", item.Arguments);
             AddDetail("consumidores", item.Consumers);
             if (item.Problem is { } problem) rows.AddRange(DashboardPresentation.Wrap(problem, Math.Max(10, width - 2)).Select(line => " " + Style("err", line)));
             rows.Add("");
-            rows.Add(" " + (global ? Button("★ Predeterminado", "default") : DefinitionsPresentation.Off("★ Predeterminado")) +
-                "  " + (item.Id is null ? DefinitionsPresentation.Off("Eliminar") : Button("Eliminar", "remove")));
-            rows.Add(" " + DefinitionsPresentation.Off("Editar YAML") + " " + Button("Ver en vivo", "live"));
+            rows.Add(" " + (global ? Button(Messages.DefinitionsDefaultButton.ToString(), "default") : DefinitionsPresentation.Off(Messages.DefinitionsDefaultButton.ToString())) +
+                "  " + (item.Id is null ? DefinitionsPresentation.Off(Messages.LabelsRemove.ToString()) : Button(Messages.LabelsRemove.ToString(), "remove")));
+            rows.Add(" " + DefinitionsPresentation.Off(Messages.AuthoringEditYamlButton.ToString()) + " " + Button(Messages.AuthoringViewLiveButton.ToString(), "live"));
         }
-        return new((global ? "Servicios de " : "Servicio de ") + Escape(scope) +
-            (global ? "{pad}" + Button("+ Agregar", "create") : combination is null ? "" : "{pad}" + CombinationButton(combination)), rows);
+        return new((global ? Messages.ServicesInScope.Format(Escape(scope)) : Messages.ServiceInScope.Format(Escape(scope))) +
+            (global ? "{pad}" + Button(Messages.DefinitionsAddButton.ToString(), "create") : combination is null ? "" : "{pad}" + CombinationButton(combination)), rows);
 
         static string Cell(string text, int size) => DashboardPresentation.Fit(text, size - 1).PadRight(size);
 

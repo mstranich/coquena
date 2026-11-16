@@ -118,7 +118,7 @@ internal static class ModelSourceTests
         var selection = await menu.SelectAsync(ModelRequest.Parse("owner/repo"), choose);
         Check(selection!.Name == "owner/repo:Q4_K_M" && selection.Selection.Commit == Commit && selection.Selection.Files.Length == 1,
             "main selection pinned and companion not enqueued");
-        Check(choose.Menus.Count == 1 && choose.Menus[0][0].StartsWith("Descargar "), "choose starts with no second confirmation");
+        Check(choose.Menus.Count == 1 && choose.Menus[0][0].StartsWith(Messages.DownloadVariant("")), "choose starts with no second confirmation");
         Check(!fixture.Calls.Any(c => c.Contains("/raw/")), "README only on demand");
         var direct = new Interaction { IsInteractive = false };
         var directSelection = await menu.SelectAsync(ModelRequest.Parse("owner/repo:q4_k_m"), direct);
@@ -151,7 +151,7 @@ internal static class ModelSourceTests
         Check(aux!.Name == "owner/repo#mmproj:F16" && aux.Selection.Files[0].Path == "mmproj-F16.gguf", "independent companion selection");
         var absent = new Interaction(1);
         Check(await menu.SelectAsync(ModelRequest.Parse("owner/repo:Q8_0"), absent) is null && absent.Menus[0].Length == 2 &&
-            absent.Messages.Any(m => m.Contains("inexistente")), "missing quant not substituted");
+            absent.Messages.Any(m => m.Contains(Messages.ModelRequestedQuantizationUnavailable.Format(Messages.PartialExploration, Messages.NotSubstituted))), "missing quant not substituted");
         await Fails(() => menu.SelectAsync(ModelRequest.Parse("owner/repo"), new Interaction { IsInteractive = false }), "interaction-required");
         using var cancelled = new CancellationTokenSource(); cancelled.Cancel();
         try { await store.InventoryAsync(Revision, cancelled.Token); throw new Exception("Expected cancellation"); }
@@ -229,7 +229,7 @@ internal static class ModelSourceTests
         using var ec = new HttpClient(empty);
         var noGguf = new Interaction(1);
         Check(await new ModelSelectionMenu(new(ec), new ResolutionTests.NamedInspector()).SelectAsync(ModelRequest.Parse("owner/repo"), noGguf) is null &&
-            noGguf.Menus[0].SequenceEqual(new[] { "Mostrar README", "Cancelar" }), "no GGUF only readme/cancel");
+            noGguf.Menus[0].SequenceEqual(new[] { Messages.ModelShowREADME.ToString(), Messages.LabelsCancel.ToString() }), "no GGUF only readme/cancel");
         Check(!fixture.Calls.Any(c => c.Contains("/resolve/")), "no weight GET or transfer calls");
         Console.WriteLine($"OK: {checks} comprobaciones HF/selección; sin pesos, GUID ni persistencia.");
     }
@@ -275,7 +275,7 @@ internal static class ModelSourceTests
         found = await new ModelResolver(inspector).DiscoverAsync(new(Revision,
             Enumerable.Range(0, 20).Select(i => File($"unknown-{i}.gguf")).ToArray()), _ => { }, default,
             ModelRequest.Parse("owner/repo#mmproj:BF16"));
-        Check(inspector.Paths.Count == 8 && found.Diagnostics.Any(d => d.Contains("parcial")),
+        Check(inspector.Paths.Count == 8 && found.Diagnostics.Any(d => d.Contains(Messages.ModelAlternativeExplorationLimited.ToString())),
             "fallback for arbitrary names is bounded and reports incomplete exploration");
         inspector = new ConcreteInspector(32);
         found = await new ModelResolver(inspector).DiscoverAsync(new(Revision,

@@ -63,36 +63,36 @@ public static class ModelSelection
         var state = header is null ? EvidenceState.Candidate : EvidenceState.MetadataVerified;
         string? diagnostic = null;
         if (header is not null && quant is null && label is not null)
-        { source = EvidenceSource.Name; state = EvidenceState.Candidate; diagnostic = "Cuantización candidata por nombre; cabecera sin file_type reconocido."; }
-        if (role == ModelRole.Unknown) { state = EvidenceState.Conflict; diagnostic = "Rol auxiliar contradictorio."; }
+        { source = EvidenceSource.Name; state = EvidenceState.Candidate; diagnostic = Messages.ModelQuantizationFromNameFallback.ToString(); }
+        if (role == ModelRole.Unknown) { state = EvidenceState.Conflict; diagnostic = Messages.ModelConflictingCompanionRole.ToString(); }
         if (header?.Hints.TryGetValue("general.architecture", out var architecture) == true && architecture == "clip")
         {
-            if (role == ModelRole.Mtp) { state = EvidenceState.Conflict; diagnostic = "Rol mtp contradice arquitectura clip."; }
+            if (role == ModelRole.Mtp) { state = EvidenceState.Conflict; diagnostic = Messages.ModelMtpRoleConflictsWithClipArchitecture.ToString(); }
             else role = ModelRole.Mmproj;
         }
         var publisherRecipe = label is not null && (label.StartsWith("UD-",StringComparison.Ordinal) || label == "IQ1_S-XL" || Base(label) is null);
         if (quant is not null && !publisherRecipe)
         {
             if (label is not null && Base(label) != quant && state != EvidenceState.Conflict)
-                diagnostic = $"Nombre {label}; general.file_type declara {quant}. Se usa la cabecera.";
+                diagnostic = Messages.ModelNameVsHeaderFileType.Format(label, quant);
             label = quant;
             source = EvidenceSource.Header;
         }
         if (publisherRecipe && state != EvidenceState.Conflict)
-        { state = EvidenceState.Candidate; diagnostic = "Etiqueta del publicador conservada; file_type describe predominancia, no certifica la receta dinámica."; }
+        { state = EvidenceState.Candidate; diagnostic = Messages.ModelPublisherLabelPreserved.ToString(); }
         if (header?.FileTypeId is { } unknown && quant is null && state != EvidenceState.Conflict)
-            diagnostic = $"general.file_type={unknown} desconocido; no se inventa etiqueta.";
+            diagnostic = Messages.ModelUnknownGeneralFileTypeNoLabelInvented.Format(unknown);
         label ??= quant;
         if (role == ModelRole.Mtp && state != EvidenceState.Conflict)
         {
             state = EvidenceState.Candidate;
             diagnostic = (diagnostic is null ? "" : diagnostic + " ") +
-                "Parece un auxiliar MTP por su nombre.";
+                Messages.ModelAppearsMtpCompanion.ToString();
         }
         if (label is null && state != EvidenceState.Conflict)
         {
             state = EvidenceState.Inconclusive;
-            diagnostic = (diagnostic is null ? "" : diagnostic + " ") + "Sin cuantización resoluble por nombre/metadatos.";
+            diagnostic = (diagnostic is null ? "" : diagnostic + " ") + Messages.ModelNoQuantizationResolvable.ToString();
         }
         return new(file.Path, revision.Commit, role, label is null ? null : quant ?? Base(label), label, source, state, diagnostic);
     }
@@ -105,7 +105,7 @@ public static class ModelSelection
             var stem = file.Path[..^5];
             var m = Regex.Match(stem, "^(.*)-([0-9]{5})-of-([0-9]{5})$", RegexOptions.CultureInvariant);
             if (!m.Success && Regex.IsMatch(stem, "-[0-9]+-of-[0-9]+$", RegexOptions.CultureInvariant))
-            { diagnostics.Add(file.Path + ": división no convencional; no se inventa agrupación."); continue; }
+            { diagnostics.Add(Messages.ModelNonconventionalSplitFile.Format(file.Path)); continue; }
             parts.Add((file, m.Success ? m.Groups[1].Value : stem, m.Success ? int.Parse(m.Groups[2].Value) : 1,
                 m.Success ? int.Parse(m.Groups[3].Value) : 1));
         }
@@ -114,7 +114,7 @@ public static class ModelSelection
         {
             var ordered = group.OrderBy(p => p.Index).ToArray(); var total = ordered[0].Total;
             if (total is < 1 or > 65535 || ordered.Length != total || ordered.Any(p => p.Total != total) || ordered.Where((p, i) => p.Index != i + 1).Any())
-            { diagnostics.Add(group.Key + ": conjunto incompleto/contradictorio; no seleccionable."); continue; }
+            { diagnostics.Add(Messages.ModelIncompleteOrConflictingSet.Format(group.Key)); continue; }
             units.Add(new(ordered.Select(p => p.File).ToArray()));
         }
         return units.ToArray();
@@ -128,7 +128,7 @@ public static class ModelSelection
         var total = unit.Files.Aggregate(0m, (sum, f) => sum + f.Size);
         return new(first.PublisherLabel!, type,
             $"{first.PublisherLabel} — {string.Join(", ", unit.Files.Select(f => f.Path))} — {ByteSize.Format(total)} — {first.Source}/{first.State}" +
-                (first.Role == ModelRole.Mtp ? " — parece un auxiliar MTP por su nombre" : ""), unit.Files)
+                (first.Role == ModelRole.Mtp ? Messages.ModelAppearsToBeAnMTPCompanionBy2.ToString() : ""), unit.Files)
             { Evidence = evidence };
     }
     public static ModelCandidates Discover(RepositoryInventory inventory)
@@ -172,7 +172,7 @@ public sealed class ModelResolver(IRemoteGgufInspector inspector, long unitBytes
                     .OrderBy(u => ModelSelection.NameQuantization(u.Files[0].Path) is null ? 0 : 1).ToArray();
                 foreach (var unit in fallback.Take(8)) await Add(unit, true);
                 if (fallback.Length > 8)
-                    diagnostics.Add("Exploración alternativa limitada a 8 unidades; resultado parcial/no concluyente.");
+                    diagnostics.Add(Messages.ModelAlternativeExplorationLimited.ToString());
             }
             return ModelSelection.Sorted(variants.Where(Matches), diagnostics);
         }
@@ -217,25 +217,25 @@ public sealed class ModelResolver(IRemoteGgufInspector inspector, long unitBytes
         var initialBytes = (inspector as RemoteGgufInspector)?.Statistics.Bytes ?? 0;
         for (var i = 0; i < unit.Files.Length; i++)
         {
-            show("Inspeccionando metadatos GGUF (sin instalar pesos): " + unit.Files[i].Path);
+            show(Messages.ModelInspectingGgufMetadata.Format(unit.Files[i].Path));
             var header = await inspector.InspectAsync(revision, unit.Files[i], cancellation);
             if (inspector is RemoteGgufInspector remote && remote.Statistics.Bytes - initialBytes > unitBytes)
-                throw new ModelSourceException("inspection-limit", "Presupuesto por unidad agotado.");
+                throw new ModelSourceException("inspection-limit", Messages.ModelPerUnitBudgetExhausted.ToString());
             var namedSplit = Regex.IsMatch(unit.Files[i].Path, "-[0-9]{5}-of-[0-9]{5}\\.gguf$", RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
             if ((unit.Files.Length > 1 || namedSplit) && (header.SplitIndex != i || header.SplitCount != unit.Files.Length || header.SplitTensorCount is null) ||
                 unit.Files.Length == 1 && header.SplitCount > 1)
-                throw new ModelSourceException("split-conflict", "Selección y metadatos split contradictorios.");
+                throw new ModelSourceException("split-conflict", Messages.ModelConflictingSelectionSplit.ToString());
             headers.Add(header); evidence.Add(ModelSelection.Classify(revision, unit.Files[i], header));
         }
         if (headers.Select(h => h.Version).Distinct().Count() > 1 || headers.Where(h => h.FileTypeId.HasValue).Select(h => h.FileTypeId).Distinct().Count() > 1)
-            throw new ModelSourceException("metadata-conflict", "Metadatos GGUF contradictorios entre partes.");
+            throw new ModelSourceException("metadata-conflict", Messages.ModelConflictingGGUFMetadataBetweenParts.ToString());
         foreach (var key in new[] { "general.architecture", "general.name", "general.basename", "general.uuid" })
             if (headers.Where(h => h.Hints.ContainsKey(key)).Select(h => h.Hints[key]).Distinct(StringComparer.Ordinal).Count() > 1)
-                throw new ModelSourceException("metadata-conflict", "Pista compartida contradictoria: " + key);
+                throw new ModelSourceException("metadata-conflict", Messages.ModelConflictingSharedHint.Format(key));
         var tensorSum = headers.Aggregate(0m, (sum, h) => sum + h.TensorCount);
         if (headers.Count > 1 && (headers.Select(h => h.SplitTensorCount).Distinct().Count() > 1 ||
             tensorSum != headers[0].SplitTensorCount))
-            throw new ModelSourceException("split-conflict", "Cantidad global de tensores contradictoria.");
+            throw new ModelSourceException("split-conflict", Messages.ModelConflictingGlobalTensorCount.ToString());
         return evidence.ToArray();
     }
 }

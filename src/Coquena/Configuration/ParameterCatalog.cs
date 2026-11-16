@@ -6,7 +6,8 @@ namespace Coquena.Configuration;
 public sealed class ConfigurationException(string message) : Exception(message);
 public sealed record ParameterDefinition(string Name, string Type, string Application, string Destination,
     string Description, string[] Aliases, string? Default = null, string[]? Choices = null,
-    ParameterSupport[]? Support = null, string[]? NegativeAliases = null, string? Syntax = null, string? Source = null);
+    ParameterSupport[]? Support = null, string[]? NegativeAliases = null, string? Syntax = null, string? Source = null,
+    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)] string? DescriptionKey = null);
 public sealed record ParameterSupport(string? Variant = null, Guid? BackendId = null,
     string? From = null, string? Until = null, bool EvidenceOnly = false);
 public sealed record ParametersDocument(int SchemaVersion, ParameterDefinition[] Definitions, string? CatalogRevision = null);
@@ -17,32 +18,32 @@ public static partial class ParameterCatalog
 {
     private static readonly ParameterDefinition[] EstablishedDefinitions =
     [
-        new("ctx-size", "integer", "model", "INI", "Contexto", ["c", "LLAMA_ARG_CTX_SIZE"]),
-        new("threads", "integer", "model", "INI", "Hilos de generación", ["t", "LLAMA_ARG_THREADS"]),
-        new("threads-batch", "integer", "model", "INI", "Hilos de batch", ["tb"]),
-        new("n-predict", "integer", "model", "INI", "Tokens a generar", ["n", "predict", "LLAMA_ARG_N_PREDICT"]),
-        new("n-gpu-layers", "text", "model", "INI", "Capas GPU: número, auto o all", ["ngl", "gpu-layers", "LLAMA_ARG_N_GPU_LAYERS"]),
-        new("moe-cache-mib", "integer", "model", "INI", "Caché GPU de expertos MoE en CPU, en MiB; 0 desactiva", ["LLAMA_ARG_MOE_CACHE_MIB"],
-            Default: "0", Support: [new(From: "b11480")]),
-        new("moe-cache-cpu-share", "number", "model", "INI", "Fracción de fallos de caché MoE calculada en CPU al llenarse; entre 0 y 1", ["LLAMA_ARG_MOE_CACHE_CPU_SHARE"],
-            Default: "0", Support: [new(From: "b12191")]),
-        new("temperature", "number", "model", "INI", "Temperatura", ["temp", "LLAMA_ARG_TEMPERATURE"]),
+        new("ctx-size", "integer", "model", "INI", "", ["c", "LLAMA_ARG_CTX_SIZE"], DescriptionKey: Messages.ParameterDescriptionsContext.Key),
+        new("threads", "integer", "model", "INI", "", ["t", "LLAMA_ARG_THREADS"], DescriptionKey: Messages.ParameterDescriptionsGenerationThreads.Key),
+        new("threads-batch", "integer", "model", "INI", "", ["tb"], DescriptionKey: Messages.ParameterDescriptionsBatchThreads.Key),
+        new("n-predict", "integer", "model", "INI", "", ["n", "predict", "LLAMA_ARG_N_PREDICT"], DescriptionKey: Messages.ParameterDescriptionsTokensToGenerate.Key),
+        new("n-gpu-layers", "text", "model", "INI", "", ["ngl", "gpu-layers", "LLAMA_ARG_N_GPU_LAYERS"], DescriptionKey: Messages.ParameterDescriptionsGPULayersNumberAutoOrAll.Key),
+        new("moe-cache-mib", "integer", "model", "INI", "", ["LLAMA_ARG_MOE_CACHE_MIB"],
+            Default: "0", Support: [new(From: "b11480")], DescriptionKey: Messages.ParameterDescriptionsGPUCacheForCPUMoEExpertsIn.Key),
+        new("moe-cache-cpu-share", "number", "model", "INI", "", ["LLAMA_ARG_MOE_CACHE_CPU_SHARE"],
+            Default: "0", Support: [new(From: "b12191")], DescriptionKey: Messages.ParameterDescriptionsFractionOfMoECacheMissesComputedOn.Key),
+        new("temperature", "number", "model", "INI", "", ["temp", "LLAMA_ARG_TEMPERATURE"], DescriptionKey: Messages.ParameterDescriptionsTemperature.Key),
         new("top-k", "integer", "model", "INI", "Top K", ["LLAMA_ARG_TOP_K"]),
         new("top-p", "number", "model", "INI", "Top P", ["LLAMA_ARG_TOP_P"]),
         new("min-p", "number", "model", "INI", "Min P", ["LLAMA_ARG_MIN_P"]),
-        new("device", "text", "model", "INI", "Dispositivos separados por comas", ["dev", "LLAMA_ARG_DEVICE"]),
-        new("flash-attn", "text", "model", "INI", "Flash attention: on, off o auto", ["fa", "LLAMA_ARG_FLASH_ATTN"]),
-        new("cache-type-k", "text", "model", "INI", "Tipo de caché K", ["ctk", "LLAMA_ARG_CACHE_TYPE_K"]),
-        new("cache-type-v", "text", "model", "INI", "Tipo de caché V", ["ctv", "LLAMA_ARG_CACHE_TYPE_V"]),
-        new("load-on-startup", "boolean", "model", "INI", "Carga al inicio", ["__PRESET_LOAD_ON_STARTUP"]),
-        new("stop-timeout", "integer", "model", "INI", "Espera de detención en segundos", ["__PRESET_STOP_TIMEOUT"]),
-        new("host", "text", "server", "CLI", "Default Coquena: 127.0.0.1", ["LLAMA_ARG_HOST"]),
-        new("port", "integer", "server", "CLI", "Default Coquena: 9931", ["LLAMA_ARG_PORT"]),
-        new("metrics", "boolean", "server", "CLI", "Default Coquena: true", ["LLAMA_ARG_ENDPOINT_METRICS"]),
-        new("models-max", "integer", "server", "CLI", "Máximo de modelos cargados", ["LLAMA_ARG_MODELS_MAX"]),
-        new("models-autoload", "boolean", "server", "CLI", "Carga automática del router", ["no-models-autoload", "LLAMA_ARG_MODELS_AUTOLOAD"]),
-        new("models-preset", "text", "server", "CLI", "INI por instancia generado por Coquena", ["LLAMA_ARG_MODELS_PRESET"]),
-        new("model", "reference", "model", "INI", "Ruta resuelta desde ModelId del preset", ["m", "LLAMA_ARG_MODEL"])
+        new("device", "text", "model", "INI", "", ["dev", "LLAMA_ARG_DEVICE"], DescriptionKey: Messages.ParameterDescriptionsCommaSeparatedDevices.Key),
+        new("flash-attn", "text", "model", "INI", "", ["fa", "LLAMA_ARG_FLASH_ATTN"], DescriptionKey: Messages.ParameterDescriptionsFlashAttentionOnOffOrAuto.Key),
+        new("cache-type-k", "text", "model", "INI", "", ["ctk", "LLAMA_ARG_CACHE_TYPE_K"], DescriptionKey: Messages.ParameterDescriptionsKCacheType.Key),
+        new("cache-type-v", "text", "model", "INI", "", ["ctv", "LLAMA_ARG_CACHE_TYPE_V"], DescriptionKey: Messages.ParameterDescriptionsVCacheType.Key),
+        new("load-on-startup", "boolean", "model", "INI", "", ["__PRESET_LOAD_ON_STARTUP"], DescriptionKey: Messages.ParameterDescriptionsLoadAtStartup.Key),
+        new("stop-timeout", "integer", "model", "INI", "", ["__PRESET_STOP_TIMEOUT"], DescriptionKey: Messages.ParameterDescriptionsStopTimeoutInSeconds.Key),
+        new("host", "text", "server", "CLI", "", ["LLAMA_ARG_HOST"], DescriptionKey: Messages.ParameterHostDefault.Key),
+        new("port", "integer", "server", "CLI", "", ["LLAMA_ARG_PORT"], DescriptionKey: Messages.ParameterPortDefault.Key),
+        new("metrics", "boolean", "server", "CLI", "", ["LLAMA_ARG_ENDPOINT_METRICS"], DescriptionKey: Messages.ParameterMetricsDefault.Key),
+        new("models-max", "integer", "server", "CLI", "", ["LLAMA_ARG_MODELS_MAX"], DescriptionKey: Messages.ParameterDescriptionsMaximumLoadedModels.Key),
+        new("models-autoload", "boolean", "server", "CLI", "", ["no-models-autoload", "LLAMA_ARG_MODELS_AUTOLOAD"], DescriptionKey: Messages.ParameterDescriptionsRouterAutoload.Key),
+        new("models-preset", "text", "server", "CLI", "", ["LLAMA_ARG_MODELS_PRESET"], DescriptionKey: Messages.ParameterDescriptionsPerInstanceINIGeneratedByCoquena.Key),
+        new("model", "reference", "model", "INI", "", ["m", "LLAMA_ARG_MODEL"], DescriptionKey: Messages.ParameterDescriptionsPathResolvedFromPresetModelId.Key)
     ];
 
     public static readonly ParameterDefinition[] Definitions = CompleteDefinitions();
@@ -58,6 +59,7 @@ public static partial class ParameterCatalog
             {
                 Type = legacy.Type, Application = legacy.Application, Destination = legacy.Destination,
                 Description = ParameterManager.Protected.Contains(legacy.Name) ? legacy.Description : current.Description,
+                DescriptionKey = ParameterManager.Protected.Contains(legacy.Name) ? legacy.DescriptionKey : current.DescriptionKey,
                 Aliases = current.Aliases.Concat(legacy.Aliases).Except(negative, StringComparer.Ordinal).Distinct(StringComparer.Ordinal).ToArray(),
                 Default = legacy.Default, Support = legacy.Support,
                 Choices = legacy.Type == "enum" ? current.Choices : []
@@ -97,7 +99,7 @@ public static partial class ParameterCatalog
     {
         key = key.TrimStart('-');
         if (!KeyPattern().IsMatch(key) || key == "version" && Find(key, definitions)?.Destination != "CLI")
-            throw new ConfigurationException("Nombre de parámetro inválido o reservado por el INI.");
+            throw new ConfigurationException(Messages.ParameterNameInvalid);
         return Find(key, definitions)?.Name ?? key;
     }
 
@@ -110,16 +112,16 @@ public static partial class ParameterCatalog
         if (definition?.Support is not null)
             return ParameterManager.Availability(definition, null, repository, release);
         return definition is not null && repository is "ggml-org/llama.cpp" or "https://github.com/ggml-org/llama.cpp" && release == "b11482"
-            ? "admitido" : "desconocido";
+            ? "supported" : "unknown";
     }
 
     public static void ModelParameter(string key, ParameterDefinition[]? definitions = null)
     {
         var canonical = Canonical(key, definitions);
         if (Find(canonical, definitions)?.Application == "server")
-            throw new ConfigurationException($"{canonical} pertenece al servidor/router; se configura en su definición (tarea 011).");
+            throw new ConfigurationException(Messages.ParameterServerOwned.Format(canonical));
         if (canonical == "model")
-            throw new ConfigurationException("El modelo se selecciona mediante preset create o preset model set, con ID estable.");
+            throw new ConfigurationException(Messages.ParameterModelByPreset);
     }
 
     // b11482 does not quote/unquote strings: ; and # start comments even inside quotes.
@@ -127,6 +129,6 @@ public static partial class ParameterCatalog
     public static void Literal(string value)
     {
         if (value.Any(char.IsControl) || value.IndexOfAny([';', '#']) >= 0 || value != value.Trim())
-            throw new ConfigurationException("El INI b11482 no representa controles, comentarios (; o #) ni espacios exteriores sin pérdida.");
+            throw new ConfigurationException(Messages.ParameterIniLossy);
     }
 }

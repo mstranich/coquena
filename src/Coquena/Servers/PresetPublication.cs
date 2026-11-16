@@ -28,16 +28,16 @@ public sealed class PresetPublication(ScopeStore consumer, ScopeStore target, st
 
     internal static JsonObject Service(ScopeSnapshot state, string id) => state.Documents.GetValueOrDefault(Registry)?["data"]?["recipes"]?.AsArray()
         .SelectMany(r => r!["entities"]!.AsArray()).SingleOrDefault(e => e!["kind"]!.GetValue<string>() == "service" && e["id"]!.GetValue<string>() == id)?.AsObject()
-        ?? throw new StorageException("unknown-service", "Servicio no registrado.");
+        ?? throw new StorageException("unknown-service", Messages.ProjectServiceNotRegistered.ToString());
 
     public static string Render(JsonArray contributions) => "version=1\n" + string.Concat(contributions.SelectMany(c => c?["presets"] as JsonArray
-        ?? throw new StorageException("publication-snapshot-required", "La contribución no conserva definiciones publicables; se exige reconciliación explícita."))
+        ?? throw new StorageException("publication-snapshot-required", Messages.ServerContributionLacksDefinitions.ToString()))
         .OrderBy(p => p!["name"]!.GetValue<string>(), StringComparer.Ordinal).Select(p => p!["ini"]!.GetValue<string>()));
 
     public static string CurrentIni(ScopeStore store, string serviceId)
     {
         var service = Service(store.Read(), serviceId);
-        if (service["publication-operation"] is not null) throw new StorageException("publication-pending", "Publicación pendiente; observar antes de iniciar otra composición.");
+        if (service["publication-operation"] is not null) throw new StorageException("publication-pending", Messages.ServerPublicationPendingObserveFirst.ToString());
         return Render(service["consumers"] as JsonArray ?? []);
     }
 
@@ -46,29 +46,29 @@ public sealed class PresetPublication(ScopeStore consumer, ScopeStore target, st
         IPresetRouter? router, Action? validate = null, CancellationToken cancellation = default, Action<PublicationStage>? fault = null,
         long? expectedConsumerRevision = null, bool skipWarmup = false, bool resumeWarmup = false)
     {
-        if (!interactive) throw new StorageException("interaction-required", "La publicación requiere interacción.");
+        if (!interactive) throw new StorageException("interaction-required", Messages.ServerPublicationRequiresInteraction.ToString());
         using var lifecycle = new ScopedServiceProcess(target).Lease(serviceId);
         var own = consumer.Read(); var remote = Same ? own : target.Read();
         if (expectedConsumerRevision is long revision && own.Revision != revision)
-            throw new StorageException("publication-conflict", "Cambió la contribución antes de restaurar sus entradas.");
+            throw new StorageException("publication-conflict", Messages.ServerContributionChangedOnRestore.ToString());
         var recipe = Recipe(own, recipeId); var service = Service(remote, serviceId);
         if (recipe["publication-operation"] is JsonNode pending && pending["operation-id"]?.GetValue<string>() != service["publication-operation"]?["operation-id"]?.GetValue<string>())
-            throw new StorageException("publication-pending", "El consumidor conserva una publicación pendiente en otro destino.");
+            throw new StorageException("publication-pending", Messages.ServerConsumerPendingAtOtherTarget.ToString());
         if (stopped && remote.Documents.GetValueOrDefault(target.RuntimeDocumentPath(serviceId, "active"))?["data"]?["terminated"]?.GetValue<bool>() == false ||
             stopped && service["instance"] is not null)
-            throw new StorageException("instance-conflict", "El destino ya no está detenido.");
+            throw new StorageException("instance-conflict", Messages.ServerTargetIsNoLongerStopped.ToString());
         if (service["publication-operation"] is not null) return await ReconcileCoreAsync(recipeId, router, stopped, cancellation);
         var before = (service["consumers"] as JsonArray ?? []).DeepClone().AsArray();
         var owner = recipe["consumer-id"]!.GetValue<string>();
         var previous = before.SingleOrDefault(c => c!["consumer-id"]!.GetValue<string>() == owner);
         if (previous is not null && previous["scope-id"]?.GetValue<string>() != own.ScopeId)
-            throw new StorageException("publication-conflict", "El propietario no coincide con el ámbito comprobado.");
+            throw new StorageException("publication-conflict", Messages.ServerOwnerDoesNotMatchVerifiedScope.ToString());
         var after = before.DeepClone().AsArray();
         var replaced = after.SingleOrDefault(c => c!["consumer-id"]!.GetValue<string>() == owner);
         if (replaced is not null) after.Remove(replaced);
         foreach (var preset in presets)
             if (after.SelectMany(c => c!["presets"]!.AsArray()).Any(p => p!["name"]!.GetValue<string>() == preset.Name))
-                throw new StorageException("preset-name-conflict", "El nombre pertenece a otro consumidor.");
+                throw new StorageException("preset-name-conflict", Messages.ServerNameBelongsToAnotherConsumer.ToString());
         var proposed = new JsonArray(presets.Select(p => (JsonNode?)new JsonObject
         { ["name"] = p.Name, ["ini"] = p.Ini, ["expected-arguments"] = Strings(p.ExpectedArguments),
             ["resources"] = p.Resources.DeepClone(), ["warmup"] = p.Warmup }).ToArray());
@@ -108,17 +108,17 @@ public sealed class PresetPublication(ScopeStore consumer, ScopeStore target, st
         }
         if (!stopped)
         {
-            if (router is null) throw new StorageException("router-required", "Falta adaptador de publicación.");
+            if (router is null) throw new StorageException("router-required", Messages.ServerPublicationAdapterMissing.ToString());
             try
             {
                 var observed = await router.ObserveAsync(cancellation);
                 if (ConsumerMismatch(before, observed, owner, candidate: after) is { } difference) throw Conflict(difference);
             }
-            catch (Exception error) when (error is HttpRequestException || error is OperationCanceledException && !cancellation.IsCancellationRequested) { throw new StorageException("router-unreachable", "No se pudo consultar el catálogo del servidor."); }
+            catch (Exception error) when (error is HttpRequestException || error is OperationCanceledException && !cancellation.IsCancellationRequested) { throw new StorageException("router-unreachable", Messages.ServerCouldNotQueryServerCatalog.ToString()); }
             var activity = await router.ActivityAsync(affected, cancellation);
-            if (activity is not null && !confirm(activity)) throw new OperationCanceledException("Publicación cancelada.");
+            if (activity is not null && !confirm(activity)) throw new OperationCanceledException(Messages.ServerPublicationCancelled.ToString());
         }
-        else if (!confirm("Servicio detenido; se modifica la composición para su próximo inicio.")) throw new OperationCanceledException();
+        else if (!confirm(Messages.ServerStoppedCompositionChanged.ToString())) throw new OperationCanceledException();
         cancellation.ThrowIfCancellationRequested();
         validate?.Invoke();
         var operation = new JsonObject { ["operation-id"] = ProjectDocuments.Id(), ["consumer-id"] = owner,
@@ -154,7 +154,7 @@ public sealed class PresetPublication(ScopeStore consumer, ScopeStore target, st
             { SetPhase(recipeId, operation, "uncertain"); return new(false); }
             var restored = await ReconcileCoreAsync(recipeId, router, false, cancellation);
             if (!restored.Confirmed) return restored;
-            throw new StorageException("publication-rejected", "El router rechazó la publicación; composición anterior restaurada sin reiniciar.");
+            throw new StorageException("publication-rejected", Messages.ServerRouterRejectedPublication.ToString());
         }
         var result = await ReconcileCoreAsync(recipeId, router, false, cancellation);
         if (!result.Confirmed || result.Restored) return result;
@@ -238,12 +238,12 @@ public sealed class PresetPublication(ScopeStore consumer, ScopeStore target, st
     {
         var state = target.Read();
         if (stopped && Service(state, serviceId)["instance"] is not null)
-            throw new StorageException("instance-conflict", "El destino ya no está detenido.");
+            throw new StorageException("instance-conflict", Messages.ServerTargetIsNoLongerStopped.ToString());
         var operation = Service(state, serviceId)["publication-operation"]?.DeepClone().AsObject();
         if (operation is null) return new(true);
         var recipe = Recipe(consumer.Read(), recipeId);
         if (operation["consumer-id"]!.GetValue<string>() != recipe["consumer-id"]!.GetValue<string>())
-            throw new StorageException("publication-pending", "Otro consumidor conserva una publicación pendiente.");
+            throw new StorageException("publication-pending", Messages.ServerAnotherConsumerPending.ToString());
         var expected = (operation["restoring"]?.GetValue<bool>() == true ? operation["restore"] ?? operation["before"] : operation["after"])!.AsArray();
         if (stopped)
         {
@@ -314,12 +314,12 @@ public sealed class PresetPublication(ScopeStore consumer, ScopeStore target, st
         string Key(string key) => ParameterCatalog.Comparison(key, "", definitions).Key;
         var registered = entries.Select(e => e!["name"]!.GetValue<string>()).ToHashSet(StringComparer.Ordinal);
         if (observed.Select(p => p?["id"]?.GetValue<string>()).FirstOrDefault(id => id is not null && !registered.Contains(id)) is { } extra)
-            return $"el servidor ofrece «{extra}», que Coquena no publicó.";
+            return Messages.ServerOffersWhichCoquenaDidNotPublish.Format(extra);
         foreach (var entry in entries)
         {
             var name = entry!["name"]!.GetValue<string>();
             var found = observed.SingleOrDefault(p => p?["id"]?.GetValue<string>() == name);
-            if (found is null) return $"falta «{name}» en el servidor.";
+            if (found is null) return Messages.ServerIsMissingOnTheServer.Format(name);
             if (found["status"]?["preset"]?.GetValue<string>() is string actualIni && entry["ini"]?.GetValue<string>() is string expectedIni)
             {
                 var actual = new Dictionary<string, string>(StringComparer.Ordinal);
@@ -327,29 +327,29 @@ public sealed class PresetPublication(ScopeStore consumer, ScopeStore target, st
                 {
                     var normalized = ParameterCatalog.Comparison(pair.Key, pair.Value, definitions);
                     if (actual.TryGetValue(normalized.Key, out var duplicate) && duplicate != normalized.Value)
-                        return $"en «{name}», el servidor informa valores contradictorios para {normalized.Key}.";
+                        return Messages.ServerConflictingReportedValues.Format(name, normalized.Key);
                     actual[normalized.Key] = normalized.Value;
                 }
                 foreach (var (key, value) in IniValues(expectedIni))
                 {
                     var normalized = ParameterCatalog.Comparison(key, value, definitions);
-                    if (!actual.TryGetValue(normalized.Key, out var current)) return $"en «{name}», el servidor no tiene {key} = {value}" +
-                        (actual.Where(pair => pair.Value == value).Select(pair => pair.Key).FirstOrDefault() is { } other ? $" (tiene {other} = {value})." : ".");
-                    if (current != normalized.Value) return $"en «{name}», {key} vale {current} en el servidor y {value} en la receta.";
+                    if (!actual.TryGetValue(normalized.Key, out var current)) return Messages.ServerInServerLacks.Format(name, key, value) +
+                        (actual.Where(pair => pair.Value == value).Select(pair => pair.Key).FirstOrDefault() is { } other ? Messages.ServerConflictingHasValue.Format(other, value) : ".");
+                    if (current != normalized.Value) return Messages.ServerReportedValueMismatch.Format(name, key, current, value);
                 }
                 var prior = previous?.SelectMany(c => c!["presets"]!.AsArray()).SingleOrDefault(p => p!["name"]!.GetValue<string>() == name);
                 var wanted = IniValues(expectedIni).Keys.Select(Key).ToHashSet(StringComparer.Ordinal);
                 if (prior?["ini"]?.GetValue<string>() is string priorIni &&
                     IniValues(priorIni).Keys.FirstOrDefault(k => !wanted.Contains(Key(k)) && actual.ContainsKey(Key(k))) is { } stale)
-                    return $"en «{name}», el servidor todavía usa {stale}, que la receta ya no define.";
+                    return Messages.ServerInServerStillUsesWhichTheRecipe.Format(name, stale);
                 continue;
             }
             var args = found["status"]?["args"] as JsonArray;
             var tokens = entry["expected-arguments"]!.AsArray().Select(a => a!.GetValue<string>()).ToArray();
             if (tokens.Length == 0 && entry["ini"]?.GetValue<string>() is string definition && IniValues(definition).Count != 0)
-                return $"el servidor no informa la configuración de «{name}».";
+                return Messages.ServerMissingPresetConfig.Format(name);
             if (tokens.Length != 0 && (args is null || !Subsequence(tokens, args.Select(a => a!.GetValue<string>()).ToArray())))
-                return $"«{name}» se ejecuta con argumentos distintos de los publicados.";
+                return Messages.ServerRunningDifferentArguments.Format(name);
         }
         return null;
     }
@@ -364,8 +364,7 @@ public sealed class PresetPublication(ScopeStore consumer, ScopeStore target, st
     }
     // Only a difference in this consumer can block its publication.
     private static StorageException Conflict(string difference) => new("remote-composition-conflict",
-        "La contribución de esta receta en el servidor no coincide con lo que Coquena publicó: " + difference +
-        " No se modificó nada. Revisar los argumentos de esta receta y la configuración que informa el servidor.");
+        Messages.ServerRemoteCompositionConflict.Format(difference));
 
     private static bool Subsequence(string[] wanted, string[] actual)
     {
@@ -394,7 +393,7 @@ public sealed class PresetPublication(ScopeStore consumer, ScopeStore target, st
         Commit(own, other, recipeId, (r, s) =>
         {
             if (s["publication-operation"]?["operation-id"]?.GetValue<string>() != operation["operation-id"]!.GetValue<string>())
-                throw new StorageException("publication-conflict", "La operación cambió.");
+                throw new StorageException("publication-conflict", Messages.ServerOperationChanged.ToString());
             r["publication-operation"] = operation.DeepClone(); s["publication-operation"] = operation.DeepClone();
         });
         PersistOperation(operation);
@@ -405,7 +404,7 @@ public sealed class PresetPublication(ScopeStore consumer, ScopeStore target, st
         Commit(own, other, recipeId, (r, s) =>
         {
             if (s["publication-operation"]?["operation-id"]?.GetValue<string>() != operation["operation-id"]!.GetValue<string>())
-                throw new StorageException("publication-conflict", "La operación cambió.");
+                throw new StorageException("publication-conflict", Messages.ServerOperationChanged.ToString());
             s["consumers"] = composition.DeepClone(); s.Remove("publication-operation"); r.Remove("publication-operation");
             var contribution = composition.SingleOrDefault(c => c!["consumer-id"]!.GetValue<string>() == r["consumer-id"]!.GetValue<string>());
             var prior = operation["before"]!.AsArray().SingleOrDefault(c => c!["consumer-id"]!.GetValue<string>() == r["consumer-id"]!.GetValue<string>());

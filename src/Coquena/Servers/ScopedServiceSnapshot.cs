@@ -11,9 +11,9 @@ public static class ScopedServiceSnapshot
         ICombinationResources resources, string logPath, CancellationToken cancellation = default)
     {
         var snapshot = good["snapshot"]?.AsObject()
-            ?? throw new StorageException("invalid-start-plan", "La última buena no contiene snapshot.");
+            ?? throw new StorageException("invalid-start-plan", Messages.ServerLastGoodVersionLacksSnapshot.ToString());
         var execution = good["execution"]?.AsObject()
-            ?? throw new StorageException("invalid-start-plan", "La última buena no contiene ejecución probada.");
+            ?? throw new StorageException("invalid-start-plan", Messages.ServerLastGoodVersionLacksVerifiedExecution.ToString());
         var bindings = good["resources"]!.DeepClone().AsArray();
         var state = new ScopeStore(context).Read();
         var replacements = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
@@ -22,12 +22,12 @@ public static class ScopedServiceSnapshot
         {
             var installation = FindInstallation(state, binding!);
             if (installation?["integrity-status"]?.GetValue<string>() is "invalid" or "mismatch")
-                throw new StorageException("resource-integrity-invalid", "La última buena selecciona integridad inválida conocida.");
+                throw new StorageException("resource-integrity-invalid", Messages.ServerLastGoodInvalidIntegrity.ToString());
             var resource = state.Documents.GetValueOrDefault("local/inventory.json")?["data"]?["resources"]?.AsArray()
                 .SingleOrDefault(item => item!["resource-id"]!.GetValue<string>() == binding!["resource-id"]!.GetValue<string>());
             if (resource?["removal-pending"]?.GetValue<bool>() == true ||
                 installation?["availability"]?.GetValue<string>() is string availability && availability is not ("available" or "missing"))
-                throw new StorageException("snapshot-resource-unavailable", "La instalación probada está retirada o no disponible.");
+                throw new StorageException("snapshot-resource-unavailable", Messages.ServerVerifiedInstallationMissing.ToString());
         }
         foreach (var binding in bindings)
         {
@@ -44,14 +44,14 @@ public static class ScopedServiceSnapshot
             var missing = !File.Exists(path) || installation is null || installation["availability"]?.GetValue<string>() == "missing" ||
                 files.Any(file => !File.Exists(FilePath(file!)));
             if (!missing && files.Any(file => file!["size"] is JsonNode size && new FileInfo(FilePath(file)).Length != size.GetValue<long>()))
-                throw new StorageException("resource-content-conflict", "Cambió el tamaño de un archivo probado; no se repara automáticamente.");
+                throw new StorageException("resource-content-conflict", Messages.ServerVerifiedFileSizeChanged.ToString());
             // Available model revisions are used by recorded identity, never by a
             // possibly changed alias. Backend preparation also checks --version.
             if (!missing && kind != "backend") continue;
             if (missing && resolution?["origin"]?.GetValue<string>() == "external")
-                throw new StorageException("snapshot-resource-missing", "Falta un recurso externo de la última buena; requiere intervención.");
+                throw new StorageException("snapshot-resource-missing", Messages.ServerLastGoodExternalMissing.ToString());
             if (resolution is null || resolution["origin"]?.GetValue<string>() != "external" && resolution["selection"] is null)
-                throw new StorageException("snapshot-resource-missing", "Falta una resolución exacta; no se consulta latest.");
+                throw new StorageException("snapshot-resource-missing", Messages.ServerExactResolutionMissingLatestNotQueried.ToString());
             var intent = kind == "backend" ? snapshot["service"]?["backend"] :
                 snapshot[kind == "model" ? "models" : "companions"]?.AsObject()
                     .FirstOrDefault(pair => pair.Key.Equals(key, StringComparison.OrdinalIgnoreCase)).Value;
@@ -65,7 +65,7 @@ public static class ScopedServiceSnapshot
             if (prepared.Key != key || prepared.Kind != kind ||
                 resolution["selection"] is { } selected && !JsonNode.DeepEquals(selected, prepared.Resolution["selection"]) ||
                 resolution["artifacts"] is { } artifacts && !JsonNode.DeepEquals(artifacts, prepared.Resolution["artifacts"]))
-                throw new StorageException("resource-content-conflict", "La recuperación no coincide con los recursos probados.");
+                throw new StorageException("resource-content-conflict", Messages.ServerRecoveryDoesNotMatchVerifiedResources.ToString());
             replacements[path] = prepared.EntryPath;
             binding["resource-id"] = prepared.ResourceId;
             binding["installation-id"] = prepared.InstallationId;

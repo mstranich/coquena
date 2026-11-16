@@ -26,7 +26,7 @@ public sealed class ServerManager(Home home, LocalStore? storage = null)
         var catalog = Catalog();
         return (name is null ? catalog.Servers.SingleOrDefault(s => s.Id == Config().DefaultServerId) :
             catalog.Servers.SingleOrDefault(s => s.Name.Equals(name, StringComparison.OrdinalIgnoreCase)))
-            ?? throw new ConfigurationException(name is null ? "Servidor predeterminado ausente." : $"Servidor ausente: {name}.");
+            ?? throw new ConfigurationException(name is null ? Messages.ServerDefaultServerMissing.ToString() : Messages.ServerMissing.Format(name));
     }
 
     // Only a never-initialized catalog creates the initial default. An empty persisted
@@ -37,7 +37,7 @@ public sealed class ServerManager(Home home, LocalStore? storage = null)
         {
             var config = Config();
             if (config.DefaultServerId is not null)
-                throw new ConfigurationException("Catálogo de servidores ausente con designación existente; no se reemplaza.");
+                throw new ConfigurationException(Messages.ServerCatalogMissingWithDesignation.ToString());
             var record = new ServerRecord(Guid.NewGuid(), "default", null, [], new() { ["port"] = Scalar("9931") });
             Save(new(1, [record]));
             store.UpdateLocked(DocumentKind.Config, Json.ConfigDocument, ContractValidation.Config,
@@ -50,18 +50,18 @@ public sealed class ServerManager(Home home, LocalStore? storage = null)
     {
         if (string.IsNullOrWhiteSpace(name) || name != name.Trim() || name.Any(c => char.IsWhiteSpace(c) || char.IsControl(c) || c is '/' or '\\' or ':') ||
             (Reserved.Contains(name, StringComparer.OrdinalIgnoreCase) && !name.Equals("default", StringComparison.OrdinalIgnoreCase)))
-            throw new ConfigurationException("Nombre de servidor inválido o reservado.");
+            throw new ConfigurationException(Messages.ServerInvalidOrReservedServerName.ToString());
         _ = home.PathFor($"run/{name}/instance.json");
         var catalog = Catalog();
         if (catalog.Servers.Any(s => s.Name.Equals(name, StringComparison.OrdinalIgnoreCase)))
-            throw new ConfigurationException($"Servidor ya existente: {name}.");
+            throw new ConfigurationException(Messages.ServerAlreadyExists.Format(name));
         var assigned = port ?? NextPort(catalog);
         CheckPort(catalog, assigned);
         var record = new ServerRecord(Guid.NewGuid(), name, null, [], new() { ["port"] = Scalar(assigned.ToString(CultureInfo.InvariantCulture)) });
         var initial = store.Read(DocumentKind.Servers, Json.ServersDocument, ContractValidation.Servers) is null;
         var config = Config();
         if (initial && config.DefaultServerId is not null)
-            throw new ConfigurationException("Catálogo ausente con designación existente.");
+            throw new ConfigurationException(Messages.ServerCatalogMissingWithExistingDesignation.ToString());
         Save(catalog with { Servers = [.. catalog.Servers, record] });
         if (initial && name.Equals("default", StringComparison.OrdinalIgnoreCase))
             store.UpdateLocked(DocumentKind.Config, Json.ConfigDocument, ContractValidation.Config,
@@ -79,8 +79,8 @@ public sealed class ServerManager(Home home, LocalStore? storage = null)
             if (!ended)
             {
                 if (instance.ServerId != record.Id)
-                    throw new ConfigurationException($"Identidad incierta de instancia {instance.InstanceId:D}; servidor distinto, no se retira.");
-                throw new ConfigurationException($"Detener la instancia {instance.InstanceId:D} antes de retirar el servidor.");
+                    throw new ConfigurationException(Messages.ServerUncertainInstanceDifferentServer.Format(instance.InstanceId));
+                throw new ConfigurationException(Messages.ServerStopInstanceDBeforeRemovingServer.Format(instance.InstanceId));
             }
         }
         var catalog = Catalog(); var config = Config();
@@ -94,13 +94,13 @@ public sealed class ServerManager(Home home, LocalStore? storage = null)
     private static int NextPort(ServersDocument catalog)
     {
         var maximum = catalog.Servers.Length == 0 ? 9930 : catalog.Servers.Max(s => s.Parameters["port"].GetInt32());
-        if (maximum >= 65535) throw new ConfigurationException("Puerto máximo 65535: indicar un puerto explícito; sin cambios.");
+        if (maximum >= 65535) throw new ConfigurationException(Messages.ServerMaxPortSpecifyExplicit.ToString());
         return maximum + 1;
     }
     private static void CheckPort(ServersDocument catalog, int port, Guid? except = null)
     {
         if (port is < 1 or > 65535 || catalog.Servers.Any(s => s.Id != except && s.Parameters["port"].GetInt32() == port))
-            throw new ConfigurationException("Puerto fuera de rango o ya asignado a otro servidor.");
+            throw new ConfigurationException(Messages.ServerPortOutOfRangeOrAlreadyAssigned.ToString());
     }
     public ServerRecord? Default(string? name = null) => store.Exclusive(() =>
     {
@@ -151,19 +151,19 @@ public sealed class ServerManager(Home home, LocalStore? storage = null)
         if (value is not null) value = ParameterCatalog.AssignmentValue(parameter, value, definitions);
         var definition = ParameterCatalog.Find(key, definitions);
         if (definition?.Application != "server" || key == "models-preset")
-            throw new ConfigurationException("Parámetro ajeno al catálogo de servidor o gestionado por Coquena.");
+            throw new ConfigurationException(Messages.ServerParameterOutsideCatalog.ToString());
         var parameters = new Dictionary<string, JsonElement>(record.Parameters);
         if (key == "port")
         {
             var port = value is null ? NextPort(catalog) : int.TryParse(value, NumberStyles.None, CultureInfo.InvariantCulture, out var number)
-                ? number : throw new ConfigurationException("Puerto entero requerido.");
+                ? number : throw new ConfigurationException(Messages.ServerIntegerPortRequired.ToString());
             CheckPort(catalog, port, record.Id); parameters[key] = Scalar(port.ToString(CultureInfo.InvariantCulture));
         }
         else if (value is null) parameters.Remove(key);
         else
         {
             ParameterManager.ValidateValue(definition, value);
-            if (key is "host" or "models-max" && string.IsNullOrWhiteSpace(value)) throw new ConfigurationException("Valor de servidor inválido.");
+            if (key is "host" or "models-max" && string.IsNullOrWhiteSpace(value)) throw new ConfigurationException(Messages.ServerInvalidServerValue.ToString());
             parameters[key] = definition.Type switch
             {
                 "boolean" => Scalar(value == "1" || bool.TryParse(value, out var flag) && flag ? "true" : "false"),
@@ -171,7 +171,7 @@ public sealed class ServerManager(Home home, LocalStore? storage = null)
                 "decimal" => Scalar(double.Parse(value, CultureInfo.InvariantCulture).ToString("R", CultureInfo.InvariantCulture)),
                 _ => Text(value)
             };
-            if (key == "models-max" && definition.Type == "integer" && parameters[key].GetInt64() <= 0) throw new ConfigurationException("Entero positivo requerido para models-max.");
+            if (key == "models-max" && definition.Type == "integer" && parameters[key].GetInt64() <= 0) throw new ConfigurationException(Messages.ServerPositiveIntegerRequiredForModelsMax.ToString());
         }
         return record with { Parameters = parameters };
     });
@@ -184,13 +184,13 @@ public sealed class ServerManager(Home home, LocalStore? storage = null)
     });
     private BackendRecord Resolve(BackendSelection? selection, BackendRecord[] backends)
     {
-        if (selection is null) throw new ConfigurationException("Selección de backend ausente.");
+        if (selection is null) throw new ConfigurationException(Messages.ServerBackendSelectionMissing.ToString());
         var matches = backends.Where(b => selection.Kind == "fixed" ? b.Id == selection.BackendId :
             b.Ownership == "managed" && b.Origin == selection.Origin && b.Variant == selection.Variant && b.TracksLatest && b.Platform == "win-x64").ToArray();
-        if (matches.Length != 1) throw new ConfigurationException("Backend seleccionado ausente o ambiguo; no se usa un sustituto.");
+        if (matches.Length != 1) throw new ConfigurationException(Messages.ServerSelectedBackendMissing.ToString());
         var backend = matches[0];
         ResourceRemoval.CheckPending(home, store, [backend.Id]);
-        if (!File.Exists(new Coquena.Backends.BackendPaths(home).Server(backend))) throw new ConfigurationException("Archivo del backend seleccionado ausente.");
+        if (!File.Exists(new Coquena.Backends.BackendPaths(home).Server(backend))) throw new ConfigurationException(Messages.ServerSelectedBackendFileMissing.ToString());
         return backend;
     }
     private ServerView ViewLocked(ServerRecord record)
@@ -201,13 +201,13 @@ public sealed class ServerManager(Home home, LocalStore? storage = null)
         catch (ConfigurationException e) { diagnostics.Add(e.Message); }
         var presets = store.Read(DocumentKind.Presets, Json.PresetsDocument, ContractValidation.Presets)?.Presets ?? [];
         var associated = record.PresetIds.Select(id => presets.SingleOrDefault(p => p.Id == id)).ToArray();
-        for (var i = 0; i < associated.Length; i++) if (associated[i] is null) diagnostics.Add($"Preset ausente: {record.PresetIds[i]:D}.");
+        for (var i = 0; i < associated.Length; i++) if (associated[i] is null) diagnostics.Add(Messages.ServerPresetMissingD.Format(record.PresetIds[i]));
         var models = store.Read(DocumentKind.Models, Json.ModelsDocument, ContractValidation.Models)?.Models ?? [];
         foreach (var preset in associated.OfType<PresetRecord>())
         {
             var model = models.SingleOrDefault(m => m.Id == preset.ModelId);
-            if (model is null) diagnostics.Add($"Modelo ausente: {preset.ModelId:D} en {preset.Name}.");
-            else if (model.Files.Any(f => !File.Exists(new Coquena.Models.ModelPaths(home).File(model, f)))) diagnostics.Add($"{Messages.MissingModelFile} en {preset.Name}.");
+            if (model is null) diagnostics.Add(Messages.ServerModelMissingInScope.Format(preset.ModelId, preset.Name));
+            else if (model.Files.Any(f => !File.Exists(new Coquena.Models.ModelPaths(home).File(model, f)))) diagnostics.Add(Messages.ServerResourceInScope.Format(Messages.MissingModelFile, preset.Name));
         }
         var effective = new Dictionary<string, JsonElement> { ["host"] = Text("127.0.0.1"), ["metrics"] = Scalar("true") };
         foreach (var pair in record.Parameters) effective[pair.Key] = pair.Value;
@@ -224,7 +224,7 @@ public sealed class ServerManager(Home home, LocalStore? storage = null)
     {
         var view = ViewLocked(Named(name));
         if (view.Diagnostics.Length != 0) throw new ConfigurationException(string.Join(" ", view.Diagnostics));
-        if (view.Server.PresetIds.Length == 0) throw new ConfigurationException("No se puede iniciar un servidor vacío.");
+        if (view.Server.PresetIds.Length == 0) throw new ConfigurationException(Messages.ServerCannotStartAnEmptyServer.ToString());
         var definitions = new ParameterManager(home, store).Read().Definitions;
         var emitted = new Dictionary<string, JsonElement>();
         var iniValues = new Dictionary<string, string>();
@@ -233,17 +233,17 @@ public sealed class ServerManager(Home home, LocalStore? storage = null)
         {
             var definition = ParameterCatalog.Find(pair.Key, definitions);
             if (definition?.Application != "server" || definition.Name != pair.Key || pair.Key == "models-preset")
-                throw new ConfigurationException($"Parámetro de servidor inválido: {pair.Key}.");
+                throw new ConfigurationException(Messages.ServerInvalidServerParameter.Format(pair.Key));
             if (pair.Value.ValueKind is JsonValueKind.Object or JsonValueKind.Array or JsonValueKind.Null or JsonValueKind.Undefined)
-                throw new ConfigurationException($"Tipo de parámetro de servidor inválido: {pair.Key}.");
+                throw new ConfigurationException(Messages.ServerInvalidServerParameterType.Format(pair.Key));
             var value = pair.Value.ValueKind == JsonValueKind.String ? pair.Value.GetString()! : pair.Value.ToString();
             ParameterManager.ValidateValue(definition, value);
             if (pair.Key == "models-max" && definition.Type == "integer" && (!long.TryParse(value, CultureInfo.InvariantCulture, out var maximum) || maximum <= 0))
-                throw new ConfigurationException("Entero positivo requerido para models-max.");
+                throw new ConfigurationException(Messages.ServerPositiveIntegerRequiredForModelsMax.ToString());
             var availability = ParameterManager.Availability(definition, view.Backend);
-            if (availability == "no admitido")
-            { diagnostics.Add($"{view.Server.Name}: {pair.Key} no admitido; se omite con warning y se conserva la asignación."); continue; }
-            if (availability == "desconocido") diagnostics.Add($"{view.Server.Name}: {pair.Key} desconocido; se conserva.");
+            if (availability == "unsupported")
+            { diagnostics.Add(Messages.ServerUnsupportedParamOmitted.Format(view.Server.Name, pair.Key)); continue; }
+            if (availability == "unknown") diagnostics.Add(Messages.ServerUnknownPreserved.Format(view.Server.Name, pair.Key));
             if (definition.Destination == "INI") iniValues[pair.Key] = value;
             else emitted[pair.Key] = definition.Type == "boolean" ? Scalar(value == "1" || bool.TryParse(value, out var boolean) && boolean ? "true" : "false") : pair.Value;
         }

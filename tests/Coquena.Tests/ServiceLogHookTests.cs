@@ -71,7 +71,7 @@ internal static class ServiceLogHookTests
             lifecycle.Stop(service.ServiceId);
             File.AppendAllText(firstPath, new string('x', 100));
             lifecycle.Reconcile(service.ServiceId);
-            Check(File.Exists(firstPath) && output.ToString().Contains("protegidos"), "last oversized log protected after termination");
+            Check(File.Exists(firstPath) && output.ToString().Contains(Messages.ServerLogsRetentionExceeded.ToString()), "last oversized log protected after termination");
             await lifecycle.RunAsync(service.ServiceId, false, true, Fail, Restore, hook: hook);
             Check(Payloads().Length == 4 && Payloads()[3]["recovery"]!.GetValue<string>() == "succeeded" &&
                 Payloads()[3]["available"]!.GetValue<bool>(), "recovery success still notifies once");

@@ -16,7 +16,7 @@ public static partial class ByteSize
     {
         var match = Pattern().Match(text);
         if (!match.Success || match.Groups[2].Success && !match.Groups[3].Success)
-            throw new FormatException("Tamaño inválido; usar bytes, KiB/MiB/GiB/TiB/PiB/EiB o KB/MB/GB/TB/PB/EB (base 1024), k/m/g/t/p/e (base 1000) y punto decimal; sin distinguir mayúsculas.");
+            throw new FormatException(Messages.ValidationInvalidSizeUseBytesKiBMiBGiB.ToString());
         var suffix = match.Groups[3].Value;
         var unit = suffix.Length == 0 || suffix.Equals("B", StringComparison.OrdinalIgnoreCase)
             ? 0 : "KMGTPE".IndexOf(char.ToUpperInvariant(suffix[0])) + 1;
@@ -25,7 +25,7 @@ public static partial class ByteSize
         var numerator = BigInteger.Parse(match.Groups[1].Value + fraction, CultureInfo.InvariantCulture) * BigInteger.Pow(scale, unit);
         var bytes = BigInteger.DivRem(numerator, BigInteger.Pow(10, fraction.Length), out var remainder);
         if (remainder != 0 || bytes < 0 || bytes > long.MaxValue)
-            throw new FormatException("El tamaño debe representar bytes enteros entre 0 B y 8 EiB (exclusivo).");
+            throw new FormatException(Messages.ValidationSizeMustRepresentWholeBytesFromB.ToString());
         return (long)bytes;
     }
 

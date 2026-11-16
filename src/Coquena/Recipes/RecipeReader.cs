@@ -23,9 +23,9 @@ public sealed class RecipeSelection
         var environment = envFiles?.ToArray() ?? [];
         var origin = new RecipeOrigin(cwd, 1, 1, "$selection");
         if (selected.Length + environment.Length + (selected.Length == 0 ? 1 : 0) > 64)
-            throw new RecipeException("layer-limit", "selection", origin, "Se admiten como máximo 64 capas YAML o env.");
+            throw new RecipeException("layer-limit", "selection", origin, Messages.RecipeMaxLayersExceeded.ToString());
         if (selected.Concat(environment).Any(x => string.IsNullOrWhiteSpace(x) || x == "-"))
-            throw new RecipeException("invalid-file-selection", "selection", origin, "Se requiere una ruta de archivo; stdin no está admitido.");
+            throw new RecipeException("invalid-file-selection", "selection", origin, Messages.RecipeFilePathRequiredNoStdin.ToString());
         var explicitBase = projectDirectory is null ? null : Path.TrimEndingDirectorySeparator(Path.GetFullPath(projectDirectory, cwd));
         var first = selected.Length == 0 ? Path.Combine(explicitBase ?? cwd, "coquena.yaml") : Path.GetFullPath(selected[0], explicitBase ?? cwd);
         Base = explicitBase ?? Path.GetDirectoryName(first)!;
@@ -65,27 +65,27 @@ public sealed class EffectiveRecipe
         var selector = serviceOverride ?? Target;
         if (selector == "self")
         {
-            if (Root.Get("service") is null) throw Root.Error("self-requires-service", "target", "publish-to: self requiere service.");
+            if (Root.Get("service") is null) throw Root.Error("self-requires-service", "target", Messages.RecipePublishToSelfRequiresService.ToString());
             return new(selector, true, ownService?.ServiceId);
         }
         try
         {
             var id = globalResolver(selector is "global" or "default" ? "default" : selector);
-            if (string.IsNullOrEmpty(id)) throw new StorageException("unknown-service", "No resuelve el destino.");
+            if (string.IsNullOrEmpty(id)) throw new StorageException("unknown-service", Messages.RecipeTargetCannotBeResolved.ToString());
             return new(selector, false, id);
         }
         catch (StorageException error)
         {
             throw (Root.Get("publish-to") ?? Root).Error(error.Code, "target", error.Code == "unknown-service"
-                ? "No resuelve el servicio seleccionado; no se elige sustituto."
-                : "No se pudo consultar el estado del servicio seleccionado.");
+                ? Messages.RecipeSelectedServiceUnresolved.ToString()
+                : Messages.RecipeCouldNotQueryTheSelectedServiceState.ToString());
         }
     }
 
     public bool PresetEnabled(string key) => Preset(key).Get("enable")?.Text != "false";
     public bool PresetWarmup(string key) => Preset(key).Get("warmup")?.Text == "true";
     public string PresetArgsMode(string key) => Mode(Preset(key)) ?? ArgsMode;
-    private RecipeValue Preset(string key) => Root.Get("presets")?.Get(key) ?? throw Root.Error("unknown-preset", "query", "El preset no existe.");
+    private RecipeValue Preset(string key) => Root.Get("presets")?.Get(key) ?? throw Root.Error("unknown-preset", "query", Messages.RecipeThePresetDoesNotExist.ToString());
     public override string ToString() => Root.ToString();
 }
 
@@ -162,7 +162,7 @@ public static class RecipeReader
             effective = Merge(effective, layer, "root");
         }
         if (selection.ImportCategories is { } importedCategories && effective.Get("publish-to")?.Text == "self" && !importedCategories.Contains("service"))
-            throw effective.Error("import-self-requires-service", "import", "publish-to: self requiere importar service.");
+            throw effective.Error("import-self-requires-service", "import", Messages.RecipePublishToSelfRequiresImportingService.ToString());
         RecipeStructure.Effective(effective);
         if (selection.ImportedPathBases is { } selectedBases) effective = Rebase(effective, selectedBases);
         if (selection.ImportedScope is { } scope)
@@ -180,7 +180,7 @@ public static class RecipeReader
                 if (entry?["kind"]?.GetValue<string>() != "recipe-intention") continue;
                 var bytes = SharedFile.ReadAllBytes(scope.PathFor($"local/generations/{generation}/{relative}"));
                 if (Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(bytes)) != entry["sha256"]!.GetValue<string>())
-                    throw new StorageException("invalid-generation", "La intención importada no coincide con la generación.");
+                    throw new StorageException("invalid-generation", Messages.RecipeImportedIntentionMismatch.ToString());
                 var document = ProjectDocuments.Read(bytes, "recipe-intention");
                 effective = Rebase(effective, document["data"]!["path-bases"]!.AsObject());
             }

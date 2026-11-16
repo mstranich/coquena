@@ -128,7 +128,7 @@ internal static class ScopedBackendTests
 
         var warnings = new List<string>(); calls = fixture.Calls;
         await Expect("backend-incompatible", () => manager.PrepareAsync(own.ServiceId, new("b1", "cuda@13"), a.Base, hardware, fixture, warning: warnings.Add));
-        Check(fixture.Calls == calls && warnings.Any(w => w.Contains("incompatible")), "driver incompatibility stops before transfer");
+        Check(fixture.Calls == calls && warnings.Any(w => w.StartsWith(Messages.BackendIncompatibleDiagnostic.Format(""), StringComparison.Ordinal)), "driver incompatibility stops before transfer");
         var forced = await manager.PrepareAsync(own.ServiceId, new("b1", "cuda@13"), a.Base, hardware, fixture, true, warnings.Add);
         Check(forced.Variant == "cuda@13" && warnings.Any(w => w.Contains("--force")) && File.Exists(first.Executable), "force retains requested family, warning and previous revision");
         await Expect("backend-incompatible", () => manager.PrepareAsync(own.ServiceId, new("b1", "cuda@13"), a.Base, hardware, fixture));
@@ -137,7 +137,7 @@ internal static class ScopedBackendTests
         var unknown = new ScopedBackends(a, unknownFixture.Resolve, Probe);
         warnings.Clear();
         await unknown.DownloadAsync(new("b1", "cuda@12"), Hardware("unknown"), unknownFixture, warning: warnings.Add);
-        Check(warnings.Any(w => w.StartsWith("Aviso: ", StringComparison.Ordinal)), "unknown evidence warns and continues");
+        Check(warnings.Any(w => w.StartsWith(Messages.OutputWarningDetail.Format(""), StringComparison.Ordinal)), "unknown evidence warns and continues");
         var missing = manager.List().SelectMany(r => r!["installations"]!.AsArray()).Single(i => i!["installation-id"]!.GetValue<string>() == second.InstallationId)!;
         // Simulate a completely absent revision, keeping immutable inventory evidence.
         var missingDirectory = a.PathFor(missing["location"]!.GetValue<string>());

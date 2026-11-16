@@ -55,7 +55,7 @@ internal static class ExternalBackendTests
             Check(custom.Repository == "lab/fork" && !ParameterManager.OfficialBackend(custom), "declared distribution used for parameters");
             var rocm = await installer.RegisterAsync(file, "rocm-local", "rocm");
             Check(rocm.Family == "rocm" && !ParameterManager.OfficialBackend(rocm), "external family declaration does not enable official downloads");
-            Check(new BackendDirectoryManager(home).Change("relocated", TextWriter.Null, () => "s", () => true), "managed directory transfer succeeds with external records");
+            Check(new BackendDirectoryManager(home).Change("relocated", TextWriter.Null, () => Messages.YesAnswer.ToString(), () => true), "managed directory transfer succeeds with external records");
             Check(installer.List().Single(b => b.Id == external.Id) == external && File.ReadAllText(file) == "untouched", "transfer preserves official external path and bytes");
             var operation = installer.Create(new("b1", "cpu", "win-x64", "compatible", "fixture", [new("test.zip", 1, "https://example.invalid/test")], true), "b1");
             Check(operation.BackendInstall?.BackendId == managed.Id, "reinstall excludes external with same release");

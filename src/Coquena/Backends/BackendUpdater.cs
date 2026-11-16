@@ -29,7 +29,7 @@ public sealed class BackendUpdater(Home home, LocalStore? storage = null)
     public async Task<BackendUpdateResult[]> UpdateAsync(string? selector, HardwareContext hardware,
         OfficialBackendSource source, CancellationToken cancellation = default)
     {
-        if (hardware.Platform != "win-x64") throw new BackendException("unsupported-platform", "Se requiere Windows x64 nativo.");
+        if (hardware.Platform != "win-x64") throw new BackendException("unsupported-platform", Messages.BackendNativeWindowsXRequired.ToString());
         string? variant = null;
         if (selector is not null)
         {
@@ -37,13 +37,13 @@ public sealed class BackendUpdater(Home home, LocalStore? storage = null)
                 selector.StartsWith("ggml/", StringComparison.Ordinal) ? selector[5..] : selector;
             var parts = normalized.Split(':');
             if (parts.Length != 2 || parts[1] != "latest" || !BackendCatalog.ValidFamily(parts[0]))
-                throw new BackendException("invalid-latest-selector", "Usar [ggml/|oficial/]cpu|vulkan|cuda@<mayor>:latest; pins y externos no se consultan.");
+                throw new BackendException("invalid-latest-selector", Messages.BackendLatestSelectorUsage.ToString());
             variant = parts[0];
         }
         var snapshot = store.Inspect(() => (Backends: Backends().Where(b => Latest(b) &&
             (variant is null || b.Variant == variant)).OrderBy(Key, StringComparer.Ordinal).ToArray(), Updates: Observations()));
         if (selector is not null && snapshot.Backends.Length == 0)
-            throw new BackendException("latest-not-registered", "No existe ese seguimiento latest registrado.");
+            throw new BackendException("latest-not-registered", Messages.BackendLatestTrackingNotFound.ToString());
         List<BackendUpdateResult> results = [];
         foreach (var group in snapshot.Backends.GroupBy(Key))
         {
@@ -57,13 +57,13 @@ public sealed class BackendUpdater(Home home, LocalStore? storage = null)
             try
             {
                 if (backend.Platform != hardware.Platform || !BackendCatalog.ValidFamily(backend.Variant))
-                    throw new BackendException("invalid-tracking-filter", "Filtro fuera de las familias/plataforma oficiales.");
+                    throw new BackendException("invalid-tracking-filter", Messages.BackendFilterOutsideOfficial.ToString());
                 var resolution = await source.ResolveAsync(hardware, backend.Variant, "latest", cancellation);
-                var candidate = resolution.Selected ?? throw new BackendException("no-candidate", "Sin candidato dentro del filtro registrado.");
+                var candidate = resolution.Selected ?? throw new BackendException("no-candidate", Messages.BackendNoCandidateWithinTheRegisteredFilter.ToString());
                 var newer = BackendCatalog.BuildNumber(candidate.Release) > BackendCatalog.BuildNumber(backend.Build);
                 observation = new("ggml", backend.Variant, backend.Platform, backend.Id, backend.Build,
                     DateTimeOffset.UtcNow, newer ? "available" : "unchanged",
-                    newer ? "Novedad detectada; instalación intacta." : "Sin build posterior al instalado dentro del filtro consultado.",
+                    newer ? Messages.DiagnosticsUpdateDetectedInstallationUnchanged.Data() : Messages.DiagnosticsNoBuildNewerThanTheInstalledOne.Data(),
                     newer ? new(candidate.Release, candidate.Artifacts.Select(a => new RemoteFile(a.Name, a.Size)).ToArray(),
                         candidate.Compatibility, candidate.Diagnostic) : null);
             }
@@ -79,13 +79,13 @@ public sealed class BackendUpdater(Home home, LocalStore? storage = null)
                     cancellation.ThrowIfCancellationRequested();
                     var current = Backends().Where(b => Latest(b) && Key(b) == group.Key).ToArray();
                     if (current.Length != 1 || current[0].Id != backend.Id || current[0].Build != backend.Build)
-                        throw new BackendException("stale-update", "El seguimiento cambió durante la consulta; reintente.");
+                        throw new BackendException("stale-update", Messages.BackendTrackingChangedDuringTheQueryRetry.ToString());
                     store.UpdateLocked(DocumentKind.BackendUpdates, Json.BackendUpdatesDocument, ContractValidation.BackendUpdates,
                         old =>
                         {
                             var updates = old?.Updates ?? [];
                             if (Fingerprint(updates.SingleOrDefault(o => Key(o) == group.Key)) != expected)
-                                throw new BackendException("stale-update", "Otra consulta guardó una observación; reintente.");
+                                throw new BackendException("stale-update", Messages.BackendAnotherQuerySavedAnObservationRetry.ToString());
                             return new(1, updates.Where(o => Key(o) != group.Key).Append(observation).ToArray());
                         }, cancellation: cancellation);
                     return true;

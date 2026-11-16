@@ -1,0 +1,50 @@
+namespace Coquena;
+
+public static partial class Messages
+{
+    public static readonly Text TransferHttpsRequired = new("HTTPS required (HTTP only for loopback fixtures).");
+    public static readonly Text TransferOperationDoesNotExist = new("Operation does not exist.");
+    public static readonly Text TransferLocalStateWriteFailed = new("Failed to write local download state; this is not an HTTP response.");
+    public static readonly Text TransferInvalidOrCollidingOperationPaths = new("Invalid or colliding operation paths.");
+    public static readonly Text TransferNewOperationMustBePendingWithoutBytes = new("New operation must be pending without bytes.");
+    public static readonly Text TransferGuidAlreadyRegistered = new("GUID already registered or orphaned preparation; not overwritten.");
+    public static readonly Text TransferAnotherExecutorControlsThisGUID = new("Another executor controls this GUID.");
+    public static readonly Text TransferOperationDirectoryNotRecognized = new("Operation directory not recognized.");
+    public static readonly Text TransferCancellationPendingCleanup = new("Cancellation pending cleanup.");
+    public static readonly Text TransferCleanupIncomplete = new("Cleanup incomplete; recoverable record preserved.");
+    public static readonly Text TransferRollbackRepeatCancel = new("Publication rolling back; repeat download cancel to complete cleanup.");
+    public static readonly Text TransferFinishedPendingCleanup = new("Finished operation pending consumer cleanup.");
+    public static readonly Text TransferCancelToCompletePendingCleanup = new("Cancel to complete pending cleanup.");
+    public static readonly Text TransferPartialDataAndCheckpointDifferNoBytes = new("Partial data and checkpoint differ; no bytes reused without evidence.");
+    public static readonly Text TransferCompleteFileChangedNeitherReusedNorIts = new("Complete file changed; neither reused nor its reference redefined.");
+    public static readonly Text TransferRedirectWithoutCredentials = new("Provider must resolve redirects without forwarding credentials.");
+    public static readonly Text TransferServerWaitExceedsLimitResumeExplicitly = new("Server wait exceeds limit; resume explicitly.");
+    public static readonly Text TransferValidatorChanged = new("Validator changed; do not change selection or restart.");
+    public static readonly Text TransferRangeDiscontinuity = new("Range does not continue; explicit acceptance required to restart this file.");
+    public static readonly Text TransferHttp416WithoutContinuity = new("416 without continuity evidence; partial data preserved.");
+    public static readonly Text TransferEncodedResponseCannotBeReusedByOffset = new("Encoded response cannot be reused by offset.");
+    public static readonly Text TransferInconsistentContentRange = new("Inconsistent Content-Range; no content appended.");
+    public static readonly Text TransferHTTPResponseUnsuitableForTransfer = new("HTTP response unsuitable for transfer.");
+    public static readonly Text TransferAnnouncedSizeDoesNotMatchSelection = new("Announced size does not match selection.");
+    public static readonly Text TransferPartialFileChangedBeforeOpeningWriter = new("Partial file changed before opening writer.");
+    public static readonly Text TransferPrefixChangedOrLacksEvidenceNoBytes = new("Prefix changed or lacks evidence; no bytes appended.");
+    public static readonly Text TransferResponseExceedsExpectedLimits = new("Response exceeds expected limits.");
+    public static readonly Text TransferRemoteShaMismatch = new("Remote SHA-256 mismatch; do not publish or redefine reference.");
+    public static readonly Text TransferRetriesExhausted = new("Retries exhausted.");
+    public static readonly Text TransferCompleteNeedsVerification = new("Download complete. Resource still needs verification and installation.");
+    public static readonly Text TransferProgressOf = new("{0} of {1}");
+    public static readonly Text TransferDownloading = new("Downloading {0} \u00B7 {1}");
+    public static readonly Text TransferPreparationPathNotAuthorized = new("Preparation path not authorized.");
+    public static readonly Text TransferScopePreparationUnconfirmed = new("Scope preparation unconfirmed; evidence preserved.");
+    public static readonly Text TransferVerifyingDownload = new("Verifying download of {0} \u00B7 {1}");
+    public static readonly Text TransferExtracting = new("Extracting {0}.");
+    public static readonly Text TransferCopyingToPreparation = new("Copying {0} to preparation area \u00B7 {1}");
+    public static readonly Text TransferCheckingGGUFStructure = new("Checking GGUF structure.");
+    public static readonly Text TransferCalculatingChecksumsOfPreparedFiles = new("Calculating checksums of prepared files.");
+    public static readonly Text TransferVerifyingPreparedFiles = new("Verifying prepared files before installation.");
+    public static readonly Text TransferMovingFilesToTheirFinalLocation = new("Moving files to their final location.");
+    public static readonly Text TransferVerifyingFilesAtTheirFinalLocation = new("Verifying files at their final location.");
+    public static readonly Text TransferRegisteringInstallationInInventory = new("Registering installation in inventory.");
+    public static readonly Text TransferRegisteredCleaningTemp = new("Installation registered. Cleaning temporary files.");
+    public static readonly Text TransferInvalidPreparationManifestPreserved = new("Invalid preparation manifest; preserved.");
+}

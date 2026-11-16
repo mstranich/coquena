@@ -47,7 +47,7 @@ public static class ServerCli
             if (action == "remove")
             {
                 var removed = manager.Remove(name);
-                output.WriteLine($"Servidor retirado: {removed.Name} ({removed.Id:D}); recursos y logs conservados.");
+                output.WriteLine(Messages.ServerRemoved.Format(removed.Name, removed.Id.ToString("D")));
                 return 0;
             }
             if (action == "ps") { new ServerRuntime(home).Ps(output); return 0; }
@@ -93,7 +93,7 @@ public static class ServerCli
                 case "create": Print(manager.Create(rest[0], rest.Length == 3 ? int.Parse(rest[2]) : null)); break;
                 case "default":
                     var selected = manager.Default(rest.Length == 0 ? null : rest[0]);
-                    output.WriteLine(selected is null ? "Sin servidor predeterminado." : $"Servidor predeterminado: {selected.Name}"); break;
+                    output.WriteLine(selected is null ? Messages.ServerNoDefault : Messages.ServerDefault.Format(selected.Name)); break;
                 case "use": Print(manager.Use(name, rest[0])); break;
                 case "set": Print(manager.Set(name, rest[0], rest[1])); break;
                 case "unset": Print(manager.Set(name, rest[0], null)); break;
@@ -107,21 +107,21 @@ public static class ServerCli
             return 0;
         }
         catch (Exception e) when (e is ConfigurationException or DownloadException or BackendException or StorageException or ContractException or IOException or UnauthorizedAccessException or System.ComponentModel.Win32Exception)
-        { error.WriteLine($"Error: {e.Message} Ver coquena --help."); return 1; }
+        { error.WriteLine(Messages.ErrorSeeHelp.Format(e.Message)); return 1; }
 
-        int Invalid() { error.WriteLine("Error: comando server o argumentos no reconocidos. Ver coquena --help."); return 2; }
-        void Print(ServerRecord record) => output.WriteLine($"Servidor {record.Name} ({record.Id:D}); puerto {record.Parameters["port"].GetInt32()}.");
+        int Invalid() { error.WriteLine(Messages.ServerInvalid); return 2; }
+        void Print(ServerRecord record) => output.WriteLine(Messages.DisplayServerDPort.Format(record.Name, record.Id, record.Parameters["port"].GetInt32()));
         void Show(ServerView view, bool presetsOnly = false)
         {
             if (!presetsOnly)
             {
                 Print(view.Server);
-                output.WriteLine($"Backend {(view.Server.Backend is null ? "heredado" : "propio")}: {view.Selection?.Kind ?? "ausente"} {view.Selection?.Origin}/{view.Selection?.Variant} {view.Selection?.BackendId}");
-                if (view.Backend is { } backend) output.WriteLine($"Build instalado: {backend.Build} ({backend.Id:D})");
+                output.WriteLine(Messages.ServerBackend.Format(Messages.OwnOrInherited(view.Server.Backend is not null), view.Selection?.Kind ?? Messages.Missing, view.Selection?.Origin, view.Selection?.Variant, view.Selection?.BackendId));
+                if (view.Backend is { } backend) output.WriteLine(Messages.DisplayInstalledBuildD.Format(backend.Build, backend.Id));
                 foreach (var pair in view.Effective.OrderBy(p => p.Key)) output.WriteLine($"{pair.Key} = {pair.Value}");
             }
-            for (var i = 0; i < view.Presets.Length; i++) output.WriteLine($"Preset: {view.Presets[i]?.Name ?? "ausente"} ({view.Server.PresetIds[i]:D})");
-            foreach (var diagnostic in view.Diagnostics) output.WriteLine($"Diagnóstico: {diagnostic}");
+            for (var i = 0; i < view.Presets.Length; i++) output.WriteLine(Messages.ServerPreset.Format(view.Presets[i]?.Name ?? Messages.Missing, view.Server.PresetIds[i].ToString("D")));
+            foreach (var diagnostic in view.Diagnostics) output.WriteLine(Messages.DiagnosticLine.Format(diagnostic));
         }
     }
 }

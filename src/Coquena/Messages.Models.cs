@@ -1,0 +1,81 @@
+namespace Coquena;
+
+// model, model companion and download commands.
+public static partial class Messages
+{
+    public static readonly Text ModelInvalidArguments = new("Error: invalid model arguments. See coquena --help.");
+    public static readonly Text ModelDownloadKind = new("Use model download for main models and model companion download with #mmproj or #mtp for companions.");
+    public static readonly Text ModelNoPlan = new("no plan; run update");
+    public static readonly Text ModelOperation = new("{0} | operation {1} @ {2}");
+    public static readonly Text ModelUnitFailure = new("{0} | failure for the unit: {1}");
+    public static readonly Text ModelExternalNoTracking = new("{0} | {1} without tracking.");
+    public static readonly Text ModelUpdateRow = new("{0} | {1} | attempt {2} | last success {3} | {4}");
+    public static readonly Text ModelPreviousObservation = new("  Previous observation: {0} | {1}; the previous plan is not a current check.");
+    public static readonly Text ModelNoSuccessfulQuery = new("no successful query");
+    public static readonly Text ModelUnitError = new("{0} | error for the unit: {1}");
+    public static readonly Text ModelBaselineSaved = new("The current reference was saved; verify warns if the file changes.");
+    public static readonly Text ModelMatchSaved = new("Informative equivalence saved; external without tracking or upgrade.");
+    public static readonly Text CompanionNoneRegistered = new("No companions registered.");
+    public static readonly Text ModelNoneInstalled = new("No models installed.");
+    public static readonly Text ModelSelectionCancelled = new("Selection cancelled; no operation was created.");
+    public static readonly Text ModelRegisteredExternal = new("{0} is registered as external. The verified download keeps its ID and references; the external files stay intact.");
+    public static readonly Text ModelDownloadManaged = new("Download and move to Coquena management");
+    public static readonly Text ModelKeepExternalCancel = new("Keep external and cancel");
+    public static readonly Text InvalidOption = new("Invalid option.");
+    public static readonly Text ModelTransitionCancelled = new("Transition cancelled; external kept without creating an operation.");
+    public static readonly Text OperationForeground = new("Operation {0} in the foreground.");
+    public static readonly Text OperationFinished = new("{0}: {1} {2}.");
+    public static string InstallationOrCancellation(bool installed) => installed ? WordInstallation : WordCancellation;
+    internal static readonly Text WordInstallation = new("installation");
+    internal static readonly Text WordCancellation = new("cancellation");
+    public static readonly Text ErrorCodeMessageSeeHelp = new("Error: {0}. {1} See coquena --help.");
+    public static readonly Text ModelRow = new("{0} | {1} | {2} | commit {3} | {4}");
+    public static readonly Text NotApplicable = new("not applicable");
+    public static readonly Text ModelSizeNotObserved = new("size not observed");
+    public static readonly Text ModelChangedWarning = new("  Warning: size/date changed; integrity is not redefined.");
+    public static readonly Text ModelLastIntegrity = new("  Last integrity: {0} | {1}");
+    public static readonly Text ModelInformativeMatch = new("  Informative equivalence: {0}@{1} | {2} | not certified; without tracking");
+    public static readonly Text ModelTracking = new("  Tracking: {0} | last attempt {1} | last success {2} | {3}");
+    public static readonly Text ModelNotServable = new("  Not servable: check paths, reading and GGUF headers; external files are not repaired.");
+    public static readonly Text OptionPrompt = new("Option: ");
+    public static readonly Text ResourceNotInScope = new("Resource does not exist in the scope.");
+    public static readonly Text ModelPairingUnconfirmed = new("Warning: pairing not confirmed; external registration kept and usable according to availability.");
+    public static readonly Text ScopedModelRow = new("{0} | {1} | {2} | {3} | change={4}");
+    public static readonly Text ScopedExternalNoBaseline = new(" | external; no integrity baseline");
+    public static readonly Text ScopedExternalBaseline = new(" | external; local baseline without certified provenance");
+    public static readonly Text ScopedInformativeMatch = new("; informative equivalence not certified");
+    public static readonly Text CompanionNoneHere = new("No companions installed here.");
+    public static readonly Text ModelNoneHere = new("No models installed here.");
+    public static readonly Text InstallationNotInCategory = new("Installation does not exist in this category.");
+    public static readonly Text TransitionNeedsConfirmation = new("The transition requires explicit confirmation.");
+    public static readonly Text ModelDownloadManagedCopy = new("Download a managed copy keeping the external files");
+    public static readonly Text ModelCancelKeepExternal = new("Cancel; keep the external record");
+    public static readonly Text InvalidSelection = new("Invalid selection.");
+
+    // downloads
+    public static readonly Text DownloadInvalidOptions = new("Error: invalid options for download. See coquena --help.");
+    public static readonly Text DownloadNone = new("No download operations.");
+    public static readonly Text DownloadDone = new("{0}: {1}.");
+    public static readonly Text DownloadPublishedNoRevert = new("installation published; cleanup completed, not reverted");
+    public static readonly Text DownloadCancelCleanup = new("cancellation and cleanup completed");
+    public static readonly Text DownloadPauseSaved = new("pause saved");
+    public static readonly Text DownloadProviderMissing = new("Provider not integrated yet; selection and partial files kept.");
+    public static readonly Text DownloadRangeRestart = new("Range does not allow continuing file {0}. Restart from zero? [y/N]");
+    public static readonly Text DownloadNotConfirmed = new("Error: {0}. The operation was not confirmed; see download status. See coquena --help.");
+    public static readonly Text DownloadPaused = new("Download paused. What was downloaded is kept; to resume it, see coquena download list");
+    public static readonly Text DownloadUnfinished = new("The download did not finish. What was downloaded is kept; to resume it, see coquena download list");
+    public static readonly Text DownloadFailedWith = new("Error: {0} ({1}). What was downloaded is kept; to resume it, see coquena download list.");
+    public static readonly Text DownloadDiagnostic = new("  Diagnostic: {0}");
+    public static readonly Text DownloadProgressNotSaved = new("  The download progress could not be saved to disk.");
+    public static readonly Text DownloadReplaceFailed = new("  Windows could not remove the state file when replacing it (ERROR_UNABLE_TO_REMOVE_REPLACED, 1175).");
+    public static readonly Text DownloadLastIncident = new("  Last incident ({0}): {1} | file {2} | offset {3} bytes");
+    public static readonly Text DownloadFailures = new("  Consecutive failures: {0} | retry limit: {1} | expected wait: {2} ms");
+    public static readonly Text DownloadVerifying = new("  Verifying the downloaded files.");
+    public static readonly Text DownloadToVerify = new("  Files downloaded; they still have to be verified.");
+    public static readonly Text DownloadNoScopeIdentity = new("There are transfers without scope identity.");
+    public static readonly Text DownloadNotInScope = new("Operation does not exist in the selected scope.");
+    public static readonly Text DownloadFileRestart = new("File {0}: restart with the same selection? [y/N]");
+    public static readonly Text DownloadCandidateReady = new("candidate prepared; run upgrade to publish the set");
+    public static readonly Text DownloadPublishedCleanup = new("installation published and cleanup completed");
+    public static readonly Text DownloadCheckpointFailed = new("Writing the local checkpoint failed; this is not an HTTP response. Keep the partial file.");
+}

@@ -6,7 +6,7 @@ using Coquena.Recipes;
 
 namespace Coquena.Observation;
 
-public sealed record WatchSnapshot(ServiceSnapshot? Snapshot, string Events, string? Transition);
+public sealed record WatchSnapshot(ServiceSnapshot? Snapshot, MessageData Events, string? Transition);
 public sealed record ObservedModelEvent(string ServiceId, string InstanceId, ModelEvent Event);
 
 // One worker per service; callbacks publish immutable snapshots for CLI/TUI/Web.
@@ -22,7 +22,7 @@ public sealed class ServiceWatch(ScopeStore store, ServiceIdentity service, Reci
     public async Task RunAsync(Action<WatchSnapshot> publish, CancellationToken cancellation, SemaphoreSlim? captureBudget = null)
     {
         var signals = Channel.CreateBounded<bool>(new BoundedChannelOptions(1) { FullMode = BoundedChannelFullMode.DropWrite });
-        string? instance = null; string events = "sin conexión"; string? transition = null;
+        string? instance = null; MessageData events = Messages.ObservationDisconnected2.Data(); string? transition = null;
         CancellationTokenSource? streamCancellation = null; Task? stream = null;
         using var ownedClient = client is null ? new HttpClient(new HttpClientHandler { AllowAutoRedirect = false, UseProxy = false })
             { Timeout = Timeout.InfiniteTimeSpan } : null;
@@ -62,10 +62,10 @@ public sealed class ServiceWatch(ScopeStore store, ServiceIdentity service, Reci
                         streamCancellation.Dispose(); streamCancellation = null; stream = null;
                     }
                     if (snapshot.InstanceId != instance)
-                        transition = $"{Messages.NewInstanceSpan}: {instance ?? "ninguna"} → {snapshot.InstanceId ?? "ninguna"}; sin continuidad entre instancias.";
-                    else if (!live) transition = "Instancia detenida, no verificable o terminada; esperando al mismo servicio.";
+                        transition = Messages.ObservationNoContinuityBetweenInstances.Format(Messages.NewInstanceSpan, instance ?? "ninguna", snapshot.InstanceId ?? "ninguna");
+                    else if (!live) transition = Messages.ObservationWaitingSameService.ToString();
                     instance = snapshot.InstanceId;
-                    Volatile.Write(ref events, "sin conexión: " + snapshot.ProcessState);
+                    Volatile.Write(ref events, Messages.WatchProcessDisconnected.Data(snapshot.ProcessState));
                 }
                 if (live && stream is null)
                 {
@@ -102,22 +102,22 @@ public sealed class ServiceWatch(ScopeStore store, ServiceIdentity service, Reci
                     var registered = Coquena.Servers.PresetPublication.Service(state, service.ServiceId);
                     if (registered["instance"]?["instance-id"]?.GetValue<string>() != expected ||
                         !JsonNode.DeepEquals(registered["instance"]?["process"], active["process"]))
-                        throw new IOException("Registro e instancia no coinciden.");
+                        throw new IOException(Messages.ObservationRegistryAndInstanceDoNotMatch.ToString());
                     using var process = (probe ?? InstanceProbe.Create()).Open(ServiceObservation.Identity(service.ServiceId, active)).Instance;
                     var endpoint = active["endpoint"]!;
                     var host = endpoint["host"]!.GetValue<string>(); var port = endpoint["port"]!.GetValue<int>();
-                    if (process is null || !process.IsAlive || !process.OwnsEndpoint(host, port)) throw new IOException("Identidad/escucha no verificable.");
+                    if (process is null || !process.IsAlive || !process.OwnsEndpoint(host, port)) throw new IOException(Messages.ObservationIdentityOrListenerUnverified.ToString());
                     var configured = active["snapshot"]?["service"]?["server"]?["health"]?["url"]?["value"]?.GetValue<string>();
                     var scheme = Uri.TryCreate(configured, UriKind.Absolute, out var health) ? health.Scheme : "http";
-                    if (scheme is not ("http" or "https")) throw new FormatException("Protocolo de observación inválido.");
+                    if (scheme is not ("http" or "https")) throw new FormatException(Messages.ObservationInvalidObservationProtocol.ToString());
                     var url = new UriBuilder(scheme, host == "0.0.0.0" ? "127.0.0.1" : host == "::" ? "::1" : host, port, "/models/sse").Uri;
                     using var requestTimeout = CancellationTokenSource.CreateLinkedTokenSource(token);
                     requestTimeout.CancelAfter(TimeSpan.FromSeconds(5));
                     using var response = await http.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, requestTimeout.Token);
                     requestTimeout.CancelAfter(Timeout.InfiniteTimeSpan);
                     response.EnsureSuccessStatusCode();
-                    if (response.Content.Headers.ContentType?.MediaType != "text/event-stream") throw new FormatException("SSE no soportado por el endpoint.");
-                    Volatile.Write(ref events, "conectado; reconciliando snapshot");
+                    if (response.Content.Headers.ContentType?.MediaType != "text/event-stream") throw new FormatException(Messages.ObservationSSEUnsupportedByEndpoint.ToString());
+                    Volatile.Write(ref events, Messages.ObservationConnectedReconcilingSnapshot.Data());
                     Interlocked.Exchange(ref reconcile, 1);
                     signals.Writer.TryWrite(true);
                     using var body = await response.Content.ReadAsStreamAsync(token);
@@ -132,7 +132,7 @@ public sealed class ServiceWatch(ScopeStore store, ServiceIdentity service, Reci
                 catch (Exception e) when (ServiceObservation.ObservationError(e))
                 {
                     var delay = RetryDelay(preferences, failures++);
-                    Volatile.Write(ref events, $"desconectado/no disponible: {e.GetType().Name}; reintento en {delay.TotalSeconds:0} s; hueco sin replay");
+                    Volatile.Write(ref events, Messages.ObservationDisconnectedRetryGap.Data(e.GetType().Name, delay.TotalSeconds));
                     signals.Writer.TryWrite(true);
                     try { await Task.Delay(delay, token); }
                     catch (OperationCanceledException) when (token.IsCancellationRequested) { return; }

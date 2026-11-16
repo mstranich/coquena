@@ -31,7 +31,7 @@ internal static class LivePresentation
     // En vivo shows ● while some service is running and ○ when none is.
     public static string Tabs(int active, int downloads, int notices, string? downloadText = null, bool running = false)
     {
-        (string Name, int Page)[] names = [((running ? "●" : "○") + " En vivo", 0), ("Definiciones", 1), ("Herramientas", 5)];
+        (string Name, int Page)[] names = [((running ? "●" : "○") + Messages.LiveTabLabel.ToString(), 0), (Messages.LabelsDefinitions.ToString(), 1), (Messages.LabelsTools.ToString(), 5)];
         var tabs = string.Concat(names.Select(tab => tab.Page == active ? Style("sel", " " + tab.Name + " ", "tab" + tab.Page) : " " + Style("nav", tab.Name, "tab" + tab.Page) + " "));
         downloadText ??= "⇣ " + downloads;
         var download = active == 3 ? Style("sel", " " + downloadText + " ", "downloads")
@@ -45,14 +45,14 @@ internal static class LivePresentation
 
     // The button of a notice: its own action first, otherwise what shows it.
     public static string NoticeAction(bool updates, bool retry, bool service) =>
-        updates ? "Actualizaciones" : retry ? "Reintentar" : service ? "Ver log" : "Ver detalle";
+        updates ? Messages.LabelsUpdates.ToString() : retry ? Messages.LabelsRetry.ToString() : service ? Messages.LiveNoticeViewLog.ToString() : Messages.LiveNoticeViewDetails.ToString();
 
     public static (string Glyph, string Class, string Text) ServiceState(ServiceSnapshot? snapshot)
     {
-        if (snapshot is null) return ("·", "mut", "consultando");
-        if (snapshot.ProcessState == "stopped") return ("○", "mut", "detenido");
-        if (snapshot.Health.StartsWith("HTTP 5", StringComparison.Ordinal)) return ("✕", "err", "error · " + snapshot.Health);
-        if (snapshot.ApiState == "available" && snapshot.Health.StartsWith("HTTP 2", StringComparison.Ordinal)) return ("●", "ok", "en línea");
+        if (snapshot is null) return ("·", "mut", Messages.LabelsQuerying.ToString());
+        if (snapshot.ProcessState == "stopped") return ("○", "mut", Messages.LabelsStopped.ToString());
+        if (snapshot.Health.StartsWith("HTTP 5", StringComparison.Ordinal)) return ("✕", "err", Messages.LiveHealthError.Format(snapshot.Health));
+        if (snapshot.ApiState == "available" && snapshot.Health.StartsWith("HTTP 2", StringComparison.Ordinal)) return ("●", "ok", Messages.LiveServiceOnline.ToString());
         return ("▲", "warn", DashboardPresentation.ProcessState(snapshot.ProcessState) + " · API " + snapshot.ApiState);
     }
 
@@ -68,18 +68,18 @@ internal static class LivePresentation
         if (Fresh(snapshot.Metrics, "cpu.utilization", now) is { } cpu) text += "  " + Style("mut", "CPU") + " " + Number(cpu, "0") + "%";
         if (Fresh(snapshot.Metrics, "ram.private-commit", now) is { } ram) text += " " + Style("mut", "RAM") + " " + DashboardPresentation.Compact(ram);
         var queues = snapshot.Entries.Select(entry => Metric(entry, "requests_deferred")).OfType<double>().ToArray();
-        if (queues.Length > 0) text += " " + Style("mut", "cola") + " " + Number(queues.Sum());
+        if (queues.Length > 0) text += " " + Style("mut", Messages.LabelsQueue.ToString()) + " " + Number(queues.Sum());
         return text;
     }
 
     // While a lifecycle action runs, its control stays in place, disabled, with the wait spinner.
     public static string Controls(bool running, bool stopped, bool enabled, string? busy = null)
     {
-        if (busy is "Iniciar" or "Detener" or "Reiniciar")
-            return " " + Style("off", " " + DashboardPresentation.Spinner() + " " + busy + " ");
+        if (busy is "start" or "stop" or "restart")
+            return " " + Style("off", " " + DashboardPresentation.Spinner() + " " + Messages.VerbLabel(busy) + " ");
         if (!enabled) return "";
-        if (running) return " " + Style("btn", " ■ Detener ", "stop") + "  " + Style("btn", " ⟳ Reiniciar ", "restart");
-        return stopped ? " " + Style("btn", " ▸ Iniciar ", "start") : "";
+        if (running) return " " + Style("btn", Messages.LiveStopButton.ToString(), "stop") + "  " + Style("btn", Messages.LiveRestartButton.ToString(), "restart");
+        return stopped ? " " + Style("btn", Messages.LiveStartButton.ToString(), "start") : "";
     }
 
     internal sealed record TreeRow(string Normal, string Selected, int Target, string? Entry);
@@ -132,11 +132,11 @@ internal static class LivePresentation
 
     public static string EntryHeader(EntrySnapshot? entry, string? model, bool differs)
     {
-        if (entry is null) return differs ? " " + Style("warn", "≠ receta") : "";
+        if (entry is null) return differs ? " " + Style("warn", Messages.LiveDiffersFromRecipe.ToString()) : "";
         var text = " " + Style("hi", entry.Name);
         if (entry.State != "loaded") text += "  " + Style(entry.State == "failed" ? "err" : "mut", DashboardPresentation.StateGlyph(entry.State) + " " + entry.State);
         if (model is not null) text += "  " + Style("mut", ModelName(model));
-        if (differs) text += "  " + Style("warn", "≠ receta");
+        if (differs) text += "  " + Style("warn", Messages.LiveDiffersFromRecipe.ToString());
         return text;
     }
 
@@ -155,10 +155,10 @@ internal static class LivePresentation
         var columns = rates.TakeLast(width).Select(rate => rate is null ? 0 : rate / scale).ToList();
         while (columns.Count < width) columns.Insert(0, null);
         var text = " " + Style("mut", caption.PadRight(6)) + " " + Style(@class, Spark(columns)) + " ";
-        if (current is null && end is { } at) return text + (peak is null ? "" : Style("mut", "pico ") + Style("hi", Number(peak.Value, "0")) + " " + Style("mut", "tk/s · ")) +
-            Style("mut", "fin " + at.ToLocalTime().ToString("HH:mm:ss", CultureInfo.InvariantCulture));
+        if (current is null && end is { } at) return text + (peak is null ? "" : Style("mut", Messages.LivePeakLabel.ToString()) + Style("hi", Number(peak.Value, "0")) + " " + Style("mut", "tk/s · ")) +
+            Style("mut", Messages.LiveRateEnd.Format(at.ToLocalTime().ToString("HH:mm:ss", CultureInfo.InvariantCulture)));
         text += current is null ? Style("mut", "—") : Style("hi", Number(current.Value, "0"));
-        text += " " + Style("mut", "tk/s" + (peak is null ? "" : " pico " + Number(peak.Value, "0")));
+        text += " " + Style("mut", "tk/s" + (peak is null ? "" : Messages.LiveRatePeak.Format(Number(peak.Value, "0"))));
         return text;
     }
 
@@ -166,11 +166,11 @@ internal static class LivePresentation
     {
         var parts = new List<string>();
         if (Metric(entry, "prompt_tokens_total") is > 0 and var prompt && Metric(entry, "prompt_tokens_cached_total") is { } cached)
-            parts.Add(Style("mut", "caché") + " " + Style("ok", Number(cached / (prompt + cached) * 100, "0") + "%"));
+            parts.Add(Style("mut", Messages.LiveCacheLabel.ToString()) + " " + Style("ok", Number(cached / (prompt + cached) * 100, "0") + "%"));
         if (Metric(entry, "spec_decode_num_draft_tokens_total") is > 0 and var drafted && Metric(entry, "spec_decode_num_accepted_tokens_total") is { } accepted)
-            parts.Add(Style("mut", "aceptación") + " " + Style("ok", Number(accepted / drafted * 100, "0") + "%"));
+            parts.Add(Style("mut", Messages.LiveAcceptanceLabel.ToString()) + " " + Style("ok", Number(accepted / drafted * 100, "0") + "%"));
         if (Metric(entry, "n_busy_slots_per_decode") is { } busy) parts.Add(Style("mut", "slots/decode") + " " + Number(busy));
-        if (Metric(entry, "requests_processing") is { } active) parts.Add(Style("mut", "activas") + " " + Number(active));
+        if (Metric(entry, "requests_processing") is { } active) parts.Add(Style("mut", Messages.LabelsActive2.ToString()) + " " + Number(active));
         return parts.Count == 0 ? null : " " + string.Join("   ", parts);
     }
 
@@ -197,7 +197,7 @@ internal static class LivePresentation
         return parts.Count == 0 ? null : " " + string.Join("   ", parts);
     }
 
-    public static string TaskHeader => " " + Style("mut", "TAREA     FASE        PROMPT  SALIDA    TTFT   FIN");
+    public static string TaskHeader => " " + Style("mut", Messages.LiveTaskTableHeader.ToString());
 
     // TTFT comes from the backend log (prompt eval time of the task); FIN is the last
     // observation of a finished task, the moment the curves left visible belong to.
@@ -206,12 +206,12 @@ internal static class LivePresentation
         var id = task.Identity;
         var (phase, @class) = task.End switch
         {
-            InferenceTaskEnd.LeftSlot => ("✓ fin", "ok"),
-            InferenceTaskEnd.ChildReplaced => ("▲ reemplazo", "warn"),
-            InferenceTaskEnd.ObservationLost => ("▲ sin señal", "warn"),
+            InferenceTaskEnd.LeftSlot => (Messages.LiveTaskEndDone.ToString(), "ok"),
+            InferenceTaskEnd.ChildReplaced => (Messages.LiveTaskEndReplaced.ToString(), "warn"),
+            InferenceTaskEnd.ObservationLost => (Messages.LiveTaskEndNoSignal.ToString(), "warn"),
             _ => task.Phase switch
             {
-                InferenceTaskPhase.Generation => ("GENERANDO", "gen"),
+                InferenceTaskPhase.Generation => (Messages.LabelsGENERATING.ToString(), "gen"),
                 InferenceTaskPhase.Prompt => ("PROMPT", "pr"),
                 _ => ("—", "mut")
             }
@@ -246,15 +246,15 @@ internal static class LivePresentation
     {
         var state = mode switch
         {
-            LogMode.Following => Style("ok", "● siguiendo"),
-            LogMode.Paused => Style("warn", "❚❚ en pausa"),
-            LogMode.Historical => Style("mut", "histórico"),
+            LogMode.Following => Style("ok", Messages.LiveLogFollowing.ToString()),
+            LogMode.Paused => Style("warn", Messages.LiveLogPaused.ToString()),
+            LogMode.Historical => Style("mut", Messages.LiveLogHistory.ToString()),
             _ => ""
         };
-        var text = " " + Escape("Log " + name) + "  " + state + (discarded > 0 ? " " + Style("mut", "· " + discarded + " descartadas") : "");
+        var text = " " + Escape("Log " + name) + "  " + state + (discarded > 0 ? " " + Style("mut", Messages.LiveLogDiscarded.Format(discarded)) : "");
         if (mode == LogMode.None) return text;
-        return text + "{pad}" + Style("btn", paused ? " ▸ Reanudar " : " ❚❚ Pausar ", "pause") + " " +
-            Style("btn", " ⤓ Seguir ", "follow") + " " + Style("btn", " Histórico ", "history");
+        return text + "{pad}" + Style("btn", paused ? Messages.LiveLogResumeButton.ToString() : Messages.LiveLogPauseButton.ToString(), "pause") + " " +
+            Style("btn", Messages.LiveLogFollowButton.ToString(), "follow") + " " + Style("btn", Messages.LiveLogHistoryButton.ToString(), "history");
     }
 
     // Log lines keep their text; only the severity adds a glyph and color.
@@ -299,7 +299,7 @@ internal static class LivePresentation
         string second;
         var shown = gpus.Select((gpu, i) => (gpu, i, key: gpu.Name.ToLowerInvariant()))
             .Where(item => !(hidden.Contains(item.key + ".use") && hidden.Contains(item.key + ".memory") && hidden.Contains(item.key + ".shared"))).ToArray();
-        if (gpus.Count == 0) second = " " + Style("mut@hardware", waiting ? "GPU · esperando lecturas" : "GPU · sin datos");
+        if (gpus.Count == 0) second = " " + Style("mut@hardware", waiting ? Messages.LiveGpuWaiting.ToString() : Messages.LiveGpuNoData.ToString());
         else second = string.Concat(shown.Select((item, n) => (n == 0 ? " " : "   ") + Style("mut@gpu" + item.i, item.gpu.Name) +
             (hidden.Contains(item.key + ".use") ? "" : " " + Style(UsageClass(item.gpu.Use), Spark(Last(item.gpu.Ratios, 5))) + " " +
                 (item.gpu.Use is null ? "—" : Number(item.gpu.Use.Value * 100, "0") + "%")) +

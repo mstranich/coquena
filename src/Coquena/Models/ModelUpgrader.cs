@@ -18,14 +18,14 @@ public sealed partial class ModelInstaller
     {
         foreach (var op in new DownloadManager(home, store).SnapshotLocked())
             if ((op.ModelInstall?.Previous ?? op.ModelInstall?.ExternalPrevious) is { } previous && ids.Contains(previous.Id))
-                throw new Coquena.Configuration.ConfigurationException($"{Messages.PendingUpgrade(op.ModelInstall!.ExternalPrevious is not null)} {op.Id:D} de {previous.Name}; reanudar o cancelar antes de iniciar.");
+                throw new Coquena.Configuration.ConfigurationException(Messages.ModelDOfResumeOrCancelBeforeStarting.Format(Messages.PendingUpgrade(op.ModelInstall!.ExternalPrevious is not null), op.Id, previous.Name));
     }
 
     internal static void CheckUpgradeMutation(Home home, LocalStore store, Guid id)
     {
         ResourceRemoval.CheckPending(home, store, [id]);
         if (new DownloadManager(home, store).SnapshotLocked().Any(op => (op.ModelInstall?.Previous ?? op.ModelInstall?.ExternalPrevious)?.Id == id))
-            throw new ModelSourceException("upgrade-pending", "Reanudar o cancelar la operación antes de modificar el registro.");
+            throw new ModelSourceException("upgrade-pending", Messages.ModelResumeOrCancelBeforeEdit.ToString());
     }
 
     private void CheckUsage(ModelRecord previous)
@@ -42,8 +42,8 @@ public sealed partial class ModelInstaller
                 if (ended) continue;
             }
             catch (Coquena.Configuration.ConfigurationException)
-            { throw new DownloadException("model-in-use", $"Identidad incierta de instancia {instance.InstanceId:D}; detener antes de upgrade."); }
-            throw new DownloadException("model-in-use", $"Unidad utilizada por instancia {instance.InstanceId:D}; detener antes de upgrade.");
+            { throw new DownloadException("model-in-use", Messages.ModelUncertainInstanceBeforeUpgrade.Format(instance.InstanceId)); }
+            throw new DownloadException("model-in-use", Messages.ModelUnitUsedByInstanceDStopBefore.Format(instance.InstanceId));
         }
     }
 
@@ -75,7 +75,7 @@ public sealed partial class ModelInstaller
         UpgradeCollisions(operation, false);
         CheckUpgradeSpace(operation);
         return store.UpdateLocked(DocumentKind.Operation, Json.OperationDocument, ContractValidation.Operation,
-            old => old is null ? operation : throw new DownloadException("already-exists", "GUID ocupado."), operation: id);
+            old => old is null ? operation : throw new DownloadException("already-exists", Messages.ModelGUIDBusy.ToString()), operation: id);
     });
 
     private void CheckUpgradeSpace(OperationDocument operation)
@@ -164,7 +164,7 @@ public sealed partial class ModelInstaller
         return previous with { Name = operation.Name, Selection = operation.ModelSelection,
             Files = plan.VerifiedFiles!.Select(f => plan.InstallationDirectory is null ? f : f with { LocalPath = f.LocalPath[7..] }).ToArray(),
             IntegrityCheck = null, RefreshedAt = null, Update = previous.Update! with {
-                State = "unchanged", Diagnostic = "Plan aplicado; revisión instalada fijada.", LastSuccessfulState = "unchanged", Plan = null,
+                State = "unchanged", Diagnostic = Messages.DiagnosticsPlanAppliedInstalledRevisionFixed.Data(), LastSuccessfulState = "unchanged", Plan = null,
                 Followed = operation.ModelSelection, FollowedName = operation.Name } };
     }
 

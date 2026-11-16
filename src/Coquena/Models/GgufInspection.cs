@@ -21,41 +21,41 @@ public static class GgufInspection
     public static async Task<GgufHeader> ReadHeaderAsync(Stream stream, CancellationToken cancellation = default)
     {
         var reader = new HeaderReader(stream, cancellation);
-        if (!(await reader.Read(4)).Span.SequenceEqual("GGUF"u8)) throw new GgufException("invalid", "Magic GGUF ausente.");
+        if (!(await reader.Read(4)).Span.SequenceEqual("GGUF"u8)) throw new GgufException("invalid", Messages.ModelGGUFMagicMissing.ToString());
         var version = await reader.Number(4);
-        if (version is not (2 or 3)) throw new GgufException("unsupported", "Sólo GGUF v2/v3 little-endian; no declarar inválida una versión/endian no soportada.");
+        if (version is not (2 or 3)) throw new GgufException("unsupported", Messages.ModelOnlyLittleEndianGgufSupported.ToString());
         var tensors = await reader.Number(8);
         var count = await reader.Number(8);
-        if (count > 1000000) throw new GgufException("limit", "Demasiadas claves GGUF para inspección acotada.");
+        if (count > 1000000) throw new GgufException("limit", Messages.ModelTooManyGGUFKeysForBoundedInspection.ToString());
         HashSet<string> keys = new(StringComparer.Ordinal);
         Dictionary<string, string> hints = new(StringComparer.Ordinal);
         int? index = null, total = null; long? tensorTotal = null; uint? fileType = null;
         for (ulong i = 0; i < count; i++)
         {
             var key = await reader.Text(1024);
-            if (key.Length == 0 || !keys.Add(key)) throw new GgufException("invalid", "Clave GGUF vacía/duplicada.");
+            if (key.Length == 0 || !keys.Add(key)) throw new GgufException("invalid", Messages.ModelEmptyOrDuplicateGGUFKey.ToString());
             var type = await reader.Number(4);
             if (key is "split.no" or "split.count")
             {
-                if (type != 2) throw new GgufException("invalid", "split.no/count debe ser UINT16.");
+                if (type != 2) throw new GgufException("invalid", Messages.ModelSplitNoCountMustBeUINT.ToString());
                 var value = (int)await reader.Number(2);
                 if (key == "split.no") index = value; else total = value;
             }
             else if (key == "general.file_type")
             {
-                if (type != 4) throw new GgufException("invalid", "general.file_type debe ser UINT32.");
+                if (type != 4) throw new GgufException("invalid", Messages.ModelGeneralFileTypeMustBeUINT.ToString());
                 fileType = (uint)await reader.Number(4);
             }
             else if (key == "split.tensors.count")
             {
-                if (type != 5) throw new GgufException("invalid", "split.tensors.count debe ser INT32.");
+                if (type != 5) throw new GgufException("invalid", Messages.ModelSplitTensorsCountMustBeINT.ToString());
                 var value = unchecked((int)await reader.Number(4));
-                if (value < 0) throw new GgufException("invalid", "Cantidad global de tensores negativa.");
+                if (value < 0) throw new GgufException("invalid", Messages.ModelNegativeGlobalTensorCount.ToString());
                 tensorTotal = value;
             }
             else if (key is "general.architecture" or "general.name" or "general.basename" or "general.uuid")
             {
-                if (type != 8) throw new GgufException("invalid", "Pista general GGUF debe ser STRING.");
+                if (type != 8) throw new GgufException("invalid", Messages.ModelGeneralGGUFHintMustBeSTRING.ToString());
                 hints.Add(key, await reader.Text(65536));
             }
             else await reader.SkipValue(type, 0);
@@ -63,7 +63,7 @@ public static class GgufInspection
         // gguf-split --merge preserves split metadata with split.count=0 to disable splitting.
         if ((index.HasValue && !total.HasValue) ||
             (index.HasValue && total is > 0 && index.Value >= total.Value))
-            throw new GgufException("invalid", "Metadatos de división contradictorios.");
+            throw new GgufException("invalid", Messages.ModelConflictingSplitMetadata.ToString());
         return new((uint)version, tensors, index, total, tensorTotal, hints, fileType);
     }
 
@@ -78,7 +78,7 @@ public static class GgufInspection
         {
             var n = int.Parse(match.Groups[3].Value);
             if (int.Parse(match.Groups[2].Value) != 1 || n < 1 || n > 65535)
-                return new("invalid", [first], [], [], ["Indicar el primer shard de un total 1..65535."]);
+                return new("invalid", [first], [], [], [Messages.ModelSpecifyTheFirstShardOfATotal.ToString()]);
             var dir = Path.GetDirectoryName(first)!;
             expected = Enumerable.Range(1, n).Select(i => Path.Combine(dir, $"{match.Groups[1].Value}-{i:00000}-of-{n:00000}.gguf")).ToArray();
         }
@@ -90,12 +90,12 @@ public static class GgufInspection
     public static GgufUnit InspectPaths(IReadOnlyList<string> paths, CancellationToken cancellation = default,
         Func<string, string>? resolvePath = null)
     {
-        if (paths.Count == 0 || paths.Count > 65535) throw new ArgumentException("Unidad vacía o excesiva.");
+        if (paths.Count == 0 || paths.Count > 65535) throw new ArgumentException(Messages.ModelEmptyOrExcessiveUnit.ToString());
         var expected = paths.Select(Path.GetFullPath).ToArray();
         List<string> missing = []; List<string> diagnostics = []; List<GgufPart> parts = [];
         var status = "complete";
         if (expected.Distinct(StringComparer.OrdinalIgnoreCase).Count() != expected.Length)
-        { status = "invalid"; diagnostics.Add("Rutas duplicadas en la unidad."); }
+        { status = "invalid"; diagnostics.Add(Messages.ModelDuplicatePathsInUnit.ToString()); }
         // Expand a conventional partial selection before disk access, retaining every expected
         // sibling. Missing input entries are not evidence of invalid bytes or an invented unit.
         var names = expected.Select(path => (Path: path, Match: Regex.Match(Path.GetFileName(path),
@@ -109,11 +109,11 @@ public static class GgufInspection
                 Path.Combine(Path.GetDirectoryName(p.Path)!, p.Match.Groups[1].Value) != prefix ||
                 int.Parse(p.Match.Groups[3].Value) != total || int.Parse(p.Match.Groups[2].Value) < 1 ||
                 int.Parse(p.Match.Groups[2].Value) > total))
-                Invalid("Selección de shards contradictoria.");
+                Invalid(Messages.ModelConflictingShardSelection.ToString());
             else if (status != "invalid")
                 expected = Enumerable.Range(1, total).Select(i => $"{prefix}-{i:00000}-of-{total:00000}.gguf").ToArray();
         }
-        else if (names.Any(p => p.Match.Success)) Invalid("Selección mezcla archivo único y shards.");
+        else if (names.Any(p => p.Match.Success)) Invalid(Messages.ModelSelectionMixesASingleFileAndShards.ToString());
         string? group = null; int? namedTotal = null;
         HashSet<int> indices = [];
         foreach (var path in expected)
@@ -144,31 +144,31 @@ public static class GgufInspection
                 group ??= key; namedTotal ??= n;
                 if (key != group || n != namedTotal || n < 1 || i < 1 || i > n || !indices.Add(i) ||
                     header.SplitIndex != i - 1 || header.SplitCount != n || header.SplitTensorCount is null)
-                    Invalid("Nombres y metadatos split no forman una única unidad coherente.");
+                    Invalid(Messages.ModelNamesAndSplitMetadataDoNotForm.ToString());
             }
             else if (expected.Length > 1 || header.SplitCount > 1)
-            { if (status == "complete") status = "unsupported"; diagnostics.Add("División no convencional: no se inventa conjunto ni orden."); }
+            { if (status == "complete") status = "unsupported"; diagnostics.Add(Messages.ModelNonconventionalSplitInfo.ToString()); }
         }
         var headers = parts.Where(p => p.Header is not null).Select(p => p.Header!).ToArray();
-        if (headers.Select(h => h.Version).Distinct().Count() > 1) Invalid("Versiones GGUF contradictorias.");
+        if (headers.Select(h => h.Version).Distinct().Count() > 1) Invalid(Messages.ModelConflictingGGUFVersions.ToString());
         if (headers.Where(h => h.FileTypeId.HasValue).Select(h => h.FileTypeId).Distinct().Count() > 1)
-            Invalid("Cuantizaciones GGUF contradictorias entre partes.");
+            Invalid(Messages.ModelConflictingPartQuantizations.ToString());
         foreach (var key in new[] { "general.architecture", "general.name", "general.basename", "general.uuid" })
             if (headers.Where(h => h.Hints.ContainsKey(key)).Select(h => h.Hints[key]).Distinct(StringComparer.Ordinal).Count() > 1)
-                Invalid($"Metadato compartido contradictorio: {key}.");
+                Invalid(Messages.ModelConflictingSharedMetadata.Format(key));
         if (headers.Where(h => h.SplitTensorCount.HasValue).Select(h => h.SplitTensorCount).Distinct().Count() > 1)
-            Invalid("Cantidad global de tensores contradictoria.");
+            Invalid(Messages.ModelConflictingGlobalTensorCount.ToString());
         if (missing.Count == 0 && headers.Length == expected.Length && namedTotal.HasValue)
         {
             if (namedTotal != expected.Length || !Enumerable.Range(1, expected.Length).All(indices.Contains))
-                Invalid("Selección omite partes esperadas o repite índices.");
+                Invalid(Messages.ModelSelectionInvalidParts.ToString());
             ulong sum = 0;
             foreach (var h in headers)
             {
-                if (ulong.MaxValue - sum < h.TensorCount) { Invalid("Overflow de cantidad de tensores."); break; }
+                if (ulong.MaxValue - sum < h.TensorCount) { Invalid(Messages.ModelTensorCountOverflow.ToString()); break; }
                 sum += h.TensorCount;
             }
-            if (headers[0].SplitTensorCount is long n && sum != (ulong)n) Invalid("Suma de tensores no coincide con split.tensors.count.");
+            if (headers[0].SplitTensorCount is long n && sum != (ulong)n) Invalid(Messages.ModelTensorSumDoesNotMatchSplitTensors.ToString());
         }
         if (status == "complete" && missing.Count > 0) status = "incomplete";
         return new(status, expected, missing.ToArray(), parts.ToArray(), diagnostics.ToArray());
@@ -182,9 +182,9 @@ public static class GgufInspection
         public async ValueTask<ReadOnlyMemory<byte>> Read(int n)
         {
             cancellation.ThrowIfCancellationRequested();
-            if (n < 0 || consumed > MaxHeaderBytes - n) throw new GgufException("limit", "Encabezado supera 64 MiB.");
+            if (n < 0 || consumed > MaxHeaderBytes - n) throw new GgufException("limit", Messages.ModelHeaderExceedsMiB.ToString());
             try { await stream.ReadExactlyAsync(scratch.AsMemory(0, n), cancellation); }
-            catch (EndOfStreamException) { throw new GgufException("invalid", "Encabezado GGUF truncado."); }
+            catch (EndOfStreamException) { throw new GgufException("invalid", Messages.ModelTruncatedGGUFHeader.ToString()); }
             consumed += n; return scratch.AsMemory(0, n);
         }
         public async ValueTask<ulong> Number(int width) => width switch
@@ -193,26 +193,26 @@ public static class GgufInspection
         public async ValueTask<string> Text(int max)
         {
             var n = await Number(8);
-            if (n > (ulong)max) throw new GgufException("limit", "Texto GGUF excede límite de inspección.");
+            if (n > (ulong)max) throw new GgufException("limit", Messages.ModelGGUFTextExceedsInspectionLimit.ToString());
             try { return Utf8.GetString((await Read((int)n)).Span); }
-            catch (DecoderFallbackException) { throw new GgufException("invalid", "Texto GGUF no es UTF-8 válido."); }
+            catch (DecoderFallbackException) { throw new GgufException("invalid", Messages.ModelGGUFTextIsNotValidUTF.ToString()); }
         }
         private async ValueTask Skip(ulong n)
         {
-            if (n > (ulong)(MaxHeaderBytes - consumed)) throw new GgufException("limit", "Encabezado supera 64 MiB.");
+            if (n > (ulong)(MaxHeaderBytes - consumed)) throw new GgufException("limit", Messages.ModelHeaderExceedsMiB.ToString());
             while (n > 0) { var size = (int)Math.Min(n, (ulong)scratch.Length); await Read(size); n -= (ulong)size; }
         }
         public async ValueTask SkipValue(ulong type, int depth)
         {
-            if (depth > 8) throw new GgufException("limit", "Array GGUF demasiado anidado.");
+            if (depth > 8) throw new GgufException("limit", Messages.ModelGGUFArrayNestedTooDeeply.ToString());
             var width = type switch { 0 or 1 => 1, 2 or 3 => 2, 4 or 5 or 6 => 4, 10 or 11 or 12 => 8, _ => 0 };
             if (width != 0) { await Skip((ulong)width); return; }
-            if (type == 7) { if (await Number(1) > 1) throw new GgufException("invalid", "Boolean GGUF inválido."); return; }
+            if (type == 7) { if (await Number(1) > 1) throw new GgufException("invalid", Messages.ModelInvalidGgufBoolean.ToString()); return; }
             if (type == 8) { await Skip(await Number(8)); return; }
-            if (type != 9) throw new GgufException("unsupported", "Tipo de metadato GGUF no soportado.");
+            if (type != 9) throw new GgufException("unsupported", Messages.ModelUnsupportedGGUFMetadataType.ToString());
             var element = await Number(4); var count = await Number(8);
-            if (element > 12) throw new GgufException("unsupported", "Tipo de array GGUF no soportado.");
-            if (count > 1000000) throw new GgufException("limit", "Array GGUF excesivo.");
+            if (element > 12) throw new GgufException("unsupported", Messages.ModelUnsupportedGGUFArrayType.ToString());
+            if (count > 1000000) throw new GgufException("limit", Messages.ModelExcessiveGGUFArray.ToString());
             for (ulong i = 0; i < count; i++) await SkipValue(element, depth + 1);
         }
     }

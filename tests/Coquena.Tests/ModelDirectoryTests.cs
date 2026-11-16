@@ -59,9 +59,10 @@ internal static class ModelDirectoryTests
         }
         return installer.List().Single(m => m.Record.Id == op.ModelInstall!.ModelId).Record;
     }
-    private static bool Change(Home home, string? location, string? answer = "s", Func<bool>? overwrite = null,
+    private const string DefaultYes = "__default_yes__";
+    private static bool Change(Home home, string? location, string? answer = DefaultYes, Func<bool>? overwrite = null,
         Action<ModelDirectoryStage>? fault = null) => new ModelDirectoryManager(home, fault: fault)
-        .Change(location, TextWriter.Null, () => answer, overwrite ?? (() => true));
+        .Change(location, TextWriter.Null, () => answer == DefaultYes ? Messages.YesAnswer.ToString() : answer, overwrite ?? (() => true));
     private static ModelsDocument Catalog(Home home) => new LocalStore(home).Read(DocumentKind.Models, Json.ModelsDocument, ContractValidation.Models)!;
     private static void Recover(Home home) => new LocalStore(home).Update(DocumentKind.Config, Json.ConfigDocument,
         ContractValidation.Config, old => old!);

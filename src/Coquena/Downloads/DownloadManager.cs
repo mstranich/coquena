@@ -42,7 +42,7 @@ public sealed class HttpDownloadTransport : IDownloadTransport, IDisposable
     {
         var uri = await resolve(operation, file, cancellation);
         if (uri.Scheme != "https" && !(uri.Scheme == "http" && uri.IsLoopback))
-            throw new DownloadException("unsafe-location", "Se requiere HTTPS (HTTP sólo para fixtures loopback).");
+            throw new DownloadException("unsafe-location", Messages.TransferHttpsRequired.ToString());
         using var request = new HttpRequestMessage(HttpMethod.Get, uri);
         request.Headers.AcceptEncoding.ParseAdd("identity");
         if (offset > 0)
@@ -81,19 +81,19 @@ public sealed class DownloadManager(Home home, LocalStore? storage = null)
     private string Area(Guid id) => home.PathFor($"downloads/{id:D}");
     private string Control(Guid id, string action) => home.PathFor($"downloads/{id:D}/{action}.request");
     private OperationDocument Read(Guid id) => store.Read(DocumentKind.Operation, Json.OperationDocument,
-        ContractValidation.Operation, operation: id) ?? throw new DownloadException("not-found", "Operación inexistente.");
+        ContractValidation.Operation, operation: id) ?? throw new DownloadException("not-found", Messages.TransferOperationDoesNotExist.ToString());
     private OperationDocument Save(OperationDocument value)
     {
         try
         {
             return store.Update(DocumentKind.Operation,
                 Json.OperationDocument, ContractValidation.Operation, old => old is null
-                    ? throw new DownloadException("not-found", "Operación inexistente.") : value, operation: value.Id);
+                    ? throw new DownloadException("not-found", Messages.TransferOperationDoesNotExist.ToString()) : value, operation: value.Id);
         }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException)
         {
             throw new DownloadException($"checkpoint-write-failed-0x{error.HResult:X8}",
-                "Falló la escritura del estado local de descarga; no es una respuesta HTTP.");
+                Messages.TransferLocalStateWriteFailed.ToString());
         }
     }
 
@@ -109,7 +109,7 @@ public sealed class DownloadManager(Home home, LocalStore? storage = null)
                 !file.PartialPath.EndsWith(".part", StringComparison.Ordinal) ||
                 !partials.Add(home.PathFor(file.PartialPath)) || !destinations.Add(!store.IsScoped && (value.ResourceKind is "model" or "companion") ? new ModelPaths(home).Destination(value, file) : home.PathFor(file.DestinationPath)) ||
                 !file.DestinationPath.StartsWith(value.ResourceKind == "backend" ? "backends/" : "models/", StringComparison.Ordinal))
-                throw new DownloadException("unsafe-path", "Rutas de operación inválidas o en colisión.");
+                throw new DownloadException("unsafe-path", Messages.TransferInvalidOrCollidingOperationPaths.ToString());
         }
     }
 
@@ -117,7 +117,7 @@ public sealed class DownloadManager(Home home, LocalStore? storage = null)
     {
         Paths(selection);
         if (selection.State != "pending" || selection.Files.Any(f => f.ConfirmedBytes != 0 || f.State != "pending"))
-            throw new DownloadException("invalid-selection", "Nueva operación debe estar pendiente y sin bytes.");
+            throw new DownloadException("invalid-selection", Messages.TransferNewOperationMustBePendingWithoutBytes.ToString());
         return store.Exclusive(() => CreateLocked(selection));
     }
 
@@ -125,11 +125,11 @@ public sealed class DownloadManager(Home home, LocalStore? storage = null)
     {
         Paths(selection);
         if (selection.State != "pending" || selection.Files.Any(f => f.ConfirmedBytes != 0 || f.State != "pending"))
-            throw new DownloadException("invalid-selection", "Nueva operación debe estar pendiente y sin bytes.");
+            throw new DownloadException("invalid-selection", Messages.TransferNewOperationMustBePendingWithoutBytes.ToString());
         selection = selection with { CreatedAt = selection.CreatedAt ?? DateTimeOffset.UtcNow };
         return store.UpdateLocked(DocumentKind.Operation, Json.OperationDocument, ContractValidation.Operation,
             old => old is null && !Directory.Exists(Area(selection.Id)) ? selection :
-                throw new DownloadException("already-exists", "GUID ya registrado o preparación huérfana; no se sobrescribe."), operation: selection.Id);
+                throw new DownloadException("already-exists", Messages.TransferGuidAlreadyRegistered.ToString()), operation: selection.Id);
     }
 
     // The OS handle, not PID or the lock file's mere existence, proves executor ownership.
@@ -139,7 +139,7 @@ public sealed class DownloadManager(Home home, LocalStore? storage = null)
         try { return new FileStream(home.PathFor($"downloads/{id:D}/executor.lock"), FileMode.OpenOrCreate,
             FileAccess.ReadWrite, FileShare.Delete); }
         catch (IOException e) when ((e.HResult & 0xffff) is 32 or 33)
-        { throw new DownloadException("executor-busy", "Otro ejecutor controla este GUID."); }
+        { throw new DownloadException("executor-busy", Messages.TransferAnotherExecutorControlsThisGUID.ToString()); }
     });
 
     // Read-only probe; the apply path acquires the same executor exclusion again.
@@ -196,7 +196,7 @@ public sealed class DownloadManager(Home home, LocalStore? storage = null)
         {
             home.CheckPath(path);
             if (!Guid.TryParseExact(Path.GetFileName(path), "D", out var id))
-                throw new DownloadException("invalid-operation-directory", "Directorio de operación no reconocido.");
+                throw new DownloadException("invalid-operation-directory", Messages.TransferOperationDirectoryNotRecognized.ToString());
             try { var value = Status(id); if (kind is null || value.ResourceKind == kind) results.Add(value); }
             catch (DownloadException e) when (e.Code == "not-found" && !Directory.Exists(path)) { } // concurrent cleanup
         }
@@ -214,7 +214,7 @@ public sealed class DownloadManager(Home home, LocalStore? storage = null)
         {
             home.CheckPath(path);
             if (!Guid.TryParseExact(Path.GetFileName(path), "D", out var id))
-                throw new DownloadException("invalid-operation-directory", "Directorio de operación no reconocido.");
+                throw new DownloadException("invalid-operation-directory", Messages.TransferOperationDirectoryNotRecognized.ToString());
             values.Add(Read(id));
         }
         return values.ToArray();
@@ -250,7 +250,7 @@ public sealed class DownloadManager(Home home, LocalStore? storage = null)
             }
             else
             {
-                if (value.State == "cancelled") throw new DownloadException("cleanup-pending", "Cancelación pendiente de limpieza.");
+                if (value.State == "cancelled") throw new DownloadException("cleanup-pending", Messages.TransferCancellationPendingCleanup.ToString());
                 Save(value with { State = "paused", UpdatedAt = DateTimeOffset.UtcNow });
                 RemoveRequest(id, "pause");
             }
@@ -286,7 +286,7 @@ public sealed class DownloadManager(Home home, LocalStore? storage = null)
             // Restore the recovery record even if removal failed after deleting its JSON.
             store.Update(DocumentKind.Operation, Json.OperationDocument, ContractValidation.Operation,
                 _ => value, operation: value.Id);
-            throw new DownloadException("cleanup-pending", "Limpieza incompleta; registro recuperable conservado.");
+            throw new DownloadException("cleanup-pending", Messages.TransferCleanupIncomplete.ToString());
         }
     }
 
@@ -299,10 +299,10 @@ public sealed class DownloadManager(Home home, LocalStore? storage = null)
         using var lease = Lease(id);
         var value = Read(id); Paths(value);
         if (value.Phase == "cancelling-publication")
-            throw new DownloadException("cancel-required", "Publicación en reversión; repetir download cancel para completar la limpieza.");
+            throw new DownloadException("cancel-required", Messages.TransferRollbackRepeatCancel.ToString());
         if (value.State == "completed" && !(finalize is not null && value.Phase == "cleanup"))
-            throw new DownloadException("cleanup-pending", "Operación terminada pendiente de limpieza del consumidor.");
-        if (value.State == "cancelled") throw new DownloadException("cleanup-pending", "Cancelar para completar limpieza pendiente.");
+            throw new DownloadException("cleanup-pending", Messages.TransferFinishedPendingCleanup.ToString());
+        if (value.State == "cancelled") throw new DownloadException("cleanup-pending", Messages.TransferCancelToCompletePendingCleanup.ToString());
         using var stopped = CancellationTokenSource.CreateLinkedTokenSource(cancellation);
         // Stopping the monitor must not cancel transfer or publication, so it has its own signal.
         using var quiet = CancellationTokenSource.CreateLinkedTokenSource(stopped.Token);
@@ -344,13 +344,13 @@ public sealed class DownloadManager(Home home, LocalStore? storage = null)
                 var file = value.Files[i];
                 var length = Length(file);
                 if (length != file.ConfirmedBytes)
-                    throw new DownloadException("checkpoint-inconsistent", "Parcial y checkpoint difieren; no se reutilizan bytes sin evidencia.");
+                    throw new DownloadException("checkpoint-inconsistent", Messages.TransferPartialDataAndCheckpointDifferNoBytes.ToString());
                 if (file.State == "transferred")
                 {
                     if (value.ModelInstall is not null || store.IsScoped)
                     {
                         var check = await FileIntegrity.VerifyAsync(home.PathFor(file.PartialPath), file.LocalIntegrity, stopped.Token);
-                        if (check.Status != "verified") throw new DownloadException("partial-integrity-failed", "Archivo completo cambió; no se reutiliza ni se redefine su referencia.");
+                        if (check.Status != "verified") throw new DownloadException("partial-integrity-failed", Messages.TransferCompleteFileChangedNeitherReusedNorIts.ToString());
                     }
                     continue;
                 }
@@ -418,33 +418,33 @@ public sealed class DownloadManager(Home home, LocalStore? storage = null)
             var file = value.Files[index];
             using var response = await Open(index, file.ConfirmedBytes);
             if (response.StatusCode is HttpStatusCode.Moved or HttpStatusCode.Redirect or HttpStatusCode.TemporaryRedirect or HttpStatusCode.PermanentRedirect)
-                throw new DownloadException("redirect-requires-provider", "El proveedor debe resolver redirecciones sin reenviar credenciales.");
+                throw new DownloadException("redirect-requires-provider", Messages.TransferRedirectWithoutCredentials.ToString());
             if ((int)response.StatusCode is 408 or 429 or 500 or 502 or 503 or 504)
             {
                 var retry = response.Headers.RetryAfter;
                 var wait = retry?.Delta ?? (retry?.Date is { } date ? date - DateTimeOffset.UtcNow : TimeSpan.FromMilliseconds(250));
-                if (wait > TimeSpan.FromSeconds(30)) throw new DownloadException("retry-after-exceeds-limit", "Espera del servidor excede límite; reanudar explícitamente.");
+                if (wait > TimeSpan.FromSeconds(30)) throw new DownloadException("retry-after-exceeds-limit", Messages.TransferServerWaitExceedsLimitResumeExplicitly.ToString());
                 throw new TransientException(wait < TimeSpan.Zero ? TimeSpan.Zero : wait, "http-" + (int)response.StatusCode);
             }
             var tag = response.Headers.ETag?.ToString();
             var modified = response.Content.Headers.LastModified?.ToString("O");
             if ((file.ETag is not null && file.ETag != tag) || (file.ETag is null && file.LastModified is not null && file.LastModified != modified))
-                throw new DownloadException("content-changed", "Validador cambió; no cambiar selección ni reiniciar.");
+                throw new DownloadException("content-changed", Messages.TransferValidatorChanged.ToString());
             if (file.ConfirmedBytes > 0 && response.StatusCode is HttpStatusCode.OK or HttpStatusCode.RequestedRangeNotSatisfiable)
             {
                 if (restart is null || !await restart(value, index, stopped.Token))
-                    throw new DownloadException("restart-required", "Range no continúa; requiere aceptación explícita para reiniciar este archivo.");
+                    throw new DownloadException("restart-required", Messages.TransferRangeDiscontinuity.ToString());
                 stopped.Token.ThrowIfCancellationRequested();
                 // Persist zero first. Crash before truncation is diagnosed as ahead, never appended.
                 if (response.StatusCode == HttpStatusCode.RequestedRangeNotSatisfiable && file.ETag is null && file.LastModified is null)
-                    throw new DownloadException("continuity-unknown", "416 sin evidencia de continuidad; no se descarta el parcial.");
+                    throw new DownloadException("continuity-unknown", Messages.TransferHttp416WithoutContinuity.ToString());
                 file = file with { ConfirmedBytes = 0, State = "pending" };
                 value.Files[index] = file; value = Save(value);
                 using (var reset = new FileStream(home.PathFor(file.PartialPath), FileMode.Create, FileAccess.Write)) reset.Flush(true);
                 await Transfer(index); return;
             }
             if (response.Content.Headers.ContentEncoding.Count != 0)
-                throw new DownloadException("encoded-response", "Respuesta codificada no reutilizable por offset.");
+                throw new DownloadException("encoded-response", Messages.TransferEncodedResponseCannotBeReusedByOffset.ToString());
             long? end = null;
             if (response.StatusCode == HttpStatusCode.PartialContent)
             {
@@ -453,20 +453,20 @@ public sealed class DownloadManager(Home home, LocalStore? storage = null)
                     range.To < range.From || (range.Length is not null && range.To + 1 != range.Length) ||
                     (file.ExpectedSize is not null && range.Length != file.ExpectedSize) ||
                     (response.Content.Headers.ContentLength is { } count && count != range.To - range.From + 1))
-                    throw new DownloadException("invalid-range", "Content-Range incoherente; no se añadió contenido.");
+                    throw new DownloadException("invalid-range", Messages.TransferInconsistentContentRange.ToString());
                 end = range.To + 1;
             }
             else if (response.StatusCode != HttpStatusCode.OK || file.ConfirmedBytes != 0)
-                throw new DownloadException("http-failed", "Respuesta HTTP no apta para transferencia.");
+                throw new DownloadException("http-failed", Messages.TransferHTTPResponseUnsuitableForTransfer.ToString());
             else end = response.Content.Headers.ContentLength;
             if (file.ExpectedSize is { } size && end is { } announced && size != announced)
-                throw new DownloadException("size-mismatch", "Tamaño anunciado no coincide con selección.");
+                throw new DownloadException("size-mismatch", Messages.TransferAnnouncedSizeDoesNotMatchSelection.ToString());
             file = file with { ETag = tag, LastModified = modified, State = "downloading" };
             value.Files[index] = file; value = Save(value);
             var path = home.PathFor(file.PartialPath);
             Directory.CreateDirectory(Path.GetDirectoryName(path)!);
             using var target = new FileStream(path, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.Read, 65536, FileOptions.Asynchronous);
-            if (target.Length != file.ConfirmedBytes) throw new DownloadException("checkpoint-inconsistent", "Parcial cambió antes de abrir escritor.");
+            if (target.Length != file.ConfirmedBytes) throw new DownloadException("checkpoint-inconsistent", Messages.TransferPartialFileChangedBeforeOpeningWriter.ToString());
             using var hash = value.ModelInstall is not null || store.IsScoped ? new FileHashSession() : null;
             if (hash is not null)
             {
@@ -474,7 +474,7 @@ public sealed class DownloadManager(Home home, LocalStore? storage = null)
                 await hash.ReadPrefixAsync(target, file.ConfirmedBytes, stopped.Token);
                 if (store.IsScoped && file.ConfirmedBytes > 0 &&
                     FileIntegrity.Compare(hash.Snapshot(), file.CheckpointIntegrity).Status != "verified")
-                    throw new DownloadException("checkpoint-integrity-failed", "El prefijo cambió o carece de evidencia; no se añaden bytes.");
+                    throw new DownloadException("checkpoint-integrity-failed", Messages.TransferPrefixChangedOrLacksEvidenceNoBytes.ToString());
             }
             target.Position = file.ConfirmedBytes;
             var savedFile = file;
@@ -497,7 +497,7 @@ public sealed class DownloadManager(Home home, LocalStore? storage = null)
                     catch (Exception e) when (e is IOException or HttpRequestException) { throw new TransientException(TimeSpan.FromMilliseconds(250), "connection-interrupted"); }
                     if (read == 0) break;
                     if ((end is { } limit && target.Position + read > limit) || (file.ExpectedSize is { } total && target.Position + read > total))
-                        throw new DownloadException("size-mismatch", "Respuesta excede los límites esperados.");
+                        throw new DownloadException("size-mismatch", Messages.TransferResponseExceedsExpectedLimits.ToString());
                     await target.WriteAsync(buffer.AsMemory(0, read), stopped.Token);
                     hash?.Append(buffer.AsSpan(0, read));
                     if (DateTimeOffset.UtcNow >= nextCheckpoint)
@@ -511,7 +511,7 @@ public sealed class DownloadManager(Home home, LocalStore? storage = null)
                 {
                     var digest = hash.Snapshot();
                     if (FileIntegrity.Compare(digest, file.Identity).Status == "mismatch")
-                        throw new DownloadException("remote-hash-mismatch", "SHA-256 remoto no coincide; no publicar ni redefinir referencia.");
+                        throw new DownloadException("remote-hash-mismatch", Messages.TransferRemoteShaMismatch.ToString());
                     target.Flush(true);
                     file = file with { LocalIntegrity = digest, VerifiedWriteUtc = File.GetLastWriteTimeUtc(path) };
                 }
@@ -557,7 +557,7 @@ public sealed class DownloadManager(Home home, LocalStore? storage = null)
             catch (HttpRequestException e) { throw new TransientException(TimeSpan.FromMilliseconds(250), "request-" + e.HttpRequestError.ToString()); }
         }
     }
-    private sealed class TransientException(TimeSpan delay, string reason) : DownloadException("retries-exhausted", "Reintentos agotados.")
+    private sealed class TransientException(TimeSpan delay, string reason) : DownloadException("retries-exhausted", Messages.TransferRetriesExhausted.ToString())
     {
         public TimeSpan Delay { get; } = delay;
         public string Reason { get; } = reason;

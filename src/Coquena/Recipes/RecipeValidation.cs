@@ -158,7 +158,7 @@ internal static partial class RecipeValidation
 
     // What to print for a recipe error: the list for an aggregated validation, the message otherwise.
     internal static string Message(RecipeException error) =>
-        error.Phase == "validate" ? "Problemas en la receta:" + Environment.NewLine + error.Detail : error.Message;
+        error.Phase == "validate" ? Messages.RecipeProblemsDetail.Format(error.Detail) : error.Message;
 
     // Throws with every problem, for callers that only proceed with a valid recipe.
     internal static (EffectiveRecipe Recipe, IReadOnlyList<ValidatedArgumentBlock> Blocks) Require(RecipeSelection selection, IReadOnlyDictionary<string, byte[]>? drafts = null,

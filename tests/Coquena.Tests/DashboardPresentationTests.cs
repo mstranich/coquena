@@ -22,7 +22,7 @@ internal static class DashboardPresentationTests
             "navigation preserves every observed entry and its target");
         check(tree.Single(node => node.Entry == "news/summary").Text.Contains("summary") && tree.Any(node => node.Text == "  news"),
             "published namespaces group entries while full names remain selection identities");
-        check(tree.Any(node => node.Text == "  Sin prefijo") && tree.Single(node => node.Entry == "external").Entry == "external",
+        check(tree.Any(node => node.Text == "  " + Messages.LiveNoPrefix) && tree.Single(node => node.Entry == "external").Entry == "external",
             "external names without namespaces remain observable without inventing an owner");
         check(DashboardPresentation.Tree(targets, new Dictionary<int, IReadOnlyList<EntrySnapshot>>()).Count == 1,
             "a recipe without an observed catalogue remains navigable");
@@ -32,7 +32,7 @@ internal static class DashboardPresentationTests
             "unmeasured entry counters are omitted instead of shown as n/d");
         var entry = entries[0] with { Metrics = [new("llamacpp:requests_deferred", 0, "requests", "fixture", "entry", now),
             new("llamacpp:prompt_tokens_seconds", 12, "tokens/second", "fixture", "entry", now)] };
-        check(DashboardPresentation.EntryFacts(entry) is { } facts && facts.Contains("cola 0") && DashboardPresentation.EntryMeans(entry) == "medias del backend · P 12 tk/s",
+        check(DashboardPresentation.EntryFacts(entry) is { } facts && facts.Contains(Messages.DashboardQueueCount.Format(0)) && DashboardPresentation.EntryMeans(entry) == Messages.DashboardBackendMeans.Format("P 12"),
             "backend means and measured zero queue retain their meaning");
         check(DashboardPresentation.Fit("Ornith-1.5-35B-A3B-balanced", 18) is { Length: 18 } fitted && fitted.EndsWith("balanced") && fitted.Contains('…'),
             "truncated names keep the distinguishing suffix of sibling presets");

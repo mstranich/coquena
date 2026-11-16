@@ -26,7 +26,7 @@ public sealed partial class LocalStore
     }
     private static void ValidateTransaction(ParameterTransaction value)
     {
-        ContractJson.Check(value.SchemaVersion == 1 && value.Parameters is not null, "Transacción de parámetros inválida.");
+        ContractJson.Check(value.SchemaVersion == 1 && value.Parameters is not null, Messages.StorageInvalidParameterTransaction.ToString());
         ParameterManager.Validate(value.Parameters!);
         if (value.Presets is not null) ContractValidation.Presets(value.Presets);
         if (value.Servers is not null) ContractValidation.Servers(value.Servers);
@@ -49,8 +49,8 @@ public sealed partial class LocalStore
         var transaction = new ParameterTransaction(1, parameters, presets, servers);
         ValidateTransaction(transaction);
         var bytes = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(transaction, ParameterTransactionJson.Default.ParameterTransaction));
-        if (bytes.Length > MaxDocumentBytes) throw new StorageException("document-too-large", "Transacción supera 16 MiB.");
-        if (PendingParameters() is not null) throw new StorageException("transaction-pending", "Hay una transacción pendiente.");
+        if (bytes.Length > MaxDocumentBytes) throw new StorageException("document-too-large", Messages.StorageTransactionExceedsMiB.ToString());
+        if (PendingParameters() is not null) throw new StorageException("transaction-pending", Messages.StorageThereIsAPendingTransaction.ToString());
         fault?.Invoke(WriteStage.BeforeReplace);
         AtomicCheckpoint(ParameterTransactionPath, bytes);
         try
@@ -62,7 +62,7 @@ public sealed partial class LocalStore
         catch (Exception error)
         {
             throw new StorageException("published-pending-checkpoint",
-                "Edición y cascada publicadas conjuntamente; releer antes de reintentar. Checkpoint/auditoría pendiente.", true, error);
+                Messages.StorageEditCascadeReadAgain.ToString(), true, error);
         }
     }
     private void RecoverParameterTransaction()

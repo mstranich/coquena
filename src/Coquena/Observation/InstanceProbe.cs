@@ -23,7 +23,7 @@ public static class InstanceProbe
     private sealed class UnsupportedInstanceProbe : IInstanceProbe
     {
         public InstanceCheck Open(InstanceDocument identity) => new("unsupported", null,
-            "El formato persistido de identidad de servicios requiere Windows; el proveedor de hardware es independiente.");
+            Messages.ObservationServiceIdentityWindowsOnly.ToString());
     }
 }
 
@@ -51,13 +51,13 @@ internal sealed class WindowsInstanceProbe : IInstanceProbe
                 new("cpu.utilization", second.CpuTicks >= first.CpuTicks ?
                     (second.CpuTicks - first.CpuTicks) / (window.TotalSeconds * TimeSpan.TicksPerSecond * Environment.ProcessorCount) * 100 : null,
                     "%", "Windows job accounting; normalized to logical CPUs", "instance:" + identity.InstanceId, now, window,
-                    second.CpuTicks >= first.CpuTicks ? null : "Contador reiniciado."),
+                    second.CpuTicks >= first.CpuTicks ? null : Messages.ObservationCounterReset.ToString()),
                 new("ram.private-commit", second.PrivateBytes, "bytes", "GetProcessMemoryInfo; verified job members PrivateUsage",
-                    "instance:" + identity.InstanceId, now, UnavailableReason: second.PrivateBytes is null ? "Miembros cambiaron o acceso no disponible; sin suma parcial." : null),
+                    "instance:" + identity.InstanceId, now, UnavailableReason: second.PrivateBytes is null ? Messages.ObservationMembersChangedNoPartialSum.ToString() : null),
                 new("gpu.utilization", null, "%", "OS", "instance:" + identity.InstanceId, now,
-                    UnavailableReason: "Sin fuente acreditada por instancia; consultar hardware compartido por dispositivo."),
+                    UnavailableReason: Messages.ObservationNoVerifiedPerInstanceSourceQueryShared.ToString()),
                 new("vram.used", null, "bytes", "OS", "instance:" + identity.InstanceId, now,
-                    UnavailableReason: "Sin fuente acreditada por instancia; consultar hardware compartido por dispositivo."),
+                    UnavailableReason: Messages.ObservationNoVerifiedPerInstanceSourceQueryShared.ToString()),
                 .. second.WorkingSets ];
         }
         public void Dispose() => handle.Dispose();

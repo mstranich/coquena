@@ -15,13 +15,13 @@ public sealed partial class ServerRuntime
     private void ValidateLast(LastLogDocument value)
     {
         if (value.SchemaVersion != 1 || value.ServerId == Guid.Empty || value.InstanceId == Guid.Empty)
-            throw new ContractException("invalid-document", "Referencia de último log inválida.");
+            throw new ContractException("invalid-document", Messages.ServerInvalidLastLogReference.ToString());
     }
     private LastLogDocument? Last(string server)
     {
         var last = store.Read(DocumentKind.LastLog, Json.LastLogDocument, ValidateLast, server: server);
         if (last is not null && last.LogPath != $"logs/{server}/{last.InstanceId:D}.log")
-            throw new ConfigurationException("Ruta de último log incierta.");
+            throw new ConfigurationException(Messages.ServerUncertainLastLogPath.ToString());
         return last;
     }
     private void RememberLog(string server, InstanceDocument instance) =>
@@ -42,9 +42,9 @@ public sealed partial class ServerRuntime
             if (total <= limit) break;
             if ($"logs/{server}/{file.Name}" == active?.LogPath || $"logs/{server}/{file.Name}" == last?.LogPath) continue;
             try { var length = file.Length; file.Delete(); total -= length; }
-            catch (IOException e) { output.WriteLine($"Diagnóstico: no se pudo retirar log {file.Name}: {e.Message}"); }
+            catch (IOException e) { output.WriteLine(Messages.ServerDiagnosticCouldNotRemoveLog.Format(file.Name, e.Message)); }
         }
-        if (total > limit) output.WriteLine($"Diagnóstico: logs de {server} superan {ByteSize.Format(limit)}; se conservan logs protegidos.");
+        if (total > limit) output.WriteLine(Messages.ServerProtectedLogsExceedLimit.Format(server, ByteSize.Format(limit)));
     }
 
     public int Logs(string? name, bool follow, TextWriter output, Func<bool>? cancelled = null)
@@ -55,9 +55,9 @@ public sealed partial class ServerRuntime
             var active = RecoverLocked(server.Name);
             if (active is not null) RememberLog(server.Name, active);
             var last = Last(server.Name);
-            if (last is not null && last.ServerId != server.Id) throw new ConfigurationException("Último log pertenece a otra definición de servidor.");
+            if (last is not null && last.ServerId != server.Id) throw new ConfigurationException(Messages.ServerLastLogOtherDefinition.ToString());
             RetainLogs(server.Name, active, output);
-            return home.PathFor(active?.LogPath ?? last?.LogPath ?? throw new ConfigurationException("No hay log disponible para este servidor."));
+            return home.PathFor(active?.LogPath ?? last?.LogPath ?? throw new ConfigurationException(Messages.ServerNoLogAvailableForThisServer.ToString()));
         });
         using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
         // Recent output is bounded even when the active log exceeds retention.
@@ -100,7 +100,7 @@ public sealed partial class ServerRuntime
                         .Select(line => line[1..^1]).Where(line => line != "*").ToArray() : [];
                     result.Add((name, active, models));
                 }
-                catch (ConfigurationException e) { output.WriteLine($"Servidor {name}: identidad incierta; {e.Message}"); }
+                catch (ConfigurationException e) { output.WriteLine(Messages.ServerUncertainIdentity.Format(name, e.Message)); }
             }
             return result;
         });
@@ -109,8 +109,8 @@ public sealed partial class ServerRuntime
         foreach (var snapshot in snapshots)
         {
             var instance = snapshot.Instance;
-            output.WriteLine($"Instancia {instance.InstanceId:D}; servidor {snapshot.Name}; PID {instance.Pid}; {instance.Host}:{instance.Port}; {instance.Mode}.");
-            if (!instance.Metrics) { output.WriteLine("Métricas desactivadas."); continue; }
+            output.WriteLine(Messages.ServerInstanceDServerPID.Format(instance.InstanceId, snapshot.Name, instance.Pid, instance.Host, instance.Port, instance.Mode));
+            if (!instance.Metrics) { output.WriteLine(Messages.ServerMetricsDisabled.ToString()); continue; }
             using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(5));
             var host = instance.Host is "0.0.0.0" ? "127.0.0.1" : instance.Host is "::" ? "::1" : instance.Host;
             var address = new UriBuilder("http", host, instance.Port).Uri;
@@ -122,21 +122,21 @@ public sealed partial class ServerRuntime
                     statuses.Add(model.GetProperty("id").GetString()!, model.GetProperty("status").GetProperty("value").GetString()!);
                 foreach (var model in snapshot.Models)
                 {
-                    if (!statuses.TryGetValue(model, out var status)) { output.WriteLine($"Modelo {model}: ausente en router."); continue; }
-                    if (status != "loaded") { output.WriteLine($"Modelo {model}: {status}; sin métricas (modelo {Messages.ModelNotLoaded})."); continue; }
+                    if (!statuses.TryGetValue(model, out var status)) { output.WriteLine(Messages.ServerModelMissingFromRouter.Format(model)); continue; }
+                    if (status != "loaded") { output.WriteLine(Messages.ServerModelNoMetricsModel.Format(model, status, Messages.ModelNotLoaded)); continue; }
                     try
                     {
                         var metrics = ParseMetrics(Fetch(client, new(address, $"metrics?model={Uri.EscapeDataString(model)}&autoload=false"), deadline.Token));
-                        output.WriteLine($"Modelo {model}: " + string.Join("; ", metrics.Select(pair => $"{pair.Key}={pair.Value.ToString(CultureInfo.InvariantCulture)}")));
-                        output.WriteLine("  Fuente: /metrics de esta entrada; contadores/tiempos acumulados del proceso del modelo, actividad/cola puntuales y " + Messages.MetricsScope + ". " + Messages.BucketUnknown + "; no se calcula total de tasas.");
+                        output.WriteLine(Messages.ServerModel.Format(model) + string.Join("; ", metrics.Select(pair => $"{pair.Key}={pair.Value.ToString(CultureInfo.InvariantCulture)}")));
+                        output.WriteLine(Messages.ServerSourceMetricsLegend.Format(Messages.MetricsScope, Messages.BucketUnknown));
                     }
-                    catch (Exception e) when (MetricError(e)) { output.WriteLine($"Modelo {model}: métricas no disponibles: {e.Message}"); }
+                    catch (Exception e) when (MetricError(e)) { output.WriteLine(Messages.ServerModelMetricsUnavailable.Format(model, e.Message)); }
                 }
-                if (snapshot.Models.Length == 0) output.WriteLine("Diagnóstico: presets de la ejecución no disponibles; sin métricas.");
+                if (snapshot.Models.Length == 0) output.WriteLine(Messages.ServerPresetsUnavailableNoMetrics.ToString());
             }
-            catch (Exception e) when (MetricError(e)) { output.WriteLine($"Métricas no disponibles: {e.Message}"); }
+            catch (Exception e) when (MetricError(e)) { output.WriteLine(Messages.ServerMetricsUnavailable.Format(e.Message)); }
         }
-        if (snapshots.Count == 0) output.WriteLine("Sin instancias activas verificadas.");
+        if (snapshots.Count == 0) output.WriteLine(Messages.ServerNoVerifiedActiveInstances.ToString());
     }
     private static bool MetricError(Exception e) => e is HttpRequestException or OperationCanceledException or JsonException or InvalidOperationException or KeyNotFoundException or FormatException or IOException or ArgumentException;
     private static string Fetch(HttpClient client, Uri uri, CancellationToken token)
@@ -148,7 +148,7 @@ public sealed partial class ServerRuntime
         using var bytes = new MemoryStream(); var buffer = new byte[4096]; int read;
         while ((read = body.ReadAsync(buffer, token).AsTask().GetAwaiter().GetResult()) > 0)
         {
-            if (bytes.Length + read > 1024 * 1024) throw new FormatException("Respuesta excede 1 MiB.");
+            if (bytes.Length + read > 1024 * 1024) throw new FormatException(Messages.ServerResponseExceedsMiB.ToString());
             bytes.Write(buffer, 0, read);
         }
         return Encoding.UTF8.GetString(bytes.ToArray());
@@ -168,8 +168,8 @@ public sealed partial class ServerRuntime
             var line = raw.Trim(); if (line.Length == 0 || line[0] == '#') continue;
             Match sample;
             try { sample = MetricSample().Match(line); }
-            catch (RegexMatchTimeoutException) { throw new FormatException("Formato Prometheus excede el plazo de análisis."); }
-            if (!sample.Success) throw new FormatException("Formato Prometheus inválido.");
+            catch (RegexMatchTimeoutException) { throw new FormatException(Messages.ServerPrometheusFormatExceedsAnalysisTimeout.ToString()); }
+            if (!sample.Success) throw new FormatException(Messages.ServerInvalidPrometheusFormat.ToString());
             var key = sample.Groups[1].Value;
             if (!wanted.Contains(key)) continue;
             if (key == "llamacpp:spec_decode_num_accepted_tokens_per_pos_total")
@@ -177,13 +177,13 @@ public sealed partial class ServerRuntime
                 var end = line.IndexOf('}');
                 if (end < key.Length || !Regex.IsMatch(line[key.Length..(end + 1)],
                     "^\\{position=\"[0-9]{1,6}\"\\}$", RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(100)))
-                    throw new FormatException("Posición especulativa sin identidad reconocida.");
+                    throw new FormatException(Messages.ServerSpeculativePositionUnrecognized.ToString());
                 key += line[key.Length..(end + 1)];
             }
             if (!double.TryParse(sample.Groups[2].Value, NumberStyles.Float, CultureInfo.InvariantCulture, out var value) || !double.IsFinite(value) || value < 0 || !result.TryAdd(key, value))
-                throw new FormatException("Métrica inválida o ambigua.");
+                throw new FormatException(Messages.ServerInvalidOrAmbiguousMetric.ToString());
         }
-        if (result.Count == 0) throw new FormatException("Respuesta sin métricas reconocidas.");
+        if (result.Count == 0) throw new FormatException(Messages.ServerResponseWithoutRecognizedMetrics.ToString());
         return result;
     }
     [GeneratedRegex("^([a-zA-Z_:][a-zA-Z0-9_:]*)(?:\\{(?:[a-zA-Z_][a-zA-Z0-9_]*=\"(?:[^\"\\\\]|\\\\.)*\"(?:, *[a-zA-Z_][a-zA-Z0-9_]*=\"(?:[^\"\\\\]|\\\\.)*\")*)?\\})?[ \\t]+([^ \\t]+)(?:[ \\t]+-?[0-9]+)?$", RegexOptions.CultureInvariant, 100)]

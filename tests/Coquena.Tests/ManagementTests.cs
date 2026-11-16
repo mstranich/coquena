@@ -80,7 +80,7 @@ internal static class ManagementTests
             catch (BackendException error) { check(error.Code == "backend-executable-absent" && registry.Services().Length == 2, "missing external executable creates no service"); }
             var place = source.Places()[0];
             var definitions = DashboardCli.ServiceDefinitions(place, [], new Dictionary<int, ServiceSnapshot>());
-            check(definitions.Length == 2 && definitions.All(service => service.Problem is null && service.Backend == "externo" && service.State is null),
+            check(definitions.Length == 2 && definitions.All(service => service.Problem is null && service.Backend == Messages.LabelsExternal.ToString() && service.State is null),
                 "service definitions remain readable before execution without inventing an observed state");
             check(definitions.Single(service => service.Id == first.ServiceId).Port == "61483" &&
                 definitions.Single(service => service.Id == first.ServiceId).Arguments.Contains("metrics"), "the details read persisted service.server arguments");
@@ -133,24 +133,24 @@ internal static class ManagementTests
                 new("vacío", false, [Transfer(Guid.NewGuid(), "finished", "model", "completed", 0)])
             ];
             var downloadRows = DownloadsPresentation.Rows(groups, ["No se pudieron leer las descargas de notas."]).ToList();
-            var plain = downloadRows.Select(Markup.Plain).Select(row => row.Trim()).Where(row => row.Length > 0 && !row.StartsWith("❚❚ Pausar", StringComparison.Ordinal) &&
-                !row.StartsWith("Reanudar", StringComparison.Ordinal) && !row.StartsWith("Reintentar", StringComparison.Ordinal) && !row.StartsWith("Cancelar", StringComparison.Ordinal))
+            var plain = downloadRows.Select(Markup.Plain).Select(row => row.Trim()).Where(row => row.Length > 0 && !row.StartsWith(Messages.DownloadPauseAction.ToString(), StringComparison.Ordinal) &&
+                !row.StartsWith(Messages.LabelsResume.ToString(), StringComparison.Ordinal) && !row.StartsWith(Messages.LabelsRetry.ToString(), StringComparison.Ordinal) && !row.StartsWith(Messages.MaintenanceCancel.ToString(), StringComparison.Ordinal))
                 .Select(row => row.Split("  ")[0]).ToArray();
-            check(plain.SequenceEqual(["Global", "BACKENDS", "cuda@13", "MODELOS", "gemma", "código (esta carpeta)", "MODELOS", "newer", "older",
-                    "AUXILIARES", "same name", "same name", "▲ No se pudieron leer las descargas de notas."]),
+            check(plain.SequenceEqual(["Global", DownloadsPresentation.Category("backend"), "cuda@13", DownloadsPresentation.Category("model"), "gemma", "código " + Messages.DownloadThisFolderTag, DownloadsPresentation.Category("model"), "newer", "older",
+                    DownloadsPresentation.Category("companion"), "same name", "same name", "▲ No se pudieron leer las descargas de notas."]),
                 "Descargas groups by scope then backends, models and companions; newest first; hides finished and empty scopes");
             var controls = downloadRows.SelectMany(Markup.Parse).Select(span => span.Action).OfType<string>().ToArray();
             check(controls.Contains("resume:1:" + id) && controls.Contains("cancel:1:" + id) && controls.Contains("resume:1:" + other) &&
                 controls.Contains("cancel:1:" + other) && controls.Contains("pause:0:" + groups[0].Items[1].Id),
                 "every row acts on its own scope and operation; failed ones offer Reintentar and Cancelar");
             check(downloadRows.IndexOf(downloadRows.First(row => Markup.Plain(row).Contains("✗ " + Messages.ConnectionCut))) >
-                downloadRows.IndexOf(downloadRows.First(row => Markup.Plain(row).Contains("❚❚ pausada"))), "failed transfers go after paused ones");
+                downloadRows.IndexOf(downloadRows.First(row => Markup.Plain(row).Contains(Messages.DownloadPausedStatus.ToString()))), "failed transfers go after paused ones");
             check(downloadRows.All(row => Markup.Width(row) <= 80), "transfer rows fit 80 columns");
-            check(Markup.Plain(DownloadsPresentation.Title(groups)) == "Descargas  4 activas · 1 pausada · 1 con error" &&
+            check(Markup.Plain(DownloadsPresentation.Title(groups)) == Messages.LabelsDownloads + "  4 " + Messages.LabelsActive2 + " · 1 " + Messages.LabelsPaused + " · 1 " + Messages.DownloadFailedStatus &&
                 DownloadsPresentation.Indicator(groups.SelectMany(group => group.Items).ToArray()).StartsWith("⇣ 4 · 50% · ", StringComparison.Ordinal) &&
                 DownloadsPresentation.Indicator(groups.SelectMany(group => group.Items).ToArray()).EndsWith("/s", StringComparison.Ordinal) &&
                 Markup.Plain(DownloadsPresentation.Rows([], [])[0]).Trim() == Messages.NoDownloads &&
-                Markup.Plain(DownloadsPresentation.Title([])) == "Descargas" && DownloadsPresentation.Failure("model-transfer-interrupted") == Messages.TransferCut && DownloadsPresentation.Failure("cleanup-pending") == Messages.TransferFailed && DownloadCli.ErrorLine("model-transfer-interrupted").StartsWith(Messages.Error("model-transfer-interrupted", Messages.TransferCut), StringComparison.Ordinal) && DownloadCli.ErrorLine("invalid-selector").EndsWith("(invalid-selector).", StringComparison.Ordinal) && DownloadCli.ErrorLine("transfer-paused").Contains("(transfer-paused)") && DownloadCli.ErrorLine("transfer-cancelled") == Messages.DownloadCancelled,
+                Markup.Plain(DownloadsPresentation.Title([])) == Messages.UsageDownloads.ToString() && DownloadsPresentation.Failure("model-transfer-interrupted") == Messages.TransferCut && DownloadsPresentation.Failure("cleanup-pending") == Messages.TransferFailed && DownloadCli.ErrorLine("model-transfer-interrupted").StartsWith(Messages.Error("model-transfer-interrupted", Messages.TransferCut), StringComparison.Ordinal) && DownloadCli.ErrorLine("invalid-selector").EndsWith("(invalid-selector).", StringComparison.Ordinal) && DownloadCli.ErrorLine("transfer-paused").Contains("(transfer-paused)") && DownloadCli.ErrorLine("transfer-cancelled") == Messages.DownloadCancelled,
                 "title, ⇣ indicator and empty tab");
             check(Markup.Plain(Markup.Fit(LivePresentation.Tabs(3, 1, 0, "⇣ 1 · 68%"), 80)).Contains(" ⇣ 1 · 68% ") &&
                 Markup.Parse(Markup.Fit(LivePresentation.Tabs(3, 1, 0, "⇣ 1 · 68%"), 80)).Any(span => span.Class == "sel" && span.Action == "downloads"),
@@ -160,7 +160,7 @@ internal static class ManagementTests
             var localPlace = new DashboardCli.DefinitionsSource(home, localFolder).Places().Single(place => place.Scope.Here);
             var localDefinition = DashboardCli.ServiceDefinitions(localPlace, [], new Dictionary<int, ServiceSnapshot>()).Single();
             var freshPage = ManagementPresentation.Services("fresh", false, [localDefinition], localDefinition.Key);
-            check(localDefinition.Id is null && localDefinition.State == "sin registrar" && !Directory.Exists(Path.Combine(localFolder, ".coquena")) &&
+            check(localDefinition.Id is null && localDefinition.State == Messages.DefinitionsStateUnregistered.ToString() && !Directory.Exists(Path.Combine(localFolder, ".coquena")) &&
                 freshPage.Rows.SelectMany(Markup.Parse).Any(span => span.Action == "live") && !freshPage.Rows.SelectMany(Markup.Parse).Any(span => span.Action == "remove"),
                 "a fresh local service definition can navigate to En vivo without inventing registration or allowing removal");
             await Transfers(context, root, check);
@@ -204,7 +204,7 @@ internal static class ManagementTests
         check((await running).Contains("paused") && transfers.Downloads.Status(id).State == "paused" &&
             otherTransfers.Downloads.Status(id).State == "pending", "the TUI transfer worker can be paused without controlling another scope's same GUID");
         var completed = await DashboardCli.ResumeTransfer(context, id, null, CancellationToken.None, new Transport(bytes));
-        check(completed.Contains("publicada") && DashboardCli.TransferList(context).Length == 0,
+        check(completed == Messages.TransferPublishedAndCleaned.ToString() && DashboardCli.TransferList(context).Length == 0,
             "the TUI resume worker verifies and publishes the resource then removes its terminal operation");
         await otherTransfers.ControlAsync(id, true);
         check(DashboardCli.TransferList(otherContext).Length == 0 && new Coquena.Models.ScopedModels(context).List().Count == 1,

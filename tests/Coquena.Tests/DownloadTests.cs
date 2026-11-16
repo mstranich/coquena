@@ -158,7 +158,7 @@ internal static class DownloadTests
             Check(unknownDone!.Files[0].ConfirmedBytes == 6 && unknownDone.Files[0].ExpectedSize is null);
             using var output = new StringWriter(); using var error = new StringWriter();
             Check(DownloadCli.Run(["status", unknown.Id.ToString()], output, error, manager) == 0);
-            Check(output.ToString().Contains("desconocido") && !output.ToString().Contains('%'));
+            Check(output.ToString().Contains(Messages.UnknownSize.ToString()) && !output.ToString().Contains('%'));
             Check(manager.List("model").Length == 1 && manager.List("backend").Length == 1 && manager.List("companion").Length == 0);
             Check(DownloadCli.Run(["list", "--model", "--backend"], output, error, manager) == 2);
             Check(DownloadCli.Run(["resume", unknown.Id.ToString()], output, error, manager) == 1);

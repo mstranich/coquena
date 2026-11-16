@@ -15,10 +15,9 @@ internal static partial class DirectoryAccess
         using var handle = Open(path, 0x80000000u | 0x00010000u | (replace ? 0x40000000u : 0),
             1 | 2 | 4, IntPtr.Zero, 3, 0x02000000, IntPtr.Zero);
         if (handle.IsInvalid)
-            throw new IOException($"Acceso insuficiente para {(replace ? "sobrescribir" : "retirar")} {path}: " +
-                new Win32Exception(Marshal.GetLastPInvokeError()).Message);
+            throw new IOException(Messages.StorageInsufficientAccessDetail.Format((replace ? Messages.StorageActionOverwrite.ToString() : Messages.StorageActionRemove.ToString()), path, new Win32Exception(Marshal.GetLastPInvokeError()).Message));
         if ((File.GetAttributes(path) & FileAttributes.ReadOnly) != 0 && File.Exists(path))
-            throw new IOException($"Archivo de sólo lectura: {path}; no se trasladaron recursos.");
+            throw new IOException(Messages.StorageReadOnlyFileNoResourcesMoved.Format(path));
     }
     [LibraryImport("kernel32.dll", EntryPoint = "CreateFileW", SetLastError = true, StringMarshalling = StringMarshalling.Utf16)]
     private static partial SafeFileHandle Open(string path, uint access, uint share, IntPtr security,

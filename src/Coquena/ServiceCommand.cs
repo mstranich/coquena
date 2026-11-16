@@ -74,5 +74,5 @@ internal sealed record ServiceCommand(
         return new(action, selector, files, envFiles, basePath, global, detached, isPrivate, json);
     }
 
-    private static ArgumentException Invalid() => new("Argumentos de service inválidos. Ver coquena --help.");
+    private static ArgumentException Invalid() => new(Messages.ServiceInvalidArguments);
 }

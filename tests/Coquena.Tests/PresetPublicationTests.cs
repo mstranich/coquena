@@ -448,7 +448,7 @@ internal static class PresetPublicationTests
         Check(PresetPublication.Mismatch(Composition("[coding/q]\nc = 4096\n"), Catalog("[coding/q]\nctx-size = 8192\n"), definitions: parameters) is { } changed &&
             changed.Contains("coding/q") && changed.Contains("8192") && changed.Contains("4096"),
             "a real difference names the preset, the argument and both values");
-        Check(PresetPublication.Mismatch(Composition("[coding/q]\nctx-size = 4096\n"), new JsonArray(), definitions: parameters) is { } missing && missing.Contains("falta «coding/q»"),
+        Check(PresetPublication.Mismatch(Composition("[coding/q]\nctx-size = 4096\n"), new JsonArray(), definitions: parameters) is { } missing && missing.Contains(Messages.ServerIsMissingOnTheServer.Format("coding/q")),
             "a missing preset is named");
         var copy = Path.Combine(root, "copy"); Directory.CreateDirectory(copy);
         foreach (var file in Directory.EnumerateFiles(a.Store.Context.Base, "*", SearchOption.AllDirectories))

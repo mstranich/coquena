@@ -39,7 +39,7 @@ public sealed class HuggingFaceStore(HttpClient client)
     // Public GGUF search, one bounded page at a time. Continuations stay on the Hub.
     public async Task<ModelSearchPage> SearchAsync(string query, Uri? continuation = null, CancellationToken cancellation = default)
     {
-        if (query.Length > 256 || query.Any(char.IsControl)) throw Error("invalid-search", "Búsqueda inválida.");
+        if (query.Length > 256 || query.Any(char.IsControl)) throw Error("invalid-search", Messages.ModelInvalidSearch.ToString());
         var uri = continuation ?? new Uri($"{Host}/api/models?filter=gguf&search={Uri.EscapeDataString(query)}&limit=20&sort=downloads&direction=-1");
         ValidateSearchUri(uri);
         var (bytes, link) = await ReadAsync(uri, MaxMetadataBytes, cancellation);
@@ -58,7 +58,7 @@ public sealed class HuggingFaceStore(HttpClient client)
                 foreach (var part in link.Split(','))
                 {
                     var match = Regex.Match(part.Trim(), "^<([^>]+)>;\\s*rel=\"([^\"]+)\"$", RegexOptions.CultureInvariant);
-                    if (!match.Success) throw Error("invalid-pagination", "Paginación HF inválida.");
+                    if (!match.Success) throw Error("invalid-pagination", Messages.ModelInvalidHFPagination.ToString());
                     if (match.Groups[2].Value != "next") continue;
                     if (next is not null || !Uri.TryCreate(match.Groups[1].Value, UriKind.Absolute, out next)) throw new JsonException();
                     ValidateSearchUri(next);
@@ -66,14 +66,14 @@ public sealed class HuggingFaceStore(HttpClient client)
             return new(repositories, next);
         }
         catch (Exception error) when (error is JsonException or KeyNotFoundException or InvalidOperationException)
-        { throw Error("invalid-metadata", "Respuesta de búsqueda HF inválida."); }
+        { throw Error("invalid-metadata", Messages.ModelInvalidHFSearchResponse.ToString()); }
     }
 
     private static void ValidateSearchUri(Uri uri)
     {
         if (!uri.IsAbsoluteUri || uri.Scheme != "https" || uri.Host != "huggingface.co" || !uri.IsDefaultPort ||
             uri.AbsolutePath != "/api/models" || uri.UserInfo.Length != 0 || uri.Fragment.Length != 0)
-            throw Error("invalid-pagination", "Paginación fuera de la búsqueda HF.");
+            throw Error("invalid-pagination", Messages.ModelPaginationOutsideHFSearch.ToString());
     }
 
     public async Task<RepositoryRevision> ResolveAsync(string repository, string revision = "main",
@@ -81,7 +81,7 @@ public sealed class HuggingFaceStore(HttpClient client)
     {
         ValidateRepository(repository);
         if (string.IsNullOrWhiteSpace(revision) || revision.Length > 256 || revision.Any(char.IsControl))
-            throw Error("invalid-revision", "Referencia remota inválida.");
+            throw Error("invalid-revision", Messages.ModelInvalidRemoteReference.ToString());
         var (bytes, _) = await ReadAsync(new($"{Host}/api/models/{repository}/revision/{Uri.EscapeDataString(revision)}"),
             MaxMetadataBytes, cancellation);
         try
@@ -96,7 +96,7 @@ public sealed class HuggingFaceStore(HttpClient client)
             return new(id, revision, commit);
         }
         catch (Exception e) when (e is JsonException or KeyNotFoundException or InvalidOperationException)
-        { throw Error("invalid-metadata", "Respuesta de revisión inválida."); }
+        { throw Error("invalid-metadata", Messages.ModelInvalidRevisionResponse.ToString()); }
     }
 
     public async Task<RepositoryInventory> InventoryAsync(RepositoryRevision revision,
@@ -110,7 +110,7 @@ public sealed class HuggingFaceStore(HttpClient client)
             return await ReadInventoryAsync(revision, budget.Token);
         }
         catch (OperationCanceledException) when (!cancellation.IsCancellationRequested)
-        { throw Error("remote-timeout", "Tiempo de inventario HF agotado; no se declara completo."); }
+        { throw Error("remote-timeout", Messages.ModelHFInventoryTimedOutNotDeclaredComplete.ToString()); }
     }
 
     private async Task<RepositoryInventory> ReadInventoryAsync(RepositoryRevision revision, CancellationToken cancellation)
@@ -124,7 +124,7 @@ public sealed class HuggingFaceStore(HttpClient client)
         for (var page = 0; next is not null; page++)
         {
             if (page >= MaxPages || !visited.Add(next.AbsoluteUri))
-                throw Error("inventory-incomplete", "Inventario incompleto: límite o ciclo de paginación.");
+                throw Error("inventory-incomplete", Messages.ModelIncompleteRemoteInventory.ToString());
             var (bytes, link) = await ReadAsync(next, MaxMetadataBytes, cancellation);
             try
             {
@@ -133,7 +133,7 @@ public sealed class HuggingFaceStore(HttpClient client)
                 foreach (var item in json.RootElement.EnumerateArray())
                 {
                     cancellation.ThrowIfCancellationRequested();
-                    if (++entries > MaxEntries) throw Error("inventory-incomplete", "Inventario excede el límite de entradas.");
+                    if (++entries > MaxEntries) throw Error("inventory-incomplete", Messages.ModelInventoryExceedsEntryLimit.ToString());
                     Unique(item);
                     var path = item.GetProperty("path").GetString() ?? throw new JsonException();
                     ValidatePath(path);
@@ -157,7 +157,7 @@ public sealed class HuggingFaceStore(HttpClient client)
                 }
             }
             catch (Exception e) when (e is JsonException or KeyNotFoundException or InvalidOperationException or FormatException)
-            { throw Error("invalid-metadata", "Inventario remoto inválido; no se declara ausencia de archivos."); }
+            { throw Error("invalid-metadata", Messages.ModelInvalidRemoteInventory.ToString()); }
             next = Next(link, prefix);
         }
         return new(revision, files.OrderBy(f => f.Path, StringComparer.Ordinal).ToArray());
@@ -167,7 +167,7 @@ public sealed class HuggingFaceStore(HttpClient client)
     {
         ValidatePath(path);
         return inventory.Files.SingleOrDefault(f => f.Path == path)
-            ?? throw Error("file-not-found", "Archivo ausente del inventario completo fijado.");
+            ?? throw Error("file-not-found", Messages.ModelFileMissingFromFixedCompleteInventory.ToString());
     }
 
     // Stable address, not a signed redirect. Future transfer consumer owns byte streaming.
@@ -183,7 +183,7 @@ public sealed class HuggingFaceStore(HttpClient client)
         var (bytes, _) = await ReadAsync(new($"{Host}/{revision.Repository}/raw/{revision.Commit}/README.md"),
             MaxReadmeBytes, cancellation);
         try { return new UTF8Encoding(false, true).GetString(bytes); }
-        catch (DecoderFallbackException) { throw Error("invalid-readme", "README no es UTF-8 válido."); }
+        catch (DecoderFallbackException) { throw Error("invalid-readme", Messages.ModelREADMEIsNotValidUTF.ToString()); }
     }
 
     private async Task<(byte[] Bytes, string? Link)> ReadAsync(Uri uri, int limit, CancellationToken cancellation)
@@ -199,7 +199,7 @@ public sealed class HuggingFaceStore(HttpClient client)
                 request.Headers.UserAgent.ParseAdd("Coquena/0.1");
                 using var response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, budget.Token);
                 if (response.RequestMessage?.RequestUri is { } final && final != uri)
-                    throw Error("unexpected-redirect", "El cliente no debe seguir redirecciones automáticamente.");
+                    throw Error("unexpected-redirect", Messages.ModelNoAutoRedirects.ToString());
                 if (response.StatusCode is HttpStatusCode.TooManyRequests or HttpStatusCode.ServiceUnavailable or
                     HttpStatusCode.BadGateway or HttpStatusCode.GatewayTimeout or HttpStatusCode.InternalServerError)
                 {
@@ -208,18 +208,18 @@ public sealed class HuggingFaceStore(HttpClient client)
                     if (response.StatusCode == HttpStatusCode.TooManyRequests && response.Headers.TryGetValues("RateLimit", out var rates))
                     {
                         var resets = Regex.Matches(string.Join(",", rates), "(?:^|;)\\s*t=([0-9]+)(?=;|,|$)", RegexOptions.CultureInvariant);
-                        if (resets.Count == 0) throw Error("remote-rate-limit", "RateLimit no reconocido; no se reintenta antes del reset.");
+                        if (resets.Count == 0) throw Error("remote-rate-limit", Messages.ModelUnrecognizedRateLimitWait.ToString());
                         foreach (Match reset in resets)
                         {
                             if (!int.TryParse(reset.Groups[1].Value, out var seconds))
-                                throw Error("remote-rate-limit", "Espera RateLimit fuera de límites; reintentar más tarde.");
+                                throw Error("remote-rate-limit", Messages.ModelRateLimitWaitOutsideLimitsRetryLater.ToString());
                             if (TimeSpan.FromSeconds(seconds) > wait) wait = TimeSpan.FromSeconds(seconds);
                         }
                     }
                     if (wait < TimeSpan.Zero) wait = TimeSpan.Zero;
                     if (attempt >= 2 || wait > TimeSpan.FromSeconds(5))
                         throw Error(response.StatusCode == HttpStatusCode.TooManyRequests ? "remote-rate-limit" : "remote-unavailable",
-                            $"Consulta no completada; reintentar más tarde (espera indicada: {Math.Ceiling(wait.TotalSeconds)} s).");
+                            Messages.ModelQueryIncompleteRetryWait.Format(Math.Ceiling(wait.TotalSeconds)));
                     await Task.Delay(wait, budget.Token); continue;
                 }
                 if (response.StatusCode == HttpStatusCode.NotFound)
@@ -227,20 +227,20 @@ public sealed class HuggingFaceStore(HttpClient client)
                     var code = response.Headers.TryGetValues("X-Error-Code", out var values) ? values.FirstOrDefault() : null;
                     throw Error(code == "RevisionNotFound" ? "revision-not-found" :
                         code == "EntryNotFound" ? "file-not-found" : "repository-unavailable",
-                        "Repositorio, revisión o archivo no accesible; no se presume borrado remoto.");
+                        Messages.ModelRemoteResourceInaccessible.ToString());
                 }
                 if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden)
-                    throw Error("remote-access", "Sólo repositorios públicos sin autenticación; acceso rechazado.");
+                    throw Error("remote-access", Messages.ModelPublicReposOnlyAccessDenied.ToString());
                 if (!response.IsSuccessStatusCode)
-                    throw Error("remote-status", $"Consulta HF fallida: HTTP {(int)response.StatusCode}.");
-                if (response.Content.Headers.ContentLength > limit) throw Error("metadata-limit", "Respuesta excede el límite de metadatos.");
+                    throw Error("remote-status", Messages.ModelHFQueryFailedHTTP.Format((int)response.StatusCode));
+                if (response.Content.Headers.ContentLength > limit) throw Error("metadata-limit", Messages.ModelResponseExceedsMetadataLimit.ToString());
                 await using var stream = await response.Content.ReadAsStreamAsync(budget.Token);
                 using var buffer = new MemoryStream();
                 var block = new byte[16 * 1024];
                 int read;
                 while ((read = await stream.ReadAsync(block, budget.Token)) > 0)
                 {
-                    if (buffer.Length + read > limit) throw Error("metadata-limit", "Respuesta excede el límite de metadatos.");
+                    if (buffer.Length + read > limit) throw Error("metadata-limit", Messages.ModelResponseExceedsMetadataLimit.ToString());
                     buffer.Write(block, 0, read);
                 }
                 var link = response.Headers.TryGetValues("Link", out var links) ? string.Join(",", links) : null;
@@ -248,9 +248,9 @@ public sealed class HuggingFaceStore(HttpClient client)
             }
         }
         catch (Exception e) when (e is HttpRequestException or IOException)
-        { throw Error("remote-unavailable", "No se pudo leer Hugging Face."); }
+        { throw Error("remote-unavailable", Messages.ModelCouldNotReadHuggingFace.ToString()); }
         catch (OperationCanceledException) when (!cancellation.IsCancellationRequested)
-        { throw Error("remote-timeout", "Tiempo de consulta HF agotado."); }
+        { throw Error("remote-timeout", Messages.ModelHFQueryTimedOut.ToString()); }
     }
 
     private static Uri? Next(string? link, string prefix)
@@ -260,17 +260,17 @@ public sealed class HuggingFaceStore(HttpClient client)
         foreach (var part in link.Split(','))
         {
             var match = Regex.Match(part.Trim(), "^<([^>]+)>;\\s*rel=\"([^\"]+)\"$", RegexOptions.CultureInvariant);
-            if (!match.Success) throw Error("invalid-pagination", "Encabezado de paginación no reconocido.");
+            if (!match.Success) throw Error("invalid-pagination", Messages.ModelPaginationHeaderNotRecognized.ToString());
             if (match.Groups[2].Value != "next") continue;
             if (next is not null || !Uri.TryCreate(match.Groups[1].Value, UriKind.Absolute, out next) ||
                 next.Scheme != "https" || next.Host != "huggingface.co" || !next.IsDefaultPort ||
                 next.UserInfo.Length != 0 || next.Fragment.Length != 0 || next.AbsolutePath != prefix)
-                throw Error("invalid-pagination", "Paginación fuera del repositorio/commit fijado.");
+                throw Error("invalid-pagination", Messages.ModelPaginationOutsideCommit.ToString());
             var query = next.Query.TrimStart('?').Split('&');
             if (!query.Contains("recursive=true") || !query.Contains("expand=false") ||
                 query.Select(q => q.Split('=')[0]).Distinct(StringComparer.Ordinal).Count() != query.Length ||
                 query.Any(q => q.Split('=')[0] is not ("recursive" or "expand" or "limit" or "cursor")))
-                throw Error("invalid-pagination", "Paginación cambia la forma del inventario.");
+                throw Error("invalid-pagination", Messages.ModelPaginationChangesInventoryShape.ToString());
         }
         return next;
     }
@@ -280,17 +280,17 @@ public sealed class HuggingFaceStore(HttpClient client)
     public static void ValidateRepository(string repository)
     {
         if (!Regex.IsMatch(repository, "^[A-Za-z0-9][A-Za-z0-9_.-]*/[A-Za-z0-9][A-Za-z0-9_.-]*$", RegexOptions.CultureInvariant) || repository.Length > 256)
-            throw Error("invalid-repository", "Se requiere usuario/repositorio público.");
+            throw Error("invalid-repository", Messages.ModelPublicUserRepositoryRequired.ToString());
     }
     public static void ValidatePath(string path)
     {
         if (string.IsNullOrWhiteSpace(path) || path.Length > 2048 || path.Contains('\\') || path.Any(char.IsControl) ||
             path.Split('/').Any(s => s is "" or "." or ".." || s.IndexOfAny([':', '*', '?', '"', '<', '>', '|']) >= 0 || s.EndsWith('.') || s.EndsWith(' ') ||
                 Regex.IsMatch(s.Split('.')[0], "^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)))
-            throw Error("unsafe-path", "Ruta remota insegura; no se selecciona.");
+            throw Error("unsafe-path", Messages.ModelUnsafeRemotePathNotSelected.ToString());
     }
     private static void ValidateCommit(string commit)
-    { if (!Hex(commit, 40)) throw Error("invalid-commit", "Commit HF inválido."); }
+    { if (!Hex(commit, 40)) throw Error("invalid-commit", Messages.ModelInvalidHFCommit.ToString()); }
     private static void Validate(RepositoryRevision revision)
     { ValidateRepository(revision.Repository); ValidateCommit(revision.Commit); }
     private static void Unique(JsonElement value)

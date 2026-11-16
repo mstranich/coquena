@@ -32,21 +32,21 @@ internal static class ObservabilityTests
         {
             File.AppendAllText(iniPath, "\n[chat+two]\n");
             mode = "multi"; calls.Clear(); output.GetStringBuilder().Clear(); runtime.Ps(output, client);
-            Check(output.ToString().Contains("Modelo chat: llamacpp:predicted_tokens_seconds=7") && output.ToString().Contains("Modelo chat+two: llamacpp:predicted_tokens_seconds=99"), "rates isolated by model");
+            Check(output.ToString().Contains(Messages.ServerModel.Format("chat") + "llamacpp:predicted_tokens_seconds=7") && output.ToString().Contains(Messages.ServerModel.Format("chat+two") + "llamacpp:predicted_tokens_seconds=99"), "rates isolated by model");
             Check(calls.Contains("/metrics?model=chat%2Btwo&autoload=false"), "model URL escaped");
         }
         finally { File.WriteAllText(iniPath, ini); }
         foreach (var failure in new[] { "invalid", "bad-json", "http", "timeout" })
         {
             mode = failure; output.GetStringBuilder().Clear(); runtime.Ps(output, client);
-            Check(output.ToString().Contains(instance.InstanceId.ToString()) && output.ToString().Contains(Messages.NotAvailable) && !output.ToString().Contains("=0"), "failure retains instance without numbers: " + failure);
+            Check(output.ToString().Contains(instance.InstanceId.ToString()) && output.ToString().Contains(failure == "invalid" ? Messages.ServerModelMetricsUnavailable.Format("chat", Messages.ServerInvalidOrAmbiguousMetric) : Messages.ServerMetricsUnavailable.Format("")) && !output.ToString().Contains("=0"), "failure retains instance without numbers: " + failure);
         }
         mode = "unloaded"; calls.Clear(); output.GetStringBuilder().Clear(); runtime.Ps(output, client);
         Check(calls.Count == 1 && output.ToString().Contains(Messages.ModelNotLoaded) && !output.ToString().Contains("=0"), "unloaded does not query metrics");
         var store = new LocalStore(home); var json = ContractJsonContext.Default;
         store.Update(DocumentKind.Instance, json.InstanceDocument, ContractValidation.Instance, _ => instance with { Metrics = false }, server: "default");
         calls.Clear(); output.GetStringBuilder().Clear(); runtime.Ps(output, client);
-        Check(calls.Count == 0 && output.ToString().Contains("desactivadas"), "disabled avoids HTTP");
+        Check(calls.Count == 0 && output.ToString().Contains(Messages.ServerMetricsDisabled.ToString()), "disabled avoids HTTP");
         store.Update(DocumentKind.Instance, json.InstanceDocument, ContractValidation.Instance, _ => instance, server: "default");
         store.Update(DocumentKind.Config, json.ConfigDocument, ContractValidation.Config, old => old! with { LogRetention = new(1) });
         var obsolete = home.PathFor($"logs/default/{Guid.NewGuid():D}.log"); File.WriteAllText(obsolete, "obsolete");
@@ -57,7 +57,7 @@ internal static class ObservabilityTests
         policies.SetRetention(null, 1);
         Check(File.Exists(obsolete), "setting lower override does not clean immediately");
         output.GetStringBuilder().Clear(); runtime.Logs(null, false, output);
-        Check(!File.Exists(obsolete) && File.Exists(home.PathFor(instance.LogPath)) && output.ToString().Contains("protegidos") && output.ToString().Contains("ready"), "retention removes old log and protects active oversized log");
+        Check(!File.Exists(obsolete) && File.Exists(home.PathFor(instance.LogPath)) && output.ToString().Contains(Messages.ServerProtectedLogsExceedLimit.Format("default", ByteSize.Format(1))) && output.ToString().Contains("ready"), "retention removes old log and protects active oversized log");
         policies.SetRetention(null, null);
         var polls = 0; runtime.Logs(null, true, TextWriter.Null, () => ++polls > 2);
         Check(runtime.Recover("default")?.InstanceId == instance.InstanceId, "cancel follow keeps server alive");

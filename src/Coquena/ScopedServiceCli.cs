@@ -21,7 +21,7 @@ public static class ScopedServiceCli
             var command = ServiceCommand.Parse(args);
             if (command.Action == "help")
             {
-                output.WriteLine("service: create <nombre> --global, list, show, default set, start, stop, restart, remove, logs [list|follow|show <log-id>] [-f].");
+                output.WriteLine(Messages.DisplayServiceCreateNameGlobalListShowDefault.ToString());
                 return 0;
             }
             var home = Home.Resolve();
@@ -35,7 +35,7 @@ public static class ScopedServiceCli
             {
                 var registry = new RecipeRegistry(new ScopeStore(ScopeContext.Global(home)));
                 registry.SetDefaultService(registry.ResolveGlobalService(command.Selector!));
-                output.WriteLine($"Servicio predeterminado: {command.Selector}.");
+                output.WriteLine(Messages.DisplayDefaultService.Format(command.Selector));
                 return 0;
             }
             if (command.Action == "start" && command.Selector == "default")
@@ -74,7 +74,7 @@ public static class ScopedServiceCli
             if (tail[i] is "--global" or "-g") { selection.Add(tail[i]); tail.RemoveAt(i); }
             else if (tail[i] is "--service" or "--file" or "--env-file" or "--base" or "--project-directory")
             {
-                if (i + 1 == tail.Count) throw new ArgumentException("Opción de logs sin valor. Ver coquena --help.");
+                if (i + 1 == tail.Count) throw new ArgumentException(Messages.LogsOptionWithoutValue);
                 selection.AddRange(tail.GetRange(i, 2)); tail.RemoveRange(i, 2);
             }
             else i++;
@@ -87,14 +87,14 @@ public static class ScopedServiceCli
             "show" => tail.Count == 2 && !follow && Guid.TryParseExact(tail[1], "D", out _),
             _ => false
         };
-        if (!valid) throw new ArgumentException("Argumentos de logs inválidos. Ver coquena --help.");
+        if (!valid) throw new ArgumentException(Messages.LogsInvalidArguments);
         selection.Add("logs");
         var command = ServiceCommand.Parse(selection.ToArray());
         var target = Resolve(command, Home.Resolve());
         var store = new ScopeStore(target.Context);
         try { new ScopedServiceProcess(store, diagnostics: error).RetainLogs(target.Service.ServiceId); }
         catch (StorageException e) when (e.Code == "service-busy")
-        { error.WriteLine("[Logs] Retención pospuesta: operación de ciclo en curso."); }
+        { error.WriteLine(Messages.LogsRetentionPostponed); }
         var logs = new ServiceLogReader(store, target.Service.ServiceId);
         if (action == "list")
         {
@@ -102,8 +102,8 @@ public static class ScopedServiceCli
             {
                 string size;
                 try { size = ByteSize.Format(new FileInfo(log.Path).Length); }
-                catch (Exception e) when (e is IOException or UnauthorizedAccessException) { size = "no disponible"; }
-                output.WriteLine($"{log.Id} | {target.Service.Name} | servicio {log.ServiceId} | instancia {log.Id} | {log.StartedAt} | {size} | activo registrado: {log.Active} | {log.Path}");
+                catch (Exception e) when (e is IOException or UnauthorizedAccessException) { size = Messages.NotAvailableSingular; }
+                output.WriteLine(Messages.LogRow.Format(log.Id, target.Service.Name, log.ServiceId, log.Id, log.StartedAt, size, log.Active, log.Path));
             }
             return 0;
         }
@@ -133,7 +133,7 @@ public static class ScopedServiceCli
         {
             var selection = Selection(command);
             var local = new RecipeRegistry(new ScopeStore(ScopeContext.Project(selection.Files[0], selection.Base)));
-            foreach (var service in local.Services()) output.WriteLine($"proyecto | {service.Name} | {service.ServiceId}");
+            foreach (var service in local.Services()) output.WriteLine(Messages.DisplayProjectRow.Format(service.Name, service.ServiceId));
         }
         return 0;
     }
@@ -170,7 +170,7 @@ public static class ScopedServiceCli
                 catch (StorageException e) when (e.Code == "unknown-service") { }
             }
             var recipe = RecipeReader.Read(selection);
-            if (recipe.Root.Get("service") is null) throw new StorageException("self-requires-service", "La receta no define service.");
+            if (recipe.Root.Get("service") is null) throw new StorageException("self-requires-service", Messages.RecipeWithoutService);
             return new(context, selection, registry.EnsureProjectService(selection.Files, recipe.Root.Get("name")?.Text));
         }
         if (!command.Global && command.Selector != "default")
@@ -192,7 +192,7 @@ public static class ScopedServiceCli
         var globalRegistry = new RecipeRegistry(new ScopeStore(global));
         var id = globalRegistry.ResolveGlobalService(command.Selector!);
         var service = globalRegistry.Services().SingleOrDefault(s => s.ServiceId == id)
-            ?? throw new StorageException("service-conflict", "Cambió el servicio seleccionado; no se elige sustituto.");
+            ?? throw new StorageException("service-conflict", Messages.ServiceChanged);
         var saved = new RecipeImporter(global).ServiceSelection(id);
         return new(global, saved, service);
     }
@@ -204,7 +204,7 @@ public static class ScopedServiceCli
         if (command.Action == "remove")
         {
             lifecycle.Remove(service.ServiceId);
-            output.WriteLine($"Servicio {service.Name} retirado; archivos y logs conservados.");
+            output.WriteLine(Messages.ServiceRemoved.Format(service.Name));
             return 0;
         }
         var interrupt = new ServerInterrupt(output);
@@ -222,25 +222,24 @@ public static class ScopedServiceCli
             if (command.Action == "stop")
             {
                 lifecycle.Stop(service.ServiceId, ForceRequested);
-                output.WriteLine("Servicio detenido.");
+                output.WriteLine(Messages.DisplayServiceStopped.ToString());
                 return 0;
             }
             if (command.Action == "start" && lifecycle.Reconcile(service.ServiceId))
             {
-                output.WriteLine("Servicio ya ejecutándose.");
+                output.WriteLine(Messages.ServiceAlreadyRunning);
                 return 0;
             }
             ServiceRecoveryChoice Decide(string code, bool available)
             {
                 if (Console.IsInputRedirected) return ServiceRecoveryChoice.Cancel;
-                output.WriteLine($"Fallo de candidata ({code}). [r] Reintentar, " +
-                    (available ? "[u] Usar última buena, " : "") + "[c] Cancelar:");
+                output.WriteLine((available ? Messages.CandidateFailedWithLastGood : Messages.CandidateFailed).Format(code));
                 return Console.ReadLine()?.Trim().ToLowerInvariant() switch
                 { "r" => ServiceRecoveryChoice.Retry, "u" when available => ServiceRecoveryChoice.LastGood, _ => ServiceRecoveryChoice.Cancel };
             }
             var instance = RunCandidateAsync(lifecycle, target, command.Action == "restart", command.Detached, command.Private,
                 output, error, new ConsoleModelSelectionInteraction(), cancellation.Token, Decide, ForceRequested).GetAwaiter().GetResult();
-            output.WriteLine($"Servicio {service.Name}; instancia {instance}.");
+            output.WriteLine(Messages.ServiceInstance.Format(service.Name, instance));
             return command.Detached ? 0 : lifecycle.Foreground(service.ServiceId, instance, output, interrupt);
         }
         finally { Console.CancelKeyPress -= handler; }
@@ -304,7 +303,7 @@ public static class ScopedServiceCli
             StorageException s => s.Code, RecipeException r => r.Code, BackendException b => b.Code,
             DownloadException d => d.Code, ModelSourceException m => m.Code, ContractException c => c.Code, OperationCanceledException => "cancelled", _ => "service-error"
         };
-        error.WriteLine($"Error: {code}. {e.Message}");
+        error.WriteLine(Messages.OutputErrorSummary.Format(code, e.Message));
         if (e is OperationCanceledException) return 130;
         if (e is RecipeException or ArgumentException || code is "unknown-service" or "unknown-log" or "self-requires-service" or "invalid-start-plan" or "invalid-endpoint" or "invalid-health-url" or "reserved-service-name") return 2;
         if (code is "scope-conflict" or "service-conflict" or "instance-conflict" or "service-in-use" or "service-busy" or "writer-busy" or "instance-already-registered" or "intention-conflict" or "service-name-conflict" or "publication-pending") return 3;

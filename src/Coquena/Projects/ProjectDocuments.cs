@@ -33,7 +33,7 @@ public static class ProjectDocuments
             return root;
         }
         catch (Exception e) when (e is JsonException or InvalidOperationException or FormatException or DecoderFallbackException or ContractException)
-        { throw new StorageException("invalid-project-document", "Documento de proyecto inválido; se conserva sin sobrescribir.", inner: e); }
+        { throw new StorageException("invalid-project-document", Messages.ProjectInvalidDocumentPreserved.ToString(), inner: e); }
     }
 
     internal static byte[] Bytes(JsonObject document) => Utf8.GetBytes(document.ToJsonString());
@@ -44,7 +44,7 @@ public static class ProjectDocuments
         if (text is null || !Guid.TryParseExact(text, "D", out var id) || id == Guid.Empty || id.ToString("D") != text) Invalid();
         return text!;
     }
-    internal static void Invalid() => throw new StorageException("invalid-project-document", "Documento de proyecto inválido; se conserva sin sobrescribir.");
+    internal static void Invalid() => throw new StorageException("invalid-project-document", Messages.ProjectInvalidDocumentPreserved.ToString());
     private static void ValidateData(string kind, JsonObject data)
     {
         if (kind == "recipe-intention")

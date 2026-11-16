@@ -6,7 +6,7 @@ namespace Coquena.Observation;
 // Rows of Configuración (docs/design/tui E, F and G) that do not need input widgets.
 internal static class SettingsPresentation
 {
-    public static readonly string[] Categories = ["Coquena", "TUI", "Sistema"];
+    public static string[] Categories => [Messages.SettingsGeneral.ToString(), "TUI", Messages.LabelsSystem.ToString()];
 
     // Keys of the bottom bar that Configuración › TUI can hide, by GPU number of the bar.
     public static string[] BarResources(int gpus) =>
@@ -16,12 +16,12 @@ internal static class SettingsPresentation
     {
         "cpu" => "CPU",
         "ram" => "RAM",
-        _ => key[..key.IndexOf('.')].ToUpperInvariant() + " " + key[(key.IndexOf('.') + 1)..] switch
+        _ => key[..key.IndexOf('.')].ToUpperInvariant() + " " + (key[(key.IndexOf('.') + 1)..] switch
         {
-            "use" => "uso",
-            "memory" => "dedicada",
-            _ => "compartida"
-        }
+            "use" => Messages.LabelsUsage.ToString(),
+            "memory" => Messages.LabelsDedicated.ToString(),
+            _ => Messages.LabelsShared.ToString()
+        })
     };
 
     // G · Sistema: version, machine, adapters with telemetry and acceleration of the last probe.
@@ -32,19 +32,19 @@ internal static class SettingsPresentation
         var rows = new List<string>
         {
             Field("Coquena", version),
-            Field("Plataforma", context?.Platform ?? "—"),
+            Field(Messages.LabelsPlatform.ToString(), context?.Platform ?? "—"),
             Field("CPU", context?.Cpu ?? "—"),
             Field("RAM", context?.MemoryBytes is { } bytes ? Memory(bytes) : "—"),
             "",
-            " " + Markup.Style("mut", "ADAPTADORES")
+            " " + Markup.Style("mut", Messages.LabelsADAPTERS.ToString())
         };
         if (adapters.Count > 0) rows.AddRange(adapters.Select(name => "  " + Markup.Escape(name)));
         else if (context is { DisplayAdapters.Length: > 0 }) rows.AddRange(context.DisplayAdapters.Select(name => "  " + Markup.Escape(name)));
         else rows.Add("  —");
         rows.AddRange(diagnostics.Select(text => "  " + Markup.Style("mut", Markup.Escape(text))));
         rows.Add("");
-        rows.Add(" " + Markup.Style("mut", "ACELERACIÓN"));
-        if (context is null) rows.Add("  " + Markup.Style("mut", failed ? "Sondeo no disponible." : "Consultando CUDA y Vulkan…"));
+        rows.Add(" " + Markup.Style("mut", Messages.SettingsAccelerationHeader.ToString()));
+        if (context is null) rows.Add("  " + Markup.Style("mut", failed ? Messages.SettingsProbeUnavailable.ToString() : Messages.SettingsCheckingAcceleration.ToString()));
         else
         {
             var driver = context.CudaDriverVersion is { } version1
@@ -54,7 +54,7 @@ internal static class SettingsPresentation
             Acceleration("Vulkan", context.Vulkan, null, []);
         }
         rows.Add("");
-        rows.Add(" " + Markup.Style("btn", " Sondear de nuevo ", "probe"));
+        rows.Add(" " + Markup.Style("btn", Messages.SettingsProbeAgainButton.ToString(), "probe"));
         return rows;
 
         string Field(string name, string value) => " " + Markup.Style("mut", name.PadRight(Label - 1)) + Markup.Escape(value);
@@ -65,7 +65,7 @@ internal static class SettingsPresentation
             {
                 "compatible" => ("✓", "ok", "compatible"),
                 "incompatible" => ("✗", "err", "incompatible"),
-                _ => ("?", "warn", "sin confirmar")
+                _ => ("?", "warn", Messages.SettingsUnconfirmed.ToString())
             };
             rows.Add("  " + name.PadRight(8) + Markup.Style(tone, glyph + " " + text) + (detail is null ? "" : "  " + Markup.Escape(detail)));
             foreach (var device in devices) rows.Add("          " + Markup.Escape(device));

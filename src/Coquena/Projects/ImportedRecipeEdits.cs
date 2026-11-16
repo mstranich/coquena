@@ -11,7 +11,7 @@ internal static class ImportedRecipeEdits
     internal static void Save(ScopeContext context, IReadOnlyDictionary<string, byte[]> opened,
         IReadOnlyDictionary<string, byte[]> drafts, bool overwrite = false)
     {
-        if (!context.IsGlobal) throw new ArgumentException("La intención importada requiere Global.");
+        if (!context.IsGlobal) throw new ArgumentException(Messages.ProjectImportedIntentionRequiresGlobal.ToString());
         var store = new ScopeStore(context);
         var snapshot = store.Read();
         var documents = RecipeRegistry.Next(snapshot);
@@ -28,17 +28,17 @@ internal static class ImportedRecipeEdits
         foreach (var draft in drafts)
         {
             if (!opened.TryGetValue(draft.Key, out var original))
-                throw new StorageException("intention-conflict", "El archivo ya no pertenece a la intención global.");
+                throw new StorageException("intention-conflict", Messages.ProjectFileNoLongerBelongsToGlobalIntention.ToString());
             var relative = Path.GetRelativePath(context.Root, draft.Key).Replace('\\', '/');
             var known = captured.ContainsKey(draft.Key);
             if (!known)
             {
                 if (relative != "recipe.yaml" || File.Exists(draft.Key) || original.Length != 0)
-                    throw new StorageException("intention-conflict", "Sólo se puede crear la intención común ausente; no se adoptan archivos existentes.");
+                    throw new StorageException("intention-conflict", Messages.ProjectOnlyMissingCommonIntentionCanBeCreated.ToString());
                 documents[relative] = ProjectDocuments.Create("recipe-intention", 1, new System.Text.Json.Nodes.JsonObject { ["text"] = "", ["path-bases"] = new System.Text.Json.Nodes.JsonObject() });
             }
             if (!overwrite && (observed[draft.Key] is { } projection ? !projection.AsSpan().SequenceEqual(original) : known || original.Length != 0))
-                throw new StorageException("intention-conflict", "Cambió la intención global; revisar los cambios antes de guardar.");
+                throw new StorageException("intention-conflict", Messages.ProjectGlobalIntentionChangedReview.ToString());
             captured[draft.Key] = draft.Value;
             documents[relative]["data"]!["text"] = RecipeYaml.ReadText(draft.Key, false, draft.Value);
         }
@@ -49,7 +49,7 @@ internal static class ImportedRecipeEdits
         {
             var files = path == "recipe.yaml" || !paths.Contains("recipe.yaml") ? new[] { context.PathFor(path) } : new[] { context.PathFor("recipe.yaml"), context.PathFor(path) };
             if (files.Any(file => observed.GetValueOrDefault(file) is null && !drafts.ContainsKey(file)))
-                throw new StorageException("intention-conflict", "Falta una intención global afectada; no se sustituye por su copia anterior.");
+                throw new StorageException("intention-conflict", Messages.ProjectAffectedGlobalIntentionMissing.ToString());
             var selection = new RecipeSelection(context.Base, files, context.Base)
             { CapturedFiles = captured, ImportedScope = snapshot.State is null ? null : context, FilterUnusedModels = path != "recipe.yaml" };
             var recipe = RecipeReader.Read(selection);
@@ -63,7 +63,7 @@ internal static class ImportedRecipeEdits
             {
                 var current = File.Exists(file.Key) ? SharedFile.ReadAllBytes(file.Key) : null;
                 if (current is null != (file.Value is null) || current is not null && !current.AsSpan().SequenceEqual(file.Value))
-                    throw new StorageException("intention-conflict", "Cambió una proyección durante el guardado.");
+                    throw new StorageException("intention-conflict", Messages.ProjectAProjectionChangedWhileSaving.ToString());
             }
         })]);
     }

@@ -17,6 +17,8 @@ if (args.Length == 5 && args[0] == "--internal-scoped-signal")
 }
 
 // Progress shares one live line; ordinary output closes it before writing.
+// Texts in the configured language; English when nothing else applies.
+Localization.Start(Console.Error);
 LiveLine.Install();
 // Commands stop on Ctrl+C even when the parent process launched Coquena ignoring it.
 WindowsServerProcess.AcceptInterrupt();

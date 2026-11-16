@@ -594,7 +594,7 @@ internal static class ModelInstallerTests
         using var output = new StringWriter(); using var error = new StringWriter();
         Check(ModelCli.Run(["download", "owner/menu"], output, error, installer, source,
             new NoNetwork(), menu, inspector: new ResolutionTests.NamedInspector()) == 0 && installer.Downloads.List().Length == 0, "README then cancel creates no GUID or work");
-        Check(menu.Options.Count == 2 && menu.Options.All(o => o.Length == 3 && o[0].StartsWith("Descargar")), "one repeated menu, no companion");
+        Check(menu.Options.Count == 2 && menu.Options.All(o => o.Length == 3 && o[0].StartsWith(Messages.LabelsDownload2.ToString())), "one repeated menu, no companion");
         var bytes = new Bytes(payload); menu = new Menu();
         Check(ModelCli.Run(["download", "owner/menu:Q4_K_M"], output, error, installer, source, bytes, menu,
             inspector: new ResolutionTests.NamedInspector()) == 0 &&
@@ -610,7 +610,7 @@ internal static class ModelInstallerTests
         menu = new Menu(0, 1);
         Check(ModelCli.Run(["companion", "download", "owner/menu#mtp"], output, error, installer, source,
             new NoNetwork(), menu, inspector: new ResolutionTests.NamedInspector()) == 0 &&
-            menu.Options.All(o => o.SequenceEqual(new[] { "Mostrar README", "Cancelar" })) && installer.Downloads.List().Length == 0,
+            menu.Options.All(o => o.SequenceEqual(new[] { Messages.ModelShowREADME.ToString(), Messages.LabelsCancel.ToString() })) && installer.Downloads.List().Length == 0,
             "absent auxiliary type exposes only README and cancel at fixed commit");
         return Task.CompletedTask;
     }

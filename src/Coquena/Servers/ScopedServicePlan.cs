@@ -15,22 +15,22 @@ public static class ScopedServicePlan
     {
         var intent = BackendIntent.FromRecipe(recipe);
         var backend = prepared.Resources.SingleOrDefault(r => r.Kind == "backend")
-            ?? throw new StorageException("backend-required", "La combinación no contiene un backend preparado.");
+            ?? throw new StorageException("backend-required", Messages.ServerCombinationMissingBackend.ToString());
         var state = new ScopeStore(context).Read();
         var entry = state.Documents.GetValueOrDefault("local/combinations.json")?["data"]?["combinations"]?[prepared.Id];
         var evidence = prepared.ProcessOnly ? entry?["service-preparation"] : entry;
         var revision = prepared.ProcessOnly ? evidence?["revision"] : evidence?["preparation-revision"];
         if (revision?.GetValue<long>() != prepared.Revision || evidence?["snapshot"] is not JsonObject snapshot)
-            throw new StorageException("stale-preparation", "La combinación preparada cambió antes de componer el inicio.");
+            throw new StorageException("stale-preparation", Messages.ServerCombinationChangedBeforeStart.ToString());
         if (!JsonNode.DeepEquals(snapshot, CombinationPreparation.Expanded(recipe.Root)))
-            throw new StorageException("intention-conflict", "La receta efectiva cambió después de la preparación.");
+            throw new StorageException("intention-conflict", Messages.ServerEffectiveRecipeChangedAfterPreparation.ToString());
         var paths = recipe.Selection.Files.Concat(recipe.Selection.EnvFiles);
         var inputs = paths.Distinct(StringComparer.OrdinalIgnoreCase).ToDictionary(path => path, SharedFile.ReadAllBytes, StringComparer.OrdinalIgnoreCase);
         void ValidateIntent()
         {
             if (inputs.Any(input => !File.Exists(input.Key) || !SharedFile.ReadAllBytes(input.Key).AsSpan().SequenceEqual(input.Value)) ||
                 !JsonNode.DeepEquals(snapshot, CombinationPreparation.Expanded(RecipeReader.Read(recipe.Selection).Root)))
-                throw new StorageException("intention-conflict", "Cambió la receta o su schema antes de publicar la instancia.");
+                throw new StorageException("intention-conflict", Messages.ServerRecipeChangedBeforePublish.ToString());
         }
         ValidateIntent();
         var blocks = ArgumentValidation.Validate(recipe);
@@ -39,7 +39,7 @@ public static class ScopedServicePlan
             intent.Executable is null ? new LlamaB11482ArgumentAdapter() : null,
             reference => prepared.Resources.SingleOrDefault(resource => resource.Kind == reference.Kind &&
                 resource.Key.Equals(reference.Name, StringComparison.OrdinalIgnoreCase))?.EntryPath
-                ?? throw new StorageException("unknown-resource", "Falta la referencia preparada del proceso.")).ToList();
+                ?? throw new StorageException("unknown-resource", Messages.ServerPreparedProcessReferenceMissing.ToString())).ToList();
         var values = server?.Arguments;
         var host = values?.GetValueOrDefault("host")?.Value.Text;
         var portText = values?.GetValueOrDefault("port")?.Value.Text;
@@ -52,16 +52,16 @@ public static class ScopedServicePlan
         var health = recipe.Root.Get("service")?.Get("server")?.Get("health");
         var url = health?.Get("url")?.Text;
         if (url is null && intent.Executable is not null)
-            throw new StorageException("health-required", "Un backend externo requiere URL de salud explícita.");
+            throw new StorageException("health-required", Messages.ServerExternalRequiresHealthUrl.ToString());
         if (url is null && (!int.TryParse(portText, NumberStyles.None, CultureInfo.InvariantCulture, out _) || host is null))
-            throw new StorageException("invalid-endpoint", "Host y puerto del servidor son inválidos.");
+            throw new StorageException("invalid-endpoint", Messages.ServerInvalidServerHostAndPort.ToString());
         if (!Uri.TryCreate(url ?? $"http://{host}:{portText}/health", UriKind.Absolute, out var healthUrl) ||
             healthUrl.Scheme is not ("http" or "https") || !string.IsNullOrEmpty(healthUrl.UserInfo))
-            throw new StorageException("invalid-health-url", "URL de salud inválida o con credenciales.");
+            throw new StorageException("invalid-health-url", Messages.ServerInvalidHealthURLOrURLWithCredentials.ToString());
         host ??= healthUrl.Host;
         if (portText is null) portText = healthUrl.Port.ToString(CultureInfo.InvariantCulture);
         if (!int.TryParse(portText, NumberStyles.None, CultureInfo.InvariantCulture, out var port) || port is < 1 or > 65535)
-            throw new StorageException("invalid-endpoint", "Puerto inválido.");
+            throw new StorageException("invalid-endpoint", Messages.ServiceInvalidPort.ToString());
         var timeout = int.Parse(health?.Get("timeout-seconds")?.Text ?? "120", CultureInfo.InvariantCulture);
         var interval = int.Parse(health?.Get("interval-ms")?.Text ?? "500", CultureInfo.InvariantCulture);
         var bindings = new JsonArray(prepared.Resources.Select(r => (JsonNode?)new JsonObject
@@ -71,7 +71,7 @@ public static class ScopedServicePlan
         var directory = logs?.Get("directory") is { } configured ? recipe.Selection.ResolvePath(configured.Text!) : Path.GetDirectoryName(logPath)!;
         var retention = logs?.Get("retention")?.Get("max-bytes");
         if (retention is not null && !long.TryParse(retention.Text, NumberStyles.None, CultureInfo.InvariantCulture, out _))
-            throw retention.Error("invalid-log-retention", "validation", "La retención excede el rango de bytes admitido.");
+            throw retention.Error("invalid-log-retention", "validation", Messages.ServerRetentionExceedsSupportedByteRange.ToString());
         return new(backend.EntryPath, args.ToArray(), logPath, prepared.Id, snapshot.DeepClone().AsObject(), bindings,
             new JsonObject { ["host"] = host, ["port"] = port }, healthUrl, TimeSpan.FromSeconds(timeout), TimeSpan.FromMilliseconds(interval), ValidateIntent: ValidateIntent,
             LogDirectory: directory, LogRetentionBytes: retention is null ? null : long.Parse(retention.Text!, CultureInfo.InvariantCulture));

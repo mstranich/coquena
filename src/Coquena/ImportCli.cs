@@ -26,8 +26,8 @@ public static class ImportCli
                 OperationCanceledException => "cancelled",
                 _ => "import-error"
             };
-            var detail = e is StorageException or RecipeException or BackendException or ModelSourceException or DownloadException or OperationCanceledException ? e.Message : "La operación no se completó; consultar el estado local conservado.";
-            error.WriteLine($"Error: {code}. {detail}");
+            var detail = e is StorageException or RecipeException or BackendException or ModelSourceException or DownloadException or OperationCanceledException ? e.Message : Messages.ImportIncomplete;
+            error.WriteLine(Messages.OutputErrorSummary.Format(code, detail));
             return e is OperationCanceledException ? 130 : code.Contains("integrity", StringComparison.Ordinal) ? 6 :
                 code == "file-unreadable" ? 7 :
                 code.Contains("conflict", StringComparison.Ordinal) || code is "import-busy" or "publication-pending" or "interaction-required" ? 3 :
@@ -50,7 +50,7 @@ public static class ImportCli
             if (arg == "--") { end = true; continue; }
             if (arg is "--file" or "--env-file" or "--replace" or "--select" or "--project-directory")
             {
-                if (++i == args.Length || arg is "--select" or "--project-directory" && !seen.Add(arg)) throw new ArgumentException("Opción inválida o repetida.");
+                if (++i == args.Length || arg is "--select" or "--project-directory" && !seen.Add(arg)) throw new ArgumentException(Messages.ImportOptionRepeated);
                 switch (arg)
                 {
                     case "--file": files.Add(args[i]); break;
@@ -62,13 +62,13 @@ public static class ImportCli
             }
             else if (arg is "--force" or "--as-default" or "--private" or "--global")
             {
-                if (!seen.Add(arg)) throw new ArgumentException("Opción repetida.");
+                if (!seen.Add(arg)) throw new ArgumentException(Messages.ImportRepeated);
                 force |= arg == "--force"; asDefault |= arg == "--as-default";
             }
-            else if (arg.StartsWith('-')) throw new ArgumentException("Opción de import desconocida.");
+            else if (arg.StartsWith('-')) throw new ArgumentException(Messages.ImportUnknownOption);
             else positional.Add(arg);
         }
-        if (positional.Count != 2 || positional[0] != "import") throw new ArgumentException("Uso: import <receta.yaml> [--select categorías] [--replace entidad] [--as-default] [--force].");
+        if (positional.Count != 2 || positional[0] != "import") throw new ArgumentException(Messages.ImportUsage);
         var source = new RecipeSelection(Environment.CurrentDirectory, new[] { positional[1] }.Concat(files), basePath, env);
         var context = ScopeContext.Global(Home.Resolve());
         using var http = new HttpClient(new HttpClientHandler { AllowAutoRedirect = false }) { Timeout = TimeSpan.FromSeconds(120) };
@@ -80,20 +80,20 @@ public static class ImportCli
             var store = new ScopeStore(context);
             var active = store.Read().Documents.GetValueOrDefault(store.RuntimeDocumentPath(id, "active"))?["data"];
             if (active?["execution"]?["arguments"]?.AsArray().Any(a => a?.GetValue<string>() == "--models-preset") != true)
-                throw new StorageException("publication-unsupported", "La instancia no ofrece INI recargable; no se reinicia al importar.");
+                throw new StorageException("publication-unsupported", Messages.ImportNoReloadableIni);
             var host = active["endpoint"]!["host"]!.GetValue<string>() switch { "0.0.0.0" => "127.0.0.1", "::" => "::1", var h => h };
             return new LlamaPresetRouter(http, new UriBuilder("http", host, active["endpoint"]!["port"]!.GetValue<int>()).Uri);
         }
         bool Confirm(string message)
         {
-            output.WriteLine(message); output.WriteLine("¿Aplicar los cambios ahora? [a] Aplicar / [c] Cancelar");
+            output.WriteLine(message); output.WriteLine(Messages.ImportApplyQuestion);
             return Console.ReadLine()?.Trim().Equals("a", StringComparison.OrdinalIgnoreCase) == true;
         }
         var result = await new RecipeImporter(context).ImportAsync(source, resources, select, replace, force, asDefault,
             interactive: interaction?.IsInteractive ?? !Console.IsInputRedirected, confirm: confirm ?? Confirm, router: Router, cancellation: cancellation);
-        output.WriteLine(result.ReconciledOnly ? "Se observó la operación anterior sin reenviar reload. Repetir import para aplicar una nueva candidata o completar remanentes." : result.Confirmed ? Messages.ImportDone(Categories(select)) :
-            "Intención importada; publicación incompleta. Pendientes: " + string.Join(", ", result.Pending));
-        if (result.Confirmed && result.Pending.Length != 0) output.WriteLine("Se conservan remanentes anteriores no seleccionados: " + string.Join(", ", result.Pending));
+        output.WriteLine(result.ReconciledOnly ? Messages.ImportReconciledOnly : result.Confirmed ? Messages.ImportDone(Categories(select)) :
+            Messages.ImportPublicationIncomplete.Format(string.Join(", ", result.Pending)));
+        if (result.Confirmed && result.Pending.Length != 0) output.WriteLine(Messages.ImportRemaindersKept.Format(string.Join(", ", result.Pending)));
         return result.ExitCode != 0 ? result.ExitCode : result.Confirmed ? 0 : result.WarmupFailed ? 8 : 9;
     }
 

@@ -24,9 +24,9 @@ public sealed partial class LocalStore
     }
     private static void ValidateServerRemoval(ServerRemovalTransaction value)
     {
-        ContractJson.Check(value.SchemaVersion == 1 && value.Servers is not null && value.Config is not null, "Transacción de retirada de servidor inválida.");
+        ContractJson.Check(value.SchemaVersion == 1 && value.Servers is not null && value.Config is not null, Messages.StorageInvalidServerRemovalTransaction.ToString());
         ContractValidation.Servers(value.Servers!); ContractValidation.Config(value.Config!);
-        ContractJson.Check(value.Config!.DefaultServerId is null, "La retirada del predeterminado debe limpiar su designación.");
+        ContractJson.Check(value.Config!.DefaultServerId is null, Messages.StorageDefaultRemovalMustClearItsDesignation.ToString());
     }
     private byte[]? ServerRemovalBytes(DocumentKind kind)
     {
@@ -42,8 +42,8 @@ public sealed partial class LocalStore
         var transaction = new ServerRemovalTransaction(1, servers, config);
         ValidateServerRemoval(transaction);
         var bytes = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(transaction, ServerRemovalTransactionJson.Default.ServerRemovalTransaction));
-        if (bytes.Length > MaxDocumentBytes) throw new StorageException("document-too-large", "Transacción supera 16 MiB.");
-        if (PendingServerRemoval() is not null) throw new StorageException("transaction-pending", "Hay una retirada de servidor pendiente.");
+        if (bytes.Length > MaxDocumentBytes) throw new StorageException("document-too-large", Messages.StorageTransactionExceedsMiB.ToString());
+        if (PendingServerRemoval() is not null) throw new StorageException("transaction-pending", Messages.StorageThereIsAPendingServerRemoval.ToString());
         fault?.Invoke(WriteStage.BeforeReplace);
         AtomicCheckpoint(ServerRemovalTransactionPath, bytes);
         try
@@ -54,7 +54,7 @@ public sealed partial class LocalStore
         }
         catch (Exception error)
         {
-            throw new StorageException("published-pending-checkpoint", "Retirada y designación publicadas conjuntamente; releer antes de reintentar. Checkpoint/auditoría pendiente.", true, error);
+            throw new StorageException("published-pending-checkpoint", Messages.StorageRemovalDesignationReadAgain.ToString(), true, error);
         }
     }
     private void RecoverServerRemovalTransaction()

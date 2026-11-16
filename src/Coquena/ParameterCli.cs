@@ -33,23 +33,23 @@ public static class ParameterCli
                 var selected = action == "list" ? definitions : ParameterCatalog.Find(args[1], definitions) is { } found ? [found] : [];
                 foreach (var d in selected)
                 {
-                    output.WriteLine($"{d.Name} | {d.Type} | {d.Application}/{d.Destination} | {ParameterManager.Availability(d, backend, origin ?? "ggml", release)} | {d.Description} | alias: {string.Join(", ", d.Aliases)} | default: {d.Default ?? "sin default"} | values: {string.Join(", ", d.Choices ?? [])}");
-                    if (d.NegativeAliases is { Length: > 0 }) output.WriteLine("  formas negativas: " + string.Join(", ", d.NegativeAliases));
-                    if (d.Syntax is not null) output.WriteLine("  sintaxis upstream: " + d.Syntax);
+                    output.WriteLine(Messages.ParameterDefinitionRow.Format(d.Name, d.Type, d.Application, d.Destination, Messages.Availability(ParameterManager.Availability(d, backend, origin ?? "ggml", release)), Messages.ParameterDescription(d), string.Join(", ", d.Aliases), d.Default ?? Messages.NoDefault, string.Join(", ", d.Choices ?? [])));
+                    if (d.NegativeAliases is { Length: > 0 }) output.WriteLine(Messages.ParamNegativeForms.Format(string.Join(", ", d.NegativeAliases)));
+                    if (d.Syntax is not null) output.WriteLine(Messages.ParamUpstreamSyntax.Format(d.Syntax));
                     foreach (var s in d.Support ?? [])
                     {
-                        output.WriteLine($"  soporte: {(s.BackendId is { } local ? "backend " + local : s.Variant is null ? "general oficial" : "ggml/" + s.Variant)} | desde {s.From ?? "abierto"} | hasta {s.Until ?? "abierto"}{(s.EvidenceOnly ? " | evidencia inicial; otros builds desconocidos" : "")}");
+                        output.WriteLine(Messages.ParamSupport.Format(s.BackendId is { } local ? "backend " + local : s.Variant is null ? Messages.GeneralOfficial : "ggml/" + s.Variant, s.From ?? Messages.Open, s.Until ?? Messages.Open) + (s.EvidenceOnly ? Messages.ParamEvidenceOnly : ""));
                         if ((backend is not null || release is not null) && s == ParameterManager.EffectiveSupport(d, backend))
-                            output.WriteLine("  asociación efectiva para la consulta.");
+                            output.WriteLine(Messages.ParamEffectiveAssociation);
                         if (s.BackendId is { } referenced)
                         {
                             configuration ??= new(Home.Resolve());
                             try { _ = configuration.Backend(referenced); }
-                            catch (ConfigurationException) { output.WriteLine($"  {Messages.MissingLocalReference}: {referenced:D}; no se reasigna por nombre."); }
+                            catch (ConfigurationException) { output.WriteLine(Messages.ParamMissingLocal.Format(Messages.MissingLocalReference, referenced.ToString("D"))); }
                         }
                     }
                 }
-                if (selected.Length == 0) output.WriteLine(action == "list" ? "Sin definiciones." : $"{ParameterCatalog.Canonical(args[1], definitions)} | desconocido; sin definición local, no implica rechazo.");
+                if (selected.Length == 0) output.WriteLine(action == "list" ? Messages.ParamNoDefinitions : Messages.ParamUnknownLocal.Format(ParameterCatalog.Canonical(args[1], definitions)));
                 return 0;
             }
             if (action == "support")
@@ -92,12 +92,13 @@ public static class ParameterCli
             {
                 var nextType = One(metadata, "--type") ?? d.Type;
                 if (metadata.GetValueOrDefault("--remove-alias")?.FirstOrDefault(alias => !d.Aliases.Contains(alias)) is { } absent)
-                    throw new ConfigurationException($"«{absent}» no es alias de {d.Name}; sin cambios.");
+                    throw new ConfigurationException(Messages.ParamNotAlias.Format(absent, d.Name));
                 return d with
                 {
                     Type = nextType, Application = One(metadata, "--scope") ?? d.Application,
                     Destination = One(metadata, "--target")?.ToUpperInvariant() ?? d.Destination,
                     Description = metadata.ContainsKey("--clear-description") ? "" : One(metadata, "--description") ?? d.Description,
+                    DescriptionKey = metadata.ContainsKey("--clear-description") || metadata.ContainsKey("--description") ? null : d.DescriptionKey,
                     Default = metadata.ContainsKey("--clear-default") ? null : One(metadata, "--default") ?? d.Default,
                     Aliases = metadata.ContainsKey("--clear-aliases") ? [] : metadata.TryGetValue("--alias", out var aliases) ? aliases.ToArray()
                         : d.Aliases.Where(alias => !(metadata.GetValueOrDefault("--remove-alias")?.Contains(alias) ?? false))
@@ -109,18 +110,18 @@ public static class ParameterCli
             if (action == "define")
             {
                 var definition = Edit(new(args[1], "", "", "", "", [], Choices: [], Support: []));
-                manager.Define(definition); output.WriteLine("Definición creada; no se asignan valores.");
+                manager.Define(definition); output.WriteLine(Messages.ParamDefined);
             }
             else
             {
-                var summary = action == "remove" ? "eliminar definición" : "editar " + string.Join(" ", args[2..].Where(a => a != "--dry-run"));
+                var summary = action == "remove" ? Messages.ParamRemoveSummary : Messages.ParamEditSummary.Format(string.Join(" ", args[2..].Where(a => a != "--dry-run")));
                 manager.ChangeDefinition(args[1], action == "remove" ? _ => null : Edit, summary,
                     metadata.ContainsKey("--dry-run"), output, confirmation ?? (() => Confirm(output)));
             }
             return 0;
         }
         catch (Exception e) when (e is ConfigurationException or ContractException or StorageException or IOException or UnauthorizedAccessException)
-        { error.WriteLine($"Error: {e.Message} Ver coquena --help."); return 2; }
+        { error.WriteLine(Messages.ErrorSeeHelp.Format(e.Message)); return 2; }
     }
     private static Dictionary<string, List<string>> Parse(string[] args, int start, string[] values, string[] switches)
     {
@@ -131,7 +132,7 @@ public static class ParameterCli
             if (switches.Contains(key))
             { if (split.Length != 1 || !result.TryAdd(key, [])) Invalid(); continue; }
             if (!values.Contains(key)) Invalid();
-            var value = split.Length == 2 ? split[1] : ++i < args.Length ? args[i] : throw new ConfigurationException("Falta valor de opción.");
+            var value = split.Length == 2 ? split[1] : ++i < args.Length ? args[i] : throw new ConfigurationException(Messages.ParamOptionValueMissing);
             if (split.Length == 1 && (value.StartsWith("--", StringComparison.Ordinal) || key is "--alias" or "--add-alias" or "--remove-alias" && value.StartsWith('-'))) Invalid();
             if (!result.TryGetValue(key, out var list)) result[key] = list = [];
             else if (key is not ("--alias" or "--add-alias" or "--remove-alias" or "--values")) Invalid();
@@ -140,12 +141,12 @@ public static class ParameterCli
         return result;
     }
     private static string? One(Dictionary<string, List<string>> values, string key) => values.TryGetValue(key, out var list) ? list.Single() : null;
-    private static Guid Id(string text) => Guid.TryParse(text, out var id) && id != Guid.Empty ? id : throw new ConfigurationException("ID de backend inválido.");
+    private static Guid Id(string text) => Guid.TryParse(text, out var id) && id != Guid.Empty ? id : throw new ConfigurationException(Messages.ParamBackendIdInvalid);
     internal static bool Confirm(TextWriter output)
     {
-        if (Console.IsInputRedirected) throw new ConfigurationException("Se requiere entrada interactiva para confirmar la operación; estado conservado.");
-        output.Write("¿Aplicar la operación? [s/N]: "); output.Flush();
-        return Console.ReadLine()?.Trim().ToLowerInvariant() is "s" or "si" or "sí";
+        if (Console.IsInputRedirected) throw new ConfigurationException(Messages.ParamInteractiveRequired);
+        output.Write(Messages.ParamApplyQuestion); output.Flush();
+        return Messages.IsYes(Console.ReadLine());
     }
-    private static void Invalid() => throw new ConfigurationException("Argumentos inválidos.");
+    private static void Invalid() => throw new ConfigurationException(Messages.InvalidArguments);
 }

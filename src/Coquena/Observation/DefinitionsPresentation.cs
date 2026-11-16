@@ -26,9 +26,9 @@ internal static class DefinitionsPresentation
 
     public static string[] Views(Scope scope) => !scope.Accessible ? []
         // Presets come after the entities they join: what is used first, then the presets that relate it.
-        : scope.Global ? ["Backends", "Servicios", "Modelos", "Parámetros", "Presets", "Actualizaciones", "Mantenimiento"]
-        : !scope.HasRecipe ? ["Receta", "Mantenimiento"]
-        : ["Recetas", "Backends", "Servicio", "Modelos", "Parámetros", "Presets", "Actualizaciones", "Mantenimiento"];
+        : scope.Global ? ["backends", "services", "models", "parameters", "presets", "updates", "maintenance"]
+        : !scope.HasRecipe ? ["recipe", "maintenance"]
+        : ["recipes", "backends", "service", "models", "parameters", "presets", "updates", "maintenance"];
 
     // Scope headers and, under the focused scope only, its views.
     public static IReadOnlyList<Node> Tree(IReadOnlyList<Scope> scopes, int focused)
@@ -48,104 +48,104 @@ internal static class DefinitionsPresentation
         string text, plain;
         if (node.View is { } view)
         {
-            plain = "  " + view + (badge is null ? "" : " " + badge);
-            text = "  " + Style("nav", view) + (badge is null ? "" : " " + Style("foc", badge));
+            plain = "  " + Messages.ViewLabel(view) + (badge is null ? "" : " " + badge);
+            text = "  " + Style("nav", Messages.ViewLabel(view)) + (badge is null ? "" : " " + Style("foc", badge));
         }
         else
         {
             var glyph = !scope.Accessible ? "✗" : node.Scope == focused ? "▾" : "▸";
             var name = DashboardPresentation.Fit(scope.Name, TreeWidth - 4 - (scope.Here ? 7 : 0));
-            plain = " " + glyph + " " + name + (scope.Here ? " · aquí" : "");
-            text = " " + Style("mut", glyph + " " + name) + (scope.Here ? " " + Style("mut", "· aquí") : "");
+            plain = " " + glyph + " " + name + (scope.Here ? Messages.DefinitionsHerePlain.ToString() : "");
+            text = " " + Style("mut", glyph + " " + name) + (scope.Here ? " " + Style("mut", Messages.DefinitionsHereTag.ToString()) : "");
         }
         return selected ? Style("focb", plain.PadRight(TreeWidth)) : text;
     }
 
     public static Page Recipes(string scope, string? destination, IReadOnlyList<Combination> items, IReadOnlyList<string> files)
     {
-        var rows = new List<string> { " " + Style("mut", "  " + Cell("COMBINACIÓN", 28) + " " + Cell("ID", 8) + " ESTADO") };
+        var rows = new List<string> { " " + Style("mut", "  " + Cell(Messages.DefinitionsCombinationColumn.ToString(), 28) + " " + Cell("ID", 8) + Messages.DefinitionsStateColumn.ToString()) };
         rows.AddRange(items.Select(item => "  " + Escape(Cell(item.Files, 28) + " " + Cell(item.Id, 8)) + " " +
-            (item.Current ? Style("ok", "● actual") : item.Private ? Style("warn", "privada") : Style("mut", "conocida"))));
-        if (items.Count == 0) rows.Add(" " + Style("mut", "Sin combinaciones registradas."));
+            (item.Current ? Style("ok", Messages.DefinitionsStateCurrent.ToString()) : item.Private ? Style("warn", Messages.LabelsPrivate.ToString()) : Style("mut", Messages.LabelsKnown.ToString()))));
+        if (items.Count == 0) rows.Add(" " + Style("mut", Messages.DefinitionsNoCombinations.ToString()));
         rows.Add("");
-        rows.Add(" " + Off("+ Nueva combinación…") + " " + Off("Editar") + " " + Off("Olvidar"));
+        rows.Add(" " + Off(Messages.DefinitionsNewCombinationButton.ToString()) + " " + Off(Messages.LabelsEdit.ToString()) + " " + Off(Messages.LabelsForget.ToString()));
         rows.Add("");
-        if (files.Count > 0) rows.Add(" " + Style("mut", "archivos") + " " + string.Join(" " + Style("mut", "→") + " ", files.Select(Escape)));
-        rows.Add(" " + Style("mut", "[ ] preparación privada"));
+        if (files.Count > 0) rows.Add(" " + Style("mut", Messages.LabelsFiles.ToString()) + " " + string.Join(" " + Style("mut", "→") + " ", files.Select(Escape)));
+        rows.Add(" " + Style("mut", Messages.DefinitionsPrivatePreparationBox.ToString()));
         rows.Add("");
-        rows.Add(" " + Off("▲ Up") + " " + Off("▼ Down") + " " + Off("Importar") + " " + Off("Ver en vivo"));
-        return new("Recetas de " + Escape(scope) + (destination is null ? "" : " " + Style("mut", "→") + " " + Escape(destination)), rows);
+        rows.Add(" " + Off("▲ Up") + " " + Off("▼ Down") + " " + Off(Messages.LabelsImport.ToString()) + " " + Off(Messages.AuthoringViewLiveButton.ToString()));
+        return new(Messages.RecipesInScope.Format(Escape(scope)) + (destination is null ? "" : " " + Style("mut", "→") + " " + Escape(destination)), rows);
     }
 
     public static Page Presets(string scope, IReadOnlyList<Preset> items)
     {
-        var rows = new List<string> { " " + Style("mut", "  " + Cell("PRESET", 20) + Cell("MODELO", 22) + "EN VIVO") };
+        var rows = new List<string> { " " + Style("mut", "  " + Cell("PRESET", 20) + Cell(Messages.LabelsMODEL.ToString(), 22) + Messages.DefinitionsLiveColumn.ToString()) };
         rows.AddRange(items.Select(item => "  " + Escape(Cell(item.Name, 20) + Cell(item.Model, 22)) +
-            (item.Live is { } live ? Style(live == "loaded" ? "ok" : "mut", (live == "loaded" ? "● " : "○ ") + live) : Style("mut", "○ no publ."))));
-        if (items.Count == 0) rows.Add(" " + Style("mut", "Sin presets."));
+            (item.Live is { } live ? Style(live == "loaded" ? "ok" : "mut", (live == "loaded" ? "● " : "○ ") + live) : Style("mut", Messages.DefinitionsUnpublished.ToString()))));
+        if (items.Count == 0) rows.Add(" " + Style("mut", Messages.DefinitionsNoPresets.ToString()));
         rows.Add("");
-        rows.Add(" " + Off("Clonar…") + " " + Off("Editar YAML") + " " + Off("Eliminar") + " " + Off("Ver en vivo"));
-        return new("Presets de " + Escape(scope), rows);
+        rows.Add(" " + Off(Messages.LabelsClone.ToString()) + " " + Off(Messages.AuthoringEditYamlButton.ToString()) + " " + Off(Messages.LabelsRemove.ToString()) + " " + Off(Messages.AuthoringViewLiveButton.ToString()));
+        return new(Messages.PresetsInScope.Format(Escape(scope)), rows);
     }
 
     public static Page Services(string scope, bool global, IReadOnlyList<Service> items)
     {
-        var rows = new List<string> { " " + Style("mut", "  " + Cell("SERVICIO", 24) + "ESTADO") };
+        var rows = new List<string> { " " + Style("mut", "  " + Cell(Messages.LabelsSERVICE.ToString(), 24) + Messages.LabelsSTATE.ToString()) };
         rows.AddRange(items.Select(item => " " + (item.Default ? "★" : " ") + " " + Escape(Cell(item.Name, 24)) +
             (item.State is { } state ? Style(item.StateClass ?? "mut", state) : "")));
-        if (items.Count == 0) rows.Add(" " + Style("mut", global ? "Sin servicios registrados." : "La receta no tiene servicio registrado."));
+        if (items.Count == 0) rows.Add(" " + Style("mut", global ? Messages.DefinitionsNoRegisteredServices.ToString() : Messages.DefinitionsNoRecipeService.ToString()));
         rows.Add("");
-        rows.Add(" " + Off("★ Predeterminado") + " " + Off("Eliminar") + " " + Off("Editar YAML") + " " + Off("Ver en vivo"));
-        return new((global ? "Servicios de " : "Servicio de ") + Escape(scope) + "{pad}" + Off("+ Agregar"), rows);
+        rows.Add(" " + Off(Messages.DefinitionsDefaultButton.ToString()) + " " + Off(Messages.LabelsRemove.ToString()) + " " + Off(Messages.AuthoringEditYamlButton.ToString()) + " " + Off(Messages.AuthoringViewLiveButton.ToString()));
+        return new((global ? Messages.ServicesInScope.Format(Escape(scope)) : Messages.ServiceInScope.Format(Escape(scope))) + "{pad}" + Off(Messages.DefinitionsAddButton.ToString()), rows);
     }
 
     public static Page Models(string scope, IReadOnlyList<Model> items)
     {
         var rows = new List<string>
         {
-            " (•) inventario  ( ) " + Style("mut", "Hugging Face"),
+            Messages.DefinitionsInventoryRadio.ToString() + Style("mut", "Hugging Face"),
             "",
-            " " + Style("mut", "  " + Cell("MODELO", 32) + Cell("ORIGEN", 12) + "TAMAÑO")
+            " " + Style("mut", "  " + Cell(Messages.LabelsMODEL.ToString(), 32) + Cell(Messages.LabelsSOURCE.ToString(), 12) + Messages.DefinitionsSizeColumn.ToString())
         };
         rows.AddRange(items.Select(item =>
         {
             var name = item.Name + (item.Companion ? " ·c" : "");
-            return "  " + Escape(Cell(name, 32)) + (item.External ? Style("warn", Cell("externo", 12)) : Escape(Cell("gestionado", 12))) +
+            return "  " + Escape(Cell(name, 32)) + (item.External ? Style("warn", Cell(Messages.LabelsExternal.ToString(), 12)) : Escape(Cell(Messages.LabelsManaged2.ToString(), 12))) +
                 Escape(Size(item.Size)) + (item.Protected ? " " + Style("mut", "■") : "");
         }));
-        if (items.Count == 0) rows.Add(" " + Style("mut", "Sin modelos en el inventario."));
+        if (items.Count == 0) rows.Add(" " + Style("mut", Messages.DefinitionsNoModels.ToString()));
         rows.Add("");
-        rows.Add(" " + Off("Quitar protección") + " " + Off("Verificar") + " " + Off("Eliminar"));
-        return new("Modelos de " + Escape(scope) + "{pad}" + Off("+ Agregar local…"), rows);
+        rows.Add(" " + Off(Messages.ResourceRemoveProtectionButton.ToString()) + " " + Off(Messages.LabelsVerify.ToString()) + " " + Off(Messages.LabelsRemove.ToString()));
+        return new(Messages.ModelsInScope.Format(Escape(scope)) + "{pad}" + Off(Messages.ResourceAddLocalButton.ToString()), rows);
     }
 
     public static Page Backends(string scope, IReadOnlyList<Backend> items)
     {
-        var rows = new List<string> { " " + Style("mut", "  " + Cell("VARIANTE", 14) + Cell("VERSIÓN", 10) + Cell("ORIGEN", 10) + "TAMAÑO") };
+        var rows = new List<string> { " " + Style("mut", "  " + Cell(Messages.LabelsVARIANT.ToString(), 14) + Cell(Messages.DefinitionsVersionColumn.ToString(), 10) + Cell(Messages.LabelsSOURCE.ToString(), 10) + Messages.DefinitionsSizeColumn.ToString()) };
         rows.AddRange(items.Select(item => "  " + Escape(Cell(item.Variant, 14) + Cell(item.Version, 10)) +
-            (item.External ? Style("warn", Cell("externo", 10)) : Escape(Cell("oficial", 10))) + Escape(Size(item.Size)) +
+            (item.External ? Style("warn", Cell(Messages.LabelsExternal.ToString(), 10)) : Escape(Cell("oficial", 10))) + Escape(Size(item.Size)) +
             (item.Protected ? " " + Style("mut", "■") : "")));
-        if (items.Count == 0) rows.Add(" " + Style("mut", "Sin backends en el ámbito."));
+        if (items.Count == 0) rows.Add(" " + Style("mut", Messages.DefinitionsNoBackends.ToString()));
         rows.Add("");
-        rows.Add(" " + Off("Quitar protección") + " " + Off("Eliminar"));
-        return new("Backends de " + Escape(scope) + "{pad}" + Off("+ Backend"), rows);
+        rows.Add(" " + Off(Messages.ResourceRemoveProtectionButton.ToString()) + " " + Off(Messages.LabelsRemove.ToString()));
+        return new(Messages.BackendsInScope.Format(Escape(scope)) + "{pad}" + Off("+ Backend"), rows);
     }
 
     public static Page Parameters(string scope, IReadOnlyList<Parameter> items, int room)
     {
         var rows = new List<string>
         {
-            " " + Style("mut", "filtro") + " " + Style("mut", "[                ]") + " " + Style("mut", items.Count + " parámetros"),
+            " " + Style("mut", Messages.LabelsFilter2.ToString()) + " " + Style("mut", "[                ]") + " " + Style("mut", Messages.AuthoringParameterCount.Format(items.Count)),
             "",
-            " " + Style("mut", " " + Cell("PARÁMETRO", 22) + Cell("TIPO", 9) + Cell("APLICA", 10) + "PREDET.")
+            " " + Style("mut", " " + Cell(Messages.DefinitionsParameterColumn.ToString(), 22) + Cell(Messages.LabelsTYPE.ToString(), 9) + Cell(Messages.LabelsAPPLIES.ToString(), 10) + "PREDET.")
         };
         var shown = Math.Max(0, room - 6);
         rows.AddRange(items.Take(shown).Select(item => "  " + Escape(Cell(item.Name, 22) + Cell(item.Type, 9) + Cell(item.Application, 10) + (item.Default ?? "—"))));
-        if (items.Count == 0) rows.Add(" " + Style("mut", "Sin definiciones."));
+        if (items.Count == 0) rows.Add(" " + Style("mut", Messages.DefinitionsNoDefinitions.ToString()));
         else if (items.Count > shown) rows.Add(" " + Style("mut", Messages.MoreRows(items.Count - shown)));
         rows.Add("");
-        rows.Add(" " + Off("Definir…") + " " + Off("Editar") + " " + Off("Quitar definición"));
-        return new("Parámetros de " + Escape(scope), rows);
+        rows.Add(" " + Off(Messages.LabelsDefine.ToString()) + " " + Off(Messages.LabelsEdit.ToString()) + " " + Off(Messages.AuthoringRemoveDefinitionButton.ToString()));
+        return new(Messages.ParametersInScope.Format(Escape(scope)), rows);
     }
 
     // With operation ids the controls are enabled and carry "pause:", "resume:" or "cancel:" plus the id.
@@ -155,27 +155,27 @@ internal static class DefinitionsPresentation
         if (planned is null) rows.Add(" " + Style("mut", Messages.NoUpdatePlan));
         else
         {
-            rows.Add(" " + Style("mut", "    " + Cell("RECURSO", 22) + Cell("ACTUAL", 12) + Cell("PROPUESTA", 11) + "ESTADO"));
+            rows.Add(" " + Style("mut", "    " + Cell(Messages.LabelsRESOURCE.ToString(), 22) + Cell(Messages.LabelsCURRENT.ToString(), 12) + Cell(Messages.LabelsPROPOSED.ToString(), 11) + Messages.LabelsSTATE.ToString()));
             rows.AddRange(items.Select(item =>
             {
                 var state = item.Diagnostic is not null ? Style("warn", "▲ " + item.Diagnostic)
-                    : item.Proposed != "—" && item.Proposed != item.Current ? Style("ok", "↑ nueva") : Style("mut", "—");
+                    : item.Proposed != "—" && item.Proposed != item.Current ? Style("ok", Messages.UpdatesStateNew.ToString()) : Style("mut", "—");
                 return " " + Style("mut", "☐") + " " + Escape(Cell(item.Resource, 22) + Cell(item.Current, 12) + Cell(item.Proposed, 11)) + state;
             }));
         }
         rows.Add("");
-        rows.Add(" " + Off("Comprobar") + " " + Off("Actualizar"));
-        var title = "Actualizaciones de " + Escape(scope) + (planned is { } at
+        rows.Add(" " + Off(Messages.LabelsCheck.ToString()) + " " + Off(Messages.LabelsUpdate.ToString()));
+        var title = Messages.UpdatesInScope.Format(Escape(scope)) + (planned is { } at
             ? "  " + Style("mut", "plan " + at.ToLocalTime().ToString("dd/MM HH:mm", CultureInfo.InvariantCulture)) : "");
         return new(title, rows);
     }
 
     public static Page Maintenance(string scope) =>
-        new("Mantenimiento de " + Escape(scope), ["", " " + Off("Verificar") + " " + Off("Limpiar")]);
+        new(Messages.MaintenanceInScope.Format(Escape(scope)), ["", " " + Off(Messages.LabelsVerify.ToString()) + " " + Off(Messages.LabelsClean.ToString())]);
 
     public static Page NoRecipe(string folder) =>
-        new(Escape(folder) + " " + Style("mut", "sin coquena.yaml"),
-            ["", " " + Style("btnf", " Inicializar ", "init"), "", " " + Style("mut", "Crea el archivo de configuración de esta carpeta (coquena.yaml) con el nombre " + folder + ".")]);
+        new(Escape(folder) + " " + Style("mut", Messages.DefinitionsNoCoquenaYaml.ToString()),
+            ["", " " + Style("btnf", Messages.DefinitionsInitializeButton.ToString(), "init"), "", " " + Style("mut", Messages.DefinitionsInitFolderDescription.Format(folder))]);
 
     // A known project that no longer resolves offers only Olvidar, under its message.
     public static Page Inaccessible(string name, bool forgettable = false) =>

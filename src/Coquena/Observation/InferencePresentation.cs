@@ -12,18 +12,18 @@ internal static class InferencePresentation
             .Concat(tasks.History.Where(task => task.Identity.Scope == scope && task.Identity.Service == service).Reverse()).ToArray();
 
     // Scope and service remain part of the row identity across router replacements.
-    private static string Number(double? value) => value?.ToString("0.#", CultureInfo.CurrentCulture) ?? "n/d";
+    private static string Number(double? value) => value?.ToString("0.#", CultureInfo.CurrentCulture) ?? Messages.DisplayNotAvailable.ToString();
 
     public static string Phase(InferenceTask task) => task.End switch
     {
-        InferenceTaskEnd.LeftSlot => "fuera del slot",
-        InferenceTaskEnd.ChildReplaced => "hijo reemplazado",
-        InferenceTaskEnd.ObservationLost => "señal perdida",
+        InferenceTaskEnd.LeftSlot => Messages.InferenceEndLeftSlot.ToString(),
+        InferenceTaskEnd.ChildReplaced => Messages.InferenceEndChildReplaced.ToString(),
+        InferenceTaskEnd.ObservationLost => Messages.InferenceEndSignalLost.ToString(),
         _ => task.Phase switch
         {
             InferenceTaskPhase.Prompt => "PROMPT",
-            InferenceTaskPhase.Generation => "GENERACIÓN",
-            _ => "fase incierta"
+            InferenceTaskPhase.Generation => Messages.InferencePhaseGeneration.ToString(),
+            _ => Messages.InferencePhaseUncertain.ToString()
         }
     };
 
@@ -34,7 +34,7 @@ internal static class InferencePresentation
         var tokens = task.Phase == InferenceTaskPhase.Generation ? $"G {task.Last.Decoded}" : $"P {task.Last.Prompt}";
         var text = $"{id.Entry} · s{id.Slot}/t{id.Task} · {Phase(task)} · {tokens} tk";
         if (width >= 75) text += $" · {Number(rate)} tk/s";
-        if (width >= 115) text += $" · caché {task.Last.Cached} · hijo {id.Pid}";
+        if (width >= 115) text += Messages.InferenceRowCacheChild.Format(task.Last.Cached, id.Pid);
         return text;
     }
 
@@ -42,23 +42,23 @@ internal static class InferencePresentation
     {
         var id = task.Identity;
         var at = DateTimeOffset.UtcNow - Stopwatch.GetElapsedTime(task.ObservedAt);
-        return $"Entrada {id.Entry} · modelo {task.Model ?? "n/d"}\n" +
-            $"Ámbito {id.Scope} · servicio {id.Service}\nInstancia {id.Instance}\n" +
-            $"Hijo {id.Pid}/{id.Creation} · slot {id.Slot} · tarea {id.Task} · tramo {id.FirstObserved}\n" +
-            $"{Phase(task)} · última lectura {at.ToLocalTime():HH:mm:ss.fff}\n" +
-            (task.End is null ? "Tarea observada activa" : "Últimos valores observados; " + Messages.RequestUnconfirmed) + "\n" +
-            $"Prompt {task.Last.Prompt} tk · caché {task.Last.Cached} tk · salida {task.Last.Decoded} tk\n" +
-            $"Contexto del slot {task.Last.Context?.ToString() ?? "n/d"} tk · especulación {task.Last.Speculative?.ToString() ?? "n/d"}\n" +
-            $"Límite de predicción {task.Last.PredictLimit?.ToString() ?? "n/d"} · no predice longitud final\n" +
-            $"Prompt: {Number(task.PromptRate)} tk/s · media {Number(task.PromptMean)} · pico observado {Number(task.PromptPeak)} · {task.PromptSeconds:0.###} s\n" +
-            $"Generación: {Number(task.OutputRate)} tk/s · media {Number(task.OutputMean)} · pico observado {Number(task.OutputPeak)} · {task.OutputSeconds:0.###} s\n" +
-            "Fuente /slots?model&autoload=false\n" +
-            "Tasa: delta de tokens / segundos entre lecturas continuas (hasta 3 s).\n" +
-            "Media: suma de deltas / tiempo de los intervalos medibles de cada fase.\n" +
-            "Pico observado: máximo de esas tasas; excluye huecos y transiciones.\n" +
-            "Tiempo: suma de intervalos medibles, no latencia completa de la petición.\n" +
-            "Progreso %, ETA y TTFT: n/d · fuente " + Messages.NoProgressDenominator + "/tiempo inicial acreditado.\n" +
-            "Salida restante y separación razonamiento/respuesta: n/d · fuente no disponible.\n" +
-            "Curvas de sesión: hasta 24 columnas de 2 s; · sin lectura, sin interpolación.";
+        return Messages.InferenceDetailEntryModel.Format(id.Entry, task.Model ?? Messages.DisplayNotAvailable.ToString()) +
+            Messages.InferenceDetailScopeServiceInstance.Format(id.Scope, id.Service, id.Instance) +
+            Messages.InferenceDetailChildSlotTaskSegment.Format(id.Pid, id.Creation, id.Slot, id.Task, id.FirstObserved) +
+            Messages.InferenceDetailLastReading.Format(Phase(task), at.ToLocalTime()) +
+            (task.End is null ? Messages.InferenceDetailTaskActive.ToString() : Messages.InferenceLastObservedValues.Format(Messages.RequestUnconfirmed)) + "\n" +
+            Messages.InferenceDetailTokens.Format(task.Last.Prompt, task.Last.Cached, task.Last.Decoded) +
+            Messages.InferenceDetailSlotContext.Format(task.Last.Context?.ToString() ?? Messages.DisplayNotAvailable.ToString(), task.Last.Speculative?.ToString() ?? Messages.DisplayNotAvailable.ToString()) +
+            Messages.InferenceDetailPredictionLimit.Format(task.Last.PredictLimit?.ToString() ?? Messages.DisplayNotAvailable.ToString()) +
+            Messages.InferenceDetailPromptRates.Format(Number(task.PromptRate), Number(task.PromptMean), Number(task.PromptPeak), task.PromptSeconds) +
+            Messages.InferenceDetailGenerationRates.Format(Number(task.OutputRate), Number(task.OutputMean), Number(task.OutputPeak), task.OutputSeconds) +
+            Messages.InferenceDetailSourceSlots.ToString() +
+            Messages.InferenceDetailNoteRate.ToString() +
+            Messages.InferenceDetailNoteMean.ToString() +
+            Messages.InferenceDetailNotePeak.ToString() +
+            Messages.InferenceDetailNoteTime.ToString() +
+            Messages.InferenceProgressUnavailable.Format(Messages.NoProgressDenominator) +
+            Messages.InferenceDetailNoteRemaining.ToString() +
+            Messages.InferenceDetailNoteCharts.ToString();
     }
 }

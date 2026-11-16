@@ -11,7 +11,7 @@ public sealed class LocalModelMaintenance(Home home, Action<int>? afterRead = nu
     private ModelsDocument Catalog() => store.Read(DocumentKind.Models, Json.ModelsDocument, ContractValidation.Models) ?? new(1, []);
     private ModelRecord Find(string name, bool companion) => Catalog().Models.SingleOrDefault(m =>
         m.Name.Equals(name, StringComparison.OrdinalIgnoreCase) && companion == (m.CompanionType is not null))
-        ?? throw new ModelSourceException("model-not-found", "Unidad no registrada en este catálogo.");
+        ?? throw new ModelSourceException("model-not-found", Messages.ModelUnitNotRegisteredInThisCatalog.ToString());
 
     private ModelRecord Save(ModelRecord original, ModelRecord updated) => store.Exclusive(() =>
     {
@@ -19,7 +19,7 @@ public sealed class LocalModelMaintenance(Home home, Action<int>? afterRead = nu
         var catalog = Catalog();
         var current = catalog.Models.SingleOrDefault(m => m.Id == original.Id);
         if (current is null || ContractJson.Write(current, Json.ModelRecord) != ContractJson.Write(original, Json.ModelRecord))
-            throw new ModelSourceException("model-changed", "El registro cambió durante la operación; vuelva a intentarlo.");
+            throw new ModelSourceException("model-changed", Messages.ModelRecordChangedDuringTheOperationRetry.ToString());
         store.UpdateLocked(DocumentKind.Models, Json.ModelsDocument, ContractValidation.Models,
             _ => catalog with { Models = catalog.Models.Select(m => m.Id == original.Id ? updated : m).ToArray() });
         return updated;
@@ -46,7 +46,7 @@ public sealed class LocalModelMaintenance(Home home, Action<int>? afterRead = nu
     {
         var original = Find(name, companion);
         if (setBaseline && original.Ownership != "external")
-            throw new ModelSourceException("managed-baseline-rejected", "No se sustituyen las referencias de una descarga gestionada.");
+            throw new ModelSourceException("managed-baseline-rejected", Messages.ModelManagedDownloadRefsPreserved.ToString());
         var checks = new List<LocalFileCheck>();
         var stamps = new List<(long Size, DateTime Date)?>();
         foreach (var file in original.Files)
@@ -63,9 +63,9 @@ public sealed class LocalModelMaintenance(Home home, Action<int>? afterRead = nu
                 checks.Add(new(file.LocalPath, result.Status, result.Observed, result.Diagnostic));
             }
             catch (Exception e) when (e is FileNotFoundException or DirectoryNotFoundException)
-            { stamps.Add(null); checks.Add(new(file.LocalPath, "missing-file", null, "Archivo esperado ausente.")); }
+            { stamps.Add(null); checks.Add(new(file.LocalPath, "missing-file", null, Messages.ModelExpectedFileMissing.Data())); }
             catch (Exception e) when (e is IOException or UnauthorizedAccessException)
-            { stamps.Add(null); checks.Add(new(file.LocalPath, "read-error", null, e.Message)); }
+            { stamps.Add(null); checks.Add(new(file.LocalPath, "read-error", null, Messages.FileReadFailure(e))); }
             afterRead?.Invoke(checks.Count - 1);
         }
         // Earlier parts must still match their observation when completing the whole unit.
@@ -76,10 +76,10 @@ public sealed class LocalModelMaintenance(Home home, Action<int>? afterRead = nu
             {
                 var info = new FileInfo(paths.File(original, original.Files[i]));
                 if (stamps[i] is not { } stamp || !info.Exists || info.Length != stamp.Size || info.LastWriteTimeUtc != stamp.Date)
-                    checks[i] = checks[i] with { Status = "changed-during-read", Observed = null, Diagnostic = "El conjunto cambió durante la lectura." };
+                    checks[i] = checks[i] with { Status = "changed-during-read", Observed = null, Diagnostic = Messages.ModelSetChangedWhileReading.Data() };
             }
             catch (Exception e) when (e is IOException or UnauthorizedAccessException)
-            { checks[i] = checks[i] with { Status = "read-error", Observed = null, Diagnostic = e.Message }; }
+            { checks[i] = checks[i] with { Status = "read-error", Observed = null, Diagnostic = Messages.FileReadFailure(e) }; }
         }
         var success = setBaseline && checks.All(c => c.Observed is not null);
         if (success) checks = checks.Select(c => c with { Status = "baseline-set", Diagnostic = null }).ToList();

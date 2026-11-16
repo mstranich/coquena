@@ -39,7 +39,9 @@ internal static class BackendDirectoryTests
             old => new(1, (old?.Backends ?? []).Append(record).ToArray()));
         return record;
     }
-    private static bool Change(BackendDirectoryManager manager, string? path, string? choice = "s", bool overwrite = true) =>
+    private static bool Change(BackendDirectoryManager manager, string? path) =>
+        Change(manager, path, Messages.YesAnswer.ToString());
+    private static bool Change(BackendDirectoryManager manager, string? path, string? choice, bool overwrite = true) =>
         manager.Change(path, TextWriter.Null, () => choice, () => overwrite);
     private static BackendRecord[] List(Home h) => new BackendInstaller(h).List();
     private static string State(Home h) => File.ReadAllText(h.PathFor("catalogs/backends.json")) +
@@ -73,11 +75,11 @@ internal static class BackendDirectoryTests
             File.WriteAllText(Path.Combine(bDest, "keep.txt"), "keep");
             var collideState = State(home);
             using var report = new StringWriter();
-            Check(!manager.Change("../combined", report, () => "s", () => false), "one overwrite confirmation cancels entire transfer");
+            Check(!manager.Change("../combined", report, () => Messages.YesAnswer.ToString(), () => false), "one overwrite confirmation cancels entire transfer");
             Check(report.ToString().Contains("COPYING") && report.ToString().Contains("ggml.dll") && report.ToString().Contains(Messages.MergeOverwriteQuestion) &&
                 State(home) == collideState && File.ReadAllText(Path.Combine(bDest, "licenses", "COPYING")) == "previous license", "complete collision report without mutation");
             var confirmations = 0;
-            Check(manager.Change("../combined", TextWriter.Null, () => "s", () => { confirmations++; return true; }), "merge all managed installations from multiple roots");
+            Check(manager.Change("../combined", TextWriter.Null, () => Messages.YesAnswer.ToString(), () => { confirmations++; return true; }), "merge all managed installations from multiple roots");
             Check(confirmations == 1 && !Directory.Exists(oldA) && !Directory.Exists(oldB), "single authorization then source directories removed");
             Check(File.ReadAllText(Path.Combine(bDest, "keep.txt")) == "keep" && File.ReadAllText(Path.Combine(bDest, "licenses", "COPYING")) == "license 2", "noncollision preserved and authorized collision overwritten");
             Check(File.Exists(home.PathFor("backends/unregistered.txt")) && List(home).Select(r => r.Id).Order().SequenceEqual(new[] { a.Id, b.Id }.Order()), "unregistered file outside installation and opaque IDs preserved");
@@ -92,7 +94,7 @@ internal static class BackendDirectoryTests
             Reject(() => manager.Change("../race", TextWriter.Null, () =>
             {
                 store.Update(DocumentKind.Config, Json.ConfigDocument, ContractValidation.Config, c => c! with { LogRetention = new(1234) });
-                return "s";
+                return Messages.YesAnswer.ToString();
             }, () => true), "configuration changed while choosing must be reviewed again");
             Check(manager.Show().Location == "../combined" && File.Exists(paths.Server(List(home).First())), "stale choice did not transfer");
 
@@ -148,7 +150,7 @@ internal static class BackendDirectoryTests
         var installer = new BackendInstaller(home);
         var op = installer.Create(Candidate(Archive()), "b2"); var before = State(home);
         using var report = new StringWriter();
-        Reject(() => manager.Change("../pending-dest", report, () => "s", () => true), "pending backend download blocks all transfer");
+        Reject(() => manager.Change("../pending-dest", report, () => Messages.YesAnswer.ToString(), () => true), "pending backend download blocks all transfer");
         Check(State(home) == before && File.Exists(new BackendPaths(home).Server(a)), "blocked download retains all original state");
         Check(Change(manager, "../pending-dest", "n"), "no-transfer change allowed with download pending");
         Check(op.BackendInstall!.InstallationDirectory is null, "download retains its original pinned destination");
@@ -246,11 +248,11 @@ internal static class BackendDirectoryTests
         Directory.CreateDirectory(Path.Combine(slot, "bin"));
         var collision = Path.Combine(slot, "bin", "llama-server.exe"); File.WriteAllText(collision, "prior");
         var next = Path.Combine(slot, "bin", "ggml.dll"); var before = State(home);
-        Reject(() => manager.Change(destination, TextWriter.Null, () => "s", () =>
+        Reject(() => manager.Change(destination, TextWriter.Null, () => Messages.YesAnswer.ToString(), () =>
         { File.WriteAllText(next, "new collision"); return true; }), "new collision appearing during confirmation must be reviewed");
         Check(State(home) == before && File.ReadAllText(collision) == "prior" && File.ReadAllText(next) == "new collision", "no old or new collision overwritten from stale authorization");
         File.Delete(next);
-        Reject(() => manager.Change(destination, TextWriter.Null, () => "s", () =>
+        Reject(() => manager.Change(destination, TextWriter.Null, () => Messages.YesAnswer.ToString(), () =>
         { File.WriteAllText(collision, "changed collision"); return true; }), "changed destination contents invalidate consent");
         Check(State(home) == before && File.ReadAllText(collision) == "changed collision", "modified collision preserved");
     }
@@ -391,7 +393,7 @@ internal static class BackendDirectoryTests
             return (process.ExitCode, stdout.GetAwaiter().GetResult(), stderr.GetAwaiter().GetResult());
         }
         var show = Run("config", "backends-dir", "show");
-        Check(show.Code == 0 && show.Out.Contains("propio") && show.Out.Contains(Path.Combine(root, "native-location")) && show.Error.Length == 0, "native process restart reads persisted relative setting");
+        Check(show.Code == 0 && show.Out.Contains(Messages.OwnValue.ToString()) && show.Out.Contains(Path.Combine(root, "native-location")) && show.Error.Length == 0, "native process restart reads persisted relative setting");
         var state = State(home); var unset = Run("config", "backends-dir", "unset");
         Check(unset.Code == 0 && unset.Out.Contains("Cancelado") && State(home) == state, "native redirected input cancels unset");
         Check(Run("config", "backends-dir", "set").Code == 2, "native CLI rejects invalid syntax");

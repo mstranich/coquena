@@ -32,19 +32,19 @@ public sealed partial class BackendInstaller(Home home, LocalStore? storage = nu
     public async Task<BackendRecord> RegisterAsync(string server, string name, string family,
         string? distribution = null, CancellationToken cancellation = default)
     {
-        if (!ValidExternalName(name)) throw new BackendException("invalid-name", "Nombre externo inválido.");
-        if (!ValidExternalFamily(family)) throw new BackendException("invalid-family", "Familia inválida; CUDA requiere cuda@<mayor>.");
+        if (!ValidExternalName(name)) throw new BackendException("invalid-name", Messages.ValidationInvalidExternalName.ToString());
+        if (!ValidExternalFamily(family)) throw new BackendException("invalid-family", Messages.BackendInvalidCudaFamily.ToString());
         var repository = distribution ?? "ggml-org/llama.cpp";
         if (Coquena.Configuration.ParameterManager.Official(repository)) repository = "ggml-org/llama.cpp";
         if (!Regex.IsMatch(repository, @"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$", RegexOptions.CultureInvariant) ||
             repository.Split('/').Any(p => p is "." or ".."))
-            throw new BackendException("invalid-distribution", "Usar un repositorio propietario/nombre.");
+            throw new BackendException("invalid-distribution", Messages.BackendUseAnOwnerNameRepository.ToString());
         var path = Path.GetFullPath(server);
-        if (!File.Exists(path)) throw new BackendException("backend-absent", "Ejecutable ausente.");
+        if (!File.Exists(path)) throw new BackendException("backend-absent", Messages.BackendExecutableMissing.ToString());
         var version = await (probe ?? ProbeAsync)(path, cancellation);
         var matches = VersionPattern().Matches(version);
         if (version.Length > 65536 || matches.Count != 1)
-            throw new BackendException("invalid-server-version", "Sondeo --version inválido.");
+            throw new BackendException("invalid-server-version", Messages.BackendInvalidVersionProbe.ToString());
         var build = "b" + matches[0].Groups["build"].Value;
         _ = BackendCatalog.BuildNumber(build);
         cancellation.ThrowIfCancellationRequested();
@@ -54,7 +54,7 @@ public sealed partial class BackendInstaller(Home home, LocalStore? storage = nu
         return store.Exclusive(() =>
         {
             cancellation.ThrowIfCancellationRequested();
-            if (!File.Exists(path)) throw new BackendException("backend-absent", "Ejecutable ausente.");
+            if (!File.Exists(path)) throw new BackendException("backend-absent", Messages.BackendExecutableMissing.ToString());
             store.UpdateLocked(DocumentKind.Backends, Json.BackendsDocument, ContractValidation.Backends,
                 old => (old ?? new(1, [])) with { Backends = (old?.Backends ?? []).Append(record).ToArray() });
             return record;
@@ -156,7 +156,7 @@ public sealed partial class BackendInstaller(Home home, LocalStore? storage = nu
     private void NotInUse(Guid id)
     {
         if (Catalog().Backends.Any(b => b.Id == id && b.RemovalPending))
-            throw new DownloadException("removal-pending", "Reintente backend uninstall antes de modificar la instalación.");
+            throw new DownloadException("removal-pending", Messages.BackendRetryUninstallFirst.ToString());
         var run = home.PathFor("run");
         if (!Directory.Exists(run)) return;
         foreach (var area in Directory.GetDirectories(run))
@@ -178,8 +178,8 @@ public sealed partial class BackendInstaller(Home home, LocalStore? storage = nu
 
     public async Task<OperationDocument?> FinalizeAsync(OperationDocument operation, CancellationToken cancellation)
     {
-        var plan = operation.BackendInstall ?? throw new DownloadException("missing-install-plan", "Operación sin plan de instalación.");
-        var selection = operation.BackendSelection ?? throw new DownloadException("invalid-selection", "Backend requerido.");
+        var plan = operation.BackendInstall ?? throw new DownloadException("missing-install-plan", Messages.BackendOperationMissingPlan.ToString());
+        var selection = operation.BackendSelection ?? throw new DownloadException("invalid-selection", Messages.BackendRequired.ToString());
         ValidatePlan(operation);
         if (operation.Phase != "cleanup")
         {
@@ -327,7 +327,7 @@ public sealed partial class BackendInstaller(Home home, LocalStore? storage = nu
         {
             var plan = operation.BackendInstall!;
             if (plan.Upgrade is not null)
-                retentionReport?.Invoke("Builds anteriores conservados; la limpieza requiere una acción explícita.");
+                retentionReport?.Invoke(Messages.BackendPreviousBuildsPreserved.ToString());
             DownloadManager.StopMonitor(home, operation.Id);
             store.Exclusive(() =>
             {
@@ -351,7 +351,7 @@ public sealed partial class BackendInstaller(Home home, LocalStore? storage = nu
         catch (Exception e) when (e is IOException or UnauthorizedAccessException or StorageException or DownloadException)
         {
             Save(operation with { State = "completed", Phase = "cleanup", Diagnostic = "cleanup-pending" });
-            throw new DownloadException("cleanup-pending", "Backend publicado; limpieza pendiente; reanudar la operación.");
+            throw new DownloadException("cleanup-pending", Messages.BackendPublishedCleanupPending.ToString());
         }
     }
 
@@ -428,7 +428,7 @@ public sealed partial class BackendInstaller(Home home, LocalStore? storage = nu
         { throw new PublicationMoveException(error); }
     }
     private sealed class PublicationMoveException(Exception error)
-        : DownloadException($"backend-publication-move-0x{error.HResult:X8}", "No se pudo publicar el directorio del backend; preparación conservada.")
+        : DownloadException($"backend-publication-move-0x{error.HResult:X8}", Messages.BackendPublishDirectoryFailed.ToString())
     {
         public bool Retryable { get; } = OperatingSystem.IsWindows() && (error.HResult & 0xffff) is 5 or 32 or 33;
     }
@@ -477,7 +477,7 @@ public sealed partial class BackendInstaller(Home home, LocalStore? storage = nu
                 if (name.Equals(".coquena-owner", StringComparison.OrdinalIgnoreCase) || !paths.Add(name)) Fail("archive-collision");
                 string destination;
                 try { destination = home.PathFor(area + "/" + name); }
-                catch (StorageException e) when (e.Code == "unsafe-path") { throw new DownloadException("unsafe-archive-entry", "Ruta de archivo comprimido no permitida."); }
+                catch (StorageException e) when (e.Code == "unsafe-path") { throw new DownloadException("unsafe-archive-entry", Messages.BackendArchiveFilePathNotAllowed.ToString()); }
                 if (directory) { Directory.CreateDirectory(destination); continue; }
                 Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
                 using var input = entry.Open();
@@ -521,8 +521,8 @@ public sealed partial class BackendInstaller(Home home, LocalStore? storage = nu
             RedirectStandardOutput = true, RedirectStandardError = true, WorkingDirectory = Path.GetDirectoryName(server)! };
         start.ArgumentList.Add("--version");
         Process started;
-        try { started = Process.Start(start) ?? throw new DownloadException("version-start-failed", "No inició llama-server."); }
-        catch (System.ComponentModel.Win32Exception) { throw new DownloadException("version-start-failed", "No inició llama-server."); }
+        try { started = Process.Start(start) ?? throw new DownloadException("version-start-failed", Messages.BackendLlamaServerDidNotStart.ToString()); }
+        catch (System.ComponentModel.Win32Exception) { throw new DownloadException("version-start-failed", Messages.BackendLlamaServerDidNotStart.ToString()); }
         using var process = started;
         try
         {
@@ -533,7 +533,7 @@ public sealed partial class BackendInstaller(Home home, LocalStore? storage = nu
             return ((await stdout) + "\n" + (await stderr)).Trim();
         }
         catch (OperationCanceledException) when (!cancellation.IsCancellationRequested)
-        { throw new DownloadException("version-timeout", "Sondeo --version excedió 15 segundos."); }
+        { throw new DownloadException("version-timeout", Messages.BackendTheVersionProbeExceededSeconds.ToString()); }
         finally { if (!process.HasExited) { process.Kill(entireProcessTree: true); await process.WaitForExitAsync(CancellationToken.None); } }
     }
     private static async Task<string> ReadBounded(StreamReader reader, CancellationToken cancellation)
@@ -547,5 +547,5 @@ public sealed partial class BackendInstaller(Home home, LocalStore? storage = nu
             text.Append(buffer, 0, count);
         }
     }
-    private static void Fail(string code) => throw new DownloadException(code, "Instalación no confirmada; preparación conservada para diagnóstico/reanudación.");
+    private static void Fail(string code) => throw new DownloadException(code, Messages.BackendInstallationUnconfirmed.ToString());
 }

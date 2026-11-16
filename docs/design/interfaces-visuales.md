@@ -84,7 +84,9 @@ sin marca ni fila de atajos. En vivo agrupa servicios y la receta local en un
 árbol lateral; Definiciones consulta información y ofrece operaciones de gestión
 sobre el ámbito seleccionado. Configuración separa los valores de Coquena
 (los mismos de `coquena config`), las preferencias de la TUI (filtro del log y
-recursos visibles en la barra inferior) y el inventario y sondeo de Sistema. La [consulta de definiciones](tui/B-definiciones-recetas.salt.puml)
+recursos visibles en la barra inferior e idioma) y el inventario y sondeo de Sistema.
+El selector de idioma comparte la preferencia de [config language](comandos.md#config);
+el cambio de textos se aplica al reiniciar la TUI. La [consulta de definiciones](tui/B-definiciones-recetas.salt.puml)
 conserva el catálogo observado. La [vista por servidor](ui-servicio.md) muestra inferencia en
 curso, rendimiento, recursos compartidos y logs. El log queda accesible dentro
 del servidor aunque el espacio vertical obligue a separarlo del monitor.

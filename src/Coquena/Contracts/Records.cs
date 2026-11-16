@@ -35,15 +35,15 @@ public sealed record RemoteSelection(string Repository, string RequestedRevision
     string Commit, RemoteFile[] Files);
 public sealed record InstalledFile(string RemotePath, string LocalPath, long Size,
     ContentIdentity? Integrity = null, DateTimeOffset? LastWriteUtc = null);
-public sealed record LocalFileCheck(string LocalPath, string Status, ContentIdentity? Observed, string? Diagnostic);
+public sealed record LocalFileCheck(string LocalPath, string Status, ContentIdentity? Observed, MessageData? Diagnostic);
 public sealed record LocalIntegrityCheck(DateTimeOffset CheckedAt, string Status, bool SetBaseline, LocalFileCheck[] Files);
 public sealed record InformativeMatch(RemoteSelection Candidate, string[] Reasons, DateTimeOffset SelectedAt);
 public sealed record ModelUpdateAction(string TargetPath, string? SourcePath, string Action);
 public sealed record ModelUpdatePlan(RemoteSelection Installed, RemoteSelection Target,
     string TargetName, ModelUpdateAction[] Actions, bool ExplicitChoice);
 public sealed record ModelUpdateObservation(DateTimeOffset LastAttempt, DateTimeOffset? LastSuccess,
-    string State, string Diagnostic, string? LastSuccessfulState, ModelUpdatePlan? Plan,
-    RemoteSelection? Followed = null, string? LastSuccessfulDiagnostic = null, string? FollowedName = null);
+    string State, MessageData Diagnostic, string? LastSuccessfulState, ModelUpdatePlan? Plan,
+    RemoteSelection? Followed = null, MessageData? LastSuccessfulDiagnostic = null, string? FollowedName = null);
 // One unit, ordered files (first shard first), empty initial model configuration.
 public sealed record ModelRecord(Guid Id, string Name, RemoteSelection? Selection,
     InstalledFile[] Files, Dictionary<string, string> Parameters,
@@ -77,14 +77,15 @@ public sealed record ConfigDocument(int SchemaVersion, Guid? DefaultServerId,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] ObserverPreferences? Observer = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] int? InferenceHistoryLimit = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] bool? FilterMonitoringLogs = null,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string[]? HiddenBarResources = null);
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string[]? HiddenBarResources = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? Language = null);
 public sealed record ModelsDocument(int SchemaVersion, ModelRecord[] Models);
 public sealed record BackendsDocument(int SchemaVersion, BackendRecord[] Backends);
 public sealed record BackendUpdateCandidate(string Build, RemoteFile[] Artifacts,
-    string Compatibility, string Diagnostic);
+    string Compatibility, MessageData Diagnostic);
 public sealed record BackendUpdateObservation(string Origin, string Variant, string Platform,
     Guid BackendId, string InstalledBuild, DateTimeOffset CheckedAt, string State,
-    string Diagnostic, BackendUpdateCandidate? Candidate);
+    MessageData Diagnostic, BackendUpdateCandidate? Candidate);
 public sealed record BackendUpdatesDocument(int SchemaVersion, BackendUpdateObservation[] Updates);
 public sealed record PresetsDocument(int SchemaVersion, PresetRecord[] Presets);
 public sealed record InstanceDocument(int SchemaVersion, Guid InstanceId, Guid ServerId,

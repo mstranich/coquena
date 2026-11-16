@@ -41,7 +41,7 @@ internal static class RecipeEdit
         var captured = selection.Files.ToDictionary(path => path, path => inputs.TryGetValue(path, out var draft) ? draft : RecipeYaml.ReadBytes(path), StringComparer.OrdinalIgnoreCase);
         RecipeValue? merged = recipe.SourceRoot;
         foreach (var key in keys) merged = merged?.Get(key);
-        if (merged is null) throw recipe.Root.Error("unknown-entry", "edit", "No existe la entrada que se quiere copiar.");
+        if (merged is null) throw recipe.Root.Error("unknown-entry", "edit", Messages.RecipeTheEntryToCopyDoesNotExist.ToString());
         var fallback = RecipeWriter.From(merged);
         var owners = selection.Files.Where(path => Lookup(path, captured[path], keys) is not null).ToArray();
         if (owners.Length != 1) return fallback;
@@ -67,7 +67,7 @@ internal static class RecipeEdit
         var step = Step(text);
         var node = root;
         var path = "$";
-        RecipeException Ambiguous() => node.Error("ambiguous-edit", "edit", "Edite manualmente la asignación indicada.");
+        RecipeException Ambiguous() => node.Error("ambiguous-edit", "edit", Messages.RecipeEditTheIndicatedAssignmentManually.ToString());
 
         for (var i = 0; i < keys.Length; i++)
         {
@@ -132,7 +132,7 @@ internal static class RecipeEdit
         if (depth - 1 == entity && entity > 0 && Walk(root, keys[..entity]) is { Fields.Count: 1 })
             return Set(file, original, text, keys[..entity], new EditMap([]));
         var target = keys[..depth];
-        var node = Walk(root, target) ?? throw root.Error("ambiguous-edit", "edit", "La entrada no está en el archivo editado.");
+        var node = Walk(root, target) ?? throw root.Error("ambiguous-edit", "edit", Messages.RecipeTheEntryIsNotInTheEdited.ToString());
         var path = Path(target);
         var key = yaml.KeySpans![path];
         var start = checked((int)key.Start.Index);
@@ -156,7 +156,7 @@ internal static class RecipeEdit
             return Cut(start, end);
         }
         var lineStart = LineStart(text, start);
-        if (text[lineStart..start].Any(c => c != ' ')) throw node.Error("ambiguous-edit", "edit", "Edite manualmente la asignación indicada.");
+        if (text[lineStart..start].Any(c => c != ' ')) throw node.Error("ambiguous-edit", "edit", Messages.RecipeEditTheIndicatedAssignmentManually.ToString());
         end = LineEnd(text, end);
         if (end < text.Length && text[end] == '\r') end++;
         if (end < text.Length && text[end] == '\n') end++;
@@ -284,7 +284,7 @@ internal static class RecipeEdit
             }
             foreach (var input in inputs)
                 if (!RecipeYaml.ReadBytes(input.Key).AsSpan().SequenceEqual(input.Value))
-                    throw new RecipeException("edit-conflict", "edit", new(file, 1, 1, "$"), "Cambió una capa seleccionada; vuelva a revisar la edición.");
+                    throw new RecipeException("edit-conflict", "edit", new(file, 1, 1, "$"), Messages.RecipeASelectedLayerChangedReviewTheEdit.ToString());
             if (!candidate.AsSpan().SequenceEqual(inputs[file])) File.Replace(temporary, file, null);
         }
         finally

@@ -3,6 +3,11 @@ using Coquena;
 
 // Match the product's output contract, including fixture and failure diagnostics.
 Console.OutputEncoding = new System.Text.UTF8Encoding(false);
+// Tests use the same language selection as the executable. An explicit test-only
+// switch exercises the same assertions with either delivered language.
+var testLanguage = args is ["--language", var selectedLanguage, ..] ? selectedLanguage : null;
+if (testLanguage is not null) args = args[2..];
+Localization.Apply(testLanguage, null);
 // Any failing check that escapes a suite ends the process with exit code 1 and its
 // diagnostic. Native AOT would otherwise fail fast (0xC0000409) and Windows would keep
 // the run waiting on an error dialog that only means "a test failed".
@@ -22,6 +27,16 @@ static async Task CheckedRun(Func<Task> run)
         Console.Error.WriteLine(error);
         Environment.ExitCode = 1;
     }
+}
+if (args is ["--localization-tests"])
+{
+    await CheckedRun(() => { Coquena.Tests.LocalizationTests.Run(); return Task.CompletedTask; });
+    return;
+}
+if (args is ["--localization-native-tests", var nativeLanguageExecutable])
+{
+    await CheckedRun(() => { Coquena.Tests.LocalizationTests.RunNative(Path.GetFullPath(nativeLanguageExecutable)); return Task.CompletedTask; });
+    return;
 }
 if (args is ["--dashboard-project-setup", var projectRoot, var projectBackend, var projectModel])
 {
@@ -44,25 +59,38 @@ if (args is ["--dashboard-tests"])
             if (!condition) throw new Exception(message);
             checks++;
         }
-        Coquena.Tests.StepProgressTests.Run(Check);
-        Coquena.Tests.ObservationTimelineTests.Run(Check);
-        Coquena.Tests.InferenceTaskTests.Run(Check);
-        Coquena.Tests.InferencePresentationTests.Run(Check);
-        Coquena.Tests.DashboardPresentationTests.Run(Check);
-        Coquena.Tests.LivePresentationTests.Run(Check);
-        await Coquena.Tests.ChatTests.Run(Check);
-        Coquena.Tests.DefinitionsPresentationTests.Run(Check);
-        Coquena.Tests.DefinitionsPresentationTests.RunSource(Check);
-        Coquena.Tests.SettingsPresentationTests.Run(Check);
-        Coquena.Tests.SettingsPresentationTests.RunStore(Check);
-        await Coquena.Tests.ManagementTests.Run(Check);
-        await Coquena.Tests.ResourceDashboardTests.Run(Check);
-        Coquena.Tests.RecipeWriterTests.Run(Check);
-        await Coquena.Tests.RecipeEditorTests.Run(Check);
-        await Coquena.Tests.AuthoringDashboardTests.Run(Check);
-        await Coquena.Tests.InferenceObservationTests.Run(Check);
-        await Coquena.Tests.DashboardProjectTests.Run(Check);
-        Console.WriteLine($"Dashboard checks: {checks}.");
+        var failures = new List<Exception>();
+        void Suite(string name, Action run)
+        {
+            try { run(); }
+            catch (Exception error) { failures.Add(error); Console.Error.WriteLine(name + ": " + error.Message); }
+        }
+        async Task SuiteAsync(string name, Func<Task> run)
+        {
+            try { await run(); }
+            catch (Exception error) { failures.Add(error); Console.Error.WriteLine(name + ": " + error.Message); }
+        }
+        Suite("StepProgressTests.Run", () => Coquena.Tests.StepProgressTests.Run(Check));
+        Suite("ObservationTimelineTests.Run", () => Coquena.Tests.ObservationTimelineTests.Run(Check));
+        Suite("InferenceTaskTests.Run", () => Coquena.Tests.InferenceTaskTests.Run(Check));
+        Suite("InferencePresentationTests.Run", () => Coquena.Tests.InferencePresentationTests.Run(Check));
+        Suite("DashboardPresentationTests.Run", () => Coquena.Tests.DashboardPresentationTests.Run(Check));
+        Suite("LivePresentationTests.Run", () => Coquena.Tests.LivePresentationTests.Run(Check));
+        await SuiteAsync("ChatTests.Run", () => Coquena.Tests.ChatTests.Run(Check));
+        Suite("DefinitionsPresentationTests.Run", () => Coquena.Tests.DefinitionsPresentationTests.Run(Check));
+        Suite("DefinitionsPresentationTests.RunSource", () => Coquena.Tests.DefinitionsPresentationTests.RunSource(Check));
+        Suite("SettingsPresentationTests.Run", () => Coquena.Tests.SettingsPresentationTests.Run(Check));
+        Suite("SettingsPresentationTests.RunStore", () => Coquena.Tests.SettingsPresentationTests.RunStore(Check));
+        await SuiteAsync("ManagementTests.Run", () => Coquena.Tests.ManagementTests.Run(Check));
+        await SuiteAsync("ResourceDashboardTests.Run", () => Coquena.Tests.ResourceDashboardTests.Run(Check));
+        Suite("RecipeWriterTests.Run", () => Coquena.Tests.RecipeWriterTests.Run(Check));
+        await SuiteAsync("RecipeEditorTests.Run", () => Coquena.Tests.RecipeEditorTests.Run(Check));
+        await SuiteAsync("AuthoringDashboardTests.Run", () => Coquena.Tests.AuthoringDashboardTests.Run(Check));
+        await SuiteAsync("InferenceObservationTests.Run", () => Coquena.Tests.InferenceObservationTests.Run(Check));
+        await SuiteAsync("DashboardLogTests.Run", () => Coquena.Tests.DashboardLogTests.Run(Check));
+        await SuiteAsync("DashboardProjectTests.Run", () => Coquena.Tests.DashboardProjectTests.Run(Check));
+        Console.WriteLine($"Dashboard checks: {checks}; failed suites: {failures.Count}.");
+        if (failures.Count != 0) throw new AggregateException(failures);
     });
     return;
 }
@@ -411,7 +439,7 @@ foreach (var input in cases)
     void Verify(int code, string stdout, string stderr)
     {
         if (code != expected || (expected == 0
-            ? !stdout.Contains("Uso: coquena") || !stdout.Contains("download") || !stdout.Contains("system probe") || stderr.Length != 0
+            ? stdout.Replace("\r\n", "\n").TrimEnd() != Messages.Help.ToString().TrimEnd() || stderr.Length != 0
             : stdout.Length != 0 || !stderr.Contains("Error:") || !stderr.Contains("coquena --help")))
             throw new Exception($"Falló [{string.Join(", ", input)}]: code={code}, out={stdout}, err={stderr}");
     }

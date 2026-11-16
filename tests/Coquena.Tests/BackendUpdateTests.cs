@@ -100,15 +100,15 @@ internal static class BackendUpdateTests
             Check(Read().Single(o => o.Variant == "cpu").Candidate is null, "older remote release never proposes downgrade");
             await Query("ggml/cpu:latest", () => Page("b10", "cpu-x64"));
             await Query("cpu:latest", () => throw new HttpRequestException("fixture"));
-            Check(Read().Single(o => o.Variant == "cpu") is { State: "failed", Candidate: null, Diagnostic: "remote-unavailable" }, "failed refresh clears applicable candidate and records failure");
+            Check(Read().Single(o => o.Variant == "cpu") is { State: "failed", Candidate: null, Diagnostic: { Code: "remote-unavailable" } }, "failed refresh clears applicable candidate and records failure");
             var call = 0;
             results = await Query(null, () => ++call == 1 ? new(HttpStatusCode.Forbidden) : Page("b11", "cuda-12.4-x64"));
             Check(results.Length == 2 && results[0].Observation?.State == "failed" && results[1].Observation?.Candidate?.Build == "b11",
                 "one failed filter does not prevent another update");
             await Query("cpu:latest", () => new(HttpStatusCode.OK) { Content = new StringContent("invalid JSON") });
-            Check(Read().Single(o => o.Variant == "cpu").Diagnostic == "invalid-metadata", "malformed metadata diagnosed");
+            Check(Read().Single(o => o.Variant == "cpu").Diagnostic.Code == "invalid-metadata", "malformed metadata diagnosed");
             await Query("cpu:latest", () => Page("b1", "cpu-arm64"));
-            Check(Read().Single(o => o.Variant == "cpu") is { State: "failed", Candidate: null, Diagnostic: "no-candidate" },
+            Check(Read().Single(o => o.Variant == "cpu") is { State: "failed", Candidate: null, Diagnostic: { Code: "no-candidate" } },
                 "no artifact for registered platform is failure, not unchanged");
             await Reject("cpu:b9", "invalid-latest-selector"); await Reject("external", "invalid-latest-selector");
             await Reject("lab/cpu:latest", "invalid-latest-selector"); await Reject("cuda:latest", "invalid-latest-selector");
@@ -175,7 +175,7 @@ internal static class BackendUpdateTests
                 Check(BackendCli.Run(["backend", "update", "cpu:latest", "extra"], output, error) == 2, "extra CLI arguments rejected");
                 Check(BackendCli.Run(["backend", "update", "cpu:b9"], output, error, () => Hardware, new(client)) == 2, "CLI rejects pin selector");
                 Check(BackendCli.Run(["backend", "list"], output, error, () => throw new Exception("Listing must not probe hardware")) == 0 &&
-                    output.ToString().Contains("consulta=") && output.ToString().Contains("b20"), "listing reloads observations without network or hardware probe");
+                    output.ToString().Contains("remote-status") && output.ToString().Contains("b20"), "listing reloads observations without network or hardware probe");
             }
             finally { Environment.SetEnvironmentVariable("COQUENA_HOME", previousHome); }
 

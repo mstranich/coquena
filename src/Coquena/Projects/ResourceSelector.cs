@@ -10,23 +10,23 @@ public sealed record ResourceSelector(string Kind, string Name)
     public static ResourceSelector Parse(string value)
     {
         var separator = value.IndexOf("://", StringComparison.Ordinal);
-        if (separator < 0) throw new ArgumentException("Usar backend://variante, model://clave o companion://clave.");
+        if (separator < 0) throw new ArgumentException(Messages.ProjectUseBackendVariantModelKeyOrCompanion.ToString());
         var kind = value[..separator]; var name = value[(separator + 3)..];
         if (kind is not ("backend" or "model" or "companion") || name.Length is 0 or > 512 || string.IsNullOrWhiteSpace(name) || name.Any(char.IsControl))
-            throw new ArgumentException("Referencia de recurso inválida.");
+            throw new ArgumentException(Messages.ProjectInvalidResourceReference.ToString());
         if (kind == "backend")
         {
             if (!BackendCatalog.ValidFamily(name) && (name.Split('/') is not { Length: 1 or 2 } parts ||
                 parts.Any(p => string.IsNullOrWhiteSpace(p) || p.IndexOfAny([':', '\\']) >= 0)))
-                throw new ArgumentException("Usar una variante, alias o proyecto/alias de backend.");
+                throw new ArgumentException(Messages.ProjectUseABackendVariantAliasOrProject.ToString());
         }
         else if (name.Contains('/'))
         {
             var model = ModelRequest.Parse(name);
             if (model.Quantization is null || (kind == "companion") != (model.CompanionType is not null))
-                throw new ArgumentException("La referencia remota requiere cuantización y un tipo coherente.");
+                throw new ArgumentException(Messages.ProjectRemoteRefQuantizationRequired.ToString());
         }
-        else if (name.IndexOfAny([':', '\\']) >= 0) throw new ArgumentException("Clave local inválida.");
+        else if (name.IndexOfAny([':', '\\']) >= 0) throw new ArgumentException(Messages.ProjectInvalidLocalKey.ToString());
         return new(kind, name);
     }
 
@@ -56,6 +56,6 @@ public sealed record ResourceSelector(string Kind, string Name)
     public void CheckAmbiguity(IEnumerable<string?> projects)
     {
         if (Kind == "backend" && !Name.Contains('/') && !BackendCatalog.ValidFamily(Name) && projects.Where(p => p is not null).Distinct(StringComparer.Ordinal).Skip(1).Any())
-            throw new Coquena.Storage.StorageException("ambiguous-resource-selector", "Alias de backend ambiguo; indicar proyecto/alias en el ámbito elegido.");
+            throw new Coquena.Storage.StorageException("ambiguous-resource-selector", Messages.ProjectAmbiguousBackendAlias.ToString());
     }
 }

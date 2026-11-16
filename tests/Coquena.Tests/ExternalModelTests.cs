@@ -88,7 +88,7 @@ internal static class ExternalModelTests
             Reject(() => external.Add(Path.Combine(root, "free.gguf"), managed.Name));
             Reject(() => external.Add(managedPath, "user/shared:BF16"));
             var beforeMove = ContractJson.Write(new ModelsDocument(1, installer.List().Select(m => m.Record).Where(m => m.Ownership == "external").ToArray()), json.ModelsDocument);
-            Check(new ModelDirectoryManager(home).Change("relocated", TextWriter.Null, () => "s", () => true), "directory change with external catalog");
+            Check(new ModelDirectoryManager(home).Change("relocated", TextWriter.Null, () => Messages.YesAnswer.ToString(), () => true), "directory change with external catalog");
             var afterMove = ContractJson.Write(new ModelsDocument(1, installer.List().Select(m => m.Record).Where(m => m.Ownership == "external").ToArray()), json.ModelsDocument);
             Check(beforeMove == afterMove && File.Exists(file) && File.Exists(first), "directory change preserves external records/files");
             Check(!File.Exists(managedPath) && installer.List().Single(m => m.Record.Id == managed.Id).Availability == "available", "mixed catalog moves only managed files");

@@ -72,7 +72,7 @@ internal static class DashboardProjectTests
         check(!Directory.Exists(Path.Combine(directory, ".coquena")), "discovering a recipe does not prepare or register runtime state");
         File.WriteAllText(file, "presets: {}\n");
         target = DashboardCli.Discover(out _, directory, home).Single();
-        check(target.Label == "◇ folder-name" && !target.DeclaresService && target.Service is null && target.Destination == "global",
+        check(target.Label == "◇ folder-name" && !target.DeclaresService && target.Service is null && target.Destination == Messages.RetentionGlobal.ToString(),
             "consumer-only recipe uses folder fallback and keeps its own tab without inventing a service");
         var globals = new RecipeRegistry(new ScopeStore(ScopeContext.Global(home)));
         var globalService = globals.RegisterService(globals.Register(["global.yaml"], "shared").RecipeId);
@@ -101,7 +101,7 @@ internal static class DashboardProjectTests
             decisions.AllowStart = true;
             check(PublicationCli.Execute(arguments, output, error, decisions, frontend) == 93 && starts == 1,
                 "up dispatches to the visual service operation without falling back to console input");
-            check(decisions.LastStart?.Contains("news") == true && decisions.LastStart.Contains("proyecto"),
+            check(decisions.LastStart?.Contains("news") == true && decisions.LastStart.Contains(Messages.LabelsProject.ToString()),
                 "start confirmation identifies the actual target and scope");
             using var cancelled = new CancellationTokenSource();
             cancelled.Cancel();

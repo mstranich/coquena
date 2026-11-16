@@ -8,7 +8,7 @@ public sealed record ModelRequest(string Repository, string? Quantization, strin
     public static ModelRequest Parse(string selector)
     {
         if (selector.Length > 512 || selector.Count(c => c == ':') > 1 || selector.Count(c => c == '#') > 1)
-            throw new ModelSourceException("invalid-selector", "Selector inválido.");
+            throw new ModelSourceException("invalid-selector", Messages.ModelInvalidSelector.ToString());
         var colon = selector.IndexOf(':');
         var unit = colon < 0 ? selector : selector[..colon];
         var quant = colon < 0 ? null : selector[(colon + 1)..];
@@ -18,7 +18,7 @@ public sealed record ModelRequest(string Repository, string? Quantization, strin
         HuggingFaceStore.ValidateRepository(repo);
         if ((quant is not null && !Regex.IsMatch(quant, "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$")) ||
             (type is not null && type is not ("mmproj" or "mtp")))
-            throw new ModelSourceException("invalid-selector", "Cuantización o tipo companion no reconocido; tipos iniciales: mmproj, mtp.");
+            throw new ModelSourceException("invalid-selector", Messages.ModelUnrecognizedQuantOrCompanion.ToString());
         return new(repo, quant, type);
     }
 }
@@ -47,7 +47,7 @@ public sealed class ConsoleModelSelectionInteraction : IModelSelectionInteractio
     {
         cancellation.ThrowIfCancellationRequested();
         for (var i = 0; i < options.Count; i++) Console.WriteLine($"{i + 1}. {options[i]}");
-        Console.Write("Opción: ");
+        Console.Write(Messages.DisplayOption.ToString());
         var input = Console.ReadLine();
         cancellation.ThrowIfCancellationRequested();
         return Task.FromResult<int?>(input is null ? null : int.TryParse(input, out var value) && value > 0 && value <= options.Count ? value - 1 : -1);
@@ -69,18 +69,18 @@ public sealed class ModelSelectionMenu(HuggingFaceStore store, IRemoteGgufInspec
         var variants = discovered.Variants.Where(v => v.CompanionType == request.CompanionType &&
             (request.Quantization is null || v.Quantization.Equals(request.Quantization, StringComparison.OrdinalIgnoreCase))).ToArray();
         if (variants.Length == 0) interaction.Show(request.Quantization is null ?
-            "No se resolvieron GGUF seleccionables para la unidad solicitada; revisar los diagnósticos de exploración." : "Cuantización solicitada inexistente o no seleccionable según la exploración; " + Messages.PartialExploration + ". " + Messages.NotSubstituted + "");
+            Messages.ModelNoSelectableGgufResolved.ToString() : Messages.ModelRequestedQuantizationUnavailable.Format(Messages.PartialExploration, Messages.NotSubstituted));
         if (request.Quantization is not null && variants.Length == 1)
             return await ValidateSelection(variants[0]);
         if (!interaction.IsInteractive)
-            throw new ModelSourceException("interaction-required", "La selección necesita entrada interactiva; no se eligió ni creó trabajo.");
-        var options = variants.Select(v => Messages.DownloadVariant(v.Label)).Concat(["Mostrar README", "Cancelar"]).ToArray();
+            throw new ModelSourceException("interaction-required", Messages.ModelInteractiveSelectionRequired.ToString());
+        var options = variants.Select(v => Messages.DownloadVariant(v.Label)).Concat([Messages.ModelShowREADME.ToString(), Messages.LabelsCancel.ToString()]).ToArray();
         while (true)
         {
             cancellation.ThrowIfCancellationRequested();
             var choice = await interaction.ChooseAsync(options, cancellation);
             if (choice is null || choice == variants.Length + 1) return null;
-            if (choice < 0 || choice >= options.Length) { interaction.Show("Opción inválida."); continue; }
+            if (choice < 0 || choice >= options.Length) { interaction.Show(Messages.ModelInvalidOption.ToString()); continue; }
             if (choice == variants.Length)
             {
                 try { interaction.Show(await store.ReadmeAsync(revision, cancellation)); }
@@ -99,7 +99,7 @@ public sealed class ModelSelectionMenu(HuggingFaceStore store, IRemoteGgufInspec
                 await resolver.ValidateAsync(revision, new(selected.Files), interaction.Show, cancellation);
             var verified = ModelSelection.Variant(new(selected.Files), evidence);
             if (verified is null || request.Quantization is not null && !verified.Quantization.Equals(request.Quantization, StringComparison.OrdinalIgnoreCase) || verified.CompanionType != request.CompanionType)
-                throw new ModelSourceException("selection-conflict", string.Join("; ", evidence.Select(e => e.Diagnostic ?? "Rol/etiqueta cambió tras inspección.")));
+                throw new ModelSourceException("selection-conflict", string.Join("; ", evidence.Select(e => e.Diagnostic ?? Messages.ModelRoleOrLabelChangedAfterInspection.ToString())));
             // The consumer starts the action with this result; never ask for another confirmation.
             return new SelectedModel(verified.Name(revision.Repository), verified.CompanionType,
                 new(revision.Repository, revision.RequestedRevision, revision.Commit, selected.Files.Select(f => f.ToRemoteFile()).ToArray()));

@@ -87,7 +87,7 @@ internal static class ServerTests
             // Server views must resolve the same ownership/base rules as INI composition.
             foreach (var location in new[] { "relocated-models", Path.Combine(root, "absolute-models") })
             {
-                Check(new ModelDirectoryManager(home).Change(location, TextWriter.Null, () => "s", () => true), "move managed model to " + location);
+                Check(new ModelDirectoryManager(home).Change(location, TextWriter.Null, () => Messages.YesAnswer.ToString(), () => true), "move managed model to " + location);
                 var moved = store.Read(DocumentKind.Models, json.ModelsDocument, ContractValidation.Models)!.Models.Single();
                 var movedPath = new Coquena.Models.ModelPaths(home).File(moved, moved.Files[0]);
                 Check(manager.View(null).Diagnostics.Length == 0 && manager.List().Single(s => s.Server.Name == "default").Diagnostics.Length == 0,
@@ -98,7 +98,7 @@ internal static class ServerTests
                 Check(manager.View(null).Diagnostics.Any(d => d.Contains(Messages.MissingModelFile)), "relocated missing file diagnosed");
                 Reject(() => manager.Compose(null), "relocated missing file blocks composition");
                 File.Move(movedPath + ".absent", movedPath);
-                Check(new ModelDirectoryManager(home).Change(null, TextWriter.Null, () => "s", () => true), "return managed model to default");
+                Check(new ModelDirectoryManager(home).Change(null, TextWriter.Null, () => Messages.YesAnswer.ToString(), () => true), "return managed model to default");
             }
             var externalPath = Path.Combine(root, "external.gguf");
             File.WriteAllBytes(externalPath, ConfigurationTests.Fixture(null));
@@ -134,7 +134,7 @@ internal static class ServerTests
             manager.Compose(null, (b, ids) => { seen = b.Id == backend.Id && ids.SequenceEqual(new[] { chat.Id, code.Id }); return new("injected", [], []); });
             Check(seen, "injected composition receives full selection");
             config.Remove("code");
-            Check(manager.View(null).Diagnostics.Any(d => d.Contains(Messages.MissingPreset("").TrimEnd(' ', ':'))), "show missing preset");
+            Check(manager.View(null).Diagnostics.Any(d => d == Messages.ServerPresetMissingD.Format(code.Id)), "show missing preset");
             Reject(() => manager.Compose(null), "no omitted broken preset");
             File.Delete(path);
             manager.Presets(null, ["chat"], false);

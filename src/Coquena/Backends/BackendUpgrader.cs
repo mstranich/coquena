@@ -16,7 +16,7 @@ public sealed class BackendUpgrader(Home home, LocalStore? storage = null, Backe
         var actual = store.Read(DocumentKind.BackendUpdates, Json.BackendUpdatesDocument, ContractValidation.BackendUpdates)?.Updates
             .SingleOrDefault(o => o.Origin == expected.Origin && o.Variant == expected.Variant && o.Platform == expected.Platform);
         string Write(BackendUpdateObservation? o) => ContractJson.Write(new BackendUpdatesDocument(1, o is null ? [] : [o]), Json.BackendUpdatesDocument);
-        if (Write(actual) != Write(expected)) throw new DownloadException("stale-upgrade-plan", "La observación cambió; ejecutar update antes de reintentar.");
+        if (Write(actual) != Write(expected)) throw new DownloadException("stale-upgrade-plan", Messages.BackendObservationChanged.ToString());
     }
     public async Task<BackendUpgradeResult[]> UpgradeAsync(string? selector,
         Func<OperationDocument, CancellationToken, Task<bool>> run, Action<string>? report = null, CancellationToken cancellation = default)
@@ -27,13 +27,13 @@ public sealed class BackendUpgrader(Home home, LocalStore? storage = null, Backe
             var value = selector.StartsWith("oficial/", StringComparison.Ordinal) ? selector[8..] : selector.StartsWith("ggml/", StringComparison.Ordinal) ? selector[5..] : selector;
             var parts = value.Split(':');
             if (parts.Length != 2 || parts[1] != "latest" || !BackendCatalog.ValidFamily(parts[0]))
-                throw new BackendException("invalid-latest-selector", "Usar un selector oficial latest.");
+                throw new BackendException("invalid-latest-selector", Messages.BackendUseOfficialLatestSelector.ToString());
             variant = parts[0];
         }
         var snapshot = store.Inspect(() => (Records: Records().Where(b => b.Ownership == "managed" && b.Origin == "ggml" &&
             Coquena.Configuration.ParameterManager.Official(b.Repository) && b.TracksLatest && (variant is null || variant == b.Variant)).ToArray(),
             Updates: store.Read(DocumentKind.BackendUpdates, Json.BackendUpdatesDocument, ContractValidation.BackendUpdates)?.Updates ?? []));
-        if (selector is not null && snapshot.Records.Length == 0) throw new BackendException("latest-not-registered", "Seguimiento ausente.");
+        if (selector is not null && snapshot.Records.Length == 0) throw new BackendException("latest-not-registered", Messages.BackendTrackingMissing.ToString());
         var installer = consumer ?? new BackendInstaller(home, store, retentionReport: report);
         List<BackendUpgradeResult> results = [];
         foreach (var group in snapshot.Records.GroupBy(b => (b.Origin, b.Variant, b.Platform)).OrderBy(g => g.Key.Variant, StringComparer.Ordinal))
@@ -43,17 +43,17 @@ public sealed class BackendUpgrader(Home home, LocalStore? storage = null, Backe
             Guid? operationId = null;
             try
             {
-                if (group.Count() != 1) throw new BackendException("ambiguous-latest", "Seguimiento ambiguo.");
+                if (group.Count() != 1) throw new BackendException("ambiguous-latest", Messages.BackendAmbiguousTracking.ToString());
                 if (baseline.Platform != "win-x64" || !BackendCatalog.ValidFamily(baseline.Variant))
-                    throw new BackendException("invalid-tracking-filter", "Filtro fuera de las familias/plataforma oficiales.");
+                    throw new BackendException("invalid-tracking-filter", Messages.BackendFilterOutsideOfficial.ToString());
                 var observation = snapshot.Updates.SingleOrDefault(o => o.Origin == baseline.Origin && o.Variant == baseline.Variant && o.Platform == baseline.Platform);
                 if (observation is null || observation.BackendId != baseline.Id || observation.InstalledBuild != baseline.Build)
-                    throw new BackendException("update-required", "Ejecutar update para el build actual.");
+                    throw new BackendException("update-required", Messages.BackendRunUpdateForTheCurrentBuild.ToString());
                 if (observation.State == "unchanged") { results.Add(new(label, "unchanged")); continue; }
                 if (observation.Candidate is not { } candidate || observation.State != "available")
-                    throw new BackendException("update-required", "La consulta no tiene candidato aplicable.");
+                    throw new BackendException("update-required", Messages.BackendTheQueryHasNoApplicableCandidate.ToString());
                 if (BackendCatalog.BuildNumber(candidate.Build) <= BackendCatalog.BuildNumber(baseline.Build))
-                    throw new BackendException("invalid-upgrade", "El candidato debe ser posterior.");
+                    throw new BackendException("invalid-upgrade", Messages.BackendCandidateMustBeNewer.ToString());
                 var previousTarget = store.Inspect(() => Records().SingleOrDefault(b => b.Ownership == "managed" && b.Origin == baseline.Origin &&
                     b.Repository == baseline.Repository && b.Variant == baseline.Variant && b.Platform == baseline.Platform && b.Build == candidate.Build));
                 var targetPath = previousTarget is null ? null : new BackendPaths(home).Server(previousTarget);
@@ -67,18 +67,18 @@ public sealed class BackendUpgrader(Home home, LocalStore? storage = null, Backe
                     CheckObservation(store, observation);
                     var records = Records();
                     if (records.Any(b => b.RemovalPending && (b.Id == baseline.Id || b.Id == previousTarget?.Id)))
-                        throw new StorageException("removal-pending", "Reintente uninstall antes de upgrade.");
+                        throw new StorageException("removal-pending", Messages.BackendRetryUninstallBeforeUpgrade.ToString());
                     if (records.SingleOrDefault(b => b.Id == baseline.Id) != baseline || records.Count(b => b.TracksLatest && b.Origin == baseline.Origin &&
-                        b.Variant == baseline.Variant && b.Platform == baseline.Platform) != 1) throw new DownloadException("stale-latest-plan", "El seguimiento cambió.");
+                        b.Variant == baseline.Variant && b.Platform == baseline.Platform) != 1) throw new DownloadException("stale-latest-plan", Messages.BackendTrackingChanged.ToString());
                     if (new DownloadManager(home, store).SnapshotLocked().Any(o => o.BackendInstall?.Upgrade is { } u && u.Origin == baseline.Origin &&
                         u.Variant == baseline.Variant && u.Platform == baseline.Platform && o.State != "cancelled"))
-                        throw new DownloadException("upgrade-pending", "Reanudar o cancelar la operación existente.");
+                        throw new DownloadException("upgrade-pending", Messages.BackendResumeOrCancelTheExistingOperation.ToString());
                     if (previousTarget is not null)
                     {
-                        if (records.SingleOrDefault(b => b.Id == previousTarget.Id) != previousTarget) throw new DownloadException("stale-install-plan", "La instalación cambió.");
+                        if (records.SingleOrDefault(b => b.Id == previousTarget.Id) != previousTarget) throw new DownloadException("stale-install-plan", Messages.BackendInstallationChanged.ToString());
                         var currentFile = new FileInfo(targetPath!);
                         if (!currentFile.Exists || currentFile.Length != targetLength || currentFile.LastWriteTimeUtc != targetWrite)
-                            throw new DownloadException("version-changed", "El ejecutable cambió durante la validación.");
+                            throw new DownloadException("version-changed", Messages.BackendExecutableChangedDuringValidation.ToString());
                         BackendPaths.CheckTree(new BackendPaths(home).Slot(previousTarget));
                         store.UpdateLocked(DocumentKind.Backends, Json.BackendsDocument, ContractValidation.Backends,
                             old => old! with { Backends = old.Backends.Select(b => b.Id == previousTarget.Id ? b with { TracksLatest = true } :
@@ -91,7 +91,7 @@ public sealed class BackendUpgrader(Home home, LocalStore? storage = null, Backe
                 });
                 if (operation is null)
                 {
-                    report?.Invoke($"{label}: reutilizado {candidate.Build}; pin e instancias conservados.");
+                    report?.Invoke(Messages.BackendReusedPinAndInstancesPreserved.Format(label, candidate.Build));
                     results.Add(new(label, "reused"));
                 }
                 else

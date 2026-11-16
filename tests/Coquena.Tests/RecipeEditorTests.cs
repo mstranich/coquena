@@ -20,7 +20,7 @@ internal static class RecipeEditorTests
             var home = new Home(Path.Combine(root, "home"));
             var source = new DashboardCli.DefinitionsSource(home, folder);
             var place = source.Places().Single(item => item.Scope.Here);
-            check(place.Context is null && place.Folder == folder && DefinitionsPresentation.Views(place.Scope).SequenceEqual(["Receta"]),
+            check(!place.Scope.HasRecipe && place.Folder == folder && DefinitionsPresentation.Views(place.Scope).SequenceEqual(["recipe", "maintenance"]),
                 "a folder without recipe keeps its path for Inicializar");
             check(DefinitionsPresentation.NoRecipe("nuevo").Rows.SelectMany(Markup.Parse).Any(span => span.Action == "init"), "J enables Inicializar");
             check(InitCli.Run([folder], TextWriter.Null, TextWriter.Null) == 0 && File.ReadAllText(Path.Combine(folder, "coquena.yaml")) == InitCli.SchemaComment + "\n" &&

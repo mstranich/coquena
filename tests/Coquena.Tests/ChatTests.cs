@@ -65,7 +65,7 @@ internal static class ChatTests
         var slow = new ChatSession(waitingClient, new Uri("http://127.0.0.1:9931"), "x/y");
         using var cancel = new CancellationTokenSource(TimeSpan.FromMilliseconds(100));
         await slow.SendAsync("hola", () => { }, cancel.Token);
-        check(slow.Turns[^1] is { Phase: ChatPhase.Cancelled } cancelled && cancelled.Problem!.Contains("no confirmó", StringComparison.Ordinal),
+        check(slow.Turns[^1] is { Phase: ChatPhase.Cancelled } cancelled && cancelled.Problem!.Contains(Messages.ChatClientClosed.ToString(), StringComparison.Ordinal),
             "cancelling closes this request without claiming that the backend stopped");
         check(slow.Request()["messages"]!.AsArray().Count == 1, "an interrupted answer without text is not sent as context");
 
@@ -73,21 +73,21 @@ internal static class ChatTests
         var width = 80 - LivePresentation.TreeWidth - 1;
         var metrics = ChatPresentation.Metrics(answer);
         check(metrics.All(row => Markup.Width(row) <= width), "both metric rows fit the right column");
-        check(Markup.Plain(metrics[0]).Contains("✓ FIN") && Markup.Plain(metrics[0]).Contains("caché 79%") &&
-            Markup.Plain(metrics[1]).Contains("acept. 67%") && Markup.Plain(metrics[1]).Contains("2 tk"),
+        check(Markup.Plain(metrics[0]).Contains(Messages.ChatDoneUpper.ToString()) && Markup.Plain(metrics[0]).Contains(Messages.ChatCache + " 79%") &&
+            Markup.Plain(metrics[1]).Contains(Messages.ChatAccepted + " 67%") && Markup.Plain(metrics[1]).Contains("2 tk"),
             "metrics show phase, cache reuse of the request and speculative acceptance with its own counts");
         var empty = ChatPresentation.Metrics(null);
-        check(Markup.Plain(empty[0]).Contains("SIN PETICIÓN") && Markup.Plain(empty[1]).Contains("acept. —"), "absent metrics show «—» instead of zeros");
+        check(Markup.Plain(empty[0]).Contains(Messages.ChatNoRequestUpper.ToString()) && Markup.Plain(empty[1]).Contains(Messages.ChatAccepted + " —"), "absent metrics show «—» instead of zeros");
         var history = ChatPresentation.History(session.Turns.Count == 0 ? broken.Turns : session.Turns, width);
         check(history.All(row => Markup.Width(row) <= width) && Markup.Plain(history[^1]).Contains("model not found"), "history rows wrap to the column and keep errors");
         check(Markup.Width(ChatPresentation.Selector("principal", "código/asistente", "gemma-4-12B Q4_0", null)) <= width &&
             Markup.Parse(ChatPresentation.Selector(null, null, null, null)).Any(span => span.Action == "target"),
             "the selector is a button with service › preset");
         var actions = Markup.Fit(ChatPresentation.Actions(true, true, true), width);
-        check(Markup.Width(actions) == width && Markup.Plain(actions).Contains("■ Detener") && !Markup.Plain(actions).Contains("Ir a En vivo"),
+        check(Markup.Width(actions) == width && Markup.Plain(actions).Contains(Messages.ChatStop.ToString().Trim()) && !Markup.Parse(actions).Any(span => span.Action == "live"),
             "while answering, Enviar becomes Detener; there is no Ir a En vivo");
         var tabs = Markup.Fit(LivePresentation.Tabs(5, 1, 2, "⇣ 1 · 68%"), 80);
-        check(Markup.Width(tabs) == 80 && Markup.Parse(tabs).Any(span => span.Class == "sel" && span.Action == "tab5" && span.Text == " Herramientas "),
+        check(Markup.Width(tabs) == 80 && Markup.Parse(tabs).Any(span => span.Class == "sel" && span.Action == "tab5" && span.Text == " " + Messages.LabelsTools + " "),
             "Herramientas is a tab and fits the top bar with both indicators");
     }
 

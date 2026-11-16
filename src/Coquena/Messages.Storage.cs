@@ -1,0 +1,58 @@
+namespace Coquena;
+
+public static partial class Messages
+{
+    public static readonly Text StorageTargetDoesNotBelongToThePublished = new("Target does not belong to the published catalog.");
+    public static readonly Text StorageInvalidMove = new("Invalid move.");
+    public static readonly Text StorageInvalidMoveDirectories = new("Invalid move directories.");
+    public static readonly Text StorageFileOutsideTheMove = new("File outside the move.");
+    public static readonly Text StorageDirectoryOutsideTheMove = new("Directory outside the move.");
+    public static readonly Text StorageMoveExceedsMiB = new("Move exceeds 16 MiB.");
+    public static readonly Text StorageMovePendingRecovery = new("Move pending recovery.");
+    public static readonly Text StorageModifiedDuringMove = new("Catalog or configuration modified during a pending move.");
+    public static readonly Text StorageSourceModified = new("Source modified: {0}");
+    public static readonly Text StorageUnauthorizedCollision = new("New or modified collision without authorization: {0}");
+    public static readonly Text StorageCopyUnverified = new("Copy unverified.");
+    public static readonly Text StorageCollisionModified = new("Collision modified: {0}");
+    public static readonly Text StorageFilesModifiedBeforePublish = new("Files modified before publishing; sources preserved.");
+    public static readonly Text StorageSourceChangedNotDeleted = new("Source changed; not deleted: {0}");
+    public static readonly Text StorageTargetModifiedSourcePreserved = new("Target modified; source preserved: {0}");
+    public static readonly Text StorageLocationPublishedCleanupPending = new("Location published; checkpoint or cleanup pending. The next write command retries recovery.");
+    public static readonly Text StorageMoveInterruptedPreserved = new("Move interrupted; previous catalog, configuration and sources preserved. The next write command retries the verified copy.");
+    public static readonly Text StorageReadOnlyFileNoResourcesMoved = new("Read-only file: {0}; no resources moved.");
+    public static readonly Text StorageCOQUENAHOMEMustBeANonEmpty = new("COQUENA_HOME must be a non-empty absolute path.");
+    public static readonly Text StorageUserProfileNotAbsolute = new("USERPROFILE does not provide an absolute directory.");
+    public static readonly Text StoragePathOutsideTheManagedAreaOrInvalid = new("Path outside the managed area or invalid name.");
+    public static readonly Text StorageLinksOrReparsePointsAreNotAllowed = new("Links or reparse points are not allowed in managed storage.");
+    public static readonly Text StorageDocumentExceedsMiB = new("Document exceeds 16 MiB.");
+    public static readonly Text StorageDocumentModifiedExternally = new("Document modified outside Coquena exclusion; not replaced.");
+    public static readonly Text StorageStatePublishedIncomplete = new("State published; subsequent recording incomplete. Read again before retrying; do not revert automatically.");
+    public static readonly Text StorageDocumentGuidMismatch = new("Document GUID does not match operation directory.");
+    public static readonly Text StorageTransferCheckpointRequired = new("Transfer checkpoint required.");
+    public static readonly Text StorageOperationBelongsToAnotherScopeIdentity = new("Operation belongs to another scope identity.");
+    public static readonly Text StorageTransferCheckpointMissing = new("Transfer checkpoint missing.");
+    public static readonly Text StorageInvalidCheckpointPreserved = new("Invalid checkpoint; preserved.");
+    public static readonly Text StorageTransferScopeIdentityChanged = new("Transfer scope identity changed.");
+    public static readonly Text StorageThisStoreOnlyKeepsScopedCheckpoints = new("This store only keeps scoped checkpoints.");
+    public static readonly Text StorageOperationGUIDRequired = new("Operation GUID required.");
+    public static readonly Text StorageServerMustBeASingleSafeSegment = new("Server must be a single safe segment.");
+    public static readonly Text StorageDocumentChangedWhileReading = new("Document changed while reading.");
+    public static readonly Text StorageInvalidUTF = new("Invalid UTF-8.");
+    public static readonly Text StorageAnotherWriterKeepsHomeBusySLimit = new("Another writer keeps home busy (3 s limit).");
+    public static readonly Text StorageJsonlInterrupted = new("JSONL interrupted; no events appended to a partial line.");
+    public static readonly Text StorageInvalidJSONLEvent = new("Invalid JSONL event.");
+    public static readonly Text StorageFileModifiedSourcePreserved = new("File modified; source preserved: {0}");
+    public static readonly Text StorageInvalidParameterTransaction = new("Invalid parameter transaction.");
+    public static readonly Text StorageTransactionExceedsMiB = new("Transaction exceeds 16 MiB.");
+    public static readonly Text StorageThereIsAPendingTransaction = new("There is a pending transaction.");
+    public static readonly Text StorageEditCascadeReadAgain = new("Edit and cascade published together; read again before retrying. Checkpoint or audit pending.");
+    public static readonly Text StorageInvalidServerRemovalTransaction = new("Invalid server removal transaction.");
+    public static readonly Text StorageDefaultRemovalMustClearItsDesignation = new("Default removal must clear its designation.");
+    public static readonly Text StorageThereIsAPendingServerRemoval = new("There is a pending server removal.");
+    public static readonly Text StorageRemovalDesignationReadAgain = new("Removal and designation published together; read again before retrying. Checkpoint or audit pending.");
+    public static readonly Text StoragePublicationByIdentityRequiresWindows = new("Publication by identity requires Windows.");
+    public static readonly Text StorageFileIdentityUnverified = new("Could not verify file identity; publication unconfirmed.");
+    public static readonly Text StorageInsufficientAccessDetail = new("Insufficient access to {0} {1}: {2}");
+    public static readonly Text StorageActionOverwrite = new("overwrite");
+    public static readonly Text StorageActionRemove = new("remove");
+}

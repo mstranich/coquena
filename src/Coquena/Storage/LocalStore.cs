@@ -88,7 +88,7 @@ public sealed partial class LocalStore
             new JsonObject { ["operation-id"] = operation!.Value.ToString("D"), ["scope-id"] = scopeId,
                 ["transfer"] = JsonNode.Parse(json) })) : Encoding.UTF8.GetBytes(json);
         if (bytes.Length > MaxDocumentBytes)
-            throw new StorageException("document-too-large", "Documento supera 16 MiB.");
+            throw new StorageException("document-too-large", Messages.StorageDocumentExceedsMiB.ToString());
         cancellation.ThrowIfCancellationRequested();
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         if (kind == DocumentKind.Operation)
@@ -108,7 +108,7 @@ public sealed partial class LocalStore
             home.CheckPath(path);
             var observed = ReadBytes(path);
             if (!(original is null ? observed is null : observed is not null && original.AsSpan().SequenceEqual(observed)))
-                throw new StorageException("stale-document", "Documento modificado fuera de la exclusión de Coquena; no se reemplazó.");
+                throw new StorageException("stale-document", Messages.StorageDocumentModifiedExternally.ToString());
             if (original is null) File.Move(temporary, path);
             else
             {
@@ -137,7 +137,7 @@ public sealed partial class LocalStore
         catch (Exception error) when (published)
         {
             throw new StorageException("published-incomplete-audit",
-                "Estado publicado; registro posterior incompleto. Releer antes de reintentar, no revertir automáticamente.", true, error);
+                Messages.StorageStatePublishedIncomplete.ToString(), true, error);
         }
         finally
         {
@@ -151,24 +151,24 @@ public sealed partial class LocalStore
     private static void CheckRecord<T>(T value, Guid? operation)
     {
         if (value is OperationDocument document && document.Id != operation)
-            throw new StorageException("operation-id-mismatch", "GUID del documento no corresponde al directorio de operación.");
+            throw new StorageException("operation-id-mismatch", Messages.StorageDocumentGuidMismatch.ToString());
     }
 
     private string Decode(byte[] bytes, DocumentKind kind)
     {
         if (!IsScoped) return Encoding.UTF8.GetString(bytes);
-        if (kind != DocumentKind.Operation) throw new StorageException("scoped-transfer-only", "Se requiere checkpoint de transferencia.");
+        if (kind != DocumentKind.Operation) throw new StorageException("scoped-transfer-only", Messages.StorageTransferCheckpointRequired.ToString());
         try
         {
             var data = ProjectDocuments.Read(bytes, "operation")["data"]!;
             if (new ScopeStore(home.Scope!).Read().ScopeId != scopeId || data["scope-id"]?.GetValue<string>() != scopeId)
-                throw new StorageException("transfer-scope-conflict", "La operación pertenece a otra identidad de ámbito.");
-            if (data["transfer"] is not JsonObject transfer) throw new StorageException("invalid-project-document", "Falta checkpoint de transferencia.");
+                throw new StorageException("transfer-scope-conflict", Messages.StorageOperationBelongsToAnotherScopeIdentity.ToString());
+            if (data["transfer"] is not JsonObject transfer) throw new StorageException("invalid-project-document", Messages.StorageTransferCheckpointMissing.ToString());
             if (transfer["id"]?.GetValue<string>() != data["operation-id"]?.GetValue<string>()) ProjectDocuments.Invalid();
             return transfer.ToJsonString();
         }
         catch (InvalidOperationException e)
-        { throw new StorageException("invalid-project-document", "Checkpoint inválido; se conserva.", inner: e); }
+        { throw new StorageException("invalid-project-document", Messages.StorageInvalidCheckpointPreserved.ToString(), inner: e); }
     }
 
     private void Recover()
@@ -176,7 +176,7 @@ public sealed partial class LocalStore
         if (IsScoped)
         {
             if (new ScopeStore(home.Scope!).Read().ScopeId != scopeId)
-                throw new StorageException("transfer-scope-conflict", "Cambió la identidad del ámbito de transferencia.");
+                throw new StorageException("transfer-scope-conflict", Messages.StorageTransferScopeIdentityChanged.ToString());
             return;
         }
         RecoverServerRemovalTransaction();
@@ -188,16 +188,16 @@ public sealed partial class LocalStore
     private string Location(DocumentKind kind, string? server, Guid? operation)
     {
         if (IsScoped && kind != DocumentKind.Operation)
-            throw new StorageException("scoped-transfer-only", "Este almacén sólo conserva checkpoints del ámbito.");
+            throw new StorageException("scoped-transfer-only", Messages.StorageThisStoreOnlyKeepsScopedCheckpoints.ToString());
         if (kind == DocumentKind.Operation)
         {
-            if (operation is null || operation == Guid.Empty) throw new ArgumentException("GUID de operación requerido.");
+            if (operation is null || operation == Guid.Empty) throw new ArgumentException(Messages.StorageOperationGUIDRequired.ToString());
             return home.PathFor($"downloads/{operation:D}/operation.json");
         }
         if (kind is DocumentKind.Instance or DocumentKind.LastLog)
         {
             if (string.IsNullOrWhiteSpace(server) || server.IndexOfAny(['/', '\\']) >= 0)
-                throw new StorageException("unsafe-path", "Servidor debe ser un solo segmento seguro.");
+                throw new StorageException("unsafe-path", Messages.StorageServerMustBeASingleSafeSegment.ToString());
             return home.PathFor($"run/{server}/{(kind == DocumentKind.Instance ? "instance" : "last-log")}.json");
         }
         return home.PathFor(kind switch
@@ -217,10 +217,10 @@ public sealed partial class LocalStore
         {
             using var stream = new FileStream(path, FileMode.Open, FileAccess.Read,
                 FileShare.ReadWrite | FileShare.Delete);
-            if (stream.Length > MaxDocumentBytes) throw new StorageException("document-too-large", "Documento supera 16 MiB.");
+            if (stream.Length > MaxDocumentBytes) throw new StorageException("document-too-large", Messages.StorageDocumentExceedsMiB.ToString());
             var bytes = new byte[checked((int)stream.Length)];
             stream.ReadExactly(bytes);
-            if (stream.ReadByte() != -1) throw new StorageException("stale-document", "Documento cambió durante lectura.");
+            if (stream.ReadByte() != -1) throw new StorageException("stale-document", Messages.StorageDocumentChangedWhileReading.ToString());
             // Throw on invalid UTF-8 instead of accepting replacement characters.
             _ = new UTF8Encoding(false, true).GetString(bytes);
             return bytes;
@@ -228,7 +228,7 @@ public sealed partial class LocalStore
         catch (FileNotFoundException) { return null; }
         catch (DirectoryNotFoundException) { return null; }
         catch (DecoderFallbackException error)
-        { throw new StorageException("invalid-document", "UTF-8 inválido.", inner: error); }
+        { throw new StorageException("invalid-document", Messages.StorageInvalidUTF.ToString(), inner: error); }
     }
 
     private FileStream Acquire(CancellationToken cancellation)
@@ -242,7 +242,7 @@ public sealed partial class LocalStore
             catch (IOException error) when ((error.HResult & 0xffff) is 32 or 33)
             {
                 if (watch.ElapsedMilliseconds >= 3000)
-                    throw new StorageException("writer-busy", "Otro escritor mantiene el home ocupado (límite 3 s).", inner: error);
+                    throw new StorageException("writer-busy", Messages.StorageAnotherWriterKeepsHomeBusySLimit.ToString(), inner: error);
                 cancellation.WaitHandle.WaitOne(25);
             }
         }
@@ -285,13 +285,13 @@ public sealed partial class LocalStore
         {
             var existing = File.ReadAllBytes(path); // bounded above by rotation
             if (existing.Length > 0 && existing[^1] != (byte)'\n')
-                throw new StorageException("invalid-journal", "JSONL interrumpido; no se agregaron eventos a una línea parcial.");
+                throw new StorageException("invalid-journal", Messages.StorageJsonlInterrupted.ToString());
             var text = new UTF8Encoding(false, true).GetString(existing);
             foreach (var line in text.Split('\n', StringSplitOptions.RemoveEmptyEntries))
             {
                 using var parsed = JsonDocument.Parse(line);
                 if (parsed.RootElement.ValueKind != JsonValueKind.Object)
-                    throw new StorageException("invalid-journal", "Evento JSONL inválido.");
+                    throw new StorageException("invalid-journal", Messages.StorageInvalidJSONLEvent.ToString());
             }
         }
         using var stream = new FileStream(path, FileMode.Append, FileAccess.Write, FileShare.Read);

@@ -30,15 +30,15 @@ public sealed class ModelDirectoryManager(Home home, LocalStore? storage = null,
         ValidateLocation(location);
         var overview = store.Inspect(() => (Config(), Models()));
         var target = paths.Root(location);
-        output.WriteLine($"Destino: {target} | {(location is null ? "default" : "propio")}");
+        output.WriteLine(Messages.DirectoryTarget.Format(target, Messages.OwnOrDefault(location is not null)));
         foreach (var model in overview.Item2.Models.Where(m => m.Ownership == "managed"))
             foreach (var file in model.Files)
                 output.WriteLine($"{model.Id:D} | {model.Name} | {paths.File(model, file)} -> {paths.Resolve(location, $"models/{model.Selection!.Repository}/{file.RemotePath}")}");
-        output.WriteLine("¿Trasladar todos los directorios gestionados? [s] trasladar / [n] conservar en origen / [c] cancelar");
+        output.WriteLine(Messages.DirectoryMoveQuestion);
         var answer = choice()?.Trim().ToLowerInvariant();
-        if (answer is not ("s" or "si" or "sí" or "n" or "no"))
-        { output.WriteLine("Cancelado; ubicación y archivos conservados."); return false; }
-        var move = answer is "s" or "si" or "sí";
+        if (!Messages.IsYes(answer) && !Messages.IsNo(answer))
+        { output.WriteLine(Messages.DirectoryCancelled); return false; }
+        var move = Messages.IsYes(answer);
         if (!move)
         {
             return store.Exclusive(() =>
@@ -47,18 +47,18 @@ public sealed class ModelDirectoryManager(Home home, LocalStore? storage = null,
                 EnsureWritable(target);
                 store.UpdateLocked(DocumentKind.Config, Json.ConfigDocument, ContractValidation.Config,
                     old => (old ?? new(1, null, null, new(5))) with { ModelsDirectory = location });
-                output.WriteLine("Ubicación actualizada; instalaciones existentes conservadas en origen.");
+                output.WriteLine(Messages.DirectoryLocationUpdated);
                 return true;
             });
         }
         var plan = store.Inspect(() => Plan(location));
         if (Snapshot(Config(), Models()) != Snapshot(overview.Item1, overview.Item2)) Stale();
         var collisions = plan.Files.Where(f => f.PreviousHash is not null).ToArray();
-        foreach (var f in collisions) output.WriteLine($"Colisión: {f.Source} -> {f.Destination}");
+        foreach (var f in collisions) output.WriteLine(Messages.DirectoryCollision.Format(f.Source, f.Destination));
         if (collisions.Length > 0)
         {
             output.WriteLine(Messages.MergeOverwrite(collisions.Length));
-            if (!overwrite()) { output.WriteLine("Cancelado; ubicación y archivos conservados."); return false; }
+            if (!overwrite()) { output.WriteLine(Messages.DirectoryCancelled); return false; }
         }
         return store.Exclusive(() =>
         {
@@ -67,7 +67,7 @@ public sealed class ModelDirectoryManager(Home home, LocalStore? storage = null,
             EnsureWritable(target);
             CheckAccess(plan);
             store.CommitModelDirectoryLocked(plan, fault);
-            output.WriteLine("Ubicación y directorios gestionados actualizados; identidades y referencias conservadas.");
+            output.WriteLine(Messages.DirectoryMoved);
             return true;
         });
     }
@@ -81,7 +81,7 @@ public sealed class ModelDirectoryManager(Home home, LocalStore? storage = null,
         if (moves.Select(m => m.Source).Distinct(StringComparer.OrdinalIgnoreCase).Count() != moves.Length ||
             moves.Select(m => m.Destination).Distinct(StringComparer.OrdinalIgnoreCase).Count() != moves.Length ||
             moves.Any(m => moves.Any(n => m.Source.Equals(n.Destination, StringComparison.OrdinalIgnoreCase))))
-            throw new ConfigurationException("Archivos de unidades superpuestos; no se trasladaron.");
+            throw new ConfigurationException(Messages.DirectoryUnitsOverlap);
         CheckUsage(catalog, moves);
         var directories = new List<string>(); var files = new List<ModelDirectoryFile>();
         var destinations = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -90,13 +90,13 @@ public sealed class ModelDirectoryManager(Home home, LocalStore? storage = null,
             directories.Add(Path.GetDirectoryName(m.Destination)!);
             Home.CheckLinks(m.Source); Home.CheckLinks(m.Destination);
             if (!destinations.Add(m.Destination) || Directory.Exists(m.Destination))
-                throw new ConfigurationException($"Colision estructural en {m.Destination}.");
+                throw new ConfigurationException(Messages.DirectoryModelCollision.Format(m.Destination));
             files.Add(new(m.Source, m.Destination, Hash(m.Source), File.Exists(m.Destination) ? Hash(m.Destination) : null));
         }
         foreach (var d in directories) ValidateDestination(d);
         if (moves.Any(move => catalog.Models.Where(m => m.Ownership == "external").Any(m => m.Files.Any(f =>
             move.Source.Equals(paths.File(m, f), StringComparison.OrdinalIgnoreCase) || move.Destination.Equals(paths.File(m, f), StringComparison.OrdinalIgnoreCase)))))
-            throw new ConfigurationException("El traslado afecta rutas externas registradas.");
+            throw new ConfigurationException(Messages.DirectoryExternalPaths);
         var next = catalog with { Models = catalog.Models.Select(model => model.Ownership == "external" ? model : model with {
             InstallationDirectory = location ?? "models",
             Files = model.Files.Select(file => file with { LocalPath = $"{model.Selection!.Repository}/{file.RemotePath}" }).ToArray()
@@ -121,9 +121,9 @@ public sealed class ModelDirectoryManager(Home home, LocalStore? storage = null,
             try
             {
                 using var handle = WindowsServerProcess.Verified(instance, out var ended);
-                if (!ended) blockers.Add($"modelos {string.Join(",", instance.ResourceIds)}, instancia {instance.InstanceId:D}, PID {instance.Pid}");
+                if (!ended) blockers.Add(Messages.DirectoryBlockerModelInstance.Format(string.Join(",", instance.ResourceIds), instance.InstanceId.ToString("D"), instance.Pid));
             }
-            catch (ConfigurationException) { blockers.Add($"identidad incierta: modelos {string.Join(",", instance.ResourceIds)}, instancia {instance.InstanceId:D}"); }
+            catch (ConfigurationException) { blockers.Add(Messages.DirectoryBlockerModelUncertain.Format(string.Join(",", instance.ResourceIds), instance.InstanceId.ToString("D"))); }
         }
         // Read raw operations: inspection must not recover or mutate downloads.
         var downloads = home.PathFor("downloads");
@@ -131,36 +131,36 @@ public sealed class ModelDirectoryManager(Home home, LocalStore? storage = null,
         {
             Home.CheckLinks(area);
             if (!Guid.TryParseExact(Path.GetFileName(area), "D", out var id))
-                throw new ConfigurationException("Directorio de descarga no reconocido; no se puede asegurar el traslado.");
+                throw new ConfigurationException(Messages.DirectoryUnknownDownload);
             var op = store.Read(DocumentKind.Operation, Json.OperationDocument, ContractValidation.Operation, operation: id);
-            if (op?.ResourceKind is "model" or "companion") blockers.Add($"descarga pendiente {op.Id:D}: {op.Name} ({op.State}/{op.Phase})");
+            if (op?.ResourceKind is "model" or "companion") blockers.Add(Messages.DirectoryBlockerPendingDownload.Format(op.Id.ToString("D"), op.Name, op.State, op.Phase));
             else if (op?.Files.Any(f => Affected(op.ResourceKind == "backend" ? new BackendPaths(home).Resolve(op.BackendInstall?.InstallationDirectory, f.DestinationPath) : paths.Destination(op, f))) == true)
-                blockers.Add($"descarga en destino {op.Id:D}: {op.Name}");
+                blockers.Add(Messages.DirectoryBlockerTargetDownload.Format(op.Id.ToString("D"), op.Name));
         }
         var backends = store.Read(DocumentKind.Backends, Json.BackendsDocument, ContractValidation.Backends)?.Backends ?? [];
         foreach (var backend in backends.Where(b => Affected(new BackendPaths(home).Server(b))))
-            blockers.Add($"backend protegido {backend.Id:D}");
-        if (blockers.Count > 0) throw new ConfigurationException("Traslado completo bloqueado:\n" + string.Join('\n', blockers));
+            blockers.Add(Messages.DirectoryBlockerBackend.Format(backend.Id.ToString("D")));
+        if (blockers.Count > 0) throw new ConfigurationException(Messages.DisplayCompleteMoveBlocked.Format(string.Join('\n', blockers)));
     }
 
     private void ValidateLocation(string? location)
     {
         if (location is not null && (string.IsNullOrWhiteSpace(location) ||
             Path.IsPathRooted(location) && !Path.IsPathFullyQualified(location)))
-            throw new ConfigurationException("La ubicación debe ser absoluta o relativa al home, sin raíz parcial.");
+            throw new ConfigurationException(Messages.DirectoryLocationForm);
         var target = paths.Root(location);
         foreach (var area in new[] { "catalogs", "downloads", "run", "logs", "backends" })
             if (BackendPaths.Within(target, home.PathFor(area)))
-                throw new ConfigurationException("El destino invade otra área gestionada del home.");
+                throw new ConfigurationException(Messages.DirectoryInvadesHome);
         if (target.Equals(home.Root, StringComparison.OrdinalIgnoreCase))
-            throw new ConfigurationException("El directorio de modelos no puede ser el home completo.");
+            throw new ConfigurationException(Messages.DirectoryModelsHome);
         ValidateDestination(target);
     }
     private static void ValidateDestination(string target)
     {
         Home.CheckLinks(target);
         for (string? p = target; p is not null; p = Path.GetDirectoryName(p))
-            if (File.Exists(p)) throw new ConfigurationException($"El destino o un antecesor es un archivo: {p}.");
+            if (File.Exists(p)) throw new ConfigurationException(Messages.DirectoryTargetIsFile.Format(p));
     }
     internal static void EnsureWritable(string target)
     {
@@ -187,5 +187,5 @@ public sealed class ModelDirectoryManager(Home home, LocalStore? storage = null,
     }
     private static string Snapshot(ConfigDocument config, ModelsDocument catalog) =>
         ContractJson.Write(config, Json.ConfigDocument) + "\n" + ContractJson.Write(catalog, Json.ModelsDocument);
-    private static void Stale() => throw new ConfigurationException("El catálogo, la configuración o los archivos cambiaron durante la elección; repetir el comando para revisar el nuevo informe.");
+    private static void Stale() => throw new ConfigurationException(Messages.DirectoryStale);
 }

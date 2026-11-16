@@ -24,7 +24,7 @@ public sealed class ResourceRemoval(Home home, LocalStore? storage = null)
             .Where(m => m.RemovalPending).Select(m => m.Id)
             .Concat((store.Read(DocumentKind.Backends, Json.BackendsDocument, ContractValidation.Backends)?.Backends ?? [])
                 .Where(b => b.RemovalPending).Select(b => b.Id));
-        if (pending.Any(ids.Contains)) throw new Coquena.Configuration.ConfigurationException("Retirada parcial pendiente; reintente remove/uninstall antes de utilizar el recurso.");
+        if (pending.Any(ids.Contains)) throw new Coquena.Configuration.ConfigurationException(Messages.RemovalPartialPending);
     }
 
     private void CheckUse(Guid id, bool backend)
@@ -44,24 +44,24 @@ public sealed class ResourceRemoval(Home home, LocalStore? storage = null)
             }
             catch (Coquena.Configuration.ConfigurationException) { blockers.Add(instance.InstanceId + " (" + Messages.UncertainIdentity + ")"); }
         }
-        if (blockers.Count != 0) throw new StorageException("resource-in-use", "Detener antes estas instancias: " + string.Join(", ", blockers));
+        if (blockers.Count != 0) throw new StorageException("resource-in-use", Messages.RemovalStopInstances.Format(string.Join(", ", blockers)));
         var operations = new DownloadManager(home, store).SnapshotLocked().Where(o => backend
             ? o.BackendInstall is { } b && (b.BackendId == id || b.PreviousLatest?.Id == id || b.Previous?.Id == id)
             : o.ModelInstall is { } m && (m.ModelId == id || m.Previous?.Id == id || m.ExternalPrevious?.Id == id)).ToArray();
-        if (operations.Length != 0) throw new StorageException("operation-pending", "Reanudar o cancelar antes estas operaciones: " + string.Join(", ", operations.Select(o => o.Id)));
+        if (operations.Length != 0) throw new StorageException("operation-pending", Messages.RemovalOperationsPending.Format(string.Join(", ", operations.Select(o => o.Id))));
     }
 
     public RemovalResult Model(string name, bool companion = false) => store.Exclusive(() =>
     {
         var all = Models();
         var record = all.Models.SingleOrDefault(m => m.Name.Equals(name, StringComparison.OrdinalIgnoreCase) && (m.CompanionType is not null) == companion)
-            ?? throw new StorageException("resource-not-found", "Unidad no registrada en el ámbito solicitado.");
+            ?? throw new StorageException("resource-not-found", Messages.RemovalUnitNotRegistered);
         CheckUse(record.Id, false);
         if (record.Ownership == "external") { ForgetModel(record.Id); return new RemovalResult(true, true, 0, [], []); }
         var paths = new ModelPaths(home);
         var files = record.Files.Select(f => paths.File(record, f)).ToArray();
         var otherFiles = all.Models.Where(m => m.Id != record.Id).SelectMany(m => m.Files.Select(f => paths.File(m, f))).ToArray();
-        if (files.Intersect(otherFiles, StringComparer.OrdinalIgnoreCase).Any()) throw new StorageException("ownership-conflict", "Archivo referenciado por otra unidad; no se borró.");
+        if (files.Intersect(otherFiles, StringComparer.OrdinalIgnoreCase).Any()) throw new StorageException("ownership-conflict", Messages.RemovalFileShared);
         store.UpdateLocked(DocumentKind.Models, Json.ModelsDocument, ContractValidation.Models,
             old => old! with { Models = old.Models.Select(m => m.Id == record.Id ? m with { RemovalPending = true } : m).ToArray() });
         var result = Delete(files, paths.Root(record.InstallationDirectory));
@@ -75,15 +75,15 @@ public sealed class ResourceRemoval(Home home, LocalStore? storage = null)
     public RemovalResult Backend(Guid id) => store.Exclusive(() =>
     {
         var all = Backends();
-        var record = all.Backends.SingleOrDefault(b => b.Id == id) ?? throw new StorageException("resource-not-found", "Backend no registrado.");
+        var record = all.Backends.SingleOrDefault(b => b.Id == id) ?? throw new StorageException("resource-not-found", Messages.RemovalBackendNotRegistered);
         CheckUse(id, true);
         if (record.Ownership == "external") { ForgetBackend(id); return new RemovalResult(true, true, 0, [], []); }
         var paths = new BackendPaths(home); var slot = paths.Slot(record);
-        if (record.OwnedFiles is not { Length: > 0 }) throw new StorageException("invalid-ownership", "Inventario de instalación requerido.");
+        if (record.OwnedFiles is not { Length: > 0 }) throw new StorageException("invalid-ownership", Messages.RemovalInventoryRequired);
         var slotHome = new Home(slot);
         var files = record.OwnedFiles.Select(slotHome.PathFor).ToArray();
         if (all.Backends.Any(b => b.Id != id && BackendPaths.Within(paths.Server(b), slot)))
-            throw new StorageException("ownership-conflict", "Directorio referenciado por otro backend; no se borró.");
+            throw new StorageException("ownership-conflict", Messages.RemovalDirectoryShared);
         store.UpdateLocked(DocumentKind.Backends, Json.BackendsDocument, ContractValidation.Backends,
             old => old! with { Backends = old.Backends.Select(b => b.Id == id ? b with { RemovalPending = true } : b).ToArray() });
         var result = Delete(files, paths.Root(record.InstallationDirectory));
@@ -101,7 +101,7 @@ public sealed class ResourceRemoval(Home home, LocalStore? storage = null)
         {
             // Preserve this attempt's byte/file report even if the final catalog write fails.
             if (!remains()) return result;
-            return result with { Complete = false, Pending = [.. result.Pending, "Retirada del registro pendiente | " + e.Message] };
+            return result with { Complete = false, Pending = [.. result.Pending, Messages.RemovalRecordPending.Format(e.Message)] };
         }
     }
 
@@ -114,7 +114,7 @@ public sealed class ResourceRemoval(Home home, LocalStore? storage = null)
             {
                 // Resolve again before deletion, including every ancestor's link check.
                 _ = new Home(root).PathFor(Path.GetRelativePath(root, path));
-                if (Directory.Exists(path)) throw new IOException("La ruta de archivo es un directorio.");
+                if (Directory.Exists(path)) throw new IOException(Messages.RemovalPathIsDirectory);
                 long length;
                 try { length = new FileInfo(path).Length; }
                 catch (FileNotFoundException) { continue; }
@@ -143,18 +143,18 @@ public sealed class ResourceRemoval(Home home, LocalStore? storage = null)
 
     public static int Cli(string[] args, TextWriter output, TextWriter error, bool backend, bool companion = false)
     {
-        if (args.Length != 1 || backend && !Guid.TryParse(args[0], out _)) { error.WriteLine("Error: argumentos inválidos. Ver coquena --help."); return 2; }
+        if (args.Length != 1 || backend && !Guid.TryParse(args[0], out _)) { error.WriteLine(Messages.RemovalInvalidArguments); return 2; }
         try
         {
             var removal = new ResourceRemoval(Home.Resolve());
             var result = backend ? removal.Backend(Guid.Parse(args[0])) : removal.Model(args[0], companion);
-            output.WriteLine($"{Messages.FreedThisAttempt}: {ByteSize.Format(result.FreedBytes)}.");
-            foreach (var path in result.Deleted) output.WriteLine("Eliminado: " + path);
-            foreach (var path in result.Pending) output.WriteLine("Pendiente: " + path);
-            output.WriteLine(result.External ? Messages.ExternalRemoved : result.Complete ? "Retirada completada." : "Retirada parcial; propiedad conservada. Repetir el mismo comando.");
+            output.WriteLine(Messages.RemovalFreed.Format(Messages.FreedThisAttempt, ByteSize.Format(result.FreedBytes)));
+            foreach (var path in result.Deleted) output.WriteLine(Messages.OutputRemovedPath.Format(path));
+            foreach (var path in result.Pending) output.WriteLine(Messages.OutputPendingPath.Format(path));
+            output.WriteLine(result.External ? Messages.ExternalRemoved : result.Complete ? Messages.RemovalCompleted : Messages.RemovalPartial);
             return result.Complete ? 0 : 1;
         }
         catch (Exception e) when (e is StorageException or ContractException or IOException or UnauthorizedAccessException or DownloadException or Coquena.Configuration.ConfigurationException)
-        { error.WriteLine("Error: " + e.Message + " Ver coquena --help."); return 1; }
+        { error.WriteLine(Messages.ErrorSeeHelp.Format(e.Message)); return 1; }
     }
 }

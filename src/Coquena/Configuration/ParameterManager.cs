@@ -65,7 +65,7 @@ public sealed class ParameterManager(Home home, LocalStore? storage = null)
         BackendCatalog.ValidFamily(backend.Variant) && backend.Family == (backend.Variant.StartsWith("cuda@", StringComparison.Ordinal) ? "cuda" : backend.Variant);
     public static void Validate(ParametersDocument document)
     {
-        if (document.SchemaVersion != 1 || document.Definitions is null) throw new ConfigurationException("Catálogo de parámetros inválido.");
+        if (document.SchemaVersion != 1 || document.Definitions is null) throw new ConfigurationException(Messages.CatalogInvalid);
         var keys = new HashSet<string>(StringComparer.Ordinal);
         foreach (var d in document.Definitions)
         {
@@ -73,30 +73,33 @@ public sealed class ParameterManager(Home home, LocalStore? storage = null)
                 d.Description is null || d.Description.Any(char.IsControl) || d.Aliases is null || d.Choices is null || d.Support is null ||
                 d.Type is not ("integer" or "decimal" or "string" or "boolean" or "flag" or "enum" or "reference") ||
                 d.Type == "reference" && d.Name != "model" || d.Application is not ("model" or "server") || d.Destination is not ("CLI" or "INI"))
-                throw new ConfigurationException("Metadatos de definición inválidos.");
+                throw new ConfigurationException(Messages.DefinitionMetadataInvalid);
             if (d.Name == "version" && (d.Application != "server" || d.Destination != "CLI"))
-                throw new ConfigurationException("version sólo describe una opción CLI del ejecutable.");
-            if (!keys.Add(d.Name)) throw new ConfigurationException($"Nombre/alias duplicado: {d.Name}.");
+                throw new ConfigurationException(Messages.VersionCliOnly);
+            if (d.DescriptionKey is { } descriptionKey && (Localization.Find(descriptionKey) is not { } descriptionText ||
+                Localization.Placeholders(descriptionText.English).Count != 0))
+                throw new ConfigurationException(Messages.DefinitionMetadataInvalid);
+            if (!keys.Add(d.Name)) throw new ConfigurationException(Messages.NameAliasDuplicated.Format(d.Name));
             foreach (var alias in d.Aliases)
             {
                 if (string.IsNullOrEmpty(alias) || ParameterCatalog.Canonical(alias, []) != alias.TrimStart('-') || !keys.Add(alias.TrimStart('-')))
-                    throw new ConfigurationException($"Alias inválido o duplicado: {alias}.");
+                    throw new ConfigurationException(Messages.AliasInvalid.Format(alias));
             }
             foreach (var alias in d.NegativeAliases ?? [])
                 if (string.IsNullOrEmpty(alias) || ParameterCatalog.Canonical(alias, []) != alias || !keys.Add(alias))
-                    throw new ConfigurationException($"Alias negativo inválido o duplicado: {alias}.");
+                    throw new ConfigurationException(Messages.NegativeAliasInvalid.Format(alias));
             if (d.NegativeAliases is { Length: > 0 } && d.Type is not ("boolean" or "flag"))
-                throw new ConfigurationException("Las formas negativas requieren un parámetro booleano.");
+                throw new ConfigurationException(Messages.NegativeNeedsBoolean);
             if (d.Choices.Any(v => v is null) || d.Choices.Distinct(StringComparer.Ordinal).Count() != d.Choices.Length ||
                 d.Type == "enum" && d.Choices.Length == 0 || d.Type != "enum" && d.Choices.Length != 0)
-                throw new ConfigurationException("Enumeración inválida o vacía.");
+                throw new ConfigurationException(Messages.EnumInvalid);
             foreach (var choice in d.Choices) ValidateValue(d, choice);
             if (d.Default is not null) ValidateValue(d, d.Default);
             var selectors = new HashSet<string>();
             foreach (var support in d.Support)
             {
                 ValidateSupport(support);
-                if (!selectors.Add($"{support.Variant}|{support.BackendId}")) throw new ConfigurationException("Asociación duplicada.");
+                if (!selectors.Add($"{support.Variant}|{support.BackendId}")) throw new ConfigurationException(Messages.AssociationDuplicated);
             }
         }
         foreach (var name in Protected)
@@ -104,25 +107,25 @@ public sealed class ParameterManager(Home home, LocalStore? storage = null)
             var d = document.Definitions.SingleOrDefault(d => d.Name == name);
             var original = Factory().Definitions.Single(x => x.Name == name);
             if (d is null || d.Type != original.Type || d.Application != original.Application || d.Destination != original.Destination ||
-                d.Description != original.Description || !d.Aliases.SequenceEqual(original.Aliases) || d.Default is not null ||
+                d.Description != original.Description || d.DescriptionKey != original.DescriptionKey || !d.Aliases.SequenceEqual(original.Aliases) || d.Default is not null ||
                 d.Choices!.Length != 0 || d.Support!.Length != 0)
-                throw new ConfigurationException($"Definición protegida: {name}.");
+                throw new ConfigurationException(Messages.DefinitionProtected.Format(name));
         }
     }
     public static void ValidateSupport(ParameterSupport support)
     {
         if (support is null || support.BackendId == Guid.Empty || support.BackendId is not null && support.Variant is not null ||
             support.Variant is not null && !(BackendCatalog.ValidFamily(support.Variant) || support.Variant == "cuda"))
-            throw new ConfigurationException("Selector de soporte inválido.");
+            throw new ConfigurationException(Messages.SupportSelectorInvalid);
         var lower = support.From is null ? (long?)null : Build(support.From);
         var upper = support.Until is null ? (long?)null : Build(support.Until);
-        if (lower > upper) throw new ConfigurationException("Rango de builds invertido.");
+        if (lower > upper) throw new ConfigurationException(Messages.BuildRangeInverted);
         if (support.EvidenceOnly && (lower is null || lower != upper || support.Variant is not null || support.BackendId is not null))
-            throw new ConfigurationException("Evidencia inicial inválida.");
+            throw new ConfigurationException(Messages.InitialEvidenceInvalid);
     }
     public static void ValidateValue(ParameterDefinition definition, string value)
     {
-        if (value is null || value.Any(char.IsControl)) throw new ConfigurationException("Valor inválido.");
+        if (value is null || value.Any(char.IsControl)) throw new ConfigurationException(Messages.ValueInvalid);
         if (definition.Destination == "INI") ParameterCatalog.Literal(value);
         var valid = definition.Type switch
         {
@@ -135,7 +138,7 @@ public sealed class ParameterManager(Home home, LocalStore? storage = null)
             "string" or "text" => true,
             _ => false
         };
-        if (!valid) throw new ConfigurationException($"{definition.Name}: valor incompatible con {definition.Type}.");
+        if (!valid) throw new ConfigurationException(Messages.ValueIncompatible.Format(definition.Name, definition.Type));
     }
     internal static bool Compatible(ParameterDefinition definition, string value, string scope)
     {
@@ -146,20 +149,20 @@ public sealed class ParameterManager(Home home, LocalStore? storage = null)
     public static string Availability(ParameterDefinition? definition, BackendRecord? backend,
         string? distribution = null, string? release = null, string? variant = null)
     {
-        if (definition is null) return "desconocido";
-        if (Protected.Contains(definition.Name)) return "admitido";
+        if (definition is null) return "unknown";
+        if (Protected.Contains(definition.Name)) return "supported";
         if (backend is not null)
         {
-            if (!OfficialBackend(backend)) return "desconocido";
+            if (!OfficialBackend(backend)) return "unknown";
             distribution = backend.Repository; release = backend.Build; variant = backend.Variant;
         }
-        if (release is null || !Official(distribution)) return "desconocido";
+        if (release is null || !Official(distribution)) return "unknown";
         var associations = definition.Support ?? [];
         var selected = EffectiveSupport(definition, backend, variant);
-        if (selected is null) return associations.Length == 0 || backend is null && variant is null ? "desconocido" : "no admitido";
+        if (selected is null) return associations.Length == 0 || backend is null && variant is null ? "unknown" : "unsupported";
         var build = Build(release);
         return (selected.From is null || build >= Build(selected.From)) && (selected.Until is null || build <= Build(selected.Until))
-            ? "admitido" : selected.EvidenceOnly ? "desconocido" : "no admitido";
+            ? "supported" : selected.EvidenceOnly ? "unknown" : "unsupported";
     }
     public static ParameterSupport? EffectiveSupport(ParameterDefinition definition, BackendRecord? backend, string? variant = null)
     {
@@ -174,7 +177,7 @@ public sealed class ParameterManager(Home home, LocalStore? storage = null)
     public void Define(ParameterDefinition definition) => store.Exclusive(() =>
     {
         var catalog = Read();
-        if (ParameterCatalog.Find(definition.Name, catalog.Definitions) is not null) throw new ConfigurationException("Definición ya existente; usar param edit.");
+        if (ParameterCatalog.Find(definition.Name, catalog.Definitions) is not null) throw new ConfigurationException(Messages.DefinitionExists);
         var next = catalog with { Definitions = [.. catalog.Definitions, definition] };
         Validate(next); ValidateLocalReferences(definition);
         var presets = store.Read(DocumentKind.Presets, Json.PresetsDocument, ContractValidation.Presets)?.Presets ?? [];
@@ -185,7 +188,7 @@ public sealed class ParameterManager(Home home, LocalStore? storage = null)
             var bindings = (p.Bindings ?? []).Where(b => ParameterCatalog.Canonical(b.Key, next.Definitions) == definition.Name).ToArray();
             if (bindings.Length > 1 || bindings.Length > 0 && (!ConfigurationManager.CanBind(definition) ||
                 p.Parameters.Keys.Any(k => ParameterCatalog.Canonical(k, next.Definitions) == definition.Name)))
-                throw new ConfigurationException($"{p.Name}: vínculos existentes incompatibles o duplicados para {definition.Name}.");
+                throw new ConfigurationException(Messages.BindingsIncompatible.Format(p.Name, definition.Name));
         }
         foreach (var s in servers) CheckExisting(s.Name, s.Parameters.ToDictionary(p => p.Key,
             p => p.Value.ValueKind == JsonValueKind.String ? p.Value.GetString()! : p.Value.ToString()), "server");
@@ -196,7 +199,7 @@ public sealed class ParameterManager(Home home, LocalStore? storage = null)
         {
             var affected = values.Where(p => ParameterCatalog.Canonical(p.Key, next.Definitions) == definition.Name).ToArray();
             if (affected.Length > 1 || affected.Any(p => !Compatible(definition, p.Value, scope)))
-                throw new ConfigurationException($"{name}: asignaciones existentes incompatibles o duplicadas para {definition.Name}; corríjalas antes de definir el parámetro.");
+                throw new ConfigurationException(Messages.AssignmentsIncompatible.Format(name, definition.Name));
         }
     });
     private void ValidateLocalReferences(ParameterDefinition definition)
@@ -205,13 +208,13 @@ public sealed class ParameterManager(Home home, LocalStore? storage = null)
         foreach (var s in definition.Support ?? [])
             if (s.BackendId is { } id)
             {
-                var b = backends.SingleOrDefault(b => b.Id == id) ?? throw new ConfigurationException($"Backend ausente: {id:D}.");
-                if (!OfficialBackend(b)) throw new ConfigurationException("Sólo se admiten backends oficiales CPU, CUDA y Vulkan.");
+                var b = backends.SingleOrDefault(b => b.Id == id) ?? throw new ConfigurationException(Messages.BackendMissing.Format(id.ToString("D")));
+                if (!OfficialBackend(b)) throw new ConfigurationException(Messages.OfficialBackendsOnly);
             }
     }
     private sealed record Change(ParametersDocument Parameters, PresetsDocument? Presets, ServersDocument? Servers,
         string[] Effects, string Signature, bool Confirmation, string Description,
-        string[] Definitions);
+        string[] Definitions, bool Cascade = false);
 
     // Confirmation is outside the writer lease. A concurrent change invalidates the
     // reviewed snapshot and requires a fresh report and a fresh confirmation.
@@ -220,7 +223,7 @@ public sealed class ParameterManager(Home home, LocalStore? storage = null)
         => Apply(() => Analyze(name, edit, description), name, dryRun, output, confirm);
 
     public bool Reset(bool dryRun, TextWriter output, Func<bool>? confirm = null)
-        => Apply(AnalyzeReset, "catálogo de fábrica", dryRun, output, confirm);
+        => Apply(AnalyzeReset, Messages.FactoryCatalog, dryRun, output, confirm);
 
     internal bool ResetCatalog(TextWriter output, Func<bool> confirm)
     {
@@ -233,26 +236,27 @@ public sealed class ParameterManager(Home home, LocalStore? storage = null)
             var after = factory.Definitions.ToDictionary(d => d.Name, StringComparer.Ordinal);
             var differences = before.Keys.Union(after.Keys).Order(StringComparer.Ordinal).Select(name =>
             {
-                if (!before.TryGetValue(name, out var old)) return $"Recuperar: {Describe(after[name])}";
-                if (!after.TryGetValue(name, out var next)) return $"Retirar: {Describe(old)}";
+                if (!before.TryGetValue(name, out var old)) return Messages.Recover.Format(Describe(after[name]));
+                if (!after.TryGetValue(name, out var next)) return Messages.Withdraw.Format(Describe(old));
                 return ContractJson.Write(new(1, [old]), Json.ParametersDocument) ==
-                    ContractJson.Write(new(1, [next]), Json.ParametersDocument) ? null : $"Restablecer: {Describe(next)}";
+                    ContractJson.Write(new(1, [next]), Json.ParametersDocument) ? null : Messages.ResetDefinition.Format(Describe(next));
             }).OfType<string>().ToArray();
             return new(factory, null, null, [], ContractJson.Write(current, Json.ParametersDocument), true,
-                "restablecer únicamente las definiciones del catálogo global", differences);
-        }, "catálogo global", false, output, confirm, "Catálogo global restablecido.");
+                Messages.ResetGlobalDefinitions, differences);
+        }, Messages.GlobalCatalog, false, output, confirm, Messages.GlobalCatalogReset);
     }
 
     private bool Apply(Func<Change> analyze, string name, bool dryRun, TextWriter output, Func<bool>? confirm,
-        string success = "Catálogo y asignaciones actualizados.")
+        string? success = null)
     {
+        success ??= Messages.CatalogUpdated;
         for (var attempt = 0; attempt < 3; attempt++)
         {
             var plan = store.Inspect(analyze);
             Print(plan, name, output);
             if (dryRun) return false;
             if (plan.Confirmation && !(confirm?.Invoke() ?? false))
-            { output.WriteLine("Cancelado; estado conservado. Se requiere confirmación interactiva para aplicar la operación."); return false; }
+            { output.WriteLine(Messages.OperationNeedsConfirmation); return false; }
             var applied = store.Exclusive(() =>
             {
                 var current = analyze();
@@ -263,9 +267,9 @@ public sealed class ParameterManager(Home home, LocalStore? storage = null)
                 return true;
             });
             if (applied) { output.WriteLine(success); return true; }
-            output.WriteLine("El estado cambió durante la revisión; se recalcula el impacto.");
+            output.WriteLine(Messages.StateChangedRecalculating);
         }
-        throw new ConfigurationException("El estado sigue cambiando; vuelva a revisar la operación.");
+        throw new ConfigurationException(Messages.StateKeepsChanging);
     }
     private Change AnalyzeReset()
     {
@@ -274,6 +278,7 @@ public sealed class ParameterManager(Home home, LocalStore? storage = null)
         var servers = store.Read(DocumentKind.Servers, Json.ServersDocument, ContractValidation.Servers);
         var originalPresets = presets; var originalServers = servers;
         var effects = new List<string>(); var definitions = new List<string>();
+        var cascade = false;
         string? signature = null;
         // Evaluate every identity against the final catalog, retaining the original
         // aliases throughout analysis. Publish the combined result only once.
@@ -281,19 +286,20 @@ public sealed class ParameterManager(Home home, LocalStore? storage = null)
         {
             if (Protected.Contains(definition.Name)) continue;
             var next = factory.Definitions.SingleOrDefault(d => d.Name == definition.Name);
-            var change = Analyze(definition.Name, _ => next, "restablecer", old, presets, servers, factory);
+            var change = Analyze(definition.Name, _ => next, Messages.ResetAction, old, presets, servers, factory);
             signature ??= change.Signature;
             if (change.Presets is not null) presets = change.Presets;
             if (change.Servers is not null) servers = change.Servers;
             effects.AddRange(change.Effects);
+            cascade |= change.Cascade;
             if (!old.Definitions.Any(d => d.Name == definition.Name))
-                definitions.Add($"Recuperar: {Describe(definition)}");
+                definitions.Add(Messages.Recover.Format(Describe(definition)));
             else if (next is null || ContractJson.Write(new(1, [definition]), Json.ParametersDocument) !=
                 ContractJson.Write(new(1, [next]), Json.ParametersDocument)) definitions.AddRange(change.Definitions);
         }
         return new(factory, ReferenceEquals(originalPresets, presets) ? null : presets,
             ReferenceEquals(originalServers, servers) ? null : servers, effects.ToArray(), signature!, true,
-            "restablecer definiciones suministradas por esta versión de Coquena", definitions.ToArray());
+            Messages.ResetSuppliedDefinitions, definitions.ToArray(), cascade);
     }
 
     private Change Analyze(string name, Func<ParameterDefinition, ParameterDefinition?> edit, string description,
@@ -303,11 +309,11 @@ public sealed class ParameterManager(Home home, LocalStore? storage = null)
         var old = catalogSnapshot ?? Read();
         var definition = old.Definitions.SingleOrDefault(d => d.Name == name) ??
             (reset is null ? ParameterCatalog.Find(name, old.Definitions) : reset.Definitions.SingleOrDefault(d => d.Name == name)) ??
-            throw new ConfigurationException("Definición inexistente.");
-        if (Protected.Contains(definition.Name)) throw new ConfigurationException($"Definición protegida: {definition.Name}.");
+            throw new ConfigurationException(Messages.DefinitionMissing);
+        if (Protected.Contains(definition.Name)) throw new ConfigurationException(Messages.DefinitionProtected.Format(definition.Name));
         var next = edit(definition);
         if (next is not null && next.Type is not ("boolean" or "flag")) next = next with { NegativeAliases = [] };
-        if (next is not null && next.Name != definition.Name) throw new ConfigurationException("No se cambia el nombre canónico.");
+        if (next is not null && next.Name != definition.Name) throw new ConfigurationException(Messages.CanonicalNameFixed);
         var parameters = reset ?? old with { Definitions = old.Definitions.Where(d => d.Name != definition.Name).Concat(next is null ? [] : [next]).ToArray() };
         Validate(parameters);
         // Existing dangling local references remain diagnostic; only a newly added
@@ -326,20 +332,20 @@ public sealed class ParameterManager(Home home, LocalStore? storage = null)
             {
                 if (next is null || !ConfigurationManager.CanBind(next))
                 {
-                    effects.Add($"{Messages.RemoveEffect} | preset {p.Name} | {p.Id:D} | {binding.Key} -> {binding.Value:D} | vínculo guardado; definición retirada/incompatible.");
+                    effects.Add(Messages.EffectBindingRemoved.Format(Messages.RemoveEffect, p.Name, p.Id.ToString("D"), binding.Key, binding.Value.ToString("D")));
                     bindings.Remove(binding.Key); removed = true; presetChanged = true;
                 }
                 else if (binding.Key != definition.Name)
                 {
                     bindings.Remove(binding.Key);
-                    if (!bindings.TryAdd(definition.Name, binding.Value)) throw new ConfigurationException("Vínculos duplicados por alias.");
+                    if (!bindings.TryAdd(definition.Name, binding.Value)) throw new ConfigurationException(Messages.BindingsDuplicatedByAlias);
                     presetChanged = true;
                 }
             }
             var modelId = p.ModelId;
             if (definition.Name == "model" && modelId is { } id && (next is null || next.Type != "reference" || next.Application != "model"))
             {
-                effects.Add($"{Messages.RemoveEffect} | preset {p.Name} | {p.Id:D} | model = {id:D} | referencia guardada ModelId; definición retirada/incompatible.");
+                effects.Add(Messages.EffectModelRemoved.Format(Messages.RemoveEffect, p.Name, p.Id.ToString("D"), id.ToString("D")));
                 modelId = null; removed = true; presetChanged = true;
             }
             if (!p.Parameters.SequenceEqual(values)) presetChanged = true;
@@ -348,7 +354,7 @@ public sealed class ParameterManager(Home home, LocalStore? storage = null)
         var newServers = servers?.Servers.Select(s =>
         {
             var original = s.Parameters.ToDictionary(p => p.Key, p => p.Value.ValueKind == JsonValueKind.String ? p.Value.GetString()! : p.Value.ToString());
-            var remaining = Cascade(original, "servidor", s.Name, s.Id, "server");
+            var remaining = Cascade(original, "server", s.Name, s.Id, "server");
             var values = remaining.ToDictionary(p => p.Key, p => s.Parameters.TryGetValue(p.Key, out var scalar) ? scalar :
                 s.Parameters.Single(v => Identity(v.Key) == p.Key).Value);
             if (!values.Keys.SequenceEqual(s.Parameters.Keys)) serverChanged = true;
@@ -356,32 +362,32 @@ public sealed class ParameterManager(Home home, LocalStore? storage = null)
             {
                 foreach (var binding in (preset.Bindings ?? []).Where(b => Identity(b.Key) == definition.Name))
                     if (next is null || !ConfigurationManager.CanBind(next))
-                        effects.Add($"Servidor afectado | {s.Name} | {s.Id:D} | preset {preset.Name} | {preset.Id:D} | {binding.Key} -> {binding.Value:D} | se retira el vínculo; recurso conservado.");
+                        effects.Add(Messages.EffectServerBinding.Format(s.Name, s.Id.ToString("D"), preset.Name, preset.Id.ToString("D"), binding.Key, binding.Value.ToString("D")));
                 foreach (var value in preset.Parameters.Where(v => Identity(v.Key) == definition.Name))
                     if (next is null || !Compatible(next, value.Value, "model"))
-                        effects.Add($"Servidor afectado | {s.Name} | {s.Id:D} | preset {preset.Name} | {preset.Id:D} | {value.Key} = {value.Value} | se retira la asignación del preset; se conserva la asociación del servidor.");
+                        effects.Add(Messages.EffectServerValue.Format(s.Name, s.Id.ToString("D"), preset.Name, preset.Id.ToString("D"), value.Key, value.Value));
                 if (definition.Name == "model" && preset.ModelId is { } resource && (next is null || next.Type != "reference" || next.Application != "model"))
-                    effects.Add($"Servidor afectado | {s.Name} | {s.Id:D} | preset {preset.Name} | {preset.Id:D} | model = {resource:D} | preset sin modelo para próximas ejecuciones; recurso conservado.");
+                    effects.Add(Messages.EffectServerModel.Format(s.Name, s.Id.ToString("D"), preset.Name, preset.Id.ToString("D"), resource.ToString("D")));
             }
             var selection = s.Backend ?? config?.DefaultBackend;
             var backend = backends?.Backends.SingleOrDefault(b => selection?.Kind == "fixed" ? b.Id == selection.BackendId :
                 selection?.Kind == "latest" && b.Origin == selection.Origin && b.Variant == selection.Variant && b.TracksLatest);
             var availability = Availability(next, backend);
             var previousAvailability = Availability(reset is null ? definition : old.Definitions.SingleOrDefault(d => d.Name == definition.Name), backend);
-            if (next is not null && backend is not null && availability != previousAvailability && (reset is not null || availability == "no admitido"))
+            if (next is not null && backend is not null && availability != previousAvailability && (reset is not null || availability == "unsupported"))
             {
-                var emission = availability switch { "no admitido" => "omitir con warning", "admitido" => "emitir", _ => "disponibilidad desconocida" };
+                var emission = Messages.Emission(availability);
                 foreach (var preset in presets?.Presets.Where(p => s.PresetIds.Contains(p.Id)) ?? [])
                 {
                     foreach (var binding in (preset.Bindings ?? []).Where(b => Identity(b.Key) == definition.Name))
-                        if (ConfigurationManager.CanBind(next)) effects.Add($"{Messages.KeepEffect(emission)} | preset {preset.Name} | {preset.Id:D} | {binding.Key} -> {binding.Value:D} | servidor {s.Name} | {s.Id:D} | backend {backend.Id:D}/{backend.Build}.");
+                        if (ConfigurationManager.CanBind(next)) effects.Add(Messages.EffectKeepPresetBinding.Format(Messages.KeepEffect(emission), preset.Name, preset.Id.ToString("D"), binding.Key, binding.Value.ToString("D"), s.Name, s.Id.ToString("D"), backend.Id.ToString("D"), backend.Build));
                     foreach (var value in preset.Parameters.Where(v => Identity(v.Key) == definition.Name))
-                        if (Compatible(next, value.Value, "model")) effects.Add($"{Messages.KeepEffect(emission)} | preset {preset.Name} | {preset.Id:D} | {value.Key} = {value.Value} | servidor {s.Name} | {s.Id:D} | backend {backend.Id:D}/{backend.Build}.");
+                        if (Compatible(next, value.Value, "model")) effects.Add(Messages.EffectKeepPresetValue.Format(Messages.KeepEffect(emission), preset.Name, preset.Id.ToString("D"), value.Key, value.Value, s.Name, s.Id.ToString("D"), backend.Id.ToString("D"), backend.Build));
                     if (definition.Name == "model" && preset.ModelId is { } resource && next.Type == "reference" && next.Application == "model")
-                        effects.Add($"{Messages.KeepEffect(emission)} | preset {preset.Name} | {preset.Id:D} | model = {resource:D} | servidor {s.Name} | {s.Id:D} | backend {backend.Id:D}/{backend.Build}.");
+                        effects.Add(Messages.EffectKeepPresetModel.Format(Messages.KeepEffect(emission), preset.Name, preset.Id.ToString("D"), resource.ToString("D"), s.Name, s.Id.ToString("D"), backend.Id.ToString("D"), backend.Build));
                 }
                 foreach (var value in original.Where(v => Identity(v.Key) == definition.Name))
-                    if (Compatible(next, value.Value, "server")) effects.Add($"{Messages.KeepEffect(emission)} | servidor {s.Name} | {s.Id:D} | {value.Key} = {value.Value} | backend {backend.Id:D}/{backend.Build}.");
+                    if (Compatible(next, value.Value, "server")) effects.Add(Messages.EffectKeepServerValue.Format(Messages.KeepEffect(emission), s.Name, s.Id.ToString("D"), value.Key, value.Value, backend.Id.ToString("D"), backend.Build));
             }
             return s with { Parameters = values };
         }).ToArray();
@@ -392,7 +398,7 @@ public sealed class ParameterManager(Home home, LocalStore? storage = null)
             (backends is null ? "null" : ContractJson.Write(backends, Json.BackendsDocument));
         return new(parameters, presetChanged ? presets! with { Presets = newPresets! } : null,
             serverChanged ? servers! with { Servers = newServers! } : null, effects.ToArray(), signature, removed, description,
-            ["Antes: " + Describe(definition), Messages.AfterChange + " " + (next is null ? "definición eliminada" : Describe(next))]);
+            [Messages.Before + " " + Describe(definition), Messages.AfterChange + " " + (next is null ? Messages.DefinitionDeleted : Describe(next))], removed);
 
         string Identity(string key) => ParameterCatalog.Canonical(key,
             reset is not null && ParameterCatalog.Find(key, old.Definitions) is null ? reset.Definitions : old.Definitions);
@@ -403,7 +409,7 @@ public sealed class ParameterManager(Home home, LocalStore? storage = null)
             foreach (var value in values.Where(v => Identity(v.Key) == definition.Name))
                 if (next is null || !Compatible(next, value.Value, scope))
                 {
-                    effects.Add($"Eliminar | {entity} {entityName} | {id:D} | {value.Key} = {value.Value} | definición {(next is null ? "retirada" : "incompatible") }.");
+                    effects.Add(Messages.EffectRemoveValue.Format(Messages.RemoveEffect, Messages.EntityKind(entity), entityName, id.ToString("D"), value.Key, value.Value, Messages.RemovedOrIncompatible(next is null)));
                     result.Remove(value.Key); removed = true;
                 }
                 else if (value.Key != definition.Name)
@@ -411,23 +417,23 @@ public sealed class ParameterManager(Home home, LocalStore? storage = null)
                     // Legacy documents may contain aliases. Persist the canonical key
                     // before changing aliases so the assignment keeps its identity.
                     result.Remove(value.Key);
-                    if (!result.TryAdd(definition.Name, value.Value)) throw new ConfigurationException("Asignaciones duplicadas por alias; corregir el documento antes de editar.");
+                    if (!result.TryAdd(definition.Name, value.Value)) throw new ConfigurationException(Messages.AssignmentsDuplicatedByAlias);
                 }
             return result;
         }
     }
     private static void Print(Change plan, string name, TextWriter output)
     {
-        output.WriteLine($"Impacto: {name} | {plan.Description}");
+        output.WriteLine(Messages.Impact.Format(name, plan.Description));
         foreach (var line in plan.Definitions) output.WriteLine(line);
         foreach (var line in plan.Effects) output.WriteLine(line);
-        if (plan.Effects.Length == 0) output.WriteLine("Sin asignaciones afectadas; las existentes se conservan.");
-        if (plan.Effects.Any(e => e.StartsWith("Eliminar |", StringComparison.Ordinal)))
-            output.WriteLine("Advertencia: la operación elimina asignaciones en cascada. Entidades, recursos e instancias activas se conservan.");
-        else if (plan.Confirmation) output.WriteLine("Se requiere confirmación para restablecer el catálogo; las asignaciones se conservan.");
+        if (plan.Effects.Length == 0) output.WriteLine(Messages.ImpactNone);
+        if (plan.Cascade)
+            output.WriteLine(Messages.ImpactCascade);
+        else if (plan.Confirmation) output.WriteLine(Messages.ImpactResetConfirmation);
     }
-    private static string Describe(ParameterDefinition d) => $"{d.Name} | {d.Type} | {d.Application}/{d.Destination} | descripción: {d.Description} | default: {d.Default ?? "sin default"} | alias: {string.Join(", ", d.Aliases)} | values: {string.Join(", ", d.Choices ?? [])} | soporte: " +
-        string.Join("; ", (d.Support ?? []).Select(s => $"{s.BackendId?.ToString() ?? s.Variant ?? "general oficial"} [{s.From ?? "abierto"}, {s.Until ?? "abierto"}]{(s.EvidenceOnly ? " evidencia inicial" : "")}"));
+    private static string Describe(ParameterDefinition d) => Messages.DefinitionDescription.Format(d.Name, d.Type, d.Application, d.Destination, Messages.ParameterDescription(d), d.Default ?? Messages.NoDefault, string.Join(", ", d.Aliases), string.Join(", ", d.Choices ?? [])) +
+        string.Join("; ", (d.Support ?? []).Select(s => $"{s.BackendId?.ToString() ?? s.Variant ?? Messages.GeneralOfficial} [{s.From ?? Messages.Open}, {s.Until ?? Messages.Open}]{(s.EvidenceOnly ? Messages.InitialEvidence : "")}"));
     public bool Support(string name, ParameterSupport support, bool remove, bool dryRun, TextWriter output, Func<bool>? confirm = null)
     {
         ValidateSupport(support);
@@ -437,6 +443,6 @@ public sealed class ParameterManager(Home home, LocalStore? storage = null)
             return d with { Support = (d.Support ?? []).Where(s => s.BackendId != support.BackendId || s.Variant != support.Variant)
                 .Concat(remove ? [] : [support]).ToArray() };
         },
-            $"support {(remove ? "remove" : "set")} {support.Variant ?? support.BackendId?.ToString() ?? "general oficial"} [{support.From ?? "abierto"}, {support.Until ?? "abierto"}]", dryRun, output, confirm);
+            $"support {(remove ? "remove" : "set")} {support.Variant ?? support.BackendId?.ToString() ?? Messages.GeneralOfficial} [{support.From ?? Messages.Open}, {support.Until ?? Messages.Open}]", dryRun, output, confirm);
     }
 }

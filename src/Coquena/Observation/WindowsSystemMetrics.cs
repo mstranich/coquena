@@ -23,13 +23,13 @@ public sealed partial class WindowsSystemMetrics : ISystemMetrics
         var total = second.Total - first.Total;
         samples.Add(new("cpu.utilization", first.Valid && second.Valid && total > 0 && second.Idle >= first.Idle
             ? 100.0 * (total - (second.Idle - first.Idle)) / total : null, "%", "GetSystemTimes", "machine", now,
-            now - start, total > 0 && first.Valid && second.Valid ? null : "No se pudo medir el intervalo de CPU."));
+            now - start, total > 0 && first.Valid && second.Valid ? null : Messages.ObservationCouldNotMeasureCPUInterval.ToString()));
         var memory = new Memory { Length = (uint)Marshal.SizeOf<Memory>() };
         var ok = GlobalMemoryStatusEx(ref memory) != 0;
         samples.Add(new("ram.total", ok ? memory.TotalPhysical : null, "bytes", "GlobalMemoryStatusEx", "machine", now,
-            UnavailableReason: ok ? null : "API de memoria no disponible."));
+            UnavailableReason: ok ? null : Messages.ObservationMemoryAPIUnavailable.ToString()));
         samples.Add(new("ram.used", ok ? memory.TotalPhysical - memory.AvailablePhysical : null, "bytes", "GlobalMemoryStatusEx", "machine", now,
-            UnavailableReason: ok ? null : "API de memoria no disponible."));
+            UnavailableReason: ok ? null : Messages.ObservationMemoryAPIUnavailable.ToString()));
         var devices = gpu.Read(now, now - start);
         return new("windows", start, DateTimeOffset.UtcNow, samples, devices, gpu.Diagnostics);
     }
@@ -47,7 +47,7 @@ public sealed partial class WindowsSystemMetrics : ISystemMetrics
         public List<string> Diagnostics { get; } = [];
         public GpuQuery()
         {
-            if (PdhOpenQueryW(0, 0, out query) != 0) { Diagnostics.Add("PDH GPU no disponible."); return; }
+            if (PdhOpenQueryW(0, 0, out query) != 0) { Diagnostics.Add(Messages.ObservationPDHGPUUnavailable.ToString()); return; }
             foreach (var (name, path) in new[]
             {
                 ("gpu.engine", @"\GPU Engine(*)\Utilization Percentage"),
@@ -56,21 +56,21 @@ public sealed partial class WindowsSystemMetrics : ISystemMetrics
             })
             {
                 if (PdhAddEnglishCounterW(query, path, 0, out var counter) == 0) counters[name] = counter;
-                else Diagnostics.Add($"PDH: contador {name} no disponible.");
+                else Diagnostics.Add(Messages.ObservationPDHCounterUnavailable.Format(name));
             }
             _ = PdhCollectQueryData(query);
         }
         public DeviceMetrics[] Read(DateTimeOffset now, TimeSpan window)
         {
             var collected = query != 0 && PdhCollectQueryData(query) == 0;
-            if (!collected) Diagnostics.Add("PDH: lectura GPU no disponible.");
+            if (!collected) Diagnostics.Add(Messages.ObservationPDHGPUReadingUnavailable.ToString());
             var devices = new Dictionary<string, List<MetricSample>>(StringComparer.OrdinalIgnoreCase);
             var engines = new Dictionary<(string Device, string Engine), double>();
             foreach (var (metric, counter) in counters)
             {
                 if (!collected) break;
                 var items = ReadArray(counter);
-                if (items is null) { Diagnostics.Add($"PDH: muestras {metric} no disponibles."); continue; }
+                if (items is null) { Diagnostics.Add(Messages.ObservationPDHSamplesUnavailable.Format(metric)); continue; }
                 foreach (var (instance, value) in items)
                 {
                     var at = instance.IndexOf("luid_", StringComparison.Ordinal);
@@ -95,13 +95,13 @@ public sealed partial class WindowsSystemMetrics : ISystemMetrics
                 var busy = engines.Where(e => e.Key.Device == id).Select(e => e.Value).ToArray();
                 var utilization = BusiestEngine(busy);
                 samples.Add(new("gpu.utilization", utilization, "%", "PDH GPU Engine; busiest engine", "device:" + id,
-                    now, window, busy.Length == 0 ? "Contador de actividad no disponible." :
-                        utilization is null ? "Agregación PDH fuera del rango 0–100 %; utilización no confirmada." : null));
+                    now, window, busy.Length == 0 ? Messages.ObservationActivityCounterUnavailable.ToString() :
+                        utilization is null ? Messages.ObservationPdhUtilizationOutOfRange.ToString() : null));
                 foreach (var metric in new[] { "vram.used", "gpu.shared", "vram.total" })
                     if (!samples.Any(s => s.Name == metric)) samples.Add(new(metric, null, "bytes", "PDH GPU Adapter Memory", "device:" + id,
-                        now, UnavailableReason: "Contador no expuesto; no se deduce capacidad de uso o presupuesto."));
+                        now, UnavailableReason: Messages.ObservationCounterNotExposed.ToString()));
             }
-            if (devices.Count == 0) Diagnostics.Add("No se pudo leer el uso de la GPU.");
+            if (devices.Count == 0) Diagnostics.Add(Messages.ObservationCouldNotReadGPUUsage.ToString());
             var inventory = WindowsGpuInventory.Read();
             foreach (var (id, item) in inventory)
             {
@@ -110,7 +110,7 @@ public sealed partial class WindowsSystemMetrics : ISystemMetrics
                 fields.Add(new("vram.total", item.Dedicated, "bytes", "DXGI_ADAPTER_DESC1.DedicatedVideoMemory", "device:" + id, now));
                 foreach (var (name, unit) in new[] { ("vram.used", "bytes"), ("gpu.utilization", "%") })
                     if (!fields.Any(s => s.Name == name)) fields.Add(new(name, null, unit, "PDH", "device:" + id, now,
-                        UnavailableReason: "Dispositivo enumerado por DXGI; contador PDH no disponible."));
+                        UnavailableReason: Messages.ObservationDxgiDevicePdhUnavailable.ToString()));
             }
             return devices.Select(d => new DeviceMetrics(d.Key, inventory.TryGetValue(d.Key, out var item) ? item.Name : d.Key, d.Value)).ToArray();
         }

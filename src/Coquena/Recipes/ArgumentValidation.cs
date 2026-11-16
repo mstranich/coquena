@@ -40,7 +40,7 @@ public static class ArgumentValidation
     public static ValidatedArgumentBlock Block(EffectiveRecipe recipe, ArgumentSchema schema, RecipeValue block, string scope, string key, string mode, ArgumentBackend? backend = null)
     {
         if (scope is not ("server" or "preset") || mode is not ("strict" or "permissive"))
-            throw block.Error("invalid-validation-context", "validation", "Ámbito o modo de validación inválido.");
+            throw block.Error("invalid-validation-context", "validation", Messages.RecipeInvalidScopeOrValidationMode.ToString());
         var arguments = new Dictionary<string, ValidatedArgument>(StringComparer.Ordinal);
         var diagnostics = new List<ArgumentDiagnostic>();
         foreach (var pair in block.Get("args")?.Fields ?? new Dictionary<string, RecipeValue>())
@@ -48,21 +48,21 @@ public static class ArgumentValidation
             if (pair.Value.Kind == RecipeKind.Null) continue;
             var name = schema.Canonical(pair.Key);
             var definition = schema.Definitions.GetValueOrDefault(name);
-            if (definition is null && mode == "strict") throw pair.Value.Error("unknown-argument", "validation", "Argumento sin definición en modo estricto.");
+            if (definition is null && mode == "strict") throw pair.Value.Error("unknown-argument", "validation", Messages.RecipeArgumentWithoutDefinitionInStrictMode.ToString());
             var literal = pair.Value.Kind == RecipeKind.Map;
-            var value = literal ? pair.Value.Get("literal") ?? throw pair.Value.Error("invalid-literal", "validation", "Wrapper literal inválido.") : pair.Value;
+            var value = literal ? pair.Value.Get("literal") ?? throw pair.Value.Error("invalid-literal", "validation", Messages.RecipeInvalidLiteralWrapper.ToString()) : pair.Value;
             if (definition is not null)
             {
                 if (definition.Get("scope") is { } allowed && allowed.Text != scope)
-                    throw value.Error("argument-scope", "validation", "El argumento no pertenece a este ámbito.");
-                if (!ArgumentSchema.Matches(definition, value)) throw value.Error("invalid-argument-value", "validation", "El valor no satisface el tipo o las restricciones del argumento.");
+                    throw value.Error("argument-scope", "validation", Messages.RecipeArgumentOutsideScope.ToString());
+                if (!ArgumentSchema.Matches(definition, value)) throw value.Error("invalid-argument-value", "validation", Messages.RecipeTheValueDoesNotSatisfyTheArgument.ToString());
                 Availability(definition, backend, diagnostics);
             }
             var reference = Reference(recipe, value, literal, scope == "preset");
             // Lists can contain references as well. Validate identity before resolution.
             foreach (var item in value.Items) Reference(recipe, item, false, scope == "preset");
             if (!arguments.TryAdd(name, new(name, value, definition, reference, literal)))
-                throw value.Error("duplicate-argument", "validation", "Un nombre canónico y sus aliases no pueden asignarse más de una vez.");
+                throw value.Error("duplicate-argument", "validation", Messages.RecipeDuplicateCanonicalOrAlias.ToString());
         }
         // Rules also belong to absent arguments, making present:false meaningful.
         foreach (var definition in schema.Definitions)
@@ -81,7 +81,7 @@ public static class ArgumentValidation
                     {
                         var matches = Test(recipe, target.Value, arguments.GetValueOrDefault(target.Key), scope == "preset");
                         if (relation == "requires" ? !matches : matches)
-                            throw (owner?.Value ?? block).Error("argument-" + relation, "validation", "No se satisface una relación declarativa del argumento " + definition.Key + " con " + target.Key + ".");
+                            throw (owner?.Value ?? block).Error("argument-" + relation, "validation", Messages.RecipeDeclarativeRelationUnsatisfied.Format(definition.Key, target.Key));
                     }
             }
         }
@@ -117,7 +117,7 @@ public static class ArgumentValidation
         }
         var name = text[(text.IndexOf("://", StringComparison.Ordinal) + 3)..];
         if (recipe.Root.Get(kind == "model" ? "models" : "companions")?.Fields.Keys.Any(key => key.Equals(name, StringComparison.OrdinalIgnoreCase)) != true)
-            throw value.Error("unknown-resource-reference", "validation", "La referencia tipada no existe en la receta.");
+            throw value.Error("unknown-resource-reference", "validation", Messages.RecipeTypedReferenceNotFound.ToString());
         return new(kind, name);
     }
 
@@ -147,7 +147,7 @@ public static class ArgumentValidation
             if (backend?.Capabilities is null) unknown = true;
             else if (!backend.Capabilities.Contains(capability.Text!)) incompatible = true;
         }
-        if (incompatible) throw definition.Error("argument-not-applicable", "validation", "El argumento no aplica al backend seleccionado.");
-        if (unknown) diagnostics.Add(new("argument-applicability-unknown", definition.Origin, "No se pudo comprobar si el parámetro aplica a este backend."));
+        if (incompatible) throw definition.Error("argument-not-applicable", "validation", Messages.RecipeArgumentNotApplicable.ToString());
+        if (unknown) diagnostics.Add(new("argument-applicability-unknown", definition.Origin, Messages.RecipeParameterApplicabilityUnknown.ToString()));
     }
 }

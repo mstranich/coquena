@@ -95,7 +95,7 @@ internal sealed class ChatSession(HttpClient client, Uri address, string entry)
     // Cancelling closes this client's connection; that does not prove the backend stopped.
     public async Task SendAsync(string text, Action changed, CancellationToken cancellation)
     {
-        if (Current is not null) throw new InvalidOperationException("Hay una respuesta en curso.");
+        if (Current is not null) throw new InvalidOperationException(Messages.ChatResponseRunning);
         JsonObject body;
         var answer = new ChatTurn("assistant", "", DateTimeOffset.Now);
         lock (Gate)
@@ -134,7 +134,7 @@ internal sealed class ChatSession(HttpClient client, Uri address, string entry)
                 if (answer.Phase is not (ChatPhase.Failed or ChatPhase.Done))
                 {
                     answer.Phase = ChatPhase.Done;
-                    answer.Finish ??= "sin motivo informado";
+                    answer.Finish ??= Messages.DisplayNoReasonReported.ToString();
                 }
         }
         catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
@@ -142,7 +142,7 @@ internal sealed class ChatSession(HttpClient client, Uri address, string entry)
             lock (Gate)
             {
                 answer.Phase = ChatPhase.Cancelled;
-                answer.Problem = "Conexión cerrada por el cliente; el servidor no confirmó la cancelación.";
+                answer.Problem = Messages.ChatClientClosed;
             }
         }
         catch (Exception error) when (error is HttpRequestException or IOException or JsonException or InvalidOperationException)
@@ -155,7 +155,7 @@ internal sealed class ChatSession(HttpClient client, Uri address, string entry)
     // Starts a new session: forgets the conversation; the server keeps its own logs.
     public void Clear()
     {
-        if (Current is not null) throw new InvalidOperationException("Hay una respuesta en curso.");
+        if (Current is not null) throw new InvalidOperationException(Messages.ChatResponseRunning);
         lock (Gate) turns.Clear();
     }
 
@@ -215,10 +215,10 @@ internal sealed class ChatSession(HttpClient client, Uri address, string entry)
     // Short label of the finish reason reported by the server.
     public static string FinishLabel(string? finish) => finish switch
     {
-        "stop" => "fin",
-        "length" => "fin: límite de tokens",
+        "stop" => Messages.ChatFinish,
+        "length" => Messages.ChatFinishLength,
         null => "",
-        _ => "fin: " + finish
+        _ => Messages.ChatFinishOther.Format(finish)
     };
 
     public static string Rate(double? value) => value is { } v ? v.ToString(v >= 100 ? "0" : "0.0", CultureInfo.CurrentCulture) : "—";

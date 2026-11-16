@@ -67,12 +67,12 @@ internal static partial class DashboardCli
     {
         if (args is ["--help"] or ["-h"])
         {
-            output.WriteLine("Uso: coquena tui");
+            output.WriteLine(Messages.TuiUsage.ToString());
             return 0;
         }
         if (args.Length != 0 || Console.IsInputRedirected || Console.IsOutputRedirected)
         {
-            error.WriteLine("Usar coquena tui sin argumentos en una terminal interactiva.");
+            error.WriteLine(Messages.TuiNeedsTerminal.ToString());
             return 2;
         }
 
@@ -91,7 +91,7 @@ internal static partial class DashboardCli
     {
         const int Left = LivePresentation.TreeWidth, Right = Left + 1;
         const int Live = 0, Definitions = 1, Settings = 2, Hardware = 3, History = 4, Notices = 5, Editing = 6, DownloadsPage = 7, Tools = 8;
-        const string Finished = "ya había terminado o fue retirada; no hubo cambios.";
+        string Finished = Messages.DownloadAlreadyFinished.ToString();
         var targets = Discover(out var diagnostic);
         var preferences = new ConfigurationManager(Home.Resolve());
         var hardware = metrics ?? SystemMetrics.Create();
@@ -131,7 +131,7 @@ internal static partial class DashboardCli
         var upButton = Action(" ▲ Up ");
         var downButton = Action(" ▼ Down ");
         downButton.X = Pos.Right(upButton) + 1;
-        var privatePreparation = new CheckBox { X = Pos.Right(downButton) + 2, Text = "Preparación privada" };
+        var privatePreparation = new CheckBox { X = Pos.Right(downButton) + 2, Text = Messages.DashboardPrivatePreparationLabel.ToString() };
         var recipeTarget = new Label { X = Pos.Right(privatePreparation) + 2, Width = Dim.Fill(), Height = 1 };
         recipeRow.Add(upButton, downButton, privatePreparation, recipeTarget);
         pageView.Add(recipeRow);
@@ -264,7 +264,7 @@ internal static partial class DashboardCli
         rightTitle.Pressed += action =>
         {
             if (page != Tools || action != "chat-new") return;
-            if (chat.Answering && Query(app, "Nueva sesión", "Hay una respuesta en curso; se va a interrumpir.", "Cancelar", "Nueva sesión") != 1) return;
+            if (chat.Answering && Query(app, Messages.ChatNewSessionTitle.ToString(), Messages.ChatNewSessionInterruptConfirm.ToString(), Messages.LabelsCancel.ToString(), Messages.ChatNewSessionTitle.ToString()) != 1) return;
             chat.Clear();
             Render();
         };
@@ -346,7 +346,7 @@ internal static partial class DashboardCli
         {
             if (page != Live || row >= treeRows.Count || treeRows[row].Entry is not { } name ||
                 selectedSnapshot?.Entries.FirstOrDefault(entry => entry.Name == name) is not { } entry) return;
-            ShowDetail("Entrada · " + entry.Name, EntryDetail(entry));
+            ShowDetail(Messages.DashboardEntryTitle.Format(entry.Name), EntryDetail(entry));
         };
         tasks.SelectionChanged += row =>
         {
@@ -357,7 +357,7 @@ internal static partial class DashboardCli
         tasks.Chosen += row =>
         {
             if (row < 0 || row >= visibleTasks.Count) return;
-            ShowDetail("Tarea · último valor observado", InferencePresentation.Detail(visibleTasks[row]));
+            ShowDetail(Messages.DashboardTaskDetailTitle.ToString(), InferencePresentation.Detail(visibleTasks[row]));
         };
         detail.Pressed += action =>
         {
@@ -390,9 +390,9 @@ internal static partial class DashboardCli
                 case "instance":
                     if (!logSessions.TryGetValue(index, out var session)) return;
                     var files = session.Files;
-                    var choice = Choose(app, "Instancia · " + targets[index].Label, files.Length == 0 ? ["Sin archivos registrados."]
-                        : files.Select((file, i) => $"i{i + 1} · {file.StartedAt}{(file.Active ? " → ahora" : "")}").ToArray(),
-                        files.Length > 0 ? "Abrir" : null);
+                    var choice = Choose(app, Messages.DashboardInstanceTitle.Format(targets[index].Label), files.Length == 0 ? [Messages.DashboardNoFilesRecorded.ToString()]
+                        : files.Select((file, i) => $"i{i + 1} · {file.StartedAt}{(file.Active ? Messages.LogActiveSuffix.ToString() : "")}").ToArray(),
+                        files.Length > 0 ? Messages.LabelsOpen.ToString() : null);
                     if (choice is int row && row < files.Length) ShowHistoryFile(files[row]);
                     return;
                 case "level": historyLevel = (historyLevel + 1) % 3; historyMatch = -1; break;
@@ -426,7 +426,7 @@ internal static partial class DashboardCli
                 (operation is not null || chat.Answering || managementJobs.Values.Any(job => !job.IsCompleted)))
             {
                 key.Handled = true;
-                if (Query(app, "Salir", "Hay un proceso en curso; al salir se va a detener. ¿Salir de todos modos?", "Cancelar", "Salir") == 1)
+                if (Query(app, Messages.LabelsExit.ToString(), Messages.TuiExitRunningProcessConfirm.ToString(), Messages.LabelsCancel.ToString(), Messages.LabelsExit.ToString()) == 1)
                     app.RequestStop(window);
                 return;
             }
@@ -461,7 +461,7 @@ internal static partial class DashboardCli
             if (page == Tools && chat.Answering) Render();
             if (page == Definitions && places.ElementAtOrDefault(focusedPlace)?.Context is { } shown &&
                 (managementJobs.Keys.Any(key => key.EndsWith(":" + shown.Root, StringComparison.Ordinal)) ||
-                 operation is not null && definitionView == "Recetas"))
+                 operation is not null && definitionView == "recipes"))
             { definitionPage = null; Render(); }
             return true;
         });
@@ -482,9 +482,9 @@ internal static partial class DashboardCli
             // let it finish instead of ending the process halfway. Pending questions answer Cancelar.
             if (!settings.Pending.IsCompleted)
             {
-                consoleError.WriteLine("Esperando a que termine el traslado de directorios…");
+                consoleError.WriteLine(Messages.TuiWaitingDirectoryMove.ToString());
                 try { settings.Pending.GetAwaiter().GetResult(); }
-                catch (Exception error) { consoleError.WriteLine("El traslado de directorios no terminó: " + error.Message); }
+                catch (Exception error) { consoleError.WriteLine(Messages.DashboardDirectoryMoveFailed.Format(error.Message)); }
             }
             try { Task.WhenAll(managementJobs.Values).WaitAsync(TimeSpan.FromSeconds(10)).GetAwaiter().GetResult(); }
             catch (Exception error) when (ManagementError(error) || error is TimeoutException) { }
@@ -530,7 +530,7 @@ internal static partial class DashboardCli
             {
                 resourceReads.Remove(read.Key);
                 if (read.Value.IsCompletedSuccessfully) { resourceCache[read.Key] = read.Value.Result; resourceProblems.Remove(read.Key); }
-                else resourceProblems[read.Key] = read.Value.Exception?.GetBaseException().Message ?? "Consulta cancelada.";
+                else resourceProblems[read.Key] = read.Value.Exception?.GetBaseException().Message ?? Messages.DashboardQueryCancelled.ToString();
                 definitionPage = null;
             }
             foreach (var job in managementJobs.Where(job => job.Value.IsCompleted).ToArray())
@@ -541,7 +541,7 @@ internal static partial class DashboardCli
                 definitionPage = null;
                 transferClock.Reset();
                 if (job.Key.StartsWith("service:", StringComparison.Ordinal)) RefreshTargets();
-                var message = job.Value.IsCompletedSuccessfully ? job.Value.Result : job.Value.Exception?.GetBaseException().Message ?? "Operación cancelada.";
+                var message = job.Value.IsCompletedSuccessfully ? job.Value.Result : job.Value.Exception?.GetBaseException().Message ?? Messages.DashboardOperationCancelled.ToString();
                 // Hub queries are navigation: their result is the page itself, only failures are notices.
                 // A preparation whose transfer was cancelled ends without installing anything; it is not an error.
                 if (job.Value.Exception?.GetBaseException() is Coquena.Downloads.DownloadException { Code: "transfer-cancelled" } cancelled)
@@ -574,7 +574,7 @@ internal static partial class DashboardCli
                 {
                     var tone = completed.IsCompletedSuccessfully && publicationExit == 0 ? "ok" : publicationExit == 130 ? "warn" : "err";
                     Notify(tone == "ok" ? "✓" : tone == "warn" ? "▲" : "✗", tone, operationLabel + ": " + problem, -1);
-                    Query(app, "Resultado de la operación", problem, "Aceptar");
+                    Query(app, Messages.DashboardOperationResultTitle.ToString(), problem, Messages.LabelsAccept.ToString());
                 }
             }
             if (operation is null && projectClock.Elapsed >= CaptureInterval)
@@ -603,7 +603,7 @@ internal static partial class DashboardCli
                 {
                     selectedSnapshot = null;
                     snapshots.Remove(index);
-                    serviceNote = "observación no disponible · " + pending.Task.Exception!.GetBaseException().Message;
+                    serviceNote = Messages.DashboardObservationUnavailable.Format(pending.Task.Exception!.GetBaseException().Message);
                     inference.Suspend();
                 }
             }
@@ -697,9 +697,9 @@ internal static partial class DashboardCli
             preferredTask = null;
             inferenceEntry = null;
             serviceNote = target is null ? null : target.Service is null
-                ? target.DeclaresService ? "○ sin iniciar" : "sin servicio propio" : "consultando…";
+                ? target.DeclaresService ? Messages.DashboardServiceNotStarted.ToString() : Messages.DashboardNoOwnService.ToString() : Messages.LabelsQuerying2.ToString();
             if (target?.Recipe is not null)
-                recipeTarget.Text = target.RecipeProblem is { } problem ? "receta no disponible: " + problem : "→ " + target.Destination;
+                recipeTarget.Text = target.RecipeProblem is { } problem ? Messages.DashboardRecipeUnavailable.Format(problem) : "→ " + target.Destination;
             upButton.Enabled = downButton.Enabled = operation is null;
             ReadLog(force: true);
             Arrange();
@@ -737,16 +737,16 @@ internal static partial class DashboardCli
             {
                 places = definitionSource.Places();
                 var place = places.FindIndex(candidate => candidate.Context?.Root == root);
-                if (place < 0) { Query(app, "Actualizaciones", "El ámbito de este aviso ya no está disponible.", "Aceptar"); return; }
+                if (place < 0) { Query(app, Messages.LabelsUpdates.ToString(), Messages.DashboardNotificationScopeUnavailable.ToString(), Messages.LabelsAccept.ToString()); return; }
                 focusedPlace = place;
-                definitionView = "Actualizaciones";
+                definitionView = "updates";
                 Open(Definitions);
                 return;
             }
             if (notice.Retry is { } retry)
             {
                 var row = notices.FindLastIndex(candidate => ReferenceEquals(candidate, notice));
-                if (managementJobs.ContainsKey(retry.Key)) { Query(app, "Operación en curso", "Ya hay una operación igual en curso. Esperar a que termine.", "Aceptar"); return; }
+                if (managementJobs.ContainsKey(retry.Key)) { Query(app, Messages.DashboardOperationInProgressTitle.ToString(), Messages.DashboardOperationInProgressBody.ToString(), Messages.LabelsAccept.ToString()); return; }
                 if (row >= 0)
                 {
                     notices[row] = notice with { Retry = null };
@@ -761,7 +761,7 @@ internal static partial class DashboardCli
 
         void OpenNotice(Notice notice)
         {
-            if (notice.Target < 0) { Query(app, "Detalle del aviso", notice.Text, "Aceptar"); return; }
+            if (notice.Target < 0) { Query(app, Messages.DashboardNotificationDetailsTitle.ToString(), notice.Text, Messages.LabelsAccept.ToString()); return; }
             if (notice.Target != index && notice.Target < targets.Count) { index = notice.Target; preferredEntry = null; selectionEpoch++; Select(); }
             Open(Live);
         }
@@ -792,7 +792,7 @@ internal static partial class DashboardCli
             var width = Math.Max(20, window.Viewport.Width - Right);
             tree.Show(1, (_, _) => Markup.Style("focb", " Chat".PadRight(Left)), 0);
             leftTitle.Rows = [""];
-            rightTitle.Rows = ["{pad}" + Markup.Style("btn", " Nueva sesión ", "chat-new")];
+            rightTitle.Rows = ["{pad}" + Markup.Style("btn", Messages.ChatNewSessionButton.ToString(), "chat-new")];
             var entry = chat.Target is int at && chat.Entry is { } name ? catalogues.GetValueOrDefault(at)?.FirstOrDefault(candidate => candidate.Name == name) : null;
             if (chat.Model is null && entry?.Inference?.Model is { } model) chat.Model = LivePresentation.ModelName(model);
             chat.State = entry is null ? chat.State : entry.State == "loaded" ? Markup.Style("ok", "●") : Markup.Style("mut", "○ " + entry.State);
@@ -801,7 +801,7 @@ internal static partial class DashboardCli
 
         (Uri? Address, string? Problem) ChatEndpoint(int target)
         {
-            if (targets.ElementAtOrDefault(target)?.Service is not { } service) return (null, "Sin servicio.");
+            if (targets.ElementAtOrDefault(target)?.Service is not { } service) return (null, Messages.TuiChatNoService.ToString());
             try { return new ServiceObservation(targets[target].Store).Endpoint(service); }
             catch (Exception error) when (ServiceObservation.ObservationError(error)) { return (null, error.Message); }
         }
@@ -821,7 +821,7 @@ internal static partial class DashboardCli
         // Every service with its published presets; a stopped one is listed so it can be started.
         void ChooseChatTarget()
         {
-            if (chat.Answering) { Query(app, "Chat", "Hay una respuesta en curso; detenerla antes de cambiar de destino.", "Aceptar"); return; }
+            if (chat.Answering) { Query(app, "Chat", Messages.ChatStopBeforeChangingTarget.ToString(), Messages.LabelsAccept.ToString()); return; }
             var options = new List<(int Target, string Service, string? Entry, string? Model, bool Running)>();
             var labels = new List<string>();
             for (var i = 0; i < targets.Count; i++)
@@ -832,7 +832,7 @@ internal static partial class DashboardCli
                 {
                     if (problem is not null) continue;
                     options.Add((i, service.Name, null, null, false));
-                    labels.Add(service.Name + "  ○ detenido");
+                    labels.Add(Messages.ChatServiceStopped.Format(service.Name));
                     continue;
                 }
                 foreach (var entry in ChatEntries(i))
@@ -841,8 +841,8 @@ internal static partial class DashboardCli
                     labels.Add(service.Name + " › " + entry.Name + (entry.State == "loaded" ? "" : "  ○ " + entry.State));
                 }
             }
-            if (options.Count == 0) { Query(app, "Chat", "No hay servicios con presets publicados.", "Aceptar"); return; }
-            if (Choose(app, "Servicio › preset", labels, "Elegir") is not int row || row >= options.Count) return;
+            if (options.Count == 0) { Query(app, "Chat", Messages.ChatNoServicesWithPresets.ToString(), Messages.LabelsAccept.ToString()); return; }
+            if (Choose(app, Messages.ChatChooseServicePresetTitle.ToString(), labels, Messages.LabelsChoose.ToString()) is not int row || row >= options.Count) return;
             var chosen = options[row];
             if (!chosen.Running) { StartForChat(chosen.Target); return; }
             chat.Choose(chosen.Target, chosen.Service, chosen.Entry, ChatModel(chosen.Entry));
@@ -854,14 +854,14 @@ internal static partial class DashboardCli
         void StartForChat(int target)
         {
             var name = targets[target].Service?.Name ?? targets[target].Name;
-            if (operation is not null) { Query(app, "Chat", "Hay otra operación de servicio en curso.", "Aceptar"); return; }
-            if (Query(app, "Iniciar servicio", $"«{name}» no está en ejecución. ¿Iniciarlo para probar el chat?", "Cancelar", "Iniciar") != 1) return;
+            if (operation is not null) { Query(app, "Chat", Messages.ChatAnotherServiceOpInProgress.ToString(), Messages.LabelsAccept.ToString()); return; }
+            if (Query(app, Messages.ChatStartServiceTitle.ToString(), Messages.ChatStartServiceConfirm.Format(name), Messages.LabelsCancel.ToString(), Messages.LabelsStart.ToString()) != 1) return;
             if (index != target) { index = target; preferredEntry = null; selectionEpoch++; Select(); }
             try { Show(Task.Run(() => CaptureAsync(targets[target], stop.Token)).GetAwaiter().GetResult().Snapshot); }
-            catch (Exception error) when (ServiceObservation.ObservationError(error)) { Query(app, "Chat", error.Message, "Aceptar"); return; }
+            catch (Exception error) when (ServiceObservation.ObservationError(error)) { Query(app, "Chat", error.Message, Messages.LabelsAccept.ToString()); return; }
             BeginServiceAction(stopService: false);
             chat.Choose(target, name, null, null);
-            chat.State = Markup.Style("mut", "iniciando… elegir el preset al terminar");
+            chat.State = Markup.Style("mut", Messages.ChatStartingService.ToString());
             Render();
         }
 
@@ -871,7 +871,7 @@ internal static partial class DashboardCli
             var (address, problem) = ChatEndpoint(target);
             if (address is null)
             {
-                if (problem is not null) Query(app, "Chat", problem, "Aceptar");
+                if (problem is not null) Query(app, "Chat", problem, Messages.LabelsAccept.ToString());
                 else StartForChat(target);
                 return;
             }
@@ -891,9 +891,9 @@ internal static partial class DashboardCli
             if (chat.Entry is not { } entry) return;
             places = definitionSource.Places();
             var place = definitionSource.Locate(places, entry).Place;
-            if (place < 0) { Query(app, "Definición", "El ámbito que define el preset no está disponible.", "Aceptar"); return; }
+            if (place < 0) { Query(app, Messages.DashboardDefinitionTitle.ToString(), Messages.DashboardPresetScopeUnavailable.ToString(), Messages.LabelsAccept.ToString()); return; }
             focusedPlace = place;
-            definitionView = "Presets";
+            definitionView = "presets";
             Open(Definitions);
         }
 
@@ -962,8 +962,8 @@ internal static partial class DashboardCli
                 if (LivePresentation.Facts(entry) is { } facts) rows.Add(facts);
                 if (entry?.Inference is { } slots && slots.Active.Any(slot => slot.Context is > 0)) lastContext[index + "/" + entry.Name] = slots;
                 if (LivePresentation.Context(entry is null ? null : lastContext.GetValueOrDefault(index + "/" + entry.Name), width - 1) is { } context) rows.Add(context);
-                if (entry is null) rows.Add(" " + Markup.Style("mut", "Sin entradas publicadas"));
-                else if (entry.Inference is null) rows.Add(" " + Markup.Style("mut", "Sin señal /slots" +
+                if (entry is null) rows.Add(" " + Markup.Style("mut", Messages.DashboardNoPublishedEntries.ToString()));
+                else if (entry.Inference is null) rows.Add(" " + Markup.Style("mut", Messages.DashboardNoSlotsSignal.ToString() +
                     (entry.InferenceDiagnostic is { } reason ? " · " + DashboardPresentation.Fit(reason, width - 20) : "")));
                 if (visibleTasks.Count > 0) rows.Add(LivePresentation.TaskHeader);
             }
@@ -985,7 +985,7 @@ internal static partial class DashboardCli
         {
             if (!logSessions.TryGetValue(index, out var session))
             {
-                logRows = [targets.ElementAtOrDefault(index)?.Service is null ? "Sin servicio que registre logs." : "Consultando últimas líneas…"];
+                logRows = [targets.ElementAtOrDefault(index)?.Service is null ? Messages.LogNoServiceWithLogs.ToString() : Messages.LogQueryingLatestLines.ToString()];
                 logDiscarded = 0;
                 return;
             }
@@ -995,7 +995,7 @@ internal static partial class DashboardCli
             foreach (var row in frame.Rows)
                 if (LivePresentation.PromptTiming(row) is { } timing) promptTimes[(timing.Slot, timing.Task)] = timing.Milliseconds;
             if (promptTimes.Count > 2000) promptTimes.Clear();
-            logRows = frame.Rows.Length == 0 || frame.Rows is [""] ? ["Sin líneas visibles."] : frame.Rows;
+            logRows = frame.Rows.Length == 0 || frame.Rows is [""] ? [Messages.LogNoVisibleLines.ToString()] : frame.Rows;
         }
 
         void RenderLog()
@@ -1050,33 +1050,33 @@ internal static partial class DashboardCli
             if (session is not null) historyRows = session.Read(settings.FilterLogs.Value == CheckState.Checked).Rows;
             var files = session?.Files ?? [];
             var name = targets.ElementAtOrDefault(index)?.Service?.Name ?? "";
-            historyTitle.Rows = [" " + Markup.Escape("Log " + name + " · histórico") + "{pad}" + Markup.Style("btn", " Volver ", "back") + " "];
+            historyTitle.Rows = [" " + Markup.Escape(Messages.LogHistoryTitle.Format(name)) + "{pad}" + Markup.Style("btn", Messages.DashboardBackButton.ToString(), "back") + " "];
             var number = historyFile is null ? 0 : Array.FindIndex(files, file => file.Id == historyFile.Id) + 1;
-            var instance = historyFile is null ? " sin archivos ▾ "
-                : $" i{number} · {historyFile.StartedAt}{(historyFile.Active ? " → ahora" : "")} ▾ ";
+            var instance = historyFile is null ? Messages.LogNoFilesDropdown.ToString()
+                : $" i{number} · {historyFile.StartedAt}{(historyFile.Active ? Messages.LogActiveSuffix.ToString() : "")} ▾ ";
             Regex? pattern = null;
             historyProblem = null;
             if (regex.Text.Length > 0)
             {
                 try { pattern = new Regex(regex.Text, RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(50)); }
-                catch (ArgumentException) { historyProblem = "regex inválida"; }
+                catch (ArgumentException) { historyProblem = Messages.LogInvalidRegex.ToString(); }
             }
             var rows = historyRows.Where(row => LivePresentation.Severity(row) >= historyLevel).ToArray();
             try { historyMatches = pattern is null ? [] : rows.Select((row, i) => (row, i)).Where(item => pattern.IsMatch(item.row)).Select(item => item.i).ToArray(); }
-            catch (RegexMatchTimeoutException) { historyMatches = []; historyProblem = "regex demasiado costosa"; }
+            catch (RegexMatchTimeoutException) { historyMatches = []; historyProblem = Messages.LogRegexTooExpensive.ToString(); }
             if (historyMatch >= historyMatches.Length) historyMatch = -1;
-            var level = historyLevel switch { 1 => "avisos y errores", 2 => "sólo errores", _ => "todos" };
-            var count = historyProblem ?? (pattern is null ? "" : historyMatches.Length + " coincidencias");
+            var level = historyLevel switch { 1 => Messages.LogFilterWarningsAndErrors.ToString(), 2 => Messages.LogFilterErrorsOnly.ToString(), _ => Messages.LabelsAll.ToString() };
+            var count = historyProblem ?? (pattern is null ? "" : Messages.LogHistoryMatches.Format(historyMatches.Length));
             historyControls.Rows =
             [
-                Markup.Fit(" " + Markup.Style("mut", "instancia") + " " + Markup.Style("focb", DashboardPresentation.Fit(instance, 40), "instance"), 47) + Markup.Style("mut", "regex "),
-                " " + Markup.Style("mut", "nivel") + " " + Markup.Style("nav", level + " ▾", "level") + "   " + Markup.Style(historyProblem is null ? "mut" : "warn", count) +
-                    "{pad}" + Markup.Style("btn", " ◂ Anterior ", "previous") + " " + Markup.Style("btn", " Siguiente ▸ ", "next") + " "
+                Markup.Fit(" " + Markup.Style("mut", Messages.LabelsInstance.ToString()) + " " + Markup.Style("focb", DashboardPresentation.Fit(instance, 40), "instance"), 47) + Markup.Style("mut", "regex "),
+                " " + Markup.Style("mut", Messages.LabelsLevel.ToString()) + " " + Markup.Style("nav", level + " ▾", "level") + "   " + Markup.Style(historyProblem is null ? "mut" : "warn", count) +
+                    "{pad}" + Markup.Style("btn", Messages.LogPreviousButton.ToString(), "previous") + " " + Markup.Style("btn", Messages.LogNextButton.ToString(), "next") + " "
             ];
             var current = historyMatch >= 0 ? historyMatches[historyMatch] : -1;
             historyLines.RowZone = y => historyLines.Top + y == current ? "chg" : null;
             historyLines.Show(rows.Length, (row, _) => Highlight(rows[row], pattern));
-            historyFooter.Rows = [" " + Markup.Style("mut", "instancias") + "  " + string.Join("  ", files.Select((file, i) =>
+            historyFooter.Rows = [" " + Markup.Style("mut", Messages.LabelsInstances.ToString()) + "  " + string.Join("  ", files.Select((file, i) =>
                 file.Id == historyFile?.Id ? Markup.Style("sel", $" i{i + 1} {file.StartedAt}{(file.Active ? " → " : "")} ")
                     : Markup.Escape($"i{i + 1} {file.StartedAt}")))];
         }
@@ -1109,7 +1109,7 @@ internal static partial class DashboardCli
             var seen = new HashSet<Guid>();
             foreach (var place in definitionSource.Places().Where(place => place.Scope.Global || place.Scope.Here))
             {
-                if (!place.Scope.Accessible) { problems.Add("No se puede abrir la carpeta de " + place.Scope.Name + "."); continue; }
+                if (!place.Scope.Accessible) { problems.Add(Messages.DownloadsFolderOpenFailed.Format(place.Scope.Name)); continue; }
                 // A folder without recipe can already hold a local scope created by the CLI.
                 var context = place.Context ?? (place.Scope.Here && place.Folder is { } folder && Directory.Exists(Path.Combine(folder, ".coquena"))
                     ? ScopeContext.Project(Path.Combine(folder, "coquena.yaml")) : null);
@@ -1122,7 +1122,7 @@ internal static partial class DashboardCli
                 }
                 catch (Exception error) when (ManagementError(error))
                 {
-                    problems.Add("No se pudieron leer las descargas de " + place.Scope.Name + ".");
+                    problems.Add(Messages.DownloadsReadFailed.Format(place.Scope.Name));
                     problem = place.Scope.Name + ": " + error.Message;
                 }
             }
@@ -1132,7 +1132,7 @@ internal static partial class DashboardCli
             var all = groups.SelectMany(group => group.Item3.Items).ToArray();
             transferCount = all.Count(item => DownloadsPresentation.Visible(item.State) && DownloadsPresentation.Rank(item.State) == 0);
             transferIndicator = DownloadsPresentation.Indicator(all);
-            if (problem is not null && problem != transferProblem) Notify("✗", "err", "Descargas · " + problem, -1);
+            if (problem is not null && problem != transferProblem) Notify("✗", "err", Messages.DownloadsErrorNotice.Format(problem), -1);
             transferProblem = problem;
         }
 
@@ -1175,8 +1175,8 @@ internal static partial class DashboardCli
             var (place, context, _) = transferGroups[group];
             try
             {
-                if (split[0] == "cancel" && Query(app, "Cancelar descarga", "Se borrará lo descargado hasta ahora.", "No cancelar", "Cancelar descarga") != 1) return;
-                var label = "Descarga " + Transfers(context).Downloads.Status(operationId).Name + " · " + place.Scope.Name;
+                if (split[0] == "cancel" && Query(app, Messages.DownloadCancelTitle.ToString(), Messages.DownloadCancelConfirm.ToString(), Messages.DownloadKeepButton.ToString(), Messages.DownloadCancelTitle.ToString()) != 1) return;
+                var label = Messages.DownloadProgressLabel.Format(Transfers(context).Downloads.Status(operationId).Name, place.Scope.Name);
                 ManagementJob(split[0] + ":" + context.Root + operationId, async () =>
                 {
                     try
@@ -1192,17 +1192,17 @@ internal static partial class DashboardCli
             catch (Coquena.Downloads.DownloadException error) when (error.Code == "not-found")
             {
                 transferClock.Reset();
-                Query(app, "Descarga", "La descarga " + Finished, "Aceptar");
+                Query(app, Messages.LabelsDownload.ToString(), Messages.DownloadAlreadyFinishedNotice.ToString(), Messages.LabelsAccept.ToString());
             }
-            catch (Exception error) when (ManagementError(error)) { Query(app, "No se completó la operación", error.Message, "Aceptar"); }
+            catch (Exception error) when (ManagementError(error)) { Query(app, Messages.DashboardOperationIncompleteTitle.ToString(), error.Message, Messages.LabelsAccept.ToString()); }
         }
 
         void RenderNotices()
         {
-            noticeTitle.Rows = [" Notificaciones" + (unread > 0 ? "  " + Markup.Style("mut", unread + " sin leer") : "") + "{pad}" +
-                (unread > 0 ? Markup.Style("btn", " Marcar leídas ", "read") + " " : "")];
+            noticeTitle.Rows = [Messages.NotificationsTitle.ToString() + (unread > 0 ? "  " + Markup.Style("mut", Messages.NotificationsUnreadCount.Format(unread)) : "") + "{pad}" +
+                (unread > 0 ? Markup.Style("btn", Messages.NotificationsMarkAsReadButton.ToString(), "read") + " " : "")];
             noticeList.RowZone = y => noticeList.HasFocus && noticeList.Top + y == noticeList.Selected ? "chg" : null;
-            if (notices.Count == 0) { noticeList.Show(1, (_, _) => " " + Markup.Style("mut", "Todavía no hay avisos en esta sesión.")); return; }
+            if (notices.Count == 0) { noticeList.Show(1, (_, _) => " " + Markup.Style("mut", Messages.NotificationsEmpty.ToString())); return; }
             var focused = focusedNotice is null ? -1 : notices.FindLastIndex(notice => ReferenceEquals(notice, focusedNotice));
             noticeList.Show(notices.Count, (row, selected) =>
             {
@@ -1231,7 +1231,7 @@ internal static partial class DashboardCli
                         Math.Max(20, window.Viewport.Width - Right));
                 try
                 {
-                    if (definitionView is "Servicios" or "Servicio" && place.Context is not null)
+                    if (definitionView is "services" or "service" && place.Context is not null)
                     {
                         var services = ServiceDefinitions(place, targets, snapshots, place.Scope.Global ? null : AuthorSelections(place).FirstOrDefault());
                         var selected = managedSelection.GetValueOrDefault(place.Context.Root);
@@ -1240,9 +1240,9 @@ internal static partial class DashboardCli
                         definitionPage = ManagementPresentation.Services(place.Scope.Name, place.Scope.Global, services, selected,
                             Math.Max(20, window.Viewport.Width - Right), place.Scope.Global ? null : CombinationTitle(place));
                     }
-                    else if (definitionView is "Backends" or "Modelos" && place.Context is not null)
+                    else if (definitionView is "backends" or "models" && place.Context is not null)
                     {
-                        var backend = definitionView == "Backends";
+                        var backend = definitionView == "backends";
                         var key = place.Context.Root + definitionView;
                         // Read once per invalidation; finished jobs clear the cache.
                         if (!resourceReads.ContainsKey(key) && !resourceCache.ContainsKey(key) && !resourceProblems.ContainsKey(key))
@@ -1258,22 +1258,22 @@ internal static partial class DashboardCli
                         if (selected is not null) managedSelection[key] = selected;
                         definitionPage = ResourcePage(place.Scope.Name, backend, items, selected, filter, Math.Max(20, window.Viewport.Width - Right), definitionDetail.Viewport.Height, evidence?.Context);
                         if (resourceProblems.TryGetValue(key, out var problem))
-                            definitionPage = DefinitionsPresentation.Problem((backend ? "Backends" : "Modelos") + " de " + place.Scope.Name, problem);
+                            definitionPage = DefinitionsPresentation.Problem(Messages.DashboardScopeOf.Format(backend ? "Backends" : Messages.LabelsModels.ToString(), place.Scope.Name), problem);
                         else if (!resourceCache.ContainsKey(key))
-                            definitionPage = definitionPage with { Rows = [" " + Markup.Style("mut", "Consultando inventario…")] };
+                            definitionPage = definitionPage with { Rows = [" " + Markup.Style("mut", Messages.DashboardQueryingInventory.ToString())] };
                         if (!backend && hubViews.TryGetValue(place.Context.Root, out var hub) && hub.Active)
                             definitionPage = HubPage(place.Scope.Name, hub, Math.Max(20, window.Viewport.Width - Right),
                                 managementJobs.ContainsKey("hf:" + place.Context.Root));
                     }
-                    else if (definitionView == "Mantenimiento" && place.Context is not null)
+                    else if (definitionView == "maintenance" && place.Context is not null)
                     {
                         if (!maintenanceViews.TryGetValue(place.Context.Root, out var state)) maintenanceViews[place.Context.Root] = state = new();
                         definitionPage = MaintenancePage(place.Scope.Name, state, managementJobs.ContainsKey("maintenance:" + place.Context.Root), place.ScopeIds is { Length: > 0 }, place.Scope.Global || place.Scope.HasRecipe);
                     }
-                    else if (definitionView == "Recetas" && place.Context is not null)
+                    else if (definitionView == "recipes" && place.Context is not null)
                     {
                         var combinations = AvailableCombinations(place);
-                        var key = place.Context.Root + "Recetas";
+                        var key = place.Context.Root + "recipes";
                         var selected = managedSelection.GetValueOrDefault(key);
                         if (!combinations.Any(item => item.Key == selected)) selected = combinations.FirstOrDefault(item => item.Current)?.Key ?? combinations.FirstOrDefault()?.Key;
                         if (selected is not null) managedSelection[key] = selected;
@@ -1283,27 +1283,27 @@ internal static partial class DashboardCli
                         definitionPage = RecipesPage(place.Scope.Name, destination, combinations, selected, Math.Max(20, window.Viewport.Width - Right),
                             operation is not null && operationLabel == place.Scope.Name ? operationVerb : null);
                     }
-                    else if (definitionView == "Presets" && place.Context is not null)
+                    else if (definitionView == "presets" && place.Context is not null)
                     {
                         var presets = PresetRows(place.Context, AuthorSelections(place), snapshots);
-                        var key = place.Context.Root + "Presets";
+                        var key = place.Context.Root + "presets";
                         var selected = managedSelection.GetValueOrDefault(key);
                         if (!presets.Any(preset => preset.Id == selected)) selected = presets.FirstOrDefault()?.Id;
                         if (selected is not null) managedSelection[key] = selected;
                         definitionPage = PresetsPage(place.Scope.Name, presets, selected, Math.Max(20, window.Viewport.Width - Right), CombinationTitle(place));
                     }
-                    else if (definitionView == "Actualizaciones" && place.Context is not null)
+                    else if (definitionView == "updates" && place.Context is not null)
                     {
                         if (!updateViews.TryGetValue(place.Context.Root, out var state)) updateViews[place.Context.Root] = state = new();
                         ReadUpdates(place.Context, AuthorSelections(place), state);
                         var ids = (state.Plan?["resources"] as System.Text.Json.Nodes.JsonArray ?? []).Select(item => item?["installation-id"]?.ToString()).OfType<string>().ToArray();
                         var impact = snapshots.Values.Where(snapshot => snapshot.ProcessState == "alive" && ids.Any(id => ContainsIdentity(snapshot.ActiveComposition, id)))
-                            .Select(snapshot => snapshot.Name + ": conserva su revisión hasta aplicar/reiniciar explícitamente").ToArray();
+                            .Select(snapshot => snapshot.Name + Messages.LabelsKeepsItsRevisionUntilExplicitlyAppliedOr.ToString()).ToArray();
                         definitionPage = UpdatesPage(place.Scope.Name, state, impact, managementJobs.ContainsKey("update:" + place.Context.Root), CombinationTitle(place));
                     }
-                    else if (definitionView == "Parámetros" && place.Context is not null)
+                    else if (definitionView == "parameters" && place.Context is not null)
                     {
-                        var key = place.Context.Root + "Parámetros";
+                        var key = place.Context.Root + "parameters";
                         var filter = resourceFilters.GetValueOrDefault(key) ?? "";
                         var definitions = DefinitionRows(DefinitionSelections(place)).Where(row => row.Name.Contains(filter, StringComparison.OrdinalIgnoreCase)).ToArray();
                         var selected = managedSelection.GetValueOrDefault(key);
@@ -1313,7 +1313,7 @@ internal static partial class DashboardCli
                             AuthorSelections(place) is [var single] ? single : null);
                     }
                 }
-                catch (Exception error) when (ManagementError(error)) { definitionPage = DefinitionsPresentation.Problem(definitionView ?? "Definiciones", error.Message); }
+                catch (Exception error) when (ManagementError(error)) { definitionPage = DefinitionsPresentation.Problem(definitionView ?? Messages.LabelsDefinitions.ToString(), error.Message); }
             }
             leftTitle.Rows = [""];
             rightTitle.Rows = [" " + definitionPage.Title];
@@ -1355,7 +1355,7 @@ internal static partial class DashboardCli
 
         void ManagementJob(string key, Func<Task<string>> run)
         {
-            if (managementJobs.ContainsKey(key)) { Query(app, "Operación en curso", "Ya hay una operación igual en curso. Esperar a que termine.", "Aceptar"); return; }
+            if (managementJobs.ContainsKey(key)) { Query(app, Messages.DashboardOperationInProgressTitle.ToString(), Messages.DashboardOperationInProgressBody.ToString(), Messages.LabelsAccept.ToString()); return; }
             managementJobs[key] = Task.Run(run, stop.Token);
             managementRuns[key] = run;
         }
@@ -1404,7 +1404,7 @@ internal static partial class DashboardCli
             {
                 if (action == "recipe-import")
                 {
-                    var combination = SelectedCombination(place) ?? throw new ArgumentException("Seleccionar una combinación.");
+                    var combination = SelectedCombination(place) ?? throw new ArgumentException(Messages.CombinationSelectRequired.ToString());
                     var recipe = RecipeReader.Read(combination.Selection);
                     var global = ScopeContext.Global(Home.Resolve());
                     var form = ImportForm(app, recipe, global);
@@ -1419,7 +1419,7 @@ internal static partial class DashboardCli
                     {
                         var output = new StringWriter(); var error = new StringWriter();
                         var code = await ImportCli.RunAsync(args.ToArray(), output, error, new DashboardModelSelection(app, error),
-                            message => AskOnUi(app, "Importar · confirmar publicación", message, "Aplicar", stop.Token).GetAwaiter().GetResult(), stop.Token);
+                            message => AskOnUi(app, Messages.AuthoringImportConfirmPublicationTitle.ToString(), message, Messages.LabelsApply.ToString(), stop.Token).GetAwaiter().GetResult(), stop.Token);
                         var text = output + "\n" + error;
                         if (code != 0) throw new IOException(text);
                         return text;
@@ -1441,7 +1441,7 @@ internal static partial class DashboardCli
                     if (action == "update-check")
                     {
                         if (state.Unprepared) throw new ArgumentException(state.Notice);
-                        var picked = PickResources(app, "Comprobar novedades", new RecipeUpdatePlans(context).Selectors(selections), "Comprobar");
+                        var picked = PickResources(app, Messages.UpdatesCheckTitle.ToString(), new RecipeUpdatePlans(context).Selectors(selections), Messages.LabelsCheck.ToString());
                         if (picked is null) return;
                         var filters = picked.ToHashSet(StringComparer.OrdinalIgnoreCase);
                         ManagementJob("update:" + context.Root, async () =>
@@ -1453,7 +1453,7 @@ internal static partial class DashboardCli
                             var probe = new ResourceUpdateProbe(new(client), (variant, token) => source.ResolveAsync(hardware, variant, "latest", token), new DashboardModelSelection(app, output));
                             var plan = await new RecipeUpdatePlans(context).UpdateAsync(selections, filters, probe, stop.Token);
                             var report = RecipeUpdatePlans.Report(plan);
-                            var text = "Comprobación completada en " + place.Scope.Name + "\n" + UpdateReportText(report);
+                            var text = Messages.UpdatesCheckCompletedIn.Format(place.Scope.Name, UpdateReportText(report));
                             if (report["resources"]!.AsArray().Any(item => item?["status"]?.ToString() is not ("unchanged" or "update-available" or "not-applicable"))) throw new IOException(text);
                             return text;
                         });
@@ -1463,14 +1463,14 @@ internal static partial class DashboardCli
                         if (state.Problem is not null) throw new ArgumentException(state.Problem);
                         var filters = state.Chosen.ToHashSet(StringComparer.Ordinal);
                         if (filters.Count == 0) return;
-                        if (Query(app, "Actualizar · " + place.Scope.Name, string.Join("\n", filters) + "\nSe aplica el plan persistido como conjunto; no se modifica YAML ni se reinician servicios.", "Cancelar", "Actualizar") != 1) return;
+                        if (Query(app, Messages.UpdatesApplyTitle.Format(place.Scope.Name), Messages.UpdatesApplyConfirm.Format(string.Join("\n", filters)), Messages.LabelsCancel.ToString(), Messages.LabelsUpdate.ToString()) != 1) return;
                         ManagementJob("update:" + context.Root, async () =>
                         {
                             using var models = new HuggingFaceTransport(); using var backends = new OfficialArtifactTransport();
                             var report = await new RecipeUpgrade(context).ApplyAsync(selections, filters, HardwareProbe.Inspect(), models, backends,
                                 new ScopedBackends(context).ValidateOfficial, _ => { }, cancellation: stop.Token);
                             if (report["resources"]!.AsArray().Any(item => item?["upgrade-status"]?.ToString() == "blocked")) throw new IOException(UpdateReportText(report));
-                            return "Actualización de " + place.Scope.Name + "\n" + UpdateReportText(report);
+                            return Messages.UpdatesAppliedIn.Format(place.Scope.Name, UpdateReportText(report));
                         });
                     }
                     return;
@@ -1478,14 +1478,14 @@ internal static partial class DashboardCli
                 if (action == "author-selection")
                 {
                     var options = place.Scope.Global ? UpdateCli.GlobalSelections(context) : AvailableCombinations(place).Select(item => item.Selection).ToArray();
-                    var labels = (place.Scope.Global ? new[] { "Todas las intenciones" } : Array.Empty<string>()).Concat(options.Select(option => place.Scope.Global ? IntentionLabel(context, option) : CombinationLabel(option))).ToArray();
+                    var labels = (place.Scope.Global ? new[] { Messages.CombinationAllIntentions.ToString() } : Array.Empty<string>()).Concat(options.Select(option => place.Scope.Global ? IntentionLabel(context, option) : CombinationLabel(option))).ToArray();
                     var current = Array.IndexOf(labels, CombinationTitle(place));
                     var row = DropDown(app, labels, Math.Max(0, current), current);
                     if (row is int choice)
                     {
                         authorSelections[context.Root] = place.Scope.Global && choice == 0 ? options : [options[choice - (place.Scope.Global ? 1 : 0)]];
                         if (!place.Scope.Global)
-                            managedSelection[context.Root + "Recetas"] = AvailableCombinations(place).Single(item => CombinationIdentity.FromSelection(item.Selection).Id == CombinationIdentity.FromSelection(options[choice]).Id).Key;
+                            managedSelection[context.Root + "recipes"] = AvailableCombinations(place).Single(item => CombinationIdentity.FromSelection(item.Selection).Id == CombinationIdentity.FromSelection(options[choice]).Id).Key;
                     }
                     definitionPage = null; Render(); return;
                 }
@@ -1494,26 +1494,26 @@ internal static partial class DashboardCli
                 if (action.StartsWith("preset-", StringComparison.Ordinal))
                 {
                     var items = PresetRows(context, AuthorSelections(place), snapshots);
-                    var chosen = items.FirstOrDefault(item => item.Id == managedSelection.GetValueOrDefault(context.Root + "Presets")) ?? items.FirstOrDefault()
-                        ?? throw new ArgumentException("Seleccionar un preset.");
+                    var chosen = items.FirstOrDefault(item => item.Id == managedSelection.GetValueOrDefault(context.Root + "presets")) ?? items.FirstOrDefault()
+                        ?? throw new ArgumentException(Messages.PresetSelectRequired.ToString());
                     if (action is "preset-next" or "preset-prev")
-                    { managedSelection[context.Root + "Presets"] = items[Math.Clamp(Array.IndexOf(items, chosen) + (action == "preset-next" ? 4 : -4), 0, items.Length - 1)].Id; }
+                    { managedSelection[context.Root + "presets"] = items[Math.Clamp(Array.IndexOf(items, chosen) + (action == "preset-next" ? 4 : -4), 0, items.Length - 1)].Id; }
                     else if (action == "preset-edit") { OpenEditor(chosen.Recipe.Selection, place.Scope.Name, AuthorPrivate(place, chosen.Recipe.Selection)); FocusOrigin(chosen.Value.Origin); return; }
-                    else if (action == "preset-detail") Choose(app, chosen.Name, ["Receta: " + chosen.Recipe.Name, "Archivo: " + chosen.Value.Origin.File,
-                        chosen.Value.Redacted()?.ToJsonString() ?? "—", "Publicación: " + (chosen.Published is null ? "sin evidencia en la instancia observada" : "snapshot de la instancia; no prueba carga")], null);
+                    else if (action == "preset-detail") Choose(app, chosen.Name, [Messages.PresetDetailRecipe.Format(chosen.Recipe.Name), Messages.PresetDetailFile.Format(chosen.Value.Origin.File),
+                        chosen.Value.Redacted()?.ToJsonString() ?? "—", Messages.PresetDetailPublication.Format(chosen.Published is null ? Messages.PresetPublicationNoEvidence.ToString() : Messages.PresetPublicationSnapshotNote.ToString())], null);
                     else if (action == "preset-clone")
                     {
                         // An invalid name says why and reopens the form with what was typed.
                         var name = "";
                         while (true)
                         {
-                            var fields = ResourceForm(app, "Clonar preset · " + chosen.Name, [("nuevo nombre", name)], "Abrir borrador");
+                            var fields = ResourceForm(app, Messages.PresetCloneTitle.Format(chosen.Name), [(Messages.PresetNewNameField.ToString(), name)], Messages.AuthoringOpenDraftButton.ToString());
                             if (fields is null) return;
                             name = fields[0].Trim();
-                            var reason = name.Length == 0 ? "Falta el nombre del preset nuevo."
-                                : chosen.Recipe.Root.Get("presets")?.Get(name) is not null ? "Ya existe un preset «" + name + "» en esta combinación." : null;
+                            var reason = name.Length == 0 ? Messages.PresetCloneNameMissing.ToString()
+                                : chosen.Recipe.Root.Get("presets")?.Get(name) is not null ? Messages.PresetAlreadyExists.Format(name) : null;
                             if (reason is null) break;
-                            Query(app, "Clonar preset · nombre no válido", reason, "Aceptar");
+                            Query(app, Messages.PresetCloneInvalidNameTitle.ToString(), reason, Messages.LabelsAccept.ToString());
                         }
                         var source = chosen.Name;
                         StageComputed(chosen.Recipe.Selection, place.Scope.Name, chosen.Recipe.Selection.Files[^1], ["presets", name], drafts => RecipeEdit.Copy(chosen.Recipe.Selection, drafts, ["presets", source]));
@@ -1521,7 +1521,7 @@ internal static partial class DashboardCli
                     }
                     else if (action == "preset-remove")
                     {
-                        if (Query(app, "Eliminar definición · " + chosen.Name, "Se prepara una desasignación en YAML. Guardar no borra pesos ni retira publicaciones; Up aplicará el cambio explícitamente.", "Cancelar", "Abrir borrador") != 1) return;
+                        if (Query(app, Messages.PresetRemoveTitle.Format(chosen.Name), Messages.PresetRemoveConfirm.ToString(), Messages.LabelsCancel.ToString(), Messages.AuthoringOpenDraftButton.ToString()) != 1) return;
                         StageEdit(chosen.Recipe.Selection, place.Scope.Name, chosen.Recipe.Selection.Files[^1], ["presets", chosen.Name], new EditRemove()); return;
                     }
                     else if (action == "preset-live" && chosen.Target is int target)
@@ -1530,13 +1530,13 @@ internal static partial class DashboardCli
                     {
                         var argument = System.Text.Encoding.UTF8.GetString(Convert.FromHexString(action[16..]));
                         var value = chosen.Value.Get("args")?.Get(argument);
-                        if (value is null || value.Sensitive) throw new ArgumentException("Sin referencia de inventario visible.");
+                        if (value is null || value.Sensitive) throw new ArgumentException(Messages.ParameterNoVisibleReference.ToString());
                         var reference = ArgumentValidation.Reference(chosen.Recipe, value, false, true);
-                        if (reference is null) throw new ArgumentException("El valor es literal; no identifica un recurso del inventario.");
+                        if (reference is null) throw new ArgumentException(Messages.ParameterLiteralValueError.ToString());
                         var requests = CombinationPreparation.Requests(chosen.Recipe, ArgumentValidation.Validate(chosen.Recipe));
                         var request = requests.SingleOrDefault(item => item.Kind == reference.Kind && item.Key.Equals(reference.Name, StringComparison.OrdinalIgnoreCase));
                         var binding = request is null ? null : CombinationPreparation.VerificationBinding(context, chosen.Recipe, request, chosen.Recipe.Selection.EnvFiles.Count > 0);
-                        definitionView = "Modelos";
+                        definitionView = "models";
                         resourceFilters[context.Root + definitionView] = binding?.InstallationId is null ? reference.Name : "";
                         if (binding?.InstallationId is { } installation) managedSelection[context.Root + definitionView] = installation;
                         resourceCache.Remove(context.Root + definitionView);
@@ -1546,11 +1546,11 @@ internal static partial class DashboardCli
                 if (action.StartsWith("param-", StringComparison.Ordinal))
                 {
                     var selections = DefinitionSelections(place);
-                    if (selections.Length == 0) throw new ArgumentException("Seleccionar una intención existente.");
-                    var key = context.Root + "Parámetros";
+                    if (selections.Length == 0) throw new ArgumentException(Messages.AuthoringSelectExistingIntention.ToString());
+                    var key = context.Root + "parameters";
                     if (action == "param-filter")
                     {
-                        var fields = ResourceForm(app, "Filtrar parámetros", [("nombre", resourceFilters.GetValueOrDefault(key) ?? "")], "Filtrar");
+                        var fields = ResourceForm(app, Messages.ParameterFilterTitle.ToString(), [(Messages.LabelsName.ToString(), resourceFilters.GetValueOrDefault(key) ?? "")], Messages.LabelsFilter.ToString());
                         if (fields is not null) resourceFilters[key] = fields[0];
                     }
                     else
@@ -1561,10 +1561,10 @@ internal static partial class DashboardCli
                             managedSelection[key] = items[Math.Clamp(Array.IndexOf(items, chosen) + (action == "param-next" ? 4 : -4), 0, items.Length - 1)].Id;
                         else if (action == "param-define")
                         {
-                            var fields = ResourceForm(app, "Definir parámetro · completar metadatos en YAML", [("nombre", ""), ("tipo", "string"), ("ámbito", "preset")], "Abrir borrador");
+                            var fields = ResourceForm(app, Messages.ParameterDefineTitle.ToString(), [(Messages.LabelsName.ToString(), ""), (Messages.LabelsType.ToString(), "string"), (Messages.ParameterScopeField.ToString(), "preset")], Messages.AuthoringOpenDraftButton.ToString());
                             if (fields is null) return;
                             var recipe = RecipeReader.Read(selections[0]);
-                            if (ArgumentSchema.Load(recipe).Definitions.ContainsKey(fields[0])) throw new ArgumentException("Ya existe esa definición.");
+                            if (ArgumentSchema.Load(recipe).Definitions.ContainsKey(fields[0])) throw new ArgumentException(Messages.ParameterAlreadyExists.ToString());
                             StageEdit(selections[0], place.Scope.Name, ParameterFile(recipe), ["parameters", fields[0]],
                                 RecipeWriter.Map(("type", RecipeWriter.String(fields[1])), ("scope", RecipeWriter.String(fields[2]))), true, context.IsGlobal ? context : null); return;
                         }
@@ -1573,10 +1573,10 @@ internal static partial class DashboardCli
                             if (action == "param-edit") { OpenEditor(chosen.Recipe.Selection, place.Scope.Name, AuthorPrivate(place, chosen.Recipe.Selection)); recipeEditor.RequireValidSave = true; FocusOrigin(chosen.Value.Origin); return; }
                             if (action == "param-remove")
                             {
-                                if (Query(app, "Quitar definición · " + chosen.Name, "Asignaciones en la selección: " + string.Join(", ", chosen.Uses) + "\nSe conservan valores y recursos. Se validará el modo estricto y las reglas antes de permitir guardar.", "Cancelar", "Abrir borrador") != 1) return;
+                                if (Query(app, Messages.ParameterRemoveTitle.Format(chosen.Name), Messages.ParameterRemoveConfirm.Format(string.Join(", ", chosen.Uses)), Messages.LabelsCancel.ToString(), Messages.AuthoringOpenDraftButton.ToString()) != 1) return;
                                 StageEdit(chosen.Recipe.Selection, place.Scope.Name, ParameterFile(chosen.Recipe), ["parameters", chosen.Name], new EditRemove(), true); return;
                             }
-                            if (action == "param-detail") Choose(app, chosen.Name + " · definición efectiva", ["Origen: " + chosen.Value.Origin.File, chosen.Value.Redacted()?.ToJsonString() ?? "—", "Usado por: " + string.Join(", ", chosen.Uses)], null);
+                            if (action == "param-detail") Choose(app, Messages.ParameterEffectiveTitle.Format(chosen.Name), [Messages.ParameterDetailSource.Format(chosen.Value.Origin.File), chosen.Value.Redacted()?.ToJsonString() ?? "—", Messages.ParameterDetailUsedBy.Format(string.Join(", ", chosen.Uses))], null);
                         }
                     }
                     definitionPage = null; Render(); return;
@@ -1592,7 +1592,7 @@ internal static partial class DashboardCli
                     sessionCombinations[context.Root] = new(key, null, form.Selection, form.Private, false);
                     authorSelections[context.Root] = [form.Selection];
                     combinationNewFiles[context.Root] = form.NewFiles;
-                    managedSelection[context.Root + "Recetas"] = key;
+                    managedSelection[context.Root + "recipes"] = key;
                     definitionPage = null;
                     if (form.NewFiles.Count > 0) OpenEditor(form.Selection, place.Scope.Name, form.Private, form.NewFiles);
                     else Render();
@@ -1636,14 +1636,14 @@ internal static partial class DashboardCli
                     {
                         // A folder without recipe has nothing to verify.
                         if (!context.IsGlobal && !place.Scope.HasRecipe) return;
-                        var mode = Query(app, "Verificar · " + place.Scope.Name, "Auditar definición y recursos; no descarga ni repara.", "Cancelar", "Auditoría rápida", "SHA-256");
+                        var mode = Query(app, Messages.VerifyScopeTitle.Format(place.Scope.Name), Messages.VerifyCombinationConfirm.ToString(), Messages.LabelsCancel.ToString(), Messages.VerifyQuickAuditButton.ToString(), "SHA-256");
                         if (mode <= 0) return;
                         var args = new List<string>();
                         RecipeSelection? verified = null;
                         if (context.IsGlobal)
                         {
                             args.Add("--global");
-                            var include = Query(app, "Alcance de verificación", "Incluir instalaciones del inventario que no están referenciadas?", "Cancelar", "Sólo referencias", "Todo el inventario");
+                            var include = Query(app, Messages.VerifyScopeSelectionTitle.ToString(), Messages.VerifyIncludeUnreferencedPrompt.ToString(), Messages.LabelsCancel.ToString(), Messages.VerifyReferencesOnlyButton.ToString(), Messages.VerifyEntireInventoryButton.ToString());
                             if (include <= 0) return;
                             if (include == 2) args.Add("--include-unused");
                         }
@@ -1655,7 +1655,7 @@ internal static partial class DashboardCli
                                 item.Value["env-files"]!.AsArray().Select(file => file!.GetValue<string>()))).ToList();
                             if (place.Recipe is not null) selections.Insert(0, place.Recipe);
                             if (selections.Count == 0) return;
-                            var choice = Choose(app, "Combinación a verificar", selections.Select(selection => string.Join(" + ", selection.Files.Select(Path.GetFileName))).ToArray(), "Verificar");
+                            var choice = Choose(app, Messages.VerifyChooseCombinationTitle.ToString(), selections.Select(selection => string.Join(" + ", selection.Files.Select(Path.GetFileName))).ToArray(), Messages.LabelsVerify.ToString());
                             if (choice is not int row) return;
                             var selection = selections[row];
                             verified = selection;
@@ -1665,8 +1665,8 @@ internal static partial class DashboardCli
                             var combinationIndex = row - (place.Recipe is null ? 0 : 1);
                             if (combinationIndex >= 0 && combinations[combinationIndex].Value?["private"]?.GetValue<bool>() == true) args.Add("--private");
                         }
-                        var picked = PickResources(app, "Verificar · " + place.Scope.Name,
-                            new RecipeUpdatePlans(context).Selectors(context.IsGlobal ? AuthorSelections(place) : [verified!]), "Verificar");
+                        var picked = PickResources(app, Messages.VerifyScopeTitle.Format(place.Scope.Name),
+                            new RecipeUpdatePlans(context).Selectors(context.IsGlobal ? AuthorSelections(place) : [verified!]), Messages.LabelsVerify.ToString());
                         if (picked is null) return;
                         foreach (var selector in picked) args.AddRange(["--select", selector]);
                         if (mode == 2) args.Add("--checksum");
@@ -1694,7 +1694,7 @@ internal static partial class DashboardCli
                     void SearchHub(Uri? start)
                     {
                         var query = hub.Query;
-                        hub.Status = start is null ? "Buscando «" + (query.Length == 0 ? "GGUF" : query) + "»…" : "Cargando más resultados…";
+                        hub.Status = start is null ? Messages.HubSearchingFor.Format(query.Length == 0 ? "GGUF" : query) : Messages.HubLoadingMoreResults.ToString();
                         ManagementJob("hf:" + context.Root, async () =>
                         {
                             using var client = HuggingFaceStore.CreateClient();
@@ -1707,12 +1707,12 @@ internal static partial class DashboardCli
                                 hub.Next = result.Next; hub.Searched = true;
                                 definitionPage = null; Render();
                             });
-                            return "Búsqueda HF: " + result.Repositories.Length + " resultados en la página.";
+                            return Messages.HubSearchResultsCount.Format(result.Repositories.Length);
                         });
                     }
                     void ReadRepository(string repository, string revision)
                     {
-                        hub.Status = "Consultando " + repository + " @ " + revision + "…";
+                        hub.Status = Messages.HubQueryingRevision.Format(repository, revision);
                         ManagementJob("hf:" + context.Root, async () =>
                         {
                             using var client = HuggingFaceStore.CreateClient();
@@ -1731,12 +1731,12 @@ internal static partial class DashboardCli
                                 hub.Variants = candidates.Variants; hub.Readme = readme;
                                 hub.Diagnostics = diagnostics.Concat(candidates.Diagnostics).ToArray(); definitionPage = null; Render();
                             });
-                            return "Repositorio HF consultado: " + repository + "; " + candidates.Variants.Length + " unidades seleccionables.";
+                            return Messages.HubRepositoryQueried.Format(repository, candidates.Variants.Length);
                         });
                     }
                     if (action == "hf-search")
                     {
-                        var fields = ResourceForm(app, "Buscar en Hugging Face · GGUF", [("buscar", hub.Query)], "Buscar");
+                        var fields = ResourceForm(app, Messages.HubSearchTitle.ToString(), [(Messages.LabelsSearch.ToString(), hub.Query)], Messages.LabelsSearch2.ToString());
                         if (fields is not null) { hub.Query = fields[0]; SearchHub(null); }
                     }
                     else if (action == "hf-previous-results") hub.ResultOffset = Math.Max(0, hub.ResultOffset - HubStep);
@@ -1747,17 +1747,17 @@ internal static partial class DashboardCli
                     }
                     else if (action is "hf-repository" or "hf-revision")
                     {
-                        var fields = ResourceForm(app, "Consultar repositorio GGUF", [("repositorio", hub.Repository ?? ""), ("revisión", hub.Revision)], "Consultar");
+                        var fields = ResourceForm(app, Messages.HubQueryRepositoryTitle.ToString(), [(Messages.LabelsRepository.ToString(), hub.Repository ?? ""), (Messages.HubRevisionField.ToString(), hub.Revision)], Messages.LabelsQuery.ToString());
                         if (fields is not null) { HuggingFaceStore.ValidateRepository(fields[0]); ReadRepository(fields[0], fields[1]); }
                     }
                     else if (action.StartsWith("hf-result:", StringComparison.Ordinal) && int.TryParse(action[10..], out var result) && result >= 0 && result < hub.Results.Count)
                         ReadRepository(hub.Results[result], "main");
-                    else if (action == "hf-readme") Choose(app, "README · " + hub.Repository, (hub.Readme ?? "README no disponible.").Split('\n'), null);
+                    else if (action == "hf-readme") Choose(app, "README · " + hub.Repository, (hub.Readme ?? Messages.HubReadmeUnavailable.ToString()).Split('\n'), null);
                     else if (action == "hf-files" && hub.Variants.ElementAtOrDefault(hub.Selected) is { } fileVariant)
-                        Choose(app, "Archivos de " + fileVariant.Label, fileVariant.Files.Select(file => file.Path + " · " + ByteSize.Format(file.Size)).ToArray(), null);
+                        Choose(app, Messages.HubFilesInVariant.Format(fileVariant.Label), fileVariant.Files.Select(file => file.Path + " · " + ByteSize.Format(file.Size)).ToArray(), null);
                     else if (action == "hf-variant")
                     {
-                        var variantChoice = Choose(app, "Unidad GGUF · modelos y companions explícitos", hub.Variants.Select(variant => variant.Label + " · " + (variant.CompanionType ?? "modelo")).ToArray(), "Elegir");
+                        var variantChoice = Choose(app, Messages.HubSelectUnitTitle.ToString(), hub.Variants.Select(variant => variant.Label + " · " + (variant.CompanionType ?? Messages.LabelsModel.ToString())).ToArray(), Messages.LabelsChoose.ToString());
                         if (variantChoice is int row) hub.Selected = row;
                     }
                     else if (action == "hf-download" && hub.Resolved is { } resolved && hub.Variants.ElementAtOrDefault(hub.Selected) is { } variant)
@@ -1765,8 +1765,7 @@ internal static partial class DashboardCli
                         var models = new ScopedModels(context);
                         var name = variant.Name(resolved.Repository);
                         var external = models.List(variant.CompanionType is not null).Any(resource => resource!["logical-key"]!.GetValue<string>().Equals(name, StringComparison.OrdinalIgnoreCase) && resource["ownership"]?.GetValue<string>() == "external");
-                        if (Query(app, "Descargar en " + place.Scope.Name, name + "\n" + string.Join("\n", variant.Files.Select(file => file.Path)) +
-                            (external ? "\nReemplazar registro externo al publicar; conservar sus archivos." : "\nPreparar inventario sin modificar YAML."), "Cancelar", "Descargar") != 1) return;
+                        if (Query(app, Messages.HubDownloadIntoTitle.Format(place.Scope.Name), (external ? Messages.HubDownloadReplaceExternalPrompt : Messages.HubDownloadPreparePrompt).Format(name, string.Join("\n", variant.Files.Select(file => file.Path))), Messages.LabelsCancel.ToString(), Messages.LabelsDownload2.ToString()) != 1) return;
                         ManagementJob("model-download:" + context.Root + name, async () =>
                         {
                             using var inspector = new RemoteGgufInspector();
@@ -1774,11 +1773,11 @@ internal static partial class DashboardCli
                             var evidence = await new ModelResolver(inspector).ValidateAsync(resolved, new(variant.Files), diagnostics.Add, stop.Token);
                             var checkedVariant = ModelSelection.Variant(new(variant.Files), evidence);
                             if (checkedVariant is null || checkedVariant.Quantization != variant.Quantization || checkedVariant.CompanionType != variant.CompanionType)
-                                throw new ModelSourceException("selection-conflict", "La selección no pudo validarse.");
+                                throw new ModelSourceException("selection-conflict", Messages.HubSelectionValidationFailed.ToString());
                             var selected = new SelectedModel(name, variant.CompanionType, new(resolved.Repository, resolved.RequestedRevision, resolved.Commit, variant.Files.Select(file => file.ToRemoteFile()).ToArray()));
                             using var transport = new HuggingFaceTransport();
                             await models.AcquireAsync(selected, transport, progress: _ => { }, cancellation: stop.Token, replaceExternal: external);
-                            return "Descarga publicada en " + place.Scope.Name + ": " + name;
+                            return Messages.HubDownloadPublishedIn.Format(place.Scope.Name, name);
                         });
                     }
                     definitionPage = null; Render(); return;
@@ -1787,7 +1786,7 @@ internal static partial class DashboardCli
                 { managedSelection[context.Root + definitionView] = action[9..]; definitionPage = null; Render(); return; }
                 if (action == "model-filter")
                 {
-                    var values = ResourceForm(app, "Filtrar inventario", [("nombre", resourceFilters.GetValueOrDefault(context.Root + definitionView) ?? "")], "Aplicar");
+                    var values = ResourceForm(app, Messages.ResourceFilterTitle.ToString(), [(Messages.LabelsName.ToString(), resourceFilters.GetValueOrDefault(context.Root + definitionView) ?? "")], Messages.LabelsApply.ToString());
                     if (values is not null) resourceFilters[context.Root + definitionView] = values[0];
                     definitionPage = null; Render(); return;
                 }
@@ -1801,13 +1800,13 @@ internal static partial class DashboardCli
                         var added = models.AddExternal(form.Path, form.Name, form.Type is not null, type: form.Type,
                             projectName: place.Scope.Global ? null : place.Scope.Name);
                         var output = new StringWriter();
-                        output.WriteLine("Registrado en " + place.Scope.Name + ": " + form.Name + "; archivos externos conservados.");
+                        output.WriteLine(Messages.ResourceExternalRegistered.Format(place.Scope.Name, form.Name));
                         if (form.Match)
                         {
                             using var client = HuggingFaceStore.CreateClient();
                             try { await models.TryMatchAsync(added, new(client), new DashboardModelSelection(app, output), stop.Token); }
                             catch (Exception error) when (ManagementError(error) || error is HttpRequestException or OperationCanceledException)
-                            { output.WriteLine("▲ Matching sin confirmar; alta conservada. " + error.Message); }
+                            { output.WriteLine(Messages.ResourceMatchingUnconfirmed.Format(error.Message)); }
                         }
                         return output.ToString();
                     });
@@ -1815,10 +1814,10 @@ internal static partial class DashboardCli
                 }
                 if (action.StartsWith("resource-", StringComparison.Ordinal))
                 {
-                    var backend = definitionView == "Backends";
+                    var backend = definitionView == "backends";
                     var cached = resourceCache.GetValueOrDefault(context.Root + definitionView) ?? [];
                     var item = cached.SingleOrDefault(item => item.Id == managedSelection.GetValueOrDefault(context.Root + definitionView))
-                        ?? throw new ArgumentException("Seleccionar el recurso de nuevo.");
+                        ?? throw new ArgumentException(Messages.ResourceSelectAgain.ToString());
                     if (action is "resource-prev" or "resource-next")
                     {
                         var filter = resourceFilters.GetValueOrDefault(context.Root + definitionView) ?? "";
@@ -1839,13 +1838,13 @@ internal static partial class DashboardCli
                         {
                             if (backend) new ScopedBackends(context).Protect(item.Id, !item.Protected);
                             else new ScopedModels(context).Protect(item.Id, !item.Protected);
-                            return Task.FromResult(item.Label + (item.Protected ? ": protección explícita retirada; otras referencias se conservan." : ": protegido."));
+                            return Task.FromResult((item.Protected ? Messages.ResourceProtectionRemoved.Format(item.Label) : Messages.ResourceProtectedNotice.Format(item.Label)));
                         });
                         return;
                     }
                     if (action == "resource-verify")
                     {
-                        var mode = Query(app, "Verificar · " + place.Scope.Name, item.Label, "Cancelar", "Auditoría rápida", "SHA-256");
+                        var mode = Query(app, Messages.VerifyScopeTitle.Format(place.Scope.Name), item.Label, Messages.LabelsCancel.ToString(), Messages.VerifyQuickAuditButton.ToString(), "SHA-256");
                         if (mode > 0) ManagementJob("verify:" + context.Root + item.Id, async () =>
                         {
                             var report = await new ResourceVerification(context).VerifyAsync([new(item.Name, item.Kind, item.ResourceId, item.Id)], checksum: mode == 2, cancellation: stop.Token);
@@ -1860,19 +1859,19 @@ internal static partial class DashboardCli
                         {
                             var cleanup = new ResourceCleanup(context, Home.Resolve());
                             var plan = cleanup.Preview(Guid.Parse(item.Id));
-                            if (plan.Items.Count == 0) throw new ArgumentException("El backend no es eliminable: protegido, externo, referenciado o con uso incierto.");
-                            if (Query(app, "Eliminar · " + place.Scope.Name, item.Label + "\nRecuperable: " + ByteSize.Format(plan.Bytes), "Cancelar", "Eliminar") == 1)
+                            if (plan.Items.Count == 0) throw new ArgumentException(Messages.ResourceBackendCannotRemove.ToString());
+                            if (Query(app, Messages.ResourceRemoveTitle.Format(place.Scope.Name), Messages.ResourceRemoveReclaimable.Format(item.Label, ByteSize.Format(plan.Bytes)), Messages.LabelsCancel.ToString(), Messages.LabelsRemove.ToString()) == 1)
                                 ManagementJob("remove:" + context.Root + item.Id, () => Task.FromResult(CleanupText(cleanup.Apply(plan))));
                         }
-                        else if (Query(app, "Eliminar · " + place.Scope.Name, item.Label + "\nSe retira el registro y sus instalaciones. Las referencias guardadas pueden quedar rotas. Los archivos externos se conservan.", "Cancelar", "Eliminar") == 1)
+                        else if (Query(app, Messages.ResourceRemoveTitle.Format(place.Scope.Name), Messages.ResourceRemoveConfirm.Format(item.Label), Messages.LabelsCancel.ToString(), Messages.LabelsRemove.ToString()) == 1)
                             ManagementJob("remove:" + context.Root + item.Id, () =>
                             {
                                 var current = Inventory(context, false).SingleOrDefault(row => row.Id == item.Id);
                                 if (current is null || !System.Text.Json.Nodes.JsonNode.DeepEquals(current.Resource, item.Resource))
-                                    throw new IOException("Cambió el recurso; revisar sus instalaciones y repetir la eliminación.");
+                                    throw new IOException(Messages.ResourceChangedRetryRemoval.ToString());
                                 var result = new ScopedModels(context).Remove(item.ResourceId, item.Kind == "companion");
-                                if (!result.Complete) throw new IOException("Retirada pendiente: " + string.Join(", ", result.Pending));
-                                return Task.FromResult("Recurso retirado; liberado " + ByteSize.Format(result.FreedBytes));
+                                if (!result.Complete) throw new IOException(Messages.ResourceRemovalPending.Format(string.Join(", ", result.Pending)));
+                                return Task.FromResult(Messages.ResourceRemovedFreed.Format(ByteSize.Format(result.FreedBytes)));
                             });
                         return;
                     }
@@ -1881,24 +1880,23 @@ internal static partial class DashboardCli
                 { managedSelection[context.Root] = action[8..]; definitionPage = null; Render(); return; }
                 if (action.StartsWith("combination:", StringComparison.Ordinal))
                 {
-                    managedSelection[context.Root + "Recetas"] = action[12..];
+                    managedSelection[context.Root + "recipes"] = action[12..];
                     var chosen = AvailableCombinations(place).SingleOrDefault(item => item.Key == action[12..]);
                     if (chosen is not null) authorSelections[context.Root] = [chosen.Selection];
                     definitionPage = null; Render(); return;
                 }
                 if (action is "recipe-edit" or "recipe-forget")
                 {
-                    var chosen = AvailableCombinations(place).SingleOrDefault(item => item.Key == managedSelection.GetValueOrDefault(context.Root + "Recetas"))
-                        ?? throw new ArgumentException("Seleccionar la combinación de nuevo.");
+                    var chosen = AvailableCombinations(place).SingleOrDefault(item => item.Key == managedSelection.GetValueOrDefault(context.Root + "recipes"))
+                        ?? throw new ArgumentException(Messages.CombinationSelectAgain.ToString());
                     if (action == "recipe-edit") { OpenEditor(chosen.Selection, place.Scope.Name, chosen.Private, combinationNewFiles.GetValueOrDefault(context.Root)); return; }
                     if (chosen.Id is not { } id) return;
-                    if (Query(app, "Olvidar combinación · " + place.Scope.Name, chosen.Files + " · " + id[..6] +
-                        "\nSe quita del registro de .coquena. Los YAML, los pesos y lo publicado se conservan; una instancia activa sigue igual.",
+                    if (Query(app, Messages.CombinationForgetTitle.Format(place.Scope.Name), Messages.CombinationForgetConfirm.Format(chosen.Files, id[..6]),
                         Messages.MaintenanceCancel, Messages.MaintenanceForgetConfirm) != 1) return;
                     ManagementJob("forget:" + context.Root + id, () =>
                     {
                         new CombinationCleanup(context).Forget(id);
-                        return Task.FromResult("Combinación olvidada en " + place.Scope.Name + ": " + chosen.Files + "; YAML, pesos y publicaciones conservados.");
+                        return Task.FromResult(Messages.CombinationForgottenIn.Format(place.Scope.Name, chosen.Files));
                     });
                     return;
                 }
@@ -1906,7 +1904,7 @@ internal static partial class DashboardCli
                 {
                     // A service only takes a backend already installed in its scope; Backends prepares them.
                     var form = ServiceForm(app, place.Scope.Name, null, InstalledBackends(context), out var goToBackends);
-                    if (goToBackends) { definitionView = "Backends"; definitionPage = null; Render(); return; }
+                    if (goToBackends) { definitionView = "backends"; definitionPage = null; Render(); return; }
                     if (form is null) return;
                     ManagementJob("service:" + context.Root, async () =>
                     {
@@ -1932,7 +1930,7 @@ internal static partial class DashboardCli
                             : await backends.DownloadAsync(form.Intent, HardwareProbe.Inspect(), transport, warning: output.WriteLine,
                                 cancellation: stop.Token, progress: _ => { });
                         backends.Protect(prepared.InstallationId, true);
-                        output.WriteLine("Backend preparado en " + place.Scope.Name + "; no se asignó a ningún servicio.");
+                        output.WriteLine(Messages.BackendPreparedInScope.Format(place.Scope.Name));
                         return output.ToString().Trim();
                     });
                     return;
@@ -1956,7 +1954,7 @@ internal static partial class DashboardCli
                 }
                 var registry = new RecipeRegistry(new ScopeStore(context));
                 var service = registry.Services().SingleOrDefault(service => service.ServiceId == selected)
-                    ?? throw new StorageException("service-conflict", "El servicio seleccionado ya no existe; seleccionarlo de nuevo.");
+                    ?? throw new StorageException("service-conflict", Messages.ServiceNoLongerExists.ToString());
                 if (action == "live")
                 {
                     var targetIndex = targets.FindIndex(target => target.Service?.ServiceId == service.ServiceId && SameScope(target.Store.Context, context));
@@ -1973,14 +1971,14 @@ internal static partial class DashboardCli
                     registry.SetDefaultService(service.ServiceId);
                     RefreshTargets(); definitionPage = null; Render(); return;
                 }
-                if (action == "remove" && Query(app, "Eliminar servicio", "Eliminar «" + service.Name + "». Se conservan archivos y logs; se comprobarán las protecciones de uso.", "Cancelar", "Eliminar") == 1)
+                if (action == "remove" && Query(app, Messages.ServiceRemoveTitle.ToString(), Messages.ServiceRemoveConfirm.Format(service.Name), Messages.LabelsCancel.ToString(), Messages.LabelsRemove.ToString()) == 1)
                     ManagementJob("service:" + context.Root, () =>
                     {
                         new ScopedServiceProcess(new ScopeStore(context)).Remove(service.ServiceId);
-                        return Task.FromResult("Servicio «" + service.Name + "» retirado; archivos y logs conservados.");
+                        return Task.FromResult(Messages.ServiceRemovedNotice.Format(service.Name));
                     });
             }
-            catch (Exception error) when (ManagementError(error)) { Query(app, "No se completó la operación", error.Message, "Aceptar"); }
+            catch (Exception error) when (ManagementError(error)) { Query(app, Messages.DashboardOperationIncompleteTitle.ToString(), error.Message, Messages.LabelsAccept.ToString()); }
         }
 
         // E, F and G: the category tree, the title with its source and the selected form.
@@ -1992,8 +1990,8 @@ internal static partial class DashboardCli
             rightTitle.Rows = [" " + categories[settingsCategory] + "  " + Markup.Style("mut", settingsCategory switch
             {
                 0 => Home.Resolve().PathFor("config.json"),
-                1 => "preferencias de esta interfaz",
-                _ => probe.IsCompleted ? "detectado en este equipo" + (probedAt is { } at ? " · " + at.ToString("HH:mm", CultureInfo.InvariantCulture) : "") : "detectando hardware…"
+                1 => Messages.SettingsInterfacePreferences.ToString(),
+                _ => probe.IsCompleted ? Messages.HardwareDetectedOnMachine.ToString() + (probedAt is { } at ? " · " + at.ToString("HH:mm", CultureInfo.InvariantCulture) : "") : Messages.HardwareDetecting.ToString()
             })];
             if (settings.Coquena.Visible != (settingsCategory == 0) || settings.Tui.Visible != (settingsCategory == 1)) Arrange();
             if (settingsCategory == 1) settings.ShowResources(devices.Count);
@@ -2005,7 +2003,7 @@ internal static partial class DashboardCli
                 {
                     foreach (var device in lastHardware.Devices)
                         adapters.Add((devices.TryGetValue(device.Id, out var known) ? $"GPU{known.Number}  " : "      ") +
-                            device.Name + " · " + (ComputeLabel(device.Id) ?? "cómputo " + Messages.ComputeUnconfirmed));
+                            device.Name + " · " + (ComputeLabel(device.Id) ?? Messages.HardwareComputeFallback.Format(Messages.ComputeUnconfirmed)));
                     notes.AddRange(lastHardware.Diagnostics);
                 }
                 systemDetail.Rows = SettingsPresentation.System(typeof(DashboardCli).Assembly.GetName().Version?.ToString(3) ?? "—",
@@ -2081,38 +2079,37 @@ internal static partial class DashboardCli
             if (hardwareSelection < ordered.Length)
             {
                 var device = ordered[hardwareSelection];
-                rightTitle.Rows = [" " + names[hardwareSelection].Item1 + "  " + Markup.Style("mut", "uso · vram · compartida")];
-                rows.Add(Curve(device.Use, "uso", width));
+                rightTitle.Rows = [" " + names[hardwareSelection].Item1 + "  " + Markup.Style("mut", Messages.HardwareGpuColumns.ToString())];
+                rows.Add(Curve(device.Use, Messages.LabelsUsage.ToString(), width));
                 rows.Add(Curve(device.Memory, "vram", width));
                 rows.Add(Curve(device.Shared, "+ram", width, "pr"));
                 rows.Add("");
-                rows.Add(Summary("uso", device.Use, value => Number(value, "0") + "%"));
+                rows.Add(Summary(Messages.LabelsUsage.ToString(), device.Use, value => Number(value, "0") + "%"));
                 if (device.Memory.Value is { } used)
                 {
                     rows.Add(" " + Markup.Style("mut", "vram") + " " + DashboardPresentation.Compact(used) +
                         (device.Memory.Total is { } total ? " / " + DashboardPresentation.Compact(total) : "") +
-                        " " + Markup.Style("mut", "· pico") + " " + DashboardPresentation.Compact(device.Memory.Peak ?? used));
+                        " " + Markup.Style("mut", Messages.HardwarePeakLabel.ToString()) + " " + DashboardPresentation.Compact(device.Memory.Peak ?? used));
                 }
                 if (device.Shared.Value is { } shared)
                 {
                     var rise = device.Shared.Peak is { } top && device.Shared.First is { } start && top - start > 64d * 1024 * 1024 ? device.Shared.FirstRise : null;
                     rows.Add(rise is { } at
-                        ? " " + Markup.Style("warn", "▲ compartida") + " " + DashboardPresentation.Compact(device.Shared.First!.Value) + " → " +
-                          DashboardPresentation.Compact(shared) + " " + Markup.Style("mut", "desde " + at.ToLocalTime().ToString("HH:mm", CultureInfo.InvariantCulture) +
-                          (device.Memory.Ratio is > 0.9 ? ", VRAM en pico" : ""))
-                        : " " + Markup.Style("mut", "compartida") + " " + DashboardPresentation.Compact(shared));
+                        ? " " + Markup.Style("warn", Messages.HardwareSharedLabel.ToString()) + " " + DashboardPresentation.Compact(device.Shared.First!.Value) + " → " +
+                          DashboardPresentation.Compact(shared) + " " + Markup.Style("mut", (device.Memory.Ratio is > 0.9 ? Messages.HardwareSharedSincePeakVram.Format(at.ToLocalTime().ToString("HH:mm", CultureInfo.InvariantCulture)) : Messages.HardwareSharedSince.Format(at.ToLocalTime().ToString("HH:mm", CultureInfo.InvariantCulture))))
+                        : " " + Markup.Style("mut", Messages.LabelsShared.ToString()) + " " + DashboardPresentation.Compact(shared));
                 }
                 rows.Add("");
-                rows.Add(" " + Markup.Style("mut", "adaptador") + " " + Markup.Escape(device.Name + " · " + ComputeName(device)));
+                rows.Add(" " + Markup.Style("mut", Messages.LabelsAdapter.ToString()) + " " + Markup.Escape(device.Name + " · " + ComputeName(device)));
             }
             else
             {
                 var gauge = hardwareSelection == ordered.Length ? cpuGauge : ramGauge;
-                rightTitle.Rows = [" " + names[hardwareSelection].Item1 + "  " + Markup.Style("mut", "uso")];
-                rows.Add(Curve(gauge, "uso", width));
+                rightTitle.Rows = [" " + names[hardwareSelection].Item1 + "  " + Markup.Style("mut", Messages.LabelsUsage.ToString())];
+                rows.Add(Curve(gauge, Messages.LabelsUsage.ToString(), width));
                 rows.Add("");
-                rows.Add(gauge == cpuGauge ? Summary("uso", gauge, value => Number(value, "0") + "%")
-                    : " " + Markup.Style("mut", "ram") + " " + (gauge.Text ?? "—") + " " + Markup.Style("mut", "· pico") + " " +
+                rows.Add(gauge == cpuGauge ? Summary(Messages.LabelsUsage.ToString(), gauge, value => Number(value, "0") + "%")
+                    : " " + Markup.Style("mut", "ram") + " " + (gauge.Text ?? "—") + " " + Markup.Style("mut", Messages.HardwarePeakLabel.ToString()) + " " +
                       (gauge.Peak is { } peak ? DashboardPresentation.Compact(peak) : "—"));
                 if (lastHardware?.Environment is { Length: > 0 } environment) { rows.Add(""); rows.Add(" " + Markup.Style("mut", Markup.Escape(environment))); }
             }
@@ -2130,8 +2127,8 @@ internal static partial class DashboardCli
                 var values = gauge.History.Values.ToArray();
                 if (gauge.Value is not { } value) return " " + Markup.Style("mut", caption) + " —";
                 return " " + Markup.Style("mut", caption) + " " + format(value) +
-                    (values.Length > 0 ? " " + Markup.Style("mut", "· media") + " " + format(values.Average() * 100) +
-                        " " + Markup.Style("mut", "· pico") + " " + format(values.Max() * 100) : "");
+                    (values.Length > 0 ? " " + Markup.Style("mut", Messages.HardwareMeanLabel.ToString()) + " " + format(values.Average() * 100) +
+                        " " + Markup.Style("mut", Messages.HardwarePeakLabel.ToString()) + " " + format(values.Max() * 100) : "");
             }
         }
 
@@ -2160,11 +2157,11 @@ internal static partial class DashboardCli
             var source = entry.Inference;
             var rows = new List<string>
             {
-                $"{entry.Name} · {entry.State}" + (source?.Model is { } model ? " · modelo " + model : ""),
-                selectedSnapshot?.InstanceId is { } instance ? "Instancia " + instance + (source is null ? "" : $" · hijo {source.Pid}/{source.Creation}") : "",
-                source is null ? entry.InferenceDiagnostic ?? "Tareas /slots: hijo/build/endpoint sin verificar" : "Tareas /slots: hijo verificado",
-                entry.Diagnostic ?? "Métricas disponibles según la fuente",
-                "Acumulados y medias del backend: período no informado; cada hijo abre otro período.",
+                $"{entry.Name} · {entry.State}" + (source?.Model is { } model ? Messages.LiveEntryModelSuffix.Format(model) : ""),
+                selectedSnapshot?.InstanceId is { } instance ? (source is null ? Messages.LiveInstance.Format(instance) : Messages.LiveInstanceChild.Format(instance, source.Pid, source.Creation)) : "",
+                source is null ? entry.InferenceDiagnostic ?? Messages.LiveTasksSlotsUnverified.ToString() : Messages.LiveTasksSlotsVerified.ToString(),
+                entry.Diagnostic ?? Messages.LiveMetricsAvailableBySource.ToString(),
+                Messages.LiveBackendTotalsNote.ToString(),
                 ""
             };
             rows.AddRange(entry.Metrics.SelectMany(metric => FormatMetric(metric, DateTimeOffset.UtcNow).Split('\n')));
@@ -2175,18 +2172,18 @@ internal static partial class DashboardCli
         {
             var name = metric.Name switch
             {
-                "ram.private-commit" => "RAM privada comprometida",
-                "ram.working-set" => "RAM residente por proceso",
-                "gpu.shared" => "RAM compartida GPU",
-                "vram.used" => "VRAM dedicada usada",
-                "vram.total" => "VRAM dedicada total",
+                "ram.private-commit" => Messages.LiveMetricPrivateRam.ToString(),
+                "ram.working-set" => Messages.LiveMetricResidentRam.ToString(),
+                "gpu.shared" => Messages.LiveMetricGpuSharedRam.ToString(),
+                "vram.used" => Messages.LiveMetricUsedVram.ToString(),
+                "vram.total" => Messages.LiveMetricTotalVram.ToString(),
                 _ => metric.Name
             };
-            var value = metric.Value is null ? $"sin valor · {metric.UnavailableReason ?? "lectura sin valor"}" :
+            var value = metric.Value is null ? Messages.LiveMetricNoValue.Format(metric.UnavailableReason ?? Messages.LabelsReadingWithoutValue.ToString()) :
                 (metric.Unit == "bytes" ? Memory(metric.Value) : metric.Value.Value.ToString("0.##", CultureInfo.CurrentCulture) + " " + metric.Unit) +
-                (metric.IsFresh(now, MetricLifetime) ? "" : " · ant.");
+                (metric.IsFresh(now, MetricLifetime) ? "" : Messages.LiveMetricPrevTag.ToString());
             var time = metric.ObservedAt.ToLocalTime().ToString("HH:mm:ss", CultureInfo.InvariantCulture);
-            var window = metric.Window is { } span ? $" · ventana {span.TotalMilliseconds:0} ms" : "";
+            var window = metric.Window is { } span ? Messages.LiveMetricWindowMs.Format(span.TotalMilliseconds) : "";
             return $"{name}  {value}\n    {time}{window} · {metric.Scope} · {metric.Source}";
         }
 
@@ -2199,15 +2196,16 @@ internal static partial class DashboardCli
             var running = snapshot?.ProcessState == "alive" && snapshot.InstanceId is not null;
             if (!running && (stopService || snapshot is not null && snapshot.ProcessState != "stopped")) return;
             if (target.Service is null && !target.DeclaresService) return;
-            var verb = stopService ? "Detener" : running ? "Reiniciar" : "Iniciar";
+            var actionCode = stopService ? "stop" : running ? "restart" : "start";
+            var verb = Messages.VerbLabel(actionCode);
             var usePrivateResources = privatePreparation.Value == CheckState.Checked;
-            if (running && Query(app, verb + " servicio",
-                    $"{verb} «{target.Service!.Name}» ({(target.Store.Context.IsGlobal ? "global" : "proyecto")}) puede interrumpir peticiones activas.",
-                    "Cancelar", verb) != 1) return;
+            if (running && Query(app, Messages.ServiceActionTitle.Format(verb),
+                    Messages.ServiceMayInterruptRequests.Format(verb, target.Service!.Name, (target.Store.Context.IsGlobal ? "global" : Messages.LabelsProject.ToString())),
+                    Messages.LabelsCancel.ToString(), verb) != 1) return;
 
             upButton.Enabled = downButton.Enabled = false;
             serviceNote = $"{verb.ToLowerInvariant()}…";
-            operationVerb = verb;
+            operationVerb = actionCode;
             publicationExit = null;
             operationLabel = target.Label;
             selectionEpoch++;
@@ -2233,7 +2231,7 @@ internal static partial class DashboardCli
                         new DashboardModelSelection(app, diagnostics), stop.Token,
                         expectedInstanceId: running ? snapshot!.InstanceId : null);
                     if (running && instance == snapshot!.InstanceId)
-                        return "El reinicio conservó la instancia anterior. " + diagnostics.ToString().Trim();
+                        return Messages.ServiceRestartPreservedInstance.Format(diagnostics.ToString().Trim());
                     return null;
                 }
                 catch (Exception error) when (ServiceObservation.ObservationError(error) ||
@@ -2291,9 +2289,9 @@ internal static partial class DashboardCli
         // The dropdown names the combination in use; Global can show all its intentions at once.
         string CombinationTitle(DefinitionsSource.Place place) => AuthorSelections(place) switch
         {
-            [] => "Sin combinación",
+            [] => Messages.CombinationNone.ToString(),
             [var single] => place.Scope.Global ? IntentionLabel(place.Context!, single) : CombinationLabel(single),
-            _ => "Todas las intenciones",
+            _ => Messages.CombinationAllIntentions.ToString(),
         };
 
         // A Global intention is named by where it comes from: «global» for the root recipe.yaml and
@@ -2321,7 +2319,7 @@ internal static partial class DashboardCli
             var selections = AuthorSelections(place);
             if (selections.Length > 0 || !place.Scope.Global) return selections;
             var path = place.Context!.PathFor("recipe.yaml");
-            if (File.Exists(path)) throw new StorageException("unregistered-global-intention", "Existe un YAML global sin intención registrada; se conserva sin adoptarlo ni sobrescribirlo.");
+            if (File.Exists(path)) throw new StorageException("unregistered-global-intention", Messages.CombinationGlobalYamlUnregistered.ToString());
             return [new RecipeSelection(place.Context.Base, [path], place.Context.Base)
                 { CapturedFiles = new Dictionary<string, byte[]> { [path] = [] } }];
         }
@@ -2351,28 +2349,28 @@ internal static partial class DashboardCli
             {
                 // The action needs a valid recipe: the Editor shows what to fix, as the user left it.
                 if (recipeEditor.Validate() is { } first) recipeEditor.Reveal(first);
-                recipeEditor.Status = "sin cambios: primero corregir la receta";
+                recipeEditor.Status = Messages.EditorUnchangedCorrectFirst.ToString();
                 Render();
                 return;
             }
             var candidate = RecipeEdit.Propose(selection, inputs, file, path, content);
             recipeEditor.RequireValidSave = strict;
             recipeEditor.Stage(file, candidate);
-            recipeEditor.Status = "borrador; Guardar no aplica a ejecución";
+            recipeEditor.Status = Messages.EditorDraftStatus.ToString();
             Render();
         }
 
         RecipeCombination? SelectedCombination(DefinitionsSource.Place place)
         {
             var items = AvailableCombinations(place);
-            return items.FirstOrDefault(item => item.Key == managedSelection.GetValueOrDefault(place.Context!.Root + "Recetas")) ?? items.FirstOrDefault();
+            return items.FirstOrDefault(item => item.Key == managedSelection.GetValueOrDefault(place.Context!.Root + "recipes")) ?? items.FirstOrDefault();
         }
 
         void OpenEditor(RecipeSelection selection, string scope, bool isPrivate, IReadOnlySet<string>? newFiles = null)
         {
             try { recipeEditor.Open(selection, scope, isPrivate, newFiles); }
             catch (Exception error) when (ManagementError(error) || error is RecipeException)
-            { recipeEditor.Close(); Query(app, "Editor", "No se pudo abrir la combinación: " + error.Message, "Aceptar"); return; }
+            { recipeEditor.Close(); Query(app, "Editor", Messages.EditorOpenFailed.Format(error.Message), Messages.LabelsAccept.ToString()); return; }
             Open(Editing);
         }
 
@@ -2382,8 +2380,8 @@ internal static partial class DashboardCli
             var modified = recipeEditor.Files.Where(file => file.Modified).ToArray();
             if (modified.Length > 0)
             {
-                var choice = Query(app, "Cambios sin guardar", string.Join(", ", modified.Select(file => file.Name)) + " tiene cambios sin guardar.",
-                    "Guardar", "Descartar", "Cancelar");
+                var choice = Query(app, Messages.EditorUnsavedChangesTitle.ToString(), Messages.EditorFilesUnsaved.Format(string.Join(", ", modified.Select(file => file.Name))),
+                    Messages.LabelsSave.ToString(), Messages.LabelsDiscard.ToString(), Messages.LabelsCancel.ToString());
                 if (choice is not (0 or 1)) return false;
                 if (choice == 0 && !SaveDrafts()) return false;
             }
@@ -2398,7 +2396,7 @@ internal static partial class DashboardCli
         bool SaveDrafts()
         {
             var modified = recipeEditor.Files.Where(file => file.Modified).ToArray();
-            if (modified.Length == 0) { recipeEditor.Status = "sin cambios"; return true; }
+            if (modified.Length == 0) { recipeEditor.Status = Messages.UpdatesStateUnchanged.ToString(); return true; }
             if (recipeEditor.ImportedContext is { } importedScope)
             {
                 var opened = recipeEditor.Files.ToDictionary(file => file.Path, file => file.Opened, StringComparer.OrdinalIgnoreCase);
@@ -2407,14 +2405,14 @@ internal static partial class DashboardCli
                 foreach (var file in recipeEditor.Files)
                     if (file.Existed && !File.Exists(file.Path) || File.Exists(file.Path) && !RecipeYaml.ReadBytes(file.Path).AsSpan().SequenceEqual(file.Opened))
                     {
-                        var choice = Query(app, "Cambios externos · " + file.Name, "La intención global cambió. Sí sobrescribe con tu borrador; No recarga; Cancelar conserva la edición.", "Sí", "No", "Cancelar");
+                        var choice = Query(app, Messages.EditorExternalChangesTitle.Format(file.Name), Messages.EditorGlobalChangedPrompt.ToString(), Messages.DashboardYesButton.ToString(), Messages.LabelsNo.ToString(), Messages.LabelsCancel.ToString());
                         if (choice == 1) { OpenEditor(recipeEditor.Selection!, recipeEditor.Scope, recipeEditor.Private); return false; }
                         if (choice != 0) return false;
                         overwrite = true;
                     }
                 ImportedRecipeEdits.Save(importedScope, opened, drafts, overwrite);
                 foreach (var file in modified) { RecipeEditorPage.Load(file, drafts[file.Path]); file.Existed = true; }
-                recipeEditor.Status = "intención global guardada; ejecución sin cambios";
+                recipeEditor.Status = Messages.EditorGlobalSavedStatus.ToString();
                 definitionPage = null;
                 Notify("✓", "ok", recipeEditor.Status, -1);
                 return true;
@@ -2422,8 +2420,8 @@ internal static partial class DashboardCli
             if (recipeEditor.Validate() is { } problem)
             {
                 var summary = RecipeValidation.Describe(recipeEditor.Problems.Take(5)) + (recipeEditor.Problems.Count > 5 ? "\n…" : "");
-                if (recipeEditor.RequireValidSave) { Query(app, "Cambios inválidos; se conserva lo guardado", summary, "Aceptar"); return false; }
-                if (Query(app, "La combinación no es válida", summary +"\nUp no la publicará hasta corregirla. ¿Guardar igualmente?", "Cancelar", "Guardar igualmente") != 1) return false;
+                if (recipeEditor.RequireValidSave) { Query(app, Messages.EditorInvalidChangesTitle.ToString(), summary, Messages.LabelsAccept.ToString()); return false; }
+                if (Query(app, Messages.EditorCombinationInvalidTitle.ToString(), Messages.EditorSaveInvalidConfirm.Format(summary), Messages.LabelsCancel.ToString(), Messages.EditorSaveAnywayButton.ToString()) != 1) return false;
             }
             foreach (var file in modified)
             {
@@ -2432,17 +2430,13 @@ internal static partial class DashboardCli
                 if (result is RecipeDrafts.SaveResult.Changed or RecipeDrafts.SaveResult.Missing)
                 {
                     var missing = result == RecipeDrafts.SaveResult.Missing;
-                    var choice = Query(app, file.Name + (missing ? " ya no está en disco" : " cambió en disco"),
-                        (missing ? "Se borró o se renombró después de abrirlo en el editor.\n¿Crearlo de nuevo con tu versión?"
-                            : "Se modificó después de abrirlo en el editor (" + File.GetLastWriteTime(file.Path).ToString("HH:mm", CultureInfo.InvariantCulture) + ").\n¿Sobrescribir con tu versión?") +
-                        "\n\nSí        guarda tu versión sobre la del disco\n" +
-                        (missing ? "No       cierra el editor sin guardar\n" : "No        recarga el disco y descarta tu borrador\n") +
-                        "Cancelar  vuelve al editor sin guardar", "Sí", "No", "Cancelar");
+                    var choice = Query(app, (missing ? Messages.EditorFileMissingTitle.Format(file.Name) : Messages.EditorFileChangedTitle.Format(file.Name)),
+                        (missing ? Messages.EditorFileMissingPrompt.ToString() : Messages.EditorFileChangedPrompt.Format(File.GetLastWriteTime(file.Path).ToString("HH:mm", CultureInfo.InvariantCulture))), Messages.DashboardYesButton.ToString(), Messages.LabelsNo.ToString(), Messages.LabelsCancel.ToString());
                     if (choice == 1)
                     {
                         if (missing) { recipeEditor.Close(); Open(Definitions); return false; }
                         RecipeEditorPage.Load(file, RecipeYaml.ReadBytes(file.Path));
-                        recipeEditor.Status = file.Name + " recargado";
+                        recipeEditor.Status = Messages.EditorFileReloaded.Format(file.Name);
                         continue;
                     }
                     if (choice != 0) return false;
@@ -2454,9 +2448,9 @@ internal static partial class DashboardCli
                 file.Changed = null;
                 file.View.Document!.UndoStack.MarkAsOriginalFile();
                 file.View.SetNeedsDraw();
-                Notify("✓", "ok", file.Name + " guardado en " + recipeEditor.Scope + ".", -1);
+                Notify("✓", "ok", Messages.EditorFileSavedIn.Format(file.Name, recipeEditor.Scope), -1);
             }
-            recipeEditor.Status = "guardado " + DateTime.Now.ToString("HH:mm", CultureInfo.InvariantCulture);
+            recipeEditor.Status = Messages.EditorSavedAt.Format(DateTime.Now.ToString("HH:mm", CultureInfo.InvariantCulture));
             return true;
         }
 
@@ -2476,8 +2470,7 @@ internal static partial class DashboardCli
                         // Up and Down use the files on disk: drafts are saved first or the action is cancelled.
                         if (recipeEditor.Files.Any(item => item.Modified))
                         {
-                            if (Query(app, (action == "up" ? "Up" : "Down") + " · " + recipeEditor.Scope, "Hay cambios sin guardar; " +
-                                (action == "up" ? "Up" : "Down") + " usa los archivos guardados.", "Cancelar", "Guardar y continuar") != 1 || !SaveDrafts()) break;
+                            if (Query(app, (action == "up" ? "Up" : "Down") + " · " + recipeEditor.Scope, Messages.EditorUnsavedBeforeAction.Format(action == "up" ? "Up" : "Down"), Messages.LabelsCancel.ToString(), Messages.EditorSaveAndContinueButton.ToString()) != 1 || !SaveDrafts()) break;
                         }
                         if (action == "up" && recipeEditor.Validate() is not null) break;
                         BeginPublication(action, recipeEditor.Selection, recipeEditor.Scope, recipeEditor.Private);
@@ -2491,7 +2484,7 @@ internal static partial class DashboardCli
             }
             catch (Exception error) when (ManagementError(error) || error is RecipeException)
             {
-                Query(app, "Editor", error.Message, "Aceptar");
+                Query(app, "Editor", error.Message, Messages.LabelsAccept.ToString());
             }
             if (page == Editing) file.View.SetFocus();
             Render();
@@ -2531,7 +2524,7 @@ internal static partial class DashboardCli
                 var result = PublicationCli.Execute(args.ToArray(), output, error,
                     new DashboardPublicationInteraction(app, label, stop.Token), frontend);
                 publicationExit = result;
-                return $"{action} · {label} · código {result}\n{output}\n{error}".Trim();
+                return Messages.DashboardActionOutput.Format(action, label, result, output, error).Trim();
             });
         }
     }
@@ -2571,7 +2564,7 @@ internal static partial class DashboardCli
         dialog.Add(list);
         var color = string.IsNullOrEmpty(Environment.GetEnvironmentVariable("NO_COLOR"));
         if (color) { Paint(dialog, Palette.Text, Palette.Card); Paint(list, Palette.Text, Palette.Base); }
-        var actions = accept is null ? new[] { " Aceptar " } : [" Cancelar ", " " + accept + " "];
+        var actions = accept is null ? new[] { Messages.DashboardAcceptButton.ToString() } : [Messages.DashboardCancelButton.ToString(), " " + accept + " "];
         foreach (var text in actions)
         {
             var button = new Button { Text = text, NoDecorations = true, ShadowStyle = ShadowStyles.None };
@@ -2582,15 +2575,26 @@ internal static partial class DashboardCli
         return accept is not null && dialog.Result == 1 ? list.SelectedItem : null;
     }
 
-    // Dropdown under the combination control at the right of the view title: the registered
-    // combinations, ● on the one in use. Enter or a click chooses and closes; Esc closes unchanged.
-    private static int? DropDown(IApplication app, IReadOnlyList<string> items, int selected, int current)
+    // Dropdown list, ● on the item in use. Without an anchor it opens under the combination
+    // control at the right of the view title; with one, right below that control. Its height
+    // follows the rows, so every item is visible. Enter or a click chooses; Esc closes unchanged.
+    private static int? DropDown(IApplication app, IReadOnlyList<string> items, int selected, int current, View? anchor = null)
     {
         var width = Math.Min(app.Screen.Width - 4, Math.Max(24, items.Max(item => item.Length) + 4));
-        using var dialog = Modal(app, width, Math.Min(items.Count, app.Screen.Height - 8));
-        dialog.X = Math.Max(0, app.Screen.Width - width - 3);
-        dialog.Y = 2;
-        var list = new ListView { Width = Dim.Fill(), Height = Dim.Fill() };
+        var rows = Math.Min(items.Count, app.Screen.Height - 8);
+        using var dialog = Modal(app, width, rows);
+        dialog.Height = Dim.Auto(DimAutoStyle.Content);
+        if (anchor?.FrameToScreen() is { } control)
+        {
+            dialog.X = Math.Clamp(control.X - 1, 0, Math.Max(0, app.Screen.Width - width - 2));
+            dialog.Y = Math.Clamp(control.Bottom - 1, 0, Math.Max(0, app.Screen.Height - rows - 2));
+        }
+        else
+        {
+            dialog.X = Math.Max(0, app.Screen.Width - width - 3);
+            dialog.Y = 2;
+        }
+        var list = new ListView { Width = Dim.Fill(), Height = rows };
         list.SetSource(new ObservableCollection<string>(items.Select((item, index) => (index == current ? "● " : "  ") + item)));
         list.SelectedItem = Math.Clamp(selected, 0, items.Count - 1);
         int? result = null;
@@ -2608,11 +2612,11 @@ internal static partial class DashboardCli
     // row. Returns the marked selectors (none means every resource) or null when cancelled.
     private static string[]? PickResources(IApplication app, string title, IReadOnlyList<(string Selector, string Kind, string Name)> items, string accept)
     {
-        if (items.Count == 0) return Query(app, title, "La combinación no declara backends ni modelos para elegir; se incluye todo.", "Cancelar", accept) == 1 ? [] : null;
+        if (items.Count == 0) return Query(app, title, Messages.EditorNoSelectableResourcesConfirm.ToString(), Messages.LabelsCancel.ToString(), accept) == 1 ? [] : null;
         var marked = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        var kinds = new Dictionary<string, string> { ["backend"] = "Backend", ["model"] = "Modelo", ["companion"] = "Auxiliar" };
+        var kinds = new Dictionary<string, string> { ["backend"] = "Backend", ["model"] = Messages.LabelsModel2.ToString(), ["companion"] = Messages.LabelsCompanion.ToString() };
         using var dialog = Modal(app, 70, Math.Min(items.Count, 12) + 4, title);
-        var hint = new Label { X = 1, Width = Dim.Fill(1), Text = "Marcá los recursos (Enter o doble clic). Sin marcas se incluyen todos." };
+        var hint = new Label { X = 1, Width = Dim.Fill(1), Text = Messages.EditorSelectResourcesHint.ToString() };
         var list = new ListView { X = 1, Y = 2, Width = Dim.Fill(1), Height = Math.Min(items.Count, 12) };
         void Refresh()
         {
@@ -2627,7 +2631,7 @@ internal static partial class DashboardCli
         dialog.Add(hint, list);
         var color = string.IsNullOrEmpty(Environment.GetEnvironmentVariable("NO_COLOR"));
         if (color) { Paint(dialog, Palette.Text, Palette.Card); Paint(hint, Palette.Muted, Palette.Card); Paint(list, Palette.Text, Palette.Base); }
-        dialog.AddButton(new Button { Text = " Cancelar ", NoDecorations = true, ShadowStyle = ShadowStyles.None });
+        dialog.AddButton(new Button { Text = Messages.DashboardCancelButton.ToString(), NoDecorations = true, ShadowStyle = ShadowStyles.None });
         dialog.AddButton(new Button { Text = " " + accept + " ", NoDecorations = true, ShadowStyle = ShadowStyles.None });
         Refresh();
         app.Run(dialog);
@@ -2647,12 +2651,12 @@ internal static partial class DashboardCli
                 if (cancellation.IsCancellationRequested) return;
                 try
                 {
-                    using var dialog = Modal(app, 70, options.Count + 3, "Seleccionar recurso");
+                    using var dialog = Modal(app, 70, options.Count + 3, Messages.EditorSelectResourceTitle.ToString());
                     var list = new ListView { X = 1, Width = Dim.Fill(1), Height = Dim.Fill() };
                     list.SetSource(new ObservableCollection<string>(options));
                     list.SelectedItem = 0;
-                    var accept = new Button { Text = " Elegir ", IsDefault = true, ShadowStyle = ShadowStyles.None };
-                    var cancel = new Button { Text = " Cancelar ", ShadowStyle = ShadowStyles.None };
+                    var accept = new Button { Text = Messages.DashboardChooseButton.ToString(), IsDefault = true, ShadowStyle = ShadowStyles.None };
+                    var cancel = new Button { Text = Messages.DashboardCancelButton.ToString(), ShadowStyle = ShadowStyles.None };
                     dialog.Add(list);
                     dialog.AddButton(accept);
                     dialog.AddButton(cancel);
@@ -2672,11 +2676,11 @@ internal static partial class DashboardCli
     private sealed class DashboardPublicationInteraction(IApplication app, string project, CancellationToken cancellation) : IPublicationInteraction
     {
         public bool Available => !cancellation.IsCancellationRequested;
-        public bool Confirm(string diagnostic) => Ask("Publicar en destino · " + project, diagnostic, "Publicar igual");
-        public bool Confirm(string diagnostic, string destination) => Ask("Publicar en " + destination, project + "\n" + diagnostic, "Publicar igual");
-        public bool StartService() => Ask("Destino detenido · " + project,
-            "La publicación requiere iniciar el servicio destino. ¿Iniciar ahora?", "Iniciar");
-        public bool StartService(string diagnostic) => Ask("Destino detenido · " + project, diagnostic, "Iniciar");
+        public bool Confirm(string diagnostic) => Ask(Messages.PublishToTargetTitle.Format(project), diagnostic, Messages.PublishAnywayButton.ToString());
+        public bool Confirm(string diagnostic, string destination) => Ask(Messages.PublishToDestinationTitle.Format(destination), project + "\n" + diagnostic, Messages.PublishAnywayButton.ToString());
+        public bool StartService() => Ask(Messages.PublishTargetStoppedTitle.Format(project),
+            Messages.PublishStartTargetConfirm.ToString(), Messages.LabelsStart.ToString());
+        public bool StartService(string diagnostic) => Ask(Messages.PublishTargetStoppedTitle.Format(project), diagnostic, Messages.LabelsStart.ToString());
 
         private bool Ask(string title, string text, string accept)
         {
@@ -2684,7 +2688,7 @@ internal static partial class DashboardCli
             app.Invoke(() =>
             {
                 if (cancellation.IsCancellationRequested) { answer.TrySetCanceled(cancellation); return; }
-                try { answer.TrySetResult(Query(app, title, text, "Cancelar", accept) == 1); }
+                try { answer.TrySetResult(Query(app, title, text, Messages.LabelsCancel.ToString(), accept) == 1); }
                 catch (Exception error) { answer.TrySetException(error); }
             });
             return answer.Task.WaitAsync(cancellation).GetAwaiter().GetResult();
@@ -2694,10 +2698,10 @@ internal static partial class DashboardCli
     internal static List<Target> Discover(out string diagnostic, string? directory = null, Home? selectedHome = null)
     {
         var targets = new List<Target>();
-        diagnostic = "No hay servicios en Global ni en esta carpeta.";
+        diagnostic = Messages.DashboardNoServicesAnywhere.ToString();
         if (!OperatingSystem.IsWindows())
         {
-            diagnostic = "La observación de servicios registrados está disponible en Windows.";
+            diagnostic = Messages.DashboardServiceObservationWindowsOnly.ToString();
             return targets;
         }
         var errors = new List<string>();

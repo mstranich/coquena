@@ -58,7 +58,7 @@ internal static class ServerRemovalTests
                 else
                 {
                     Check(servers.Servers.All(s => s.Id != selected.Id) && config.DefaultServerId is null, "read sees coherent committed snapshots at " + stage);
-                    Check(error.ToString().Contains("publicad"), "published pending checkpoint diagnosed");
+                    Check(error.ToString().Contains(Messages.StorageRemovalDesignationReadAgain.ToString()), "published pending checkpoint diagnosed");
                     Check(new ServerManager(faultHome).List().Single().Server.Name == "keep" && !File.Exists(faultHome.PathFor("catalogs/server-removal-transaction.json")), "fresh invocation recovers checkpoints");
                     clean.Update(DocumentKind.Config, json.ConfigDocument, ContractValidation.Config, old => old! with { LogRetention = new(123) });
                     Check(clean.Read(DocumentKind.Config, json.ConfigDocument, ContractValidation.Config)!.DefaultServerId is null, "next writer does not restore removed designation");

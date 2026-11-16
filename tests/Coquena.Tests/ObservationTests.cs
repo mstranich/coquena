@@ -96,7 +96,7 @@ internal static class ObservationTests
                 store.Commit(update.Revision, updated);
                 var metricRequests = handler.MetricRequests;
                 var disabled = await observer.CaptureAsync(service);
-                Check(handler.MetricRequests == metricRequests && disabled.Entries.Single(e => e.Name == "loaded").Diagnostic!.Contains("desactivadas"),
+                Check(handler.MetricRequests == metricRequests && disabled.Entries.Single(e => e.Name == "loaded").Diagnostic == Messages.ObservationMetricsDisabledInExecution.ToString(),
                     "disabled metrics do not suppress state and are not requested");
                 Check(disabled.Recovery.Contains("last-good") && disabled.ActiveComposition!["combination"]!.GetValue<string>() == "recorded-combination",
                     "recovery evidence is retained with actual execution");
@@ -144,14 +144,14 @@ internal static class ObservationTests
                     })!;
                     var stdout = process.StandardOutput.ReadToEndAsync(); var stderr = process.StandardError.ReadToEndAsync();
                     await process.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(25));
-                    Check(process.ExitCode == 0 && (await stdout).Contains("Servicio fixture | alive | HTTP 200"), "published CLI observes selected scoped service and terminates: " + await stderr);
+                    Check(process.ExitCode == 0 && (await stdout).Contains(Messages.DisplayService.Format("fixture", "", "alive", "HTTP 200")), "published CLI observes selected scoped service and terminates: " + await stderr);
                     var general = await Product("ps");
-                    Check(general.Contains("global-fixture (default)") && general.Contains("Servicio fixture |") && general.Contains("Servicio other |"),
+                    Check(general.Contains("global-fixture (default)") && general.Contains(Messages.DisplayService.Format("fixture", "", "", "").Split('|')[0]) && general.Contains(Messages.DisplayService.Format("other", "", "", "").Split('|')[0]),
                         "general observation includes global and known project services, including stopped");
                     var onlyGlobal = await Product("ps", "--global");
-                    Check(onlyGlobal.Contains("global-fixture") && !onlyGlobal.Contains("Servicio fixture |"), "global filter limits services while retaining machine hardware");
+                    Check(onlyGlobal.Contains("global-fixture") && !onlyGlobal.Contains(Messages.DisplayService.Format("fixture", "", "", "").Split('|')[0]), "global filter limits services while retaining machine hardware");
                     var byDefault = await Product("ps", "--service", "default");
-                    Check(byDefault.Contains("global-fixture") && !byDefault.Contains("Servicio fixture |"), "explicit default selects only its registered global");
+                    Check(byDefault.Contains("global-fixture") && !byDefault.Contains(Messages.DisplayService.Format("fixture", "", "", "").Split('|')[0]), "explicit default selects only its registered global");
                     async Task<string> Product(params string[] arguments)
                     {
                         var start = new System.Diagnostics.ProcessStartInfo(product) { UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true };

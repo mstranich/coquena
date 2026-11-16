@@ -25,8 +25,8 @@ public sealed class ServiceLogReader(ScopeStore store, string serviceId)
         cancellation.ThrowIfCancellationRequested();
         var logs = List();
         var log = id is null ? logs.LastOrDefault() : logs.SingleOrDefault(l => l.Id == id)
-            ?? throw new StorageException("unknown-log", "Log no registrado en este servicio.");
-        if (log is null) { output.WriteLine("Sin logs registrados."); return; }
+            ?? throw new StorageException("unknown-log", Messages.ServerLogNotRegisteredInThisService.ToString());
+        if (log is null) { output.WriteLine(Messages.ServerNoRegisteredLogs.ToString()); return; }
         using var stream = Open(log.Path);
         var end = stream.Length; // A query never follows later writes, including show of an active file.
         Position(stream, id is null);
@@ -85,7 +85,7 @@ public sealed class ServiceLogReader(ScopeStore store, string serviceId)
                     {
                         if (stream.Length < offset)
                         {
-                            output.WriteLine("\n[Logs] Archivo truncado.");
+                            output.WriteLine(Messages.ServerLogsFileTruncated.ToString());
                             stream.Position = offset = 0; decoder.Reset();
                         }
                         var eof = false;
@@ -122,7 +122,7 @@ public sealed class ServiceLogReader(ScopeStore store, string serviceId)
                         if (first) Position(stream, recent: true);
                         else stream.Position = offset;
                         offset = stream.Position;
-                        output.WriteLine($"\n[Logs] Servicio {serviceId}; instancia {next.Id}; inicio {next.StartedAt}.");
+                        output.WriteLine(Messages.ServerLogsServiceInstanceStart.Format(serviceId, next.Id, next.StartedAt));
                         transition?.Invoke(next);
                         if (first) foreach (var log in logs.TakeWhile(l => l.Id != next.Id)) seen.Add(log.Id);
                         seen.Add(next.Id); first = false;
@@ -131,7 +131,7 @@ public sealed class ServiceLogReader(ScopeStore store, string serviceId)
                     }
                     first = false;
                     if (current is null && diagnostic != "waiting")
-                    { output.WriteLine("[Logs] Esperando la primera ejecución del servicio."); diagnostic = "waiting"; }
+                    { output.WriteLine(Messages.ServerLogsWaitingForTheFirstServiceExecution.ToString()); diagnostic = "waiting"; }
                 }
                 catch (Exception e) when (e is IOException or UnauthorizedAccessException)
                 {

@@ -15,7 +15,7 @@ public static class DownloadCli
     {
         if (!Valid(args))
         {
-            error.WriteLine("Error: opciones no válidas para download. Ver coquena --help."); return 2;
+            error.WriteLine(Messages.DownloadInvalidOptions); return 2;
         }
         try
         {
@@ -24,7 +24,7 @@ public static class DownloadCli
             {
                 var values = manager.List(args.Length == 2 ? args[1][2..] : null);
                 foreach (var value in values) Show(value, output);
-                if (values.Length == 0) output.WriteLine("Sin operaciones de descarga.");
+                if (values.Length == 0) output.WriteLine(Messages.DownloadNone);
                 return 0;
             }
             var id = Guid.Parse(args[1]);
@@ -37,7 +37,7 @@ public static class DownloadCli
                 manager.ControlAsync(id, args[0] == "cancel", cancellation, consumer is not null ? consumer.CancelAsync : modelConsumer is null ? null : modelConsumer.CancelAsync).GetAwaiter().GetResult();
                 var published = consumer is not null && consumer.Published(current) ||
                     modelConsumer is not null && modelConsumer.Published(current);
-                output.WriteLine($"{id:D}: {(args[0] == "cancel" ? published ? "instalación publicada; limpieza completada, sin revertir" : "cancelación y limpieza completadas" : "pausa guardada")}.");
+                output.WriteLine(Messages.DownloadDone.Format(id.ToString("D"), args[0] == "cancel" ? published ? Messages.DownloadPublishedNoRevert : Messages.DownloadCancelCleanup : Messages.DownloadPauseSaved));
                 if (args[0] == "pause") output.WriteLine($"coquena download resume {id:D}");
                 return 0;
             }
@@ -59,20 +59,20 @@ public static class DownloadCli
             }
             using var hfLifetime = hf;
             if (transport is null)
-                throw new DownloadException("provider-not-integrated", "Proveedor no integrado todavía (006/009); selección y parciales conservados.");
+                throw new DownloadException("provider-not-integrated", Messages.DownloadProviderMissing);
             using var stopped = CancellationTokenSource.CreateLinkedTokenSource(cancellation);
             ConsoleCancelEventHandler handler = (_, e) => { e.Cancel = true; stopped.Cancel(); };
             Console.CancelKeyPress += handler;
             try
             {
-                output.WriteLine($"Operación {id:D} en primer plano.");
+                output.WriteLine(Messages.OperationForeground.Format(id.ToString("D")));
                 var result = manager.RunAsync(id, transport, async (_, index, token) =>
                 {
                     // No input means no destructive restart. Redirection is never consent.
                     if (input is null && Console.IsInputRedirected) return false;
-                    output.WriteLine($"Range no permite continuar archivo {index + 1}. ¿Reiniciar desde cero? [s/N]");
+                    output.WriteLine(Messages.DownloadRangeRestart.Format(index + 1));
                     var line = await (input ?? Console.In).ReadLineAsync(token);
-                    return line?.Trim().Equals("s", StringComparison.OrdinalIgnoreCase) == true;
+                    return Messages.IsYes(line);
                 }, value => Show(value, output), stopped.Token,
                     installer is not null ? installer.FinalizeAsync : modelInstaller is null ? null : modelInstaller.FinalizeAsync,
                     installer is not null ? installer.CancelAsync : modelInstaller is null ? null : modelInstaller.CancelAsync).GetAwaiter().GetResult();
@@ -80,7 +80,7 @@ public static class DownloadCli
                 {
                     var installed = installer is not null && installer.Published(operation) ||
                         modelInstaller is not null && modelInstaller.Published(operation);
-                    output.WriteLine($"{id:D}: {(installed ? "instalación " : "cancelación ") + Messages.CleanupCompleted}."); return 0;
+                    output.WriteLine(Messages.OperationFinished.Format(id.ToString("D"), Messages.InstallationOrCancellation(installed), Messages.CleanupCompleted)); return 0;
                 }
                 if (result.State is "paused" or "failed") output.WriteLine($"coquena download resume {id:D}");
                 return result.State == "failed" ? 1 : 0;
@@ -91,7 +91,7 @@ public static class DownloadCli
         {
             var code = e switch { DownloadException d => d.Code, StorageException s => s.Code,
                 ContractException c => c.Code, ModelSourceException m => m.Code, OperationCanceledException => "control-not-confirmed", _ => "local-io-failed" };
-            error.WriteLine($"Error: {code}. No se confirmó la operación; ver download status. Ver coquena --help.");
+            error.WriteLine(Messages.DownloadNotConfirmed.Format(code));
             return 1;
         }
     }
@@ -105,11 +105,11 @@ public static class DownloadCli
     internal static string ErrorLine(string code)
     {
         if (code == "transfer-cancelled") return Messages.DownloadCancelled;
-        if (code == "transfer-paused") return Messages.Error(code, "Descarga pausada. Lo descargado se conserva; para reanudarla, ver coquena download list");
-        var text = Coquena.Observation.DownloadsPresentation.Failure(code);
-        return text == Messages.TransferFailed || text == code
-            ? Messages.Error(code, "La descarga no terminó. Lo descargado se conserva; para reanudarla, ver coquena download list")
-            : $"Error: {text} ({code}). Lo descargado se conserva; para reanudarla, ver coquena download list.";
+        if (code == "transfer-paused") return Messages.Error(code, Messages.DownloadPaused);
+        var text = Coquena.Observation.DownloadsPresentation.FailureText(code);
+        return text is null
+            ? Messages.Error(code, Messages.DownloadUnfinished)
+            : Messages.DownloadFailedWith.Format(text, code);
     }
 
     internal static void Show(OperationDocument value, TextWriter output)
@@ -120,21 +120,21 @@ public static class DownloadCli
         {
             bytes += file.ConfirmedBytes;
             if (file.ExpectedSize is { } size) total += size; else known = false;
-            output.WriteLine($"  {file.SourcePath}: {ByteSize.Format(file.ConfirmedBytes)}/{(file.ExpectedSize is long expected ? ByteSize.Format(expected) : "desconocido")} | {file.State} | {file.DestinationPath}");
+            output.WriteLine($"  {file.SourcePath}: {ByteSize.Format(file.ConfirmedBytes)}/{(file.ExpectedSize is long expected ? ByteSize.Format(expected) : Messages.UnknownSize)} | {file.State} | {file.DestinationPath}");
         }
-        output.WriteLine($"  Total: {ByteSize.Format(bytes)}/{(known ? ByteSize.Format(total) : "desconocido")}");
-        if (value.Diagnostic is not null) output.WriteLine($"  Diagnóstico: {value.Diagnostic}");
+        output.WriteLine($"  Total: {ByteSize.Format(bytes)}/{(known ? ByteSize.Format(total) : Messages.UnknownSize)}");
+        if (value.Diagnostic is not null) output.WriteLine(Messages.DownloadDiagnostic.Format(value.Diagnostic));
         if (value.Diagnostic?.StartsWith("checkpoint-write-failed-", StringComparison.Ordinal) == true)
         {
-            output.WriteLine("  No se pudo guardar el avance de la descarga en el disco.");
+            output.WriteLine(Messages.DownloadProgressNotSaved);
             if (value.Diagnostic.EndsWith("0x80070497", StringComparison.Ordinal))
-                output.WriteLine("  Windows no pudo retirar el archivo de estado al reemplazarlo (ERROR_UNABLE_TO_REMOVE_REPLACED, 1175).");
+                output.WriteLine(Messages.DownloadReplaceFailed);
         }
         if (value.LastIncident is { } incident)
         {
-            output.WriteLine($"  Último incidente ({incident.At:O}): {incident.Reason} | archivo {incident.FileIndex + 1} | offset {incident.Offset} bytes");
-            output.WriteLine($"  Fallos consecutivos: {incident.ConsecutiveFailures} | límite de reintentos: {incident.RetryLimit} | espera prevista: {incident.WaitMilliseconds} ms");
+            output.WriteLine(Messages.DownloadLastIncident.Format(incident.At.ToString("O"), incident.Reason, incident.FileIndex + 1, incident.Offset));
+            output.WriteLine(Messages.DownloadFailures.Format(incident.ConsecutiveFailures, incident.RetryLimit, incident.WaitMilliseconds));
         }
-        if (value.Phase == "resource-validation") output.WriteLine(value.State == "running" ? "  Verificando los archivos descargados." : "  Archivos descargados; falta verificarlos.");
+        if (value.Phase == "resource-validation") output.WriteLine(value.State == "running" ? Messages.DownloadVerifying : Messages.DownloadToVerify);
     }
 }

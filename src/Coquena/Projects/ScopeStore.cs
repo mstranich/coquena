@@ -28,11 +28,11 @@ public sealed class ScopeStore(ScopeContext context)
     internal ScopeSnapshot ReadVerified() => WithLocks([this], () => ReadLocked());
     private string StatePath => Context.PathFor("local/state.json");
     private string PendingPath => Context.PathFor("local/pending.json");
-    private static StorageException Conflict() => new("scope-conflict", "Cambió el ámbito; releer antes de volver a preparar.");
+    private static StorageException Conflict() => new("scope-conflict", Messages.ProjectScopeChangedReadAgainBeforePreparing.ToString());
 
     public ScopeSnapshot Read()
     {
-        if (PhysicalDirectory.Read(Context.Base) != Context.PhysicalBase) throw new StorageException("scope-moved", "Cambió la identidad física de la base.");
+        if (PhysicalDirectory.Read(Context.Base) != Context.PhysicalBase) throw new StorageException("scope-moved", Messages.ProjectPhysicalBaseIdentityChanged.ToString());
         if (!Directory.Exists(Context.Root)) return Empty();
         try { return WithLocks([this], () => ReadLocked()); }
         catch (StorageException error) when (error.Code == "scope-copy-detected")
@@ -56,7 +56,7 @@ public sealed class ScopeStore(ScopeContext context)
 
     private static void CommitCore(IReadOnlyList<ScopeChange> changes, Action<ScopeWriteStage>? fault, bool detachCopy)
     {
-        if (changes.Count == 0) throw new ArgumentException("Se requiere un ámbito.");
+        if (changes.Count == 0) throw new ArgumentException(Messages.ProjectScopeRequired.ToString());
         WithLocks(changes.Select(x => x.Store).ToArray(), () =>
         {
             var tx = ProjectDocuments.Id();
@@ -94,9 +94,9 @@ public sealed class ScopeStore(ScopeContext context)
                 // silently discard evidence or protections from a previous generation.
                 if (change.RemovedDocuments?.Any(path => !old.Documents.ContainsKey(path) || change.Documents.ContainsKey(path) ||
                     !(IsResolutionPath(path) || path == "local/last-good.json" || ServiceDocumentKind(path) == "last-good")) == true)
-                    throw new StorageException("invalid-document-removal", "Sólo se retiran resoluciones y últimas buenas identificadas.");
+                    throw new StorageException("invalid-document-removal", Messages.ProjectOnlyIdentifiedVersionsRemoved.ToString());
                 if (old.Documents.Keys.Any(path => !change.Documents.ContainsKey(path) && change.RemovedDocuments?.Contains(path) != true))
-                    throw new StorageException("missing-generation-document", "La generación no conserva todos los documentos anteriores.");
+                    throw new StorageException("missing-generation-document", Messages.ProjectGenerationMissingPreviousDocs.ToString());
                 var data = new JsonObject
                 {
                     ["scope-id"] = scopeId, ["generation"] = generation, ["transaction-id"] = tx,
@@ -117,11 +117,11 @@ public sealed class ScopeStore(ScopeContext context)
                     {
                         ProjectDocuments.Uuid(JsonValue.Create(change.DefaultServiceId));
                         if (!data["services"]!.AsArray().Any(s => s!["id"]!.GetValue<string>() == change.DefaultServiceId))
-                            throw new StorageException("unknown-service", "El alias requiere un servicio global registrado.");
+                            throw new StorageException("unknown-service", Messages.ProjectAliasRequiresARegisteredGlobalService.ToString());
                         data["aliases"]!["default"] = change.DefaultServiceId;
                     }
                 }
-                else if (change.DefaultServiceId is not null) throw new StorageException("global-alias-required", "Default pertenece al ámbito global.");
+                else if (change.DefaultServiceId is not null) throw new StorageException("global-alias-required", Messages.ProjectDefaultBelongsToGlobalScope.ToString());
                 var state = ProjectDocuments.Create("state", checked(old.Revision + 1), data);
                 foreach (var (path, document) in change.Documents)
                     WriteNew(store.Context.PathFor($"local/generations/{generation}/{path}"), ProjectDocuments.Bytes(document));
@@ -158,7 +158,7 @@ public sealed class ScopeStore(ScopeContext context)
             catch (Exception error)
             {
                 throw new StorageException("scope-commit-pending",
-                    $"La publicación quedó registrada, pero faltó completar su aplicación ({error.GetType().Name}, 0x{error.HResult:X8}). Coquena intentará completarla al volver a abrir el proyecto.", true, error);
+                    Messages.ProjectPublicationIncompleteRetry.Format(error.GetType().Name, error.HResult), true, error);
             }
             return true;
         });
@@ -170,7 +170,7 @@ public sealed class ScopeStore(ScopeContext context)
         {
             foreach (var projection in new[] { "local/inventory.json", "local/recipes.json", "local/active.json" })
                 if (File.Exists(Context.PathFor(projection)))
-                    throw new StorageException("missing-state-pointer", "Existen proyecciones sin estado publicado; no se acepta catálogo vacío.");
+                    throw new StorageException("missing-state-pointer", Messages.ProjectProjectionsWithoutState.ToString());
             return Empty();
         }
         var state = ProjectDocuments.Read(SharedFile.ReadAllBytes(StatePath), "state");
@@ -180,7 +180,7 @@ public sealed class ScopeStore(ScopeContext context)
         ProjectDocuments.Uuid(data["transaction-id"]);
         var generationState = Context.PathFor($"local/generations/{gen}/state.json");
         if (!File.Exists(generationState) || !SharedFile.ReadAllBytes(generationState).AsSpan().SequenceEqual(ProjectDocuments.Bytes(state)))
-            throw new StorageException("invalid-generation", "Falta la generación publicada o no coincide con su estado.");
+            throw new StorageException("invalid-generation", Messages.ProjectPublishedGenerationMismatch.ToString());
         var documents = LoadDocuments(Context, state);
         var sameBase = data["base-volume"]?.GetValue<string>() == Context.PhysicalBase.Volume &&
             data["base-file-id"]?.GetValue<string>() == Context.PhysicalBase.FileId;
@@ -191,9 +191,9 @@ public sealed class ScopeStore(ScopeContext context)
             if (!sameBase && !sameRoot)
             {
                 if (detachCopy) return new(state["revision"]!.GetValue<long>(), null, state, new Dictionary<string, JsonObject>());
-                throw new StorageException("scope-copy-detected", "Copia física comprobada; se requiere identidad independiente.");
+                throw new StorageException("scope-copy-detected", Messages.ProjectPhysicalCopyNeedsIdentity.ToString());
             }
-            throw new StorageException("scope-identity-conflict", "Identidad física incierta; no se adoptan publicaciones anteriores.");
+            throw new StorageException("scope-identity-conflict", Messages.ProjectUncertainPhysicalIdentity.ToString());
         }
         return new(state["revision"]!.GetValue<long>(), scopeId, state, documents);
     }
@@ -202,17 +202,17 @@ public sealed class ScopeStore(ScopeContext context)
     {
         var data = state["data"]!.AsObject();
         var gen = ProjectDocuments.Uuid(data["generation"]);
-        if (data["documents"] is not JsonObject entries) throw new StorageException("invalid-generation", "Falta el índice de documentos de la generación.");
+        if (data["documents"] is not JsonObject entries) throw new StorageException("invalid-generation", Messages.ProjectGenerationDocumentIndexMissing.ToString());
         var result = new Dictionary<string, JsonObject>(StringComparer.Ordinal);
         foreach (var (path, entry) in entries)
         {
             ValidateDocumentPath(path);
             var physical = context.PathFor($"local/generations/{gen}/{path}");
-            if (!File.Exists(physical)) throw new StorageException("invalid-generation", "Falta un documento comprometido; se conserva evidencia.");
+            if (!File.Exists(physical)) throw new StorageException("invalid-generation", Messages.ProjectCommittedDocumentMissing.ToString());
             var bytes = SharedFile.ReadAllBytes(physical);
-            if (Hash(bytes) != entry!["sha256"]!.GetValue<string>()) throw new StorageException("invalid-generation", "Hash de generación discrepante.");
+            if (Hash(bytes) != entry!["sha256"]!.GetValue<string>()) throw new StorageException("invalid-generation", Messages.ProjectGenerationHashMismatch.ToString());
             var document = ProjectDocuments.Read(bytes, entry["kind"]!.GetValue<string>());
-            if (document["revision"]!.GetValue<long>() != entry["revision"]!.GetValue<long>()) throw new StorageException("invalid-generation", "Revisión de generación discrepante.");
+            if (document["revision"]!.GetValue<long>() != entry["revision"]!.GetValue<long>()) throw new StorageException("invalid-generation", Messages.ProjectGenerationRevisionMismatch.ToString());
             result.Add(path, document);
         }
         return result;
@@ -227,7 +227,7 @@ public sealed class ScopeStore(ScopeContext context)
             var ordered = stores.GroupBy(x => x.Context.PhysicalRoot).Select(x => x.First())
                 .OrderBy(x => x.Context.PhysicalRoot.Volume, StringComparer.Ordinal)
                 .ThenBy(x => x.Context.PhysicalRoot.FileId, StringComparer.Ordinal).ToArray();
-            if (attempt == 0 && ordered.Length != initial.Count) throw new StorageException("duplicate-scope", "Dos participantes apuntan al mismo ámbito físico.");
+            if (attempt == 0 && ordered.Length != initial.Count) throw new StorageException("duplicate-scope", Messages.ProjectTwoParticipantsPointToTheSamePhysical.ToString());
             var leases = new List<FileStream>();
             try
             {
@@ -252,7 +252,7 @@ public sealed class ScopeStore(ScopeContext context)
             }
             finally { foreach (var lease in leases.AsEnumerable().Reverse()) lease.Dispose(); }
         }
-        throw new StorageException("scope-contention", "No se pudo estabilizar el conjunto de ámbitos.");
+        throw new StorageException("scope-contention", Messages.ProjectCouldNotStabilizeTheScopeSet.ToString());
     }
 
     private static JsonObject Manifest(JsonObject marker)
@@ -260,15 +260,15 @@ public sealed class ScopeStore(ScopeContext context)
         var data = marker["data"]!.AsObject();
         ProjectDocuments.Uuid(data["operation-id"]);
         var path = data["coordinator"]!.GetValue<string>();
-        if (!Path.IsPathFullyQualified(path) || !File.Exists(path)) throw new StorageException("missing-coordinator", "No se puede localizar el coordinador; se conserva la operación pendiente.");
+        if (!Path.IsPathFullyQualified(path) || !File.Exists(path)) throw new StorageException("missing-coordinator", Messages.ProjectCoordinatorNotFound.ToString());
         var tx = data["operation-id"]!.GetValue<string>();
         if (Path.GetFileName(path) != "operation.json" || Path.GetFileName(Path.GetDirectoryName(path)) != tx ||
             Path.GetFileName(Path.GetDirectoryName(Path.GetDirectoryName(path))) != "operations")
-            throw new StorageException("invalid-operation", "Ruta de coordinador fuera del layout de operaciones.");
+            throw new StorageException("invalid-operation", Messages.ProjectCoordinatorPathOutsideOperationLayout.ToString());
         var bytes = SharedFile.ReadAllBytes(path);
-        if (Hash(bytes) != data["manifest-sha256"]!.GetValue<string>()) throw new StorageException("invalid-operation", "Manifiesto coordinador discrepante.");
+        if (Hash(bytes) != data["manifest-sha256"]!.GetValue<string>()) throw new StorageException("invalid-operation", Messages.ProjectCoordinatorManifestMismatch.ToString());
         var manifest = ProjectDocuments.Read(bytes, "operation");
-        if (manifest["data"]!["operation-id"]!.GetValue<string>() != data["operation-id"]!.GetValue<string>()) throw new StorageException("invalid-operation", "Identidad de operación discrepante.");
+        if (manifest["data"]!["operation-id"]!.GetValue<string>() != data["operation-id"]!.GetValue<string>()) throw new StorageException("invalid-operation", Messages.ProjectOperationIdentityMismatch.ToString());
         return manifest;
     }
 
@@ -276,7 +276,7 @@ public sealed class ScopeStore(ScopeContext context)
     {
         var context = ScopeContext.At(node["base"]!.GetValue<string>(), node["root"]!.GetValue<string>(), node["global"]!.GetValue<bool>());
         if (context.PhysicalRoot.Volume != node["volume"]!.GetValue<string>() || context.PhysicalRoot.FileId != node["file-id"]!.GetValue<string>())
-            throw new StorageException("participant-identity-conflict", "Un participante no conserva identidad física; no se publica ni libera su evidencia.");
+            throw new StorageException("participant-identity-conflict", Messages.ProjectParticipantLacksIdentity.ToString());
         return new(context);
     }
 
@@ -287,11 +287,11 @@ public sealed class ScopeStore(ScopeContext context)
         var completed = Path.Combine(Path.GetDirectoryName(manifestPath)!, "completed.json");
         var committed = File.Exists(decision);
         if (committed && !SharedFile.ReadAllBytes(decision).AsSpan().SequenceEqual(ProjectDocuments.Bytes(Decision(marker, "committed", 2))))
-            throw new StorageException("invalid-operation", "Decisión de commit discrepante.");
+            throw new StorageException("invalid-operation", Messages.ProjectCommitDecisionMismatch.ToString());
         if (File.Exists(completed))
         {
             if (!SharedFile.ReadAllBytes(completed).AsSpan().SequenceEqual(ProjectDocuments.Bytes(Decision(marker, committed ? "committed" : "aborted", 3))))
-                throw new StorageException("invalid-operation", "Finalización de operación discrepante.");
+                throw new StorageException("invalid-operation", Messages.ProjectOperationCompletionMismatch.ToString());
             foreach (var node in manifest["data"]!["participants"]!.AsArray())
                 RemoveMarker(Participant(node!), marker);
             return;
@@ -309,7 +309,7 @@ public sealed class ScopeStore(ScopeContext context)
                 var generation = ProjectDocuments.Uuid(next["data"]!["generation"]);
                 var saved = store.Context.PathFor($"local/generations/{generation}/state.json");
                 if (!File.Exists(saved) || !SharedFile.ReadAllBytes(saved).AsSpan().SequenceEqual(ProjectDocuments.Bytes(next)))
-                    throw new StorageException("invalid-generation", "Estado de generación discrepante.");
+                    throw new StorageException("invalid-generation", Messages.ProjectGenerationStateMismatch.ToString());
                 _ = LoadDocuments(store.Context, next);
             }
             return (Store: store, Next: next, Previous: previous);
@@ -373,7 +373,7 @@ public sealed class ScopeStore(ScopeContext context)
             try { return new(path, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None); }
             catch (IOException error) when ((error.HResult & 0xffff) is 32 or 33)
             {
-                if (watch.ElapsedMilliseconds >= 3000) throw new StorageException("writer-busy", "Otro escritor mantiene el ámbito ocupado.", inner: error);
+                if (watch.ElapsedMilliseconds >= 3000) throw new StorageException("writer-busy", Messages.ProjectAnotherWriterKeepsTheScopeBusy.ToString(), inner: error);
                 Thread.Sleep(25);
             }
         }
@@ -383,7 +383,7 @@ public sealed class ScopeStore(ScopeContext context)
     private static void ValidateDocumentPath(string path)
     {
         if (path is not ("local/inventory.json" or "local/recipes.json" or "local/combinations.json" or "combinations.json" or "local/active.json" or "local/last-good.json" or "local/update-plan.json") && !IsIntentionPath(path) && !IsResolutionPath(path) && ServiceDocumentKind(path) is null)
-            throw new StorageException("invalid-projection-path", "Documento fuera de las proyecciones admitidas del ámbito.");
+            throw new StorageException("invalid-projection-path", Messages.ProjectDocumentOutsideAllowedScopeProjections.ToString());
     }
     private static bool IsIntentionPath(string path)
     {

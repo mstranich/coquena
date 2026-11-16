@@ -29,7 +29,7 @@ internal static class SettingsPresentationTests
         check(keys.Length == 8 && keys.All(ContractValidation.BarResource) && !ContractValidation.BarResource("gpu.use") &&
               !ContractValidation.BarResource("gpu0.vram") && !ContractValidation.BarResource("disk"),
             "bar keys are cpu, ram and three readings per GPU");
-        check(SettingsPresentation.BarLabel("gpu1.memory") == "GPU1 dedicada" && SettingsPresentation.BarLabel("cpu") == "CPU",
+        check(SettingsPresentation.BarLabel("gpu1.memory") == "GPU1 " + Messages.LabelsDedicated && SettingsPresentation.BarLabel("cpu") == "CPU",
             "bar boxes use the preview labels");
 
         var context = new HardwareContext("win-x64", "CPU de prueba", 32UL * 1024 * 1024 * 1024, ["Adaptador A"], 13000,
@@ -37,11 +37,11 @@ internal static class SettingsPresentationTests
         var rows = SettingsPresentation.System("0.3.0", context, false, ["GPU0  GPU A · CUDA"], [], 56);
         var text = rows.Select(Markup.Plain).ToArray();
         check(rows.Count <= 20 && rows.All(row => Markup.Width(row) <= 56), "Sistema fits the right column of 80×24");
-        check(text.Contains(" Plataforma  win-x64") && text.Contains(" RAM         32 GiB") && text.Any(row => row.Contains("✓ compatible  driver 13.0")) &&
-              text.Any(row => row.Contains("GPU A · SM 8.9")) && text.Any(row => row.Contains("? sin confirmar")),
+        check(text.Contains(" " + Messages.LabelsPlatform.ToString().PadRight(12) + "win-x64") && text.Contains(" RAM         32 GiB") && text.Any(row => row.Contains("✓ compatible  driver 13.0")) &&
+              text.Any(row => row.Contains("GPU A · SM 8.9")) && text.Any(row => row.Contains("? " + Messages.SettingsUnconfirmed)),
             "Sistema shows machine, adapters and acceleration of the probe: " + string.Join(" / ", text));
         check(rows.SelectMany(Markup.Parse).Any(span => span.Action == "probe"), "Sondear de nuevo is an action");
-        check(SettingsPresentation.System("0.3.0", null, false, [], [], 56).Select(Markup.Plain).Any(row => row.Contains("Consultando")),
+        check(SettingsPresentation.System("0.3.0", null, false, [], [], 56).Select(Markup.Plain).Any(row => row.Contains(Messages.SettingsCheckingAcceleration.ToString())),
             "Sistema without a finished probe says so");
     }
 

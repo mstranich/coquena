@@ -44,9 +44,9 @@ public static class ScopeDownloadCli
             if (!File.Exists(context.PathFor("local/state.json")))
             {
                 if (Directory.Exists(context.PathFor("downloads")) && Directory.GetFileSystemEntries(context.PathFor("downloads")).Length != 0)
-                    throw new StorageException("missing-state-pointer", "Hay transferencias sin identidad de ámbito.");
-                if (values.Length == 1 || values[0] == "list") { if (json) output.WriteLine("[]"); else output.WriteLine("Sin operaciones de descarga."); return 0; }
-                throw new DownloadException("not-found", "Operación inexistente en el ámbito seleccionado.");
+                    throw new StorageException("missing-state-pointer", Messages.DownloadNoScopeIdentity);
+                if (values.Length == 1 || values[0] == "list") { if (json) output.WriteLine("[]"); else output.WriteLine(Messages.DownloadNone); return 0; }
+                throw new DownloadException("not-found", Messages.DownloadNotInScope);
             }
             var backends = new ScopedBackends(context);
             var transfers = new ScopeTransfers(context, validateBackend: backends.ValidateOfficial);
@@ -54,7 +54,7 @@ public static class ScopeDownloadCli
             {
                 var operations = transfers.Downloads.List(values.Length == 2 ? values[1][2..] : null);
                 if (json) output.WriteLine(new JsonArray(operations.Select(Structured).Cast<JsonNode?>().ToArray()).ToJsonString());
-                else { foreach (var operation in operations) DownloadCli.Show(operation, output); if (operations.Length == 0) output.WriteLine("Sin operaciones de descarga."); }
+                else { foreach (var operation in operations) DownloadCli.Show(operation, output); if (operations.Length == 0) output.WriteLine(Messages.DownloadNone); }
                 return 0;
             }
             var id = Guid.Parse(values[1]);
@@ -63,7 +63,7 @@ public static class ScopeDownloadCli
             {
                 transfers.ControlAsync(id, values[0] == "cancel").GetAwaiter().GetResult();
                 if (json) output.WriteLine(new JsonObject { ["operation-id"] = id.ToString("D"), ["action"] = values[0], ["confirmed"] = true }.ToJsonString());
-                else output.WriteLine($"{id:D}: descarga {(values[0] == "cancel" ? "cancelada" : "pausada")}.");
+                else output.WriteLine((values[0] == "cancel" ? Messages.DownloadCancelledId : Messages.DownloadPausedId).Format(id.ToString("D")));
                 return 0;
             }
             var selected = transfers.Downloads.Status(id);
@@ -82,8 +82,8 @@ public static class ScopeDownloadCli
                     async (_, index, cancellation) =>
                     {
                         if (json || Console.IsInputRedirected) return false;
-                        output.WriteLine($"Archivo {index + 1}: ¿reiniciar con la misma selección? [s/N]");
-                        return (await Console.In.ReadLineAsync(cancellation))?.Trim().Equals("s", StringComparison.OrdinalIgnoreCase) == true;
+                        output.WriteLine(Messages.DownloadFileRestart.Format(index + 1));
+                        return Messages.IsYes(await Console.In.ReadLineAsync(cancellation));
                     }).GetAwaiter().GetResult();
                 if (result is not null) Show(result);
                 else
@@ -91,7 +91,7 @@ public static class ScopeDownloadCli
                     var published = transfers.Published(selected);
                     var candidate = RecipeUpgrade.Pending(new ScopeStore(context).Read().Documents, id)?["candidate"] is not null;
                     if (json) output.WriteLine(new JsonObject { ["operation-id"] = id.ToString("D"), ["state"] = candidate ? "prepared-for-upgrade" : published ? "completed" : "cancelled" }.ToJsonString());
-                    else output.WriteLine($"{id:D}: {(candidate ? "candidata preparada; ejecutar upgrade para publicar el conjunto" : published ? "instalación publicada y limpieza completada" : "cancelación y limpieza completadas")}.");
+                    else output.WriteLine(Messages.DownloadDone.Format(id.ToString("D"), candidate ? Messages.DownloadCandidateReady : published ? Messages.DownloadPublishedCleanup : Messages.DownloadCancelCleanup));
                 }
                 return result?.State == "failed" ? 1 : 0;
             }
@@ -105,10 +105,10 @@ public static class ScopeDownloadCli
             var code = e switch { BackendException b => b.Code, DownloadException d => d.Code, StorageException s => s.Code, ContractException c => c.Code, _ => "local-io-failed" };
             error.WriteLine(DownloadCli.ErrorLine(code));
             if (code.StartsWith("checkpoint-write-failed-", StringComparison.Ordinal))
-                error.WriteLine("Falló la escritura del checkpoint local; no es una respuesta HTTP. Conserve el parcial.");
+                error.WriteLine(Messages.DownloadCheckpointFailed);
             return e is BackendException ? code == "invalid-selection" ? 2 : 5 : 1;
         }
     }
-    private static int Invalid(TextWriter error) { error.WriteLine("Error: opciones no válidas para download. Ver coquena --help."); return 2; }
+    private static int Invalid(TextWriter error) { error.WriteLine(Messages.DownloadInvalidOptions); return 2; }
     private static JsonObject Structured(OperationDocument operation) => JsonNode.Parse(ContractJson.Write(operation, ContractJsonContext.Default.OperationDocument))!.AsObject();
 }

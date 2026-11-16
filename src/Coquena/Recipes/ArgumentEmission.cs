@@ -50,14 +50,14 @@ public sealed class LlamaB11482ArgumentAdapter : IArgumentAdapter, IArgumentIniC
     {
         ArgumentSchema.SafeIniName(name, new(RecipeKind.String, origin, name));
         if (name.Equals("default", StringComparison.OrdinalIgnoreCase) || name.Contains(':'))
-            throw new RecipeException("reserved-ini-section", "emission", origin, "Sección reservada o normalizada por el router.");
+            throw new RecipeException("reserved-ini-section", "emission", origin, Messages.RecipeSectionReservedOrNormalizedByTheRouter.ToString());
         return "[" + name + "]\n";
     }
     public string Entry(string key, string value, RecipeOrigin origin)
     {
         ArgumentSchema.SafeIniName(key, new(RecipeKind.String, origin, key));
         try { ParameterCatalog.Literal(value); }
-        catch (ConfigurationException) { throw new RecipeException("unrepresentable-ini-value", "emission", origin, "El codec INI b11482 no representa el valor sin pérdida."); }
+        catch (ConfigurationException) { throw new RecipeException("unrepresentable-ini-value", "emission", origin, Messages.RecipeIniCodecLossyValue.ToString()); }
         return key + "=" + value + "\n";
     }
 }
@@ -83,7 +83,7 @@ public static class ArgumentEmission
         {
             var rule = Rule(argument, block.Scope, "cli", adapter);
             if (!names.Add(rule.Name) || rule.NegativeName is not null && !names.Add(rule.NegativeName))
-                throw argument.Value.Error("emission-key-collision", "emission", "Varios argumentos emiten el mismo flag CLI.");
+                throw argument.Value.Error("emission-key-collision", "emission", Messages.RecipeMultipleArgumentsEmitTheSameCLIFlag.ToString());
             tokens.AddRange(CliArgument(recipe, block, argument, adapter, resolve));
         }
         return tokens.AsReadOnly();
@@ -92,15 +92,15 @@ public static class ArgumentEmission
     public static string Ini(EffectiveRecipe recipe, ValidatedArgumentBlock block, string section, IArgumentAdapter adapter,
         Func<ArgumentReference, string>? resolve = null)
     {
-        var codec = adapter.IniCodec ?? throw recipe.Root.Error("ini-codec-required", "emission", "Falta codec acreditado para el build.");
+        var codec = adapter.IniCodec ?? throw recipe.Root.Error("ini-codec-required", "emission", Messages.RecipeNoVerifiedCodecForTheBuild.ToString());
         if (block.Scope == "preset" && section is "*" or "default")
-            throw recipe.Root.Error("reserved-ini-section", "emission", "Un preset no puede usar una sección reservada por el router.");
+            throw recipe.Root.Error("reserved-ini-section", "emission", Messages.RecipeAPresetCannotUseASectionReserved.ToString());
         var result = new StringBuilder(codec.Section(section, recipe.Root.Origin));
         var keys = new HashSet<string>(StringComparer.Ordinal);
         foreach (var argument in block.Arguments.Values.OrderBy(x => x.Name, StringComparer.Ordinal))
         {
             var rule = Rule(argument, block.Scope, "ini", adapter);
-            if (!keys.Add(rule.Name)) throw argument.Value.Error("emission-key-collision", "emission", "Varios argumentos emiten la misma clave INI.");
+            if (!keys.Add(rule.Name)) throw argument.Value.Error("emission-key-collision", "emission", Messages.RecipeMultipleArgumentsEmitTheSameINIKey.ToString());
             foreach (var value in Values(recipe, argument, rule, "ini", adapter, resolve, block.Scope == "preset"))
                 result.Append(codec.Entry(rule.Name, value, argument.Value.Origin));
         }
@@ -128,7 +128,7 @@ public static class ArgumentEmission
             foreach (var global in processCli?.Arguments.Values ?? [])
                 if (preset.Arguments.TryGetValue(global.Name, out var local) &&
                     (!ArgumentSchema.Equal(global.Value, local.Value) || global.Literal != local.Literal))
-                    throw local.Value.Error("server-preset-cli-conflict", "emission", "Un valor CLI del proceso anularía una asignación distinta del preset.");
+                    throw local.Value.Error("server-preset-cli-conflict", "emission", Messages.RecipeCliValueOverridesPreset.ToString());
         var cliNames = new HashSet<string>(StringComparer.Ordinal);
         foreach (var argument in processCli?.Arguments.Values ?? [])
         {
@@ -146,14 +146,14 @@ public static class ArgumentEmission
                 var emitted = preset.Arguments.TryGetValue(name, out var argument)
                     ? CliArgument(recipe, preset, argument, adapter, resolve).ToArray() : [];
                 if (common is not null && !common.SequenceEqual(emitted))
-                    throw recipe.Root.Error("incompatible-preset-cli", "emission", "Un argumento CLI no puede representar asignaciones distintas por preset: " + name + ".");
+                    throw recipe.Root.Error("incompatible-preset-cli", "emission", Messages.RecipeCliArgCannotVaryPerPreset.Format(name));
                 common = emitted;
             }
             if (processCli?.Arguments.ContainsKey(name) == true) continue;
             var representative = presets.Select(x => x.Arguments.GetValueOrDefault(name)).First(x => x is not null)!;
             var rule = Rule(representative, "preset", "cli", adapter);
             if (!cliNames.Add(rule.Name) || rule.NegativeName is not null && !cliNames.Add(rule.NegativeName))
-                throw representative.Value.Error("emission-key-collision", "emission", "Varios argumentos emiten el mismo flag del proceso.");
+                throw representative.Value.Error("emission-key-collision", "emission", Messages.RecipeDuplicateProcessFlag.ToString());
             tokens.AddRange(common ?? []);
         }
         foreach (var preset in presets)
@@ -170,7 +170,7 @@ public static class ArgumentEmission
         var rule = Rule(argument, block.Scope, "cli", adapter);
         if (rule.Mode == "flag")
         {
-            if (argument.Value.Kind != RecipeKind.Boolean) throw argument.Value.Error("invalid-flag", "emission", "Flag requiere boolean.");
+            if (argument.Value.Kind != RecipeKind.Boolean) throw argument.Value.Error("invalid-flag", "emission", Messages.RecipeFlagRequiresBoolean.ToString());
             if (argument.Value.Text == "true") return ["--" + rule.Name];
             return rule.NegativeName is null ? [] : ["--" + rule.NegativeName];
         }
@@ -180,7 +180,7 @@ public static class ArgumentEmission
     private static ArgumentEmitRule Rule(ValidatedArgument argument, string scope, string destination, IArgumentAdapter? adapter)
     {
         if (adapter is not null && !adapter.Supports(argument.Name, scope, destination))
-            throw argument.Value.Error("unsupported-argument-destination", "emission", "El adaptador no admite este destino para el argumento.");
+            throw argument.Value.Error("unsupported-argument-destination", "emission", Messages.RecipeTheAdapterDoesNotSupportThisTarget.ToString());
         ArgumentEmitRule rule;
         if (argument.Definition?.Get("emit")?.Get(destination) is { } emit)
             rule = new(emit.Get("name")?.Text ?? argument.Name, emit.Get("mode")!.Text!, emit.Get("separator")?.Text,
@@ -200,23 +200,23 @@ public static class ArgumentEmission
         {
             var mapping = item.Text == "true" ? "true-value" : "false-value";
             var expected = argument.Definition?.Get("enum") is { } choices
-                ? $"Valores declarados en el schema: {string.Join(", ", choices.Items.Select(choice => choice.Text))}."
+                ? Messages.RecipeSchemaDeclaredValues.Format(string.Join(", ", choices.Items.Select(choice => choice.Text)))
                 // Catalog data, never its free description: that text comes from the backend's help.
                 : adapter is LlamaB11482ArgumentAdapter && ParameterCatalog.Find(argument.Name) is { } definition &&
-                  (definition.Choices is { Length: > 0 } ? "Valores admitidos por el backend: " + string.Join(", ", definition.Choices) + "."
-                    : definition.Syntax is { Length: > 0 } syntax ? "Sintaxis del backend: " + syntax + "." : null) is { } known
+                  (definition.Choices is { Length: > 0 } ? Messages.RecipeBackendSupportedValues.Format(string.Join(", ", definition.Choices))
+                    : definition.Syntax is { Length: > 0 } syntax ? Messages.RecipeBackendSyntaxDetail.Format(syntax) : null) is { } known
                     ? known
-                    : "Consultar los valores admitidos por el backend.";
+                    : Messages.RecipeCheckTheValuesSupportedByTheBackend.ToString();
             return item.Error("boolean-representation-required", "emission",
                 Messages.BooleanNeedsValue(argument.Name, item.Text) +
-                $"{expected} Para escribir un valor de texto, usar comillas. Para conservar el booleano, definir {mapping} en emit.{destination} del schema.");
+                Messages.RecipeUseQuotesToWriteATextValue.Format(expected, mapping, destination));
         }
 
         string Scalar(RecipeValue item)
         {
             var reference = ArgumentValidation.Reference(recipe, item, argument.Literal, canonical);
             var text = reference is not null
-                ? resolve?.Invoke(reference) ?? throw item.Error("unresolved-resource-reference", "emission", "La referencia necesita una ruta de entrada resuelta.")
+                ? resolve?.Invoke(reference) ?? throw item.Error("unresolved-resource-reference", "emission", Messages.RecipeTheReferenceRequiresAResolvedInputPath.ToString())
                 : item.Kind switch
                 {
                     RecipeKind.String => item.Text!,
@@ -224,33 +224,33 @@ public static class ArgumentEmission
                     RecipeKind.Number => Normalize(item.Text!),
                     RecipeKind.Boolean when rule.Mode == "value" => (item.Text == "true" ? rule.TrueValue : rule.FalseValue)
                         ?? throw MissingBooleanRepresentation(item),
-                    _ => throw item.Error("unrepresentable-value", "emission", "El valor no tiene emisión escalar declarada.")
+                    _ => throw item.Error("unrepresentable-value", "emission", Messages.RecipeTheValueHasNoDeclaredScalarEmission.ToString())
                 };
             CheckText(text, item, argument.Name, destination, adapter);
             return text;
         }
         if (rule.Mode == "flag")
         {
-            if (value.Kind != RecipeKind.Boolean) throw value.Error("invalid-flag", "emission", "Flag requiere boolean.");
+            if (value.Kind != RecipeKind.Boolean) throw value.Error("invalid-flag", "emission", Messages.RecipeFlagRequiresBoolean.ToString());
             return value.Text == "true" ? ["true"] : [];
         }
         if (rule.Mode == "value")
         {
-            if (value.Kind == RecipeKind.Sequence) throw value.Error("array-emission-required", "emission", "Una lista requiere repeat o join explícitos.");
+            if (value.Kind == RecipeKind.Sequence) throw value.Error("array-emission-required", "emission", Messages.RecipeListRequiresRepeatOrJoin.ToString());
             return [Scalar(value)];
         }
-        if (value.Kind != RecipeKind.Sequence) throw value.Error("array-required", "emission", "Repeat/join requiere lista.");
+        if (value.Kind != RecipeKind.Sequence) throw value.Error("array-required", "emission", Messages.RecipeRepeatJoinRequiresAList.ToString());
         if (value.Items.Count == 0) return [];
         if (rule.Mode == "repeat")
         {
             if (adapter?.Accumulates(argument.Name, destination) != true)
-                throw value.Error("repeat-evidence-required", "emission", "Falta evidencia de acumulación del parser.");
+                throw value.Error("repeat-evidence-required", "emission", Messages.RecipeNoEvidenceOfParserAccumulation.ToString());
             return value.Items.Select(Scalar).ToArray();
         }
-        if (rule.Mode != "join" || string.IsNullOrEmpty(rule.Separator)) throw value.Error("invalid-emission-mode", "emission", "Regla de emisión inválida.");
+        if (rule.Mode != "join" || string.IsNullOrEmpty(rule.Separator)) throw value.Error("invalid-emission-mode", "emission", Messages.RecipeInvalidEmissionRule.ToString());
         var items = value.Items.Select(Scalar).ToArray();
         if (items.Any(x => x.Contains(rule.Separator, StringComparison.Ordinal)))
-            throw value.Error("unrepresentable-join", "emission", "Un elemento contiene el separador y no hay escape acreditado.");
+            throw value.Error("unrepresentable-join", "emission", Messages.RecipeListItemContainsSeparator.ToString());
         var joined = string.Join(rule.Separator, items);
         CheckText(joined, value, argument.Name, destination, adapter);
         return [joined];
@@ -259,7 +259,7 @@ public static class ArgumentEmission
     private static void CheckText(string text, RecipeValue value, string name, string destination, IArgumentAdapter? adapter)
     {
         if (text.Contains('\0') || text.IndexOfAny(['\r', '\n']) >= 0 && adapter?.SupportsLineBreaks(name, destination) != true)
-            throw value.Error("unrepresentable-text", "emission", "NUL o salto de línea sin representación acreditada.");
+            throw value.Error("unrepresentable-text", "emission", Messages.RecipeUnsupportedControlChars.ToString());
     }
     private static string Normalize(string text)
     {

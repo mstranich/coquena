@@ -212,6 +212,33 @@ lo publicado con lo que informa el servidor.
 ### config
 
 Config configura Coquena globalmente en el perfil/home, sin requerir YAML.
+`config language show|set <código>|unset|list|export <código>` consulta, selecciona,
+restablece o enumera idiomas y exporta un catálogo JSON completo por stdout.
+`set auto` equivale a `unset`. La selección se aplica al iniciar Coquena;
+en la TUI se conserva la sesión actual hasta reiniciarla.
+
+El valor predeterminado `auto` busca la cultura exacta del sistema operativo,
+después una variante del mismo idioma y, por último, `en-US`. Si hay varias
+variantes sin coincidencia exacta, se elige la primera por código en orden ordinal
+sin distinguir mayúsculas. El idioma de los textos no cambia los formatos
+regionales del sistema operativo.
+
+El inglés reside en el código y sirve de fallback. `es-AR` se incluye empotrado;
+otros idiomas también pueden empotrarse o añadirse como
+`COQUENA_HOME/languages/<código>.json`. Las claves son los nombres de las entradas
+de `Messages`, con distinción de mayúsculas. Un archivo externo reemplaza al idioma
+empotrado del mismo código; las claves ausentes se muestran en inglés. Un archivo
+inválido, con claves desconocidas o duplicadas, valores que no sean texto o
+marcadores distintos, se rechaza entero. Si no se puede cargar el idioma elegido,
+se avisa, se usa inglés y se conserva la preferencia.
+
+Los códigos, identificadores, claves de datos y salida JSON no se traducen.
+Los diagnósticos persistidos conservan códigos y datos; la redacción se realiza
+al mostrarlos. El contenido de recetas y los logs técnicos conservan su idioma.
+Las descripciones propias predeterminadas de Coquena son traducibles; las
+descripciones de parámetros de llama.cpp y las escritas por el usuario se conservan
+como contenido.
+
 Preferencias de observadores/reconexión y retención predeterminada de logs
 pertenecen a ese ámbito. Un override de retención del servidor y el destino de sus
 logs pertenecen al YAML y se editan como configuración del proyecto.

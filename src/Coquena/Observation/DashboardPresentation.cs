@@ -47,10 +47,10 @@ internal static class DashboardPresentation
 
     public static string ProcessState(string state) => state switch
     {
-        "alive" => "en línea",
-        "stopped" => "detenido",
-        "starting" => "iniciando",
-        "unknown" => "estado desconocido",
+        "alive" => Messages.LiveServiceOnline.ToString(),
+        "stopped" => Messages.LabelsStopped.ToString(),
+        "starting" => Messages.LabelsStarting.ToString(),
+        "unknown" => Messages.LiveServiceUnknownState.ToString(),
         _ => state
     };
 
@@ -67,7 +67,7 @@ internal static class DashboardPresentation
             if (!catalogues.TryGetValue(i, out var entries)) continue;
             // The prefix is a published namespace, not proof of client or process ownership.
             foreach (var group in entries.GroupBy(entry => entry.Name.Contains('/')
-                         ? entry.Name[..entry.Name.LastIndexOf('/')] : "Sin prefijo", StringComparer.Ordinal))
+                         ? entry.Name[..entry.Name.LastIndexOf('/')] : Messages.LiveNoPrefix.ToString(), StringComparer.Ordinal))
             {
                 rows.Add(new(Fit("  " + group.Key, width), i));
                 foreach (var entry in group)
@@ -96,7 +96,7 @@ internal static class DashboardPresentation
 
     public static string EntryHeader(EntrySnapshot? entry, string? model)
     {
-        if (entry is null) return "Sin entrada observada";
+        if (entry is null) return Messages.LiveNoObservedEntry.ToString();
         var parts = new List<string> { entry.Name, StateGlyph(entry.State) + " " + entry.State };
         if (model is not null) parts.Add(model);
         return string.Join(" · ", parts);
@@ -108,10 +108,10 @@ internal static class DashboardPresentation
         double? Value(string name) => entry?.Metrics.FirstOrDefault(metric => metric.Name == "llamacpp:" + name)?.Value;
         string N(double value) => value.ToString("0.#", CultureInfo.CurrentCulture);
         var parts = new List<string>();
-        if (Value("requests_processing") is { } active) parts.Add("activas " + N(active));
-        if (Value("requests_deferred") is { } queue) parts.Add("cola " + N(queue));
+        if (Value("requests_processing") is { } active) parts.Add(Messages.DashboardActiveCount.Format(N(active)));
+        if (Value("requests_deferred") is { } queue) parts.Add(Messages.DashboardQueueCount.Format(N(queue)));
         if (Value("prompt_tokens_total") is { } prompt && Value("prompt_tokens_cached_total") is { } cached && prompt > 0)
-            parts.Add("caché " + (cached / (prompt + cached) * 100).ToString("0", CultureInfo.CurrentCulture) + "%");
+            parts.Add(Messages.DashboardCachePercent.Format((cached / (prompt + cached) * 100).ToString("0", CultureInfo.CurrentCulture)));
         if (Value("n_busy_slots_per_decode") is { } busy) parts.Add("slots/decode " + N(busy));
         return parts.Count == 0 ? null : string.Join(" · ", parts);
     }
@@ -124,15 +124,15 @@ internal static class DashboardPresentation
         var parts = new List<string>();
         if (Value("prompt_tokens_seconds") is { } p) parts.Add("P " + N(p));
         if (Value("predicted_tokens_seconds") is { } g) parts.Add("G " + N(g));
-        return parts.Count == 0 ? null : "medias del backend · " + string.Join(" · ", parts) + " tk/s";
+        return parts.Count == 0 ? null : Messages.DashboardBackendMeans.Format(string.Join(" · ", parts));
     }
 
     public static string Rate(double? current, double? mean, double? peak)
     {
         static string N(double? value) => value?.ToString("0.#", CultureInfo.CurrentCulture) ?? "—";
         var text = N(current) + " tk/s";
-        if (mean is not null) text += " · media " + N(mean);
-        if (peak is not null) text += " · pico " + N(peak);
+        if (mean is not null) text += Messages.DashboardMeanRate.Format(N(mean));
+        if (peak is not null) text += Messages.DashboardPeakRate.Format(N(peak));
         return text;
     }
 

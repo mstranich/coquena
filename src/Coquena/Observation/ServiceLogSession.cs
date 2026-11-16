@@ -95,7 +95,7 @@ internal sealed class ServiceLogSession
         try { await reader.FollowAsync(live, stop.Token, log => { lock (gate) currentInstance = log.Id; }); }
         catch (OperationCanceledException) when (stop.IsCancellationRequested) { }
         catch (Exception error) when (ServiceObservation.ObservationError(error))
-        { lock (gate) problem = "Desconectado · " + error.Message; }
+        { lock (gate) problem = Messages.ObservationDisconnectedError.Format(error.Message); }
     }
 
     private async Task Catalog()
@@ -104,7 +104,7 @@ internal sealed class ServiceLogSession
         {
             try { var list = reader.List(); lock (gate) { files = list; catalogProblem = null; } }
             catch (Exception error) when (ServiceObservation.ObservationError(error))
-            { lock (gate) { catalogProblem = "Desconectado · " + error.Message; files = []; } }
+            { lock (gate) { catalogProblem = Messages.ObservationDisconnectedError.Format(error.Message); files = []; } }
             try { await Task.Delay(1000, stop.Token); }
             catch (OperationCanceledException) when (stop.IsCancellationRequested) { break; }
         }
@@ -117,15 +117,16 @@ internal sealed class ServiceLogSession
         {
             lock (gate)
             {
-                if (historicalId is not null) return $"Histórico · {historicalId[..Math.Min(8, historicalId.Length)]} · {historicalState}";
+                if (historicalId is not null) return Messages.ObservationHistory.Format(historicalId[..Math.Min(8, historicalId.Length)], historicalState);
                 var notice = live.Notice;
-                if (notice?.StartsWith("[Logs] Servicio", StringComparison.Ordinal) == true)
+                var serviceLogPrefix = Messages.ServerLogsServiceInstanceStart.ToString().Split('{')[0].TrimStart();
+                if (notice?.StartsWith(serviceLogPrefix, StringComparison.Ordinal) == true)
                 {
-                    notice = currentInstance is { Length: >= 8 } ? "instancia " + currentInstance[..8] : null;
+                    notice = currentInstance is { Length: >= 8 } ? Messages.ObservationInstanceShort.Format(currentInstance[..8]) : null;
                 }
                 else notice = notice?.Replace("[Logs] ", "", StringComparison.Ordinal);
                 return problem ?? catalogProblem ??
-                    (files.Any(file => file.Active) ? "Siguiendo" : "Espera · detenido") + " · " + notice;
+                    (files.Any(file => file.Active) ? Messages.LogFollowing.ToString() : Messages.ObservationWaitingStopped.ToString()) + " · " + notice;
             }
         }
     }
@@ -154,7 +155,7 @@ internal sealed class ServiceLogSession
                 {
                     cancellation.Token.ThrowIfCancellationRequested();
                     reader.Recent(buffer, id, cancellation.Token);
-                    lock (gate) if (history == buffer) historicalState = "lectura fija completada";
+                    lock (gate) if (history == buffer) historicalState = Messages.ObservationFixedReadingCompleted.ToString();
                 }
                 catch (OperationCanceledException) when (cancellation.IsCancellationRequested) { }
                 catch (Exception error) when (ServiceObservation.ObservationError(error))

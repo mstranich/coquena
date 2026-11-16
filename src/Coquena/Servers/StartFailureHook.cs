@@ -13,7 +13,7 @@ public sealed record StartFailureHook(string Command, string[] Arguments)
         var command = hook.Get("command")!;
         var args = hook.Get("args")?.Items ?? [];
         if (command.Sensitive || args.Any(arg => arg.Sensitive))
-            throw hook.Error("sensitive-hook-argument", "validation", "El hook no admite command ni argumentos interpolados sensibles.");
+            throw hook.Error("sensitive-hook-argument", "validation", Messages.ServerHookRejectsSensitiveInterpolation.ToString());
         return new(recipe.Selection.ResolvePath(command.Text!), args.Select(arg => arg.Text!).ToArray());
     }
 
@@ -42,7 +42,7 @@ public sealed record StartFailureHook(string Command, string[] Arguments)
                 process.StandardInput.Close();
                 await process.WaitForExitAsync(timeout.Token);
                 await Task.WhenAll(stdout, stderr);
-                if (process.ExitCode != 0) diagnostics?.WriteLine("[Hook] Notificación fallida: código de salida no cero.");
+                if (process.ExitCode != 0) diagnostics?.WriteLine(Messages.ServerHookNotificationFailedNonZeroExitCode.ToString());
             }
             finally
             {

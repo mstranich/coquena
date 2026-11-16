@@ -21,7 +21,7 @@ public sealed class LinuxSystemMetrics(string procRoot = "/proc", string drmRoot
         var samples = new List<MetricSample>
         {
             new("cpu.utilization", valid ? 100.0 * (total - (second.Idle - first.Idle)) / total : null,
-                "%", "procfs/stat", "machine", now, now - start, valid ? null : "Intervalo CPU no disponible.")
+                "%", "procfs/stat", "machine", now, now - start, valid ? null : Messages.ObservationCPUIntervalUnavailable.ToString())
         };
         try
         {
@@ -31,12 +31,12 @@ public sealed class LinuxSystemMetrics(string procRoot = "/proc", string drmRoot
             samples.Add(new("ram.total", memory["MemTotal"], "bytes", "procfs/meminfo", "machine", now));
             samples.Add(new("ram.used", memory.TryGetValue("MemAvailable", out var available) ? memory["MemTotal"] - available : null,
                 "bytes", "procfs/meminfo: MemTotal - MemAvailable", "machine", now,
-                UnavailableReason: memory.ContainsKey("MemAvailable") ? null : "MemAvailable no expuesto."));
+                UnavailableReason: memory.ContainsKey("MemAvailable") ? null : Messages.ObservationMemAvailableNotExposed.ToString()));
         }
         catch (Exception e) when (ReadError(e))
         {
             foreach (var name in new[] { "ram.total", "ram.used" }) samples.Add(new(name, null, "bytes", "procfs/meminfo", "machine", now,
-                UnavailableReason: "Memoria no disponible: " + e.GetType().Name));
+                UnavailableReason: Messages.ObservationMemoryUnavailableDetail.Format(e.GetType().Name)));
         }
         var devices = new List<DeviceMetrics>();
         try
@@ -51,7 +51,7 @@ public sealed class LinuxSystemMetrics(string procRoot = "/proc", string drmRoot
                     var path = Path.Combine(card, "device");
                     if (!File.Exists(Path.Combine(path, "vendor")) &&
                         !File.Exists(Path.Combine(path, "gpu_busy_percent")) && !File.Exists(Path.Combine(path, "mem_info_vram_total")))
-                    { diagnostics.Add($"DRM {Path.GetFileName(card)}: sin identidad física ni contadores de hardware; no se agrega como GPU."); continue; }
+                    { diagnostics.Add(Messages.ObservationDrmIgnoredNoIdentity.Format(Path.GetFileName(card))); continue; }
                     // NVIDIA is enumerated once by NVML, never again through DRM.
                     if (File.Exists(Path.Combine(path, "vendor")) && File.ReadAllText(Path.Combine(path, "vendor")).Trim() == "0x10de") continue;
                     var id = Path.GetFileName(card);
@@ -64,20 +64,20 @@ public sealed class LinuxSystemMetrics(string procRoot = "/proc", string drmRoot
                         catch (Exception e) when (ReadError(e)) { }
                         var validValue = value is >= 0 && double.IsFinite(value.Value);
                         fields.Add(new(name, validValue ? value : null, unit, "DRM sysfs/" + file,
-                            "device:" + id, DateTimeOffset.UtcNow, UnavailableReason: validValue ? null : "Driver no expone un contador válido o acceso denegado."));
+                            "device:" + id, DateTimeOffset.UtcNow, UnavailableReason: validValue ? null : Messages.ObservationDriverExposesNoValidCounterOrAccess.ToString()));
                     }
                     devices.Add(new(id, id, fields));
                     }
-                    catch (Exception e) when (ReadError(e)) { diagnostics.Add($"DRM {Path.GetFileName(card)} no disponible: {e.GetType().Name}"); }
+                    catch (Exception e) when (ReadError(e)) { diagnostics.Add(Messages.ObservationDRMUnavailable.Format(Path.GetFileName(card), e.GetType().Name)); }
                 }
         }
-        catch (Exception e) when (ReadError(e)) { diagnostics.Add("DRM no disponible: " + e.GetType().Name); }
+        catch (Exception e) when (ReadError(e)) { diagnostics.Add(Messages.ObservationDrmUnavailableDetail.Format(e.GetType().Name)); }
         if (OperatingSystem.IsLinux()) devices.AddRange(Nvml(diagnostics));
-        if (devices.Count == 0) diagnostics.Add("No se pudo leer el uso de la GPU.");
+        if (devices.Count == 0) diagnostics.Add(Messages.ObservationCouldNotReadGPUUsage.ToString());
         var wsl = false;
         try { wsl = File.ReadAllText(Path.Combine(procRoot, "sys/kernel/osrelease")).Contains("microsoft", StringComparison.OrdinalIgnoreCase); }
-        catch (Exception e) when (ReadError(e)) { diagnostics.Add("Entorno virtualizado no comprobable mediante procfs/osrelease."); }
-        if (wsl) diagnostics.Add("WSL2: la GPU se ve a través del driver de Windows; algunas métricas faltan.");
+        catch (Exception e) when (ReadError(e)) { diagnostics.Add(Messages.ObservationVirtualizedProcfsUnverified.ToString()); }
+        if (wsl) diagnostics.Add(Messages.ObservationWSLGPUExposedThroughWindowsDriverSome.ToString());
         return new(wsl ? "linux-wsl" : "linux", start, DateTimeOffset.UtcNow, samples, devices, diagnostics);
     }
 
@@ -99,13 +99,13 @@ public sealed class LinuxSystemMetrics(string procRoot = "/proc", string drmRoot
         nint library = 0;
         foreach (var path in new[] { "libnvidia-ml.so.1", "/usr/lib/wsl/lib/libnvidia-ml.so.1" })
             if (NativeLibrary.TryLoad(path, out library)) break;
-        if (library == 0) { diagnostics.Add("NVML del driver no disponible."); return []; }
+        if (library == 0) { diagnostics.Add(Messages.ObservationDriverNVMLUnavailable.ToString()); return []; }
         var initialized = false;
         try
         {
             var init = (delegate* unmanaged[Cdecl]<int>)NativeLibrary.GetExport(library, "nvmlInit_v2");
             var status = init();
-            if (status != 0) { diagnostics.Add($"NVML: inicialización no disponible ({status})."); return []; }
+            if (status != 0) { diagnostics.Add(Messages.ObservationNVMLInitializationUnavailable.Format(status)); return []; }
             initialized = true;
             var countCall = (delegate* unmanaged[Cdecl]<uint*, int>)NativeLibrary.GetExport(library, "nvmlDeviceGetCount_v2");
             var handleCall = (delegate* unmanaged[Cdecl]<uint, nint*, int>)NativeLibrary.GetExport(library, "nvmlDeviceGetHandleByIndex_v2");
@@ -114,13 +114,13 @@ public sealed class LinuxSystemMetrics(string procRoot = "/proc", string drmRoot
             var memoryCall = (delegate* unmanaged[Cdecl]<nint, NvMemory*, int>)NativeLibrary.GetExport(library, "nvmlDeviceGetMemoryInfo");
             var usageCall = (delegate* unmanaged[Cdecl]<nint, NvUsage*, int>)NativeLibrary.GetExport(library, "nvmlDeviceGetUtilizationRates");
             uint count = 0;
-            if (countCall(&count) != 0 || count > 64) { diagnostics.Add("NVML: inventario no disponible."); return []; }
+            if (countCall(&count) != 0 || count > 64) { diagnostics.Add(Messages.ObservationNVMLInventoryUnavailable.ToString()); return []; }
             var result = new List<DeviceMetrics>();
             var text = stackalloc byte[256];
             for (uint index = 0; index < count; index++)
             {
                 nint device = 0;
-                if (handleCall(index, &device) != 0) { diagnostics.Add($"NVML: dispositivo {index} no disponible."); continue; }
+                if (handleCall(index, &device) != 0) { diagnostics.Add(Messages.ObservationNVMLDeviceUnavailable.Format(index)); continue; }
                 new Span<byte>(text, 256).Clear();
                 var name = nameCall(device, text, 256) == 0 ? Text(text) : "NVIDIA";
                 new Span<byte>(text, 256).Clear();
@@ -130,15 +130,15 @@ public sealed class LinuxSystemMetrics(string procRoot = "/proc", string drmRoot
                 var now = DateTimeOffset.UtcNow;
                 result.Add(new(id, name, [
                     new("vram.total", memStatus == 0 ? memory.Total : null, "bytes", "NVML nvmlDeviceGetMemoryInfo", "device:" + id, now,
-                        UnavailableReason: memStatus == 0 ? null : $"Driver NVML: código {memStatus}."),
+                        UnavailableReason: memStatus == 0 ? null : Messages.ObservationNVMLDriverCode.Format(memStatus)),
                     new("vram.used", memStatus == 0 ? memory.Used : null, "bytes", "NVML nvmlDeviceGetMemoryInfo", "device:" + id, now,
-                        UnavailableReason: memStatus == 0 ? null : $"Driver NVML: código {memStatus}."),
+                        UnavailableReason: memStatus == 0 ? null : Messages.ObservationNVMLDriverCode.Format(memStatus)),
                     new("gpu.utilization", usageStatus == 0 ? usage.Gpu : null, "%", "NVML nvmlDeviceGetUtilizationRates; driver sample period", "device:" + id, now,
-                        UnavailableReason: usageStatus == 0 ? null : $"Driver NVML: código {usageStatus}; puede no estar soportado en WSL.") ]));
+                        UnavailableReason: usageStatus == 0 ? null : Messages.ObservationNvmlDriverCodeWsl.Format(usageStatus)) ]));
             }
             return result.ToArray();
         }
-        catch (EntryPointNotFoundException) { diagnostics.Add("NVML: API del driver incompleta."); return []; }
+        catch (EntryPointNotFoundException) { diagnostics.Add(Messages.ObservationNVMLIncompleteDriverAPI.ToString()); return []; }
         finally
         {
             if (initialized && NativeLibrary.TryGetExport(library, "nvmlShutdown", out var shutdown)) _ = ((delegate* unmanaged[Cdecl]<int>)shutdown)();

@@ -12,13 +12,13 @@ public sealed class LlamaPresetRouter(HttpClient client, Uri endpoint) : IPreset
         try
         {
             var entries = JsonNode.Parse(await response.Content.ReadAsStringAsync(cancellation))?["data"]?.AsArray()
-                ?? throw new HttpRequestException("El catálogo no contiene data.");
+                ?? throw new HttpRequestException(Messages.ServerCatalogEmpty.ToString());
             var names = new HashSet<string>(StringComparer.Ordinal);
             foreach (var entry in entries)
             {
                 if (entry?["id"]?.GetValue<string>() is not string name || !names.Add(name) ||
                     entry["status"]?["value"]?.GetValue<string>() is null || entry["status"]?["args"] is not JsonArray)
-                    throw new HttpRequestException("El catálogo no permite atribuir las entradas.");
+                    throw new HttpRequestException(Messages.ServerCatalogDoesNotAllowEntryAttribution.ToString());
                 foreach (var argument in entry["status"]!["args"]!.AsArray()) _ = argument?.GetValue<string>() ?? throw new InvalidOperationException();
                 if (entry["status"]!["preset"] is JsonNode preset) _ = preset.GetValue<string>();
                 if (entry["status"]!["failed"] is JsonNode failed) _ = failed.GetValue<bool>();
@@ -26,12 +26,12 @@ public sealed class LlamaPresetRouter(HttpClient client, Uri endpoint) : IPreset
             return entries;
         }
         catch (Exception e) when (e is System.Text.Json.JsonException or InvalidOperationException)
-        { throw new HttpRequestException("El catálogo recibido no es válido.", e); }
+        { throw new HttpRequestException(Messages.ServerReceivedCatalogIsInvalid.ToString(), e); }
     }
     public async Task<string?> ActivityAsync(string[] names, CancellationToken cancellation)
     {
-        var affected = "\nPresets afectados: " + string.Join(", ", names);
-        var unknown = "No se pudo comprobar la actividad del servidor." + affected;
+        var affected = Messages.ServerAffectedPresetsList.Format(string.Join(", ", names));
+        var unknown = Messages.ServerCouldNotCheckActivity.Format(affected);
         try
         {
             var entries = await ObserveAsync(cancellation);

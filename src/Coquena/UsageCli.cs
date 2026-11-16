@@ -6,7 +6,7 @@ namespace Coquena;
 // usage (alias df): every file Coquena knows, by scope, and what prune may free.
 public static class UsageCli
 {
-    private const string Help = Messages.UsageHelp;
+    private static string Help => Messages.UsageHelp;
 
     public static int Run(string[] args, TextWriter output, TextWriter error)
     {

@@ -52,7 +52,7 @@ public static class ScopedModelCli
                 if (value is null || tryMatch || name is not null || type is not null) return Invalid(error);
                 value = models.ResolveKey(value, companion);
                 var resource = models.List(companion).SingleOrDefault(r => r!["logical-key"]!.GetValue<string>().Equals(value, StringComparison.OrdinalIgnoreCase) || r["resource-id"]!.GetValue<string>() == value)
-                    ?? throw new ModelSourceException("unknown-resource", "Recurso inexistente en el ámbito.");
+                    ?? throw new ModelSourceException("unknown-resource", Messages.ResourceNotInScope);
                 var installation = resource["installations"]!.AsArray().Last()!;
                 var verifier = new ResourceVerification(context);
                 var resourceId = resource["resource-id"]!.GetValue<string>(); var installationId = installation["installation-id"]!.GetValue<string>();
@@ -78,7 +78,7 @@ public static class ScopedModelCli
                     using var matchClient = source is null ? HuggingFaceStore.CreateClient() : null;
                     try { models.TryMatchAsync(added, source ?? new(matchClient!), interaction ?? new SelectionInteraction(output, !Console.IsInputRedirected, json)).GetAwaiter().GetResult(); }
                     catch (Exception e) when (e is ModelSourceException or System.Net.Http.HttpRequestException or IOException or OperationCanceledException)
-                    { error.WriteLine("Aviso: emparejamiento no confirmado; alta externa conservada y utilizable según disponibilidad."); }
+                    { error.WriteLine(Messages.ModelPairingUnconfirmed); }
                 }
                 return 0;
             }
@@ -89,7 +89,7 @@ public static class ScopedModelCli
                 if (value?.StartsWith(recipe.Name + "/", StringComparison.Ordinal) == true) value = value[(recipe.Name.Length + 1)..];
                 var entries = recipe.Root.Get(companion ? "companions" : "models");
                 var shown = value is null ? entries?.Redacted() ?? new JsonObject()
-                    : entries?.Get(value)?.Redacted() ?? throw new ModelSourceException("unknown-alias", "Alias inexistente.");
+                    : entries?.Get(value)?.Redacted() ?? throw new ModelSourceException("unknown-alias", Messages.DisplayAliasDoesNotExist.ToString());
                 if (json) output.WriteLine(shown.ToJsonString()); else TextTree.Write(shown, output);
                 return 0;
             }
@@ -105,12 +105,12 @@ public static class ScopedModelCli
                 {
                     foreach (var resource in resources)
                         foreach (var installation in resource!["installations"]!.AsArray())
-                            output.WriteLine($"{resource["identity"]!.GetValue<string>()} | {resource["resource-id"]!.GetValue<string>()} | {installation!["installation-id"]!.GetValue<string>()} | {installation["observed-availability"]!.GetValue<string>()} | cambio={installation["changed"]!.GetValue<bool>()}" +
-                                (resource["ownership"]?.GetValue<string>() == "external" ? (installation["baseline"] is null ? " | externo; sin baseline de integridad" : " | externo; baseline local sin procedencia certificada") +
-                                    (resource["informative-match"] is null ? "" : "; equivalencia informativa no certificada") : ""));
+                            output.WriteLine(Messages.ScopedModelRow.Format(resource["identity"]!.GetValue<string>(), resource["resource-id"]!.GetValue<string>(), installation!["installation-id"]!.GetValue<string>(), installation["observed-availability"]!.GetValue<string>(), installation["changed"]!.GetValue<bool>()) +
+                                (resource["ownership"]?.GetValue<string>() == "external" ? (installation["baseline"] is null ? Messages.ScopedExternalNoBaseline : Messages.ScopedExternalBaseline) +
+                                    (resource["informative-match"] is null ? "" : Messages.ScopedInformativeMatch) : ""));
                     foreach (var operation in resources.SelectMany(r => r!["operations"] as JsonArray ?? []))
                         output.WriteLine($"{operation!["id"]!.GetValue<string>()} | {operation["state"]!.GetValue<string>()} | {operation["phase"]!.GetValue<string>()}");
-                    if (resources.Count == 0) output.WriteLine(companion ? "No hay auxiliares instalados aquí." : "No hay modelos instalados aquí.");
+                    if (resources.Count == 0) output.WriteLine(companion ? Messages.CompanionNoneHere : Messages.ModelNoneHere);
                 }
                 return 0;
             }
@@ -118,7 +118,7 @@ public static class ScopedModelCli
             {
                 // Check role before changing protection through the shared inventory API.
                 if (!models.List(companion).Any(r => r!["installations"]!.AsArray().Any(i => i!["installation-id"]!.GetValue<string>() == value)))
-                    throw new ModelSourceException("unknown-installation", "Instalación inexistente en esta categoría.");
+                    throw new ModelSourceException("unknown-installation", Messages.InstallationNotInCategory);
                 models.Protect(value!, action == "protect");
                 if (json) output.WriteLine(new JsonObject { ["installation-id"] = value, ["protected"] = action == "protect", ["references-preserved"] = true }.ToJsonString());
                 else output.WriteLine(Messages.ProtectionChanged(value!, action == "protect"));
@@ -151,10 +151,10 @@ public static class ScopedModelCli
                 if (external is not null)
                 {
                     var prompt = interaction ?? new SelectionInteraction(output, !Console.IsInputRedirected, json);
-                    if (!prompt.IsInteractive) throw new ModelSourceException("interaction-required", "La transición requiere confirmación explícita.");
-                    var choice = prompt.ChooseAsync(["Descargar copia gestionada conservando los archivos externos", "Cancelar; conservar registro externo"], stopped.Token).GetAwaiter().GetResult();
+                    if (!prompt.IsInteractive) throw new ModelSourceException("interaction-required", Messages.TransitionNeedsConfirmation);
+                    var choice = prompt.ChooseAsync([Messages.ModelDownloadManagedCopy, Messages.ModelCancelKeepExternal], stopped.Token).GetAwaiter().GetResult();
                     if (choice is null or 1) return 0;
-                    if (choice != 0) throw new ModelSourceException("invalid-choice", "Selección inválida.");
+                    if (choice != 0) throw new ModelSourceException("invalid-choice", Messages.InvalidSelection);
                     replace = true;
                 }
                 var result = models.AcquireAsync(selected, transport ?? provider!, progress: operation =>
@@ -177,7 +177,7 @@ public static class ScopedModelCli
             return e is OperationCanceledException ? 130 : e is ArgumentException || code is "invalid-selector" or "unknown-resource" or "unknown-alias" or "unknown-installation" ? 2 : 1;
         }
     }
-    private static int Invalid(TextWriter error) { error.WriteLine("Error: argumentos de model inválidos. Ver coquena --help."); return 2; }
+    private static int Invalid(TextWriter error) { error.WriteLine(Messages.ModelInvalidArguments); return 2; }
     private sealed class SelectionInteraction(TextWriter output, bool interactive, bool structured) : IModelSelectionInteraction
     {
         public bool IsInteractive => interactive && !structured;

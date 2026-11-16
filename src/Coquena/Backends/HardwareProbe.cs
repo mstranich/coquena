@@ -24,14 +24,14 @@ public static unsafe partial class HardwareProbe
         var arch = RuntimeInformation.OSArchitecture.ToString().ToLowerInvariant();
         if (!OperatingSystem.IsWindows())
             return new($"{(OperatingSystem.IsLinux() ? "linux" : "other")}-{arch}", RuntimeInformation.OSDescription,
-                null, [], null, [], new("unknown", "Sondeo CUDA sólo implementado en Windows."), new("unknown", "Sondeo Vulkan sólo implementado en Windows."));
+                null, [], null, [], new("unknown", Messages.DiagnosticsCUDAProbingIsOnlyImplementedOnWindows.Data()), new("unknown", Messages.DiagnosticsVulkanProbingIsOnlyImplementedOnWindows.Data()));
         return Windows(arch, cudaIds, vulkanIds);
     }
 
     [SupportedOSPlatform("windows")]
     private static HardwareContext Windows(string arch, HashSet<string>? cudaIds, HashSet<string>? vulkanIds)
     {
-        string cpu = "Nombre de CPU no disponible";
+        string cpu = Messages.BackendCPUNameUnavailable.ToString();
         try
         {
             using var key = Registry.LocalMachine.OpenSubKey(@"HARDWARE\DESCRIPTION\System\CentralProcessor\0");
@@ -56,10 +56,10 @@ public static unsafe partial class HardwareProbe
         try
         {
             var status = cuInit(0);
-            if (status == 100) return (null, [], new("incompatible", "Driver CUDA no encontró dispositivos utilizables."));
-            if (status != 0) return (null, [], new("unknown", $"cuInit falló ({status}); no se deduce ausencia de GPU."));
+            if (status == 100) return (null, [], new("incompatible", Messages.DiagnosticsTheCUDADriverFoundNoUsableDevices.Data()));
+            if (status != 0) return (null, [], new("unknown", Messages.DiagnosticsCuInitFailedGPUAbsenceIsNotInferred.Data(status)));
             if (cuDriverGetVersion(out var version) != 0 || cuDeviceGetCount(out var count) != 0 || count is < 0 or > 64)
-                return (null, [], new("unknown", "No se pudo obtener evidencia completa del driver CUDA."));
+                return (null, [], new("unknown", Messages.DiagnosticsCouldNotObtainCompleteCUDADriverEvidence.Data()));
             List<CudaDevice> devices = [];
             var name = stackalloc byte[256];
             for (var i = 0; i < count; i++)
@@ -67,7 +67,7 @@ public static unsafe partial class HardwareProbe
                 new Span<byte>(name, 256).Clear();
                 if (cuDeviceGet(out var device, i) != 0 || cuDeviceGetName(name, 256, device) != 0 ||
                     cuDeviceGetAttribute(out var major, 75, device) != 0 || cuDeviceGetAttribute(out var minor, 76, device) != 0)
-                    return (version, devices.ToArray(), new("unknown", "Enumeración CUDA incompleta."));
+                    return (version, devices.ToArray(), new("unknown", Messages.DiagnosticsIncompleteCUDAEnumeration.Data()));
                 var length = new ReadOnlySpan<byte>(name, 256).IndexOf((byte)0);
                 devices.Add(new(Encoding.UTF8.GetString(new ReadOnlySpan<byte>(name, length < 0 ? 256 : length)), major * 10 + minor));
                 if (ids is not null)
@@ -81,10 +81,10 @@ public static unsafe partial class HardwareProbe
                 }
             }
             return (version, devices.ToArray(), new(count > 0 ? "compatible" : "incompatible",
-                count > 0 ? "Driver y dispositivos CUDA detectados." : "Enumeración CUDA completa sin dispositivos."));
+                count > 0 ? Messages.DiagnosticsCUDADriverAndDevicesDetected.Data() : Messages.DiagnosticsCompleteCUDAEnumerationWithoutDevices.Data()));
         }
         catch (Exception e) when (e is DllNotFoundException or EntryPointNotFoundException or BadImageFormatException)
-        { return (null, [], new("unknown", "API del driver NVIDIA no disponible; no se afirma ausencia de GPU.")); }
+        { return (null, [], new("unknown", Messages.DiagnosticsNVIDIADriverAPIUnavailableGPUAbsenceIs.Data())); }
     }
 
     private static AccelerationEvidence ProbeVulkan(HashSet<string>? ids)
@@ -94,19 +94,19 @@ public static unsafe partial class HardwareProbe
         {
             const uint api12 = (1u << 22) | (2u << 12);
             var status = vkEnumerateInstanceVersion(out var version);
-            if (status != 0) return new("unknown", $"No se pudo consultar el loader Vulkan ({status}).");
-            if (version < api12) return new("incompatible", "Loader Vulkan anterior a 1.2.");
+            if (status != 0) return new("unknown", Messages.DiagnosticsCouldNotQueryTheVulkanLoader.Data(status));
+            if (version < api12) return new("incompatible", Messages.DiagnosticsVulkanLoaderOlderThan.Data());
             var app = new ApplicationInfo { Type = 0, ApiVersion = api12 };
             var create = new InstanceCreateInfo { Type = 1, Application = &app };
             status = vkCreateInstance(&create, 0, out instance);
-            if (status != 0) return new("unknown", $"No se pudo crear instancia Vulkan 1.2 ({status}).");
+            if (status != 0) return new("unknown", Messages.DiagnosticsCouldNotCreateAVulkanInstance.Data(status));
             uint count = 0;
             if (vkEnumeratePhysicalDevices(instance, &count, null) != 0 || count > 64)
-                return new("unknown", "Enumeración Vulkan incompleta o excesiva.");
-            if (count == 0) return new("incompatible", "Enumeración Vulkan completa sin dispositivos.");
+                return new("unknown", Messages.DiagnosticsIncompleteOrExcessiveVulkanEnumeration.Data());
+            if (count == 0) return new("incompatible", Messages.DiagnosticsCompleteVulkanEnumerationWithoutDevices.Data());
             var devices = stackalloc nint[(int)count];
             if (vkEnumeratePhysicalDevices(instance, &count, devices) != 0)
-                return new("unknown", "El inventario Vulkan cambió o no pudo completarse.");
+                return new("unknown", Messages.DiagnosticsVulkanInventoryChangedOrCouldNotBe.Data());
             List<string> compatible = [];
             var properties = stackalloc byte[1024];
             var queues = stackalloc QueueFamily[256];
@@ -123,10 +123,10 @@ public static unsafe partial class HardwareProbe
                 if (feature11.StorageBuffer16BitAccess == 0) continue;
                 uint queueCount = 0;
                 vkGetPhysicalDeviceQueueFamilyProperties(devices[i], &queueCount, null);
-                if (queueCount > 256) return new("unknown", "Demasiadas familias de colas Vulkan.");
+                if (queueCount > 256) return new("unknown", Messages.DiagnosticsTooManyVulkanQueueFamilies.Data());
                 var allocated = queueCount;
                 vkGetPhysicalDeviceQueueFamilyProperties(devices[i], &queueCount, queues);
-                if (queueCount > allocated) return new("unknown", "Inventario de colas Vulkan cambió.");
+                if (queueCount > allocated) return new("unknown", Messages.DiagnosticsVulkanQueueInventoryChanged.Data());
                 var compute = false;
                 for (var q = 0; q < queueCount; q++) if ((queues[q].Flags & 2) != 0 && queues[q].Count > 0) compute = true;
                 if (!compute) continue;
@@ -146,11 +146,11 @@ public static unsafe partial class HardwareProbe
                 }
             }
             return compatible.Count > 0
-                ? new("compatible", $"Vulkan 1.2, GPU, cola compute y almacenamiento de 16 bits: {string.Join(", ", compatible)}. Compatible según una comprobación básica.")
-                : new("incompatible", "Ninguna GPU Vulkan enumerada satisface el sondeo básico (1.2, compute y almacenamiento de 16 bits).");
+                ? new("compatible", Messages.DiagnosticsVulkanGPUComputeQueueAndBitStorage.Data(string.Join(", ", compatible)))
+                : new("incompatible", Messages.DiagnosticsNoEnumeratedVulkanGPUMeetsTheBasic.Data());
         }
         catch (Exception e) when (e is DllNotFoundException or EntryPointNotFoundException or BadImageFormatException)
-        { return new("unknown", "API Vulkan no disponible o incompleta; no se deduce soporte a partir del fabricante."); }
+        { return new("unknown", Messages.DiagnosticsVulkanAPIUnavailableOrIncompleteSupportIs.Data()); }
         finally { if (instance != 0) vkDestroyInstance(instance, 0); }
     }
 

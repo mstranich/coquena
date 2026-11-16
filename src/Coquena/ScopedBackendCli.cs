@@ -15,7 +15,7 @@ public static class ScopedBackendCli
         Func<HardwareContext, string, string, CancellationToken, Task<BackendResolution>>? resolve = null,
         IDownloadTransport? transport = null, Func<string, CancellationToken, Task<string>>? probe = null)
     {
-        if (args.Length == 0) { output.WriteLine("backend (alias runtime): show, list, download, protect, unprotect, remove. Ver coquena --help."); return 0; }
+        if (args.Length == 0) { output.WriteLine(Messages.BackendSubcommands); return 0; }
         var action = args[0];
         if (action is not ("show" or "list" or "download" or "protect" or "unprotect" or "remove")) return Invalid(error);
         try
@@ -107,7 +107,7 @@ public static class ScopedBackendCli
                     foreach (var resource in resources)
                         foreach (var revision in resource!["installations"]!.AsArray())
                             output.WriteLine($"{revision!["installation-id"]!.GetValue<string>()} | {resource["ownership"]!.GetValue<string>()} | {resource["logical-key"]!.GetValue<string>()} | protegido={revision["protected"]?.GetValue<bool>() ?? revision["origin"]?.GetValue<string>() == "explicit"}");
-                    if (resources.Count == 0) output.WriteLine("Sin backends en el ámbito seleccionado.");
+                    if (resources.Count == 0) output.WriteLine(Messages.BackendNoneInScope);
                 }
                 return 0;
             }
@@ -139,7 +139,7 @@ public static class ScopedBackendCli
         {
             var code = e switch { BackendException b => b.Code, RecipeException r => r.Code, StorageException s => s.Code,
                 DownloadException d => d.Code, ContractException c => c.Code, _ => "backend-preparation-failed" };
-            error.WriteLine(e is DownloadException ? DownloadCli.ErrorLine(code) : $"Error: {code}. Ver coquena --help.");
+            error.WriteLine(e is DownloadException ? DownloadCli.ErrorLine(code) : Messages.ErrorCodeSeeHelp.Format(code));
             if (e is OperationCanceledException) return 130;
             if (code is "backend-incompatible" or "unsupported-platform" or "no-candidate") return 5;
             if (code is "backend-integrity-invalid") return 6;
@@ -150,5 +150,5 @@ public static class ScopedBackendCli
             return 7;
         }
     }
-    private static int Invalid(TextWriter error) { error.WriteLine("Error: argumentos de backend inválidos. Ver coquena --help."); return 2; }
+    private static int Invalid(TextWriter error) { error.WriteLine(Messages.BackendInvalidArguments); return 2; }
 }

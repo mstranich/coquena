@@ -19,7 +19,7 @@ public sealed class Home
     public Home(string root)
     {
         if (string.IsNullOrWhiteSpace(root) || !Path.IsPathFullyQualified(root))
-            throw new StorageException("invalid-home", "COQUENA_HOME debe ser una ruta absoluta no vacía.");
+            throw new StorageException("invalid-home", Messages.StorageCOQUENAHOMEMustBeANonEmpty.ToString());
         Root = Path.TrimEndingDirectorySeparator(Path.GetFullPath(root));
         CheckLinks(Root);
     }
@@ -31,7 +31,7 @@ public sealed class Home
     {
         if (configured is not null) return new Home(configured);
         if (string.IsNullOrWhiteSpace(profile) || !Path.IsPathFullyQualified(profile))
-            throw new StorageException("invalid-home", "USERPROFILE no proporciona un directorio absoluto.");
+            throw new StorageException("invalid-home", Messages.StorageUserProfileNotAbsolute.ToString());
         return new Home(Path.Combine(profile, ".coquena"));
     }
 
@@ -70,7 +70,7 @@ public sealed class Home
         CheckLinks(path);
         return path;
 
-        static void Invalid() => throw new StorageException("unsafe-path", "Ruta fuera del área gestionada o nombre inválido.");
+        static void Invalid() => throw new StorageException("unsafe-path", Messages.StoragePathOutsideTheManagedAreaOrInvalid.ToString());
     }
 
     internal static void CheckLinks(string path)
@@ -80,7 +80,7 @@ public sealed class Home
             try
             {
                 if ((File.GetAttributes(current) & FileAttributes.ReparsePoint) != 0)
-                    throw new StorageException("unsafe-path", "No se admiten enlaces/reparse points en el almacenamiento gestionado.");
+                    throw new StorageException("unsafe-path", Messages.StorageLinksOrReparsePointsAreNotAllowed.ToString());
             }
             catch (FileNotFoundException) { }
             catch (DirectoryNotFoundException) { }

@@ -138,10 +138,10 @@ internal static class ConfigurationTests
                 Reject(() => manager.Set("chat", key, "1"), "scope/resource boundary " + key);
             manager.Set("chat", "future-option", "on");
             var unknown = manager.Compose(backend, [chat.Id]);
-            Check(unknown.Ini.Contains("future-option = on") && unknown.Diagnostics.Single().Contains("desconocido"), "unknown kept with warning");
-            Check(ParameterCatalog.Availability("ctx-size", backend) == "admitido" &&
-                ParameterCatalog.Availability("ctx-size", backend with { Build = "b11483" }) == "desconocido" &&
-                ParameterCatalog.Availability("ctx-size", backend with { Repository = "other/repo" }) == "desconocido", "evidence bound to exact release/origin");
+            Check(unknown.Ini.Contains("future-option = on") && unknown.Diagnostics.Single().Contains(Messages.UnknownSize.ToString()), "unknown kept with warning");
+            Check(ParameterCatalog.Availability("ctx-size", backend) == "supported" &&
+                ParameterCatalog.Availability("ctx-size", backend with { Build = "b11483" }) == "unknown" &&
+                ParameterCatalog.Availability("ctx-size", backend with { Repository = "other/repo" }) == "unknown", "evidence bound to exact release/origin");
             manager.Set("chat", "future-option", null);
             foreach (var value in new[] { "x\n[other]", "x#truncated", "x;truncated", " trailing ", "x\0" })
                 Reject(() => manager.Set("chat", "temperature", value), "INI round-trip guard");
@@ -273,7 +273,7 @@ internal static class ConfigurationTests
             BadCli("preset", "clone", "native-chat", "NATIVE-CLONE");
             BadCli("preset", "clone", "native-chat", "unused", "--model");
             BadCli("preset", "clone", "native-chat", "unused", "--wrong", second.Name);
-            Check(Cli("preset", "show", "native-chat").Contains("ctx-size = 2048 | propio"), "CLI own value");
+            Check(Cli("preset", "show", "native-chat").Contains("ctx-size = 2048 | " + Messages.OwnValue), "CLI own value");
             Cli("preset", "unset", "native-chat", "c");
             Check(!Cli("preset", "show", "native-chat").Contains("ctx-size ="), "CLI persisted unset has no inheritance");
             BadCli("config", "show");
@@ -282,8 +282,8 @@ internal static class ConfigurationTests
             Cli("preset", "model", "set", "native-code", first.Name);
             Check(Cli("preset", "list", "--model", first.Name).Contains("native-code"), "CLI model filter and rebind");
             Check(Cli("param", "show", "ngl", "--backend", backend.Id.ToString()).Contains("n-gpu-layers") &&
-                Cli("param", "show", "c", "--version", "b11482").Contains("admitido"), "CLI catalog aliases and selectors");
-            Check(Cli("param", "show", "future-option").Contains("desconocido"), "CLI unknown definition");
+                Cli("param", "show", "c", "--version", "b11482").Contains(Messages.Supported.ToString()), "CLI catalog aliases and selectors");
+            Check(Cli("param", "show", "future-option").Contains(Messages.UnknownSize.ToString()), "CLI unknown definition");
             BadCli("config", "set", "port", "8080");
             BadCli("config", "set", "temperature", "--ref", "missing");
             BadCli("config", "show", "--model", first.Name, "--preset", "native-chat");

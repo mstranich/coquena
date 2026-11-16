@@ -107,7 +107,7 @@ internal static class RecipeWriterTests
             File.WriteAllText(projectRecipe, "name: demo\n");
             initOutput.GetStringBuilder().Clear();
             check(InitCli.Run([project], initOutput, TextWriter.Null) == 0 && File.ReadAllText(projectRecipe) == InitCli.SchemaComment + "\nname: demo\n" &&
-                  initOutput.ToString().Contains(Messages.SchemaReferenceAdded, StringComparison.Ordinal) && !initOutput.ToString().Contains("Schema actualizado", StringComparison.Ordinal),
+                  initOutput.ToString().Contains(Messages.SchemaReferenceAdded, StringComparison.Ordinal) && !initOutput.ToString().Contains(Messages.SchemaReferenceUpdated.ToString(), StringComparison.Ordinal),
                 "init adds a missing reference and leaves an identical schema alone");
             initOutput.GetStringBuilder().Clear();
             check(InitCli.Run([project], initOutput, TextWriter.Null) == 0 && !initOutput.ToString().Contains("Referencia", StringComparison.Ordinal), "a current project reports no changes");

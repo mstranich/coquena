@@ -22,7 +22,7 @@ public static class ModelEvents
                 var ch = buffer[i];
                 // Count UTF-8 bytes conservatively (surrogate pairs count as six).
                 size += ch <= 0x7f ? 1 : ch <= 0x7ff ? 2 : 3;
-                if (size > 1024 * 1024) throw new FormatException("Evento SSE excede 1 MiB.");
+                if (size > 1024 * 1024) throw new FormatException(Messages.ObservationSSEEventExceedsMiB.ToString());
                 if (ch == '\n' && carriageReturn) { carriageReturn = false; continue; }
                 carriageReturn = ch == '\r';
                 if (carriageReturn) ch = '\n';
@@ -48,6 +48,6 @@ public static class ModelEvents
                 line.Clear();
             }
         }
-        throw new IOException("El stream de eventos terminó; no se presupone replay.");
+        throw new IOException(Messages.ObservationEventStreamEndedReplayNotAssumed.ToString());
     }
 }

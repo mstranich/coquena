@@ -82,13 +82,13 @@ public sealed class ArgumentSchema
         }
         else
         {
-            var type = d.Get("type") ?? throw d.Error("type-required", "schema", "Se requiere type o any-of.");
+            var type = d.Get("type") ?? throw d.Error("type-required", "schema", Messages.RecipeTypeOrAnyOfRequired.ToString());
             Text(type);
             if (type.Text is not ("string" or "integer" or "number" or "boolean" or "array")) Fail(type, "invalid-schema-type");
             if (type.Text == "array")
             {
                 if (insideArray) Fail(d, "nested-array");
-                Definition(d.Get("items") ?? throw d.Error("items-required", "schema", "Array requiere items."), true, true);
+                Definition(d.Get("items") ?? throw d.Error("items-required", "schema", Messages.RecipeArrayRequiresItems.ToString()), true, true);
             }
             else if (d.Get("items") is not null) Fail(d, "inapplicable-items");
             foreach (var key in new[] { "minimum", "maximum" })
@@ -184,7 +184,7 @@ public sealed class ArgumentSchema
         if (d.Get("pattern") is { } pattern)
         {
             try { if (!Pattern(pattern).IsMatch(value.Text!)) return false; }
-            catch (RegexMatchTimeoutException) { throw value.Error("pattern-inconclusive", "validation", "La validación regex agotó su plazo."); }
+            catch (RegexMatchTimeoutException) { throw value.Error("pattern-inconclusive", "validation", Messages.RecipeRegexValidationTimedOut.ToString()); }
         }
         return true;
     }
@@ -282,7 +282,7 @@ public sealed class ArgumentSchema
             groups.Push(whitespace);
         }
         try { return new(text, RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(100)); }
-        catch (Exception e) when (e is ArgumentException or NotSupportedException) { throw pattern.Error("invalid-pattern", "schema", "Regex inválida o construcción no permitida."); }
+        catch (Exception e) when (e is ArgumentException or NotSupportedException) { throw pattern.Error("invalid-pattern", "schema", Messages.RecipeInvalidRegexOrUnsupportedConstruct.ToString()); }
     }
     internal static void Name(string name, RecipeValue at)
     { if (!Regex.IsMatch(name, "^[A-Za-z0-9][A-Za-z0-9-]*$", RegexOptions.CultureInvariant)) Fail(at, "invalid-argument-name"); }
@@ -297,6 +297,6 @@ public sealed class ArgumentSchema
     { if (value.Kind != RecipeKind.Sequence || nonempty && value.Items.Count == 0) Fail(value, "invalid-schema-list"); }
     private static void Text(RecipeValue value)
     { if (value.Kind != RecipeKind.String) Fail(value, "invalid-schema-text"); }
-    internal static void Fail(RecipeValue at, string code) => throw at.Error(code, "schema", "Definición de argumentos inválida.");
+    internal static void Fail(RecipeValue at, string code) => throw at.Error(code, "schema", Messages.RecipeInvalidArgumentDefinition.ToString());
 
 }

@@ -10,7 +10,7 @@ public static class ExternalMatching
     {
         if (!interaction.IsInteractive)
         {
-            interaction.Show($"Sin interacción: registro externo conservado {Messages.NotPaired}.");
+            interaction.Show(Messages.ModelNoInteractionExternalRecordPreserved.Format(Messages.NotPaired));
             return null;
         }
         using var budget = CancellationTokenSource.CreateLinkedTokenSource(cancellation);
@@ -21,7 +21,7 @@ public static class ExternalMatching
         var observed = GgufInspection.Inspect(local.Files[0].LocalPath, budget.Token);
         if (observed.Status != "complete")
         {
-            interaction.Show($"Metadatos locales incompletos o {Messages.NotAvailable}; registro conservado {Messages.NotPaired}.");
+            interaction.Show(Messages.ModelLocalMetadataIncomplete.Format(Messages.NotAvailable, Messages.NotPaired));
             return null;
         }
         var candidates = ModelSelection.Discover(inventory).Variants
@@ -37,22 +37,22 @@ public static class ExternalMatching
             candidates = [];
         if (candidates.Length == 0)
         {
-            interaction.Show("Sin candidatos por metadatos; registro externo conservado.");
+            interaction.Show(Messages.ModelNoMetadataCandidates.ToString());
             return null;
         }
         if (candidates.Length > 128)
         {
-            interaction.Show("Demasiados candidatos (límite 128); registro conservado sin emparejar.");
+            interaction.Show(Messages.ModelTooManyCandidates.ToString());
             return null;
         }
-        string[] reasons = ["Repositorio y cuantización declarados; rol candidato por nombre remoto",
-            "Mismo número de archivos y tamaños por parte; cabecera local sin contradicción conocida"];
-        interaction.Show($"Parece el mismo modelo que {revision.Repository}. Al ser un archivo propio, no se actualiza.");
-        var options = candidates.Select(v => $"{revision.Repository}@{revision.Commit} | {string.Join(", ", v.Files.Select(f => f.Path))} | {string.Join("; ", reasons)}").Append("Cancelar emparejamiento").ToArray();
+        string[] reasons = [Messages.ModelDeclaredRepoAndQuantization.ToString(),
+            Messages.ModelSameFileCountAndPerPartSizes.ToString()];
+        interaction.Show(Messages.ModelExternalSameAs.Format(revision.Repository));
+        var options = candidates.Select(v => $"{revision.Repository}@{revision.Commit} | {string.Join(", ", v.Files.Select(f => f.Path))} | {string.Join("; ", reasons.Select(Messages.MatchReason))}").Append(Messages.ModelCancelMatching.ToString()).ToArray();
         var choice = await interaction.ChooseAsync(options, cancellation);
         if (choice is null || choice == candidates.Length) return null;
         if (choice < 0 || choice >= candidates.Length)
-            throw new ModelSourceException("invalid-choice", "Selección inválida; alta local conservada.");
+            throw new ModelSourceException("invalid-choice", Messages.ModelInvalidSelectionPreserved.ToString());
         return new(new(revision.Repository, revision.RequestedRevision, revision.Commit,
             candidates[choice.Value].Files.Select(f => f.ToRemoteFile()).ToArray()), reasons, DateTimeOffset.UtcNow);
     }

@@ -86,14 +86,14 @@ public sealed class ScopeTransfers
     private static void ReportDownload(OperationDocument operation)
     {
         if (operation.Phase == "resource-validation" && operation.State == "verifying")
-            Report(operation, "Descarga completa. Falta verificar e instalar el recurso.");
+            Report(operation, Messages.TransferCompleteNeedsVerification.ToString());
         if (operation.State != "downloading") return;
 
         var file = operation.Files.FirstOrDefault(file => file.State == "downloading");
         if (file is null) return;
         var transferred = ByteSize.Format(file.ConfirmedBytes);
-        var amount = file.ExpectedSize is long size ? $"{transferred} de {ByteSize.Format(size)}" : transferred;
-        Report(operation, $"Descargando {file.SourcePath} · {amount}");
+        var amount = file.ExpectedSize is long size ? Messages.TransferProgressOf.Format(transferred, ByteSize.Format(size)) : transferred;
+        Report(operation, Messages.TransferDownloading.Format(file.SourcePath, amount));
     }
 
     private static void Report(OperationDocument operation, string message)
@@ -101,8 +101,8 @@ public sealed class ScopeTransfers
         var resource = operation.ResourceKind switch
         {
             "backend" => "Backend",
-            "companion" => "Auxiliar",
-            _ => "Modelo"
+            "companion" => Messages.LabelsCompanion.ToString(),
+            _ => Messages.LabelsModel2.ToString()
         };
         LiveLine.Update($"{resource} {operation.Name} · {message}");
     }
@@ -123,9 +123,9 @@ public sealed class ScopeTransfers
     {
         try { _ = Context.PathFor("tmp/" + path); }
         catch (StorageException e) when (e.Code == "unsafe-path")
-        { throw new DownloadException("unsafe-path", "Ruta de preparación no autorizada."); }
+        { throw new DownloadException("unsafe-path", Messages.TransferPreparationPathNotAuthorized.ToString()); }
     }
-    private static void Fail(string code) => throw new DownloadException(code, "Preparación del ámbito no confirmada; se conserva evidencia.");
+    private static void Fail(string code) => throw new DownloadException(code, Messages.TransferScopePreparationUnconfirmed.ToString());
     private OperationDocument Save(OperationDocument operation) => checkpoints.Update(DocumentKind.Operation, Json.OperationDocument,
         ContractValidation.Operation, _ => operation, operation: operation.Id);
 
@@ -157,32 +157,32 @@ public sealed class ScopeTransfers
             {
                 var partial = Context.PathFor(file.PartialPath);
                 using var sourceGuard = new FileStream(partial, FileMode.Open, FileAccess.Read, FileShare.Read);
-                Report(operation, $"Verificando la descarga de {file.SourcePath} · {ByteSize.Format(sourceGuard.Length)}");
+                Report(operation, Messages.TransferVerifyingDownload.Format(file.SourcePath, ByteSize.Format(sourceGuard.Length)));
                 var check = await FileIntegrity.VerifyAsync(partial, file.LocalIntegrity, cancellation);
                 if (file.State != "transferred" || check.Status != "verified" ||
                     FileIntegrity.Compare(check.Observed!, file.Identity).Status == "mismatch") Fail("partial-integrity-failed");
                 if (operation.ResourceKind == "backend")
                 {
-                    Report(operation, $"Extrayendo {file.SourcePath}.");
+                    Report(operation, Messages.TransferExtracting.Format(file.SourcePath));
                     await Extract(partial, prepared, extraction, cancellation);
                 }
                 else
                 {
                     var target = Child(prepared, file.SourcePath);
                     Directory.CreateDirectory(Path.GetDirectoryName(target)!);
-                    Report(operation, $"Copiando {file.SourcePath} al área de preparación · {ByteSize.Format(sourceGuard.Length)}");
+                    Report(operation, Messages.TransferCopyingToPreparation.Format(file.SourcePath, ByteSize.Format(sourceGuard.Length)));
                     await Copy(partial, target, cancellation);
                 }
             }
             if (operation.ResourceKind is "model" or "companion")
             {
-                Report(operation, "Comprobando la estructura GGUF.");
+                Report(operation, Messages.TransferCheckingGGUFStructure.ToString());
                 var unit = GgufInspection.InspectPaths(operation.Files.Select(f => Child(prepared, f.SourcePath)).ToArray(), cancellation);
                 if (unit.Status != "complete") Fail("invalid-gguf-unit");
             }
             foreach (var required in operation.ScopePublication!.RequiredFiles)
                 if (!File.Exists(Child(prepared, required))) Fail("backend-required-file-missing");
-            Report(operation, "Calculando la suma de verificación de los archivos preparados.");
+            Report(operation, Messages.TransferCalculatingChecksumsOfPreparedFiles.ToString());
             var files = new JsonArray();
             foreach (var path in Directory.GetFiles(prepared, "*", SearchOption.AllDirectories).Order(StringComparer.Ordinal))
             {
@@ -215,9 +215,9 @@ public sealed class ScopeTransfers
             data["file-id"]?.GetValue<string>() != actualDirectory.FileId) Fail("publication-directory-conflict");
         if (!Directory.Exists(destination))
         {
-            Report(operation, "Verificando los archivos preparados antes de instalarlos.");
+            Report(operation, Messages.TransferVerifyingPreparedFiles.ToString());
             await VerifyTree(prepared, data["files"]!.AsArray(), cancellation);
-            Report(operation, "Moviendo los archivos a su ubicación definitiva.");
+            Report(operation, Messages.TransferMovingFilesToTheirFinalLocation.ToString());
             Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
             // A slot is unique and never replaces an earlier revision or an external destination.
             for (var attempt = 0; ; attempt++)
@@ -231,15 +231,15 @@ public sealed class ScopeTransfers
         var guards = new List<FileStream>();
         try
         {
-            Report(operation, "Verificando los archivos en su ubicación definitiva.");
+            Report(operation, Messages.TransferVerifyingFilesAtTheirFinalLocation.ToString());
             await VerifyTree(destination, data["files"]!.AsArray(), cancellation, guards);
             if (operation.BackendSelection is { } backend && validateBackend is not null)
                 await validateBackend(destination, backend, cancellation);
-            Report(operation, "Registrando la instalación en el inventario.");
+            Report(operation, Messages.TransferRegisteringInstallationInInventory.ToString());
             PublishInventory(operation, data["files"]!.AsArray());
         }
         finally { foreach (var guard in guards) guard.Dispose(); }
-        Report(operation, "Instalación registrada. Limpiando archivos temporales.");
+        Report(operation, Messages.TransferRegisteredCleaningTemp.ToString());
         fault?.Invoke(ScopeTransferStage.InventoryPublished);
         operation = Save(operation with { State = "completed", Phase = "cleanup" });
         // Reuse the transfer engine's owned cleanup while its executor lease is still held.
@@ -374,7 +374,7 @@ public sealed class ScopeTransfers
             return document;
         }
         catch (Exception e) when (e is InvalidOperationException or NullReferenceException or FormatException)
-        { throw new StorageException("invalid-project-document", "Manifiesto de preparación inválido; se conserva.", inner: e); }
+        { throw new StorageException("invalid-project-document", Messages.TransferInvalidPreparationManifestPreserved.ToString(), inner: e); }
     }
     private static JsonObject Identity(ContentIdentity identity) => new()
     { ["algorithm"] = identity.Algorithm, ["domain"] = identity.Domain, ["value"] = identity.Value };

@@ -29,9 +29,9 @@ public sealed class ResourceUpdateProbe(HuggingFaceStore models,
                 var candidate = (await backend(family, cancellation)).Selected;
                 if (candidate is null) { result["status"] = "inconclusive"; return result; }
                 if (candidate.Variant != family || candidate.Platform != current["platform"]!.GetValue<string>() || !candidate.Complete)
-                    throw new BackendException("candidate-filter-conflict", "El candidato no conserva la variante/plataforma.");
+                    throw new BackendException("candidate-filter-conflict", Messages.ProjectCandidateVariantMismatch.ToString());
                 result["compatibility"] = candidate.Compatibility;
-                result["diagnostic"] = candidate.Diagnostic;
+                result["diagnostic"] = System.Text.Json.JsonSerializer.SerializeToNode(candidate.Diagnostic, ContractJsonContext.Default.MessageData);
                 var newer = BackendCatalog.BuildNumber(candidate.Release) > BackendCatalog.BuildNumber(current["release"]!.GetValue<string>());
                 result["status"] = newer ? "update-available" : "unchanged";
                 result["upgrade-allowed"] = request.Intent.Get("version")?.Text is null or "latest";
@@ -51,7 +51,7 @@ public sealed class ResourceUpdateProbe(HuggingFaceStore models,
             var inventory = await models.InventoryAsync(revision, cancellation);
             var comparison = ModelUpdateComparer.Compare(original, inventory);
             if (comparison.Plan is { } proposed && proposed.Actions.Any(a => a.Action != "reuse") && !Compatible(proposed.Target.Files.Select(f => f.Path)))
-                comparison = new("intervention-required", "Las rutas actuales contradicen la cuantización o el tipo; no se cambia la selección.", null, []);
+                comparison = new("intervention-required", Messages.DiagnosticsCurrentPathsConflictWithQuantizationOrType.Data(), null, []);
             var candidates = comparison.Candidates.Where(u => comparison.ExactCandidates || Compatible(u.Files.Select(f => f.Path))).ToArray();
             if (comparison.State == "intervention-required" && candidates.Length > 0)
             {
@@ -60,15 +60,15 @@ public sealed class ResourceUpdateProbe(HuggingFaceStore models,
                 {
                     interaction.Show(comparison.Diagnostic);
                     var choice = await interaction.ChooseAsync(candidates.Select(u => string.Join(", ", u.Files.Select(f => f.Path)))
-                        .Append("Cancelar; conservar selección sin resolver").ToArray(), cancellation);
+                        .Append(Messages.ProjectCancelPreserveUnresolvedSelection.ToString()).ToArray(), cancellation);
                     if (choice is >= 0 && choice < candidates.Length)
-                        comparison = new("update-available", "Archivos elegidos a mano.",
+                        comparison = new("update-available", Messages.DiagnosticsFilesChosenManually.Data(),
                             ModelUpdateComparer.Plan(original, revision, candidates[choice.Value], true, true), []);
-                    else if (choice is not null && choice != candidates.Length) throw new ArgumentException("Selección inválida.");
+                    else if (choice is not null && choice != candidates.Length) throw new ArgumentException(Messages.ModelInvalidSelection.ToString());
                 }
             }
             result["status"] = comparison.State;
-            result["diagnostic"] = comparison.Diagnostic;
+            result["diagnostic"] = System.Text.Json.JsonSerializer.SerializeToNode(comparison.Diagnostic, ContractJsonContext.Default.MessageData);
             result["observed-commit"] = revision.Commit;
             if (comparison.Plan is { } plan)
             {

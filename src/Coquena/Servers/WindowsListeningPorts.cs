@@ -18,23 +18,23 @@ internal static partial class WindowsListeningPorts
     {
         IPAddress[] expected;
         try { expected = IPAddress.TryParse(host, out var parsed) ? [parsed] : Dns.GetHostAddresses(host); }
-        catch (SocketException e) { throw new StorageException("endpoint-observation-failed", "No se pudo resolver la escucha configurada.", inner: e); }
+        catch (SocketException e) { throw new StorageException("endpoint-observation-failed", Messages.ServerCouldNotResolveConfiguredListener.ToString(), inner: e); }
         foreach (var family in new[] { 2, 23 })
         {
             var size = 0;
             var status = GetExtendedTcpTable(0, ref size, 0, family, 3, 0);
-            if (status != 122 || size < 4) throw new StorageException("endpoint-observation-failed", "No se pudo consultar la escucha TCP.");
+            if (status != 122 || size < 4) throw new StorageException("endpoint-observation-failed", Messages.ServerCouldNotQueryTCPListener.ToString());
             var table = Marshal.AllocHGlobal(size);
             try
             {
                 status = GetExtendedTcpTable(table, ref size, 0, family, 3, 0);
-                if (status == 122) throw new StorageException("endpoint-observation-failed", "Cambió la tabla TCP durante la consulta.");
-                if (status != 0) throw new StorageException("endpoint-observation-failed", "No se pudo consultar la escucha TCP.");
+                if (status == 122) throw new StorageException("endpoint-observation-failed", Messages.ServerTCPTableChangedDuringQuery.ToString());
+                if (status != 0) throw new StorageException("endpoint-observation-failed", Messages.ServerCouldNotQueryTCPListener.ToString());
                 var count = Marshal.ReadInt32(table);
                 var stride = family == 2 ? 24 : 56;
                 var portOffset = family == 2 ? 8 : 20;
                 var pidOffset = family == 2 ? 20 : 52;
-                if (count < 0 || count > (size - 4) / stride) throw new StorageException("endpoint-observation-failed", "Tabla TCP inválida.");
+                if (count < 0 || count > (size - 4) / stride) throw new StorageException("endpoint-observation-failed", Messages.ServerInvalidTCPTable.ToString());
                 for (var i = 0; i < count; i++)
                 {
                     var offset = checked(4 + i * stride);

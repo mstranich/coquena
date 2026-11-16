@@ -60,14 +60,14 @@ public sealed partial class ScopedServiceProcess
                 removed.Add(entry);
             }
             catch (Exception error) when (error is IOException or UnauthorizedAccessException or StorageException)
-            { (diagnostics ?? output)?.WriteLine("[Logs] No se retiró un log: propiedad o acceso no comprobados."); }
+            { (diagnostics ?? output)?.WriteLine(Messages.ServerLogsLogNotRemovedOwnershipOrAccess.ToString()); }
         }
         if (removed.Count != 0)
         {
             foreach (var entry in removed) history.Remove(entry);
             store.Commit(state.Revision, docs);
         }
-        if (total > limit) (diagnostics ?? output)?.WriteLine("[Logs] Se supera la retención; se conservan logs protegidos o no retirables.");
+        if (total > limit) (diagnostics ?? output)?.WriteLine(Messages.ServerLogsRetentionExceeded.ToString());
     }
 
 }

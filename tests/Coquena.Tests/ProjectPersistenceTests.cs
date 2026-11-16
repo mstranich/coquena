@@ -151,7 +151,7 @@ internal static class ProjectPersistenceTests
         var wrongHealth = plan with { Arguments = ["--runtime-child"], LogPath = Path.Combine(root, "wrong-health.log"),
             Endpoint = new JsonObject { ["host"] = "127.0.0.1", ["port"] = vacantPort }, Timeout = TimeSpan.FromSeconds(2) };
         try { lifecycleWithHealth.StartAsync(unrelatedService.ServiceId, wrongHealth).GetAwaiter().GetResult(); throw new Exception("expected unowned listener"); }
-        catch (StorageException e) { Require(e.Code == "health-timeout" && e.Message.Contains("escucha"), "salud ajena no acredita instancia"); }
+        catch (StorageException e) { Require(e.Code == "health-timeout" && e.Message.Contains(Messages.HealthListenerUnverified.ToString()), "salud ajena no acredita instancia"); }
         Require(!globalStore.Read().Documents.ContainsKey($"services/{unrelatedService.ServiceId}/local/last-good.json"), "salud ajena no promueve última buena");
         lifecycleWithHealth.Stop(unrelatedService.ServiceId, () => true);
         global.RemoveStoppedService(unrelatedService.ServiceId);

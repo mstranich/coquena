@@ -32,12 +32,12 @@ internal static class RetentionTests
                 }
             }
             finally { CultureInfo.CurrentCulture = culture; }
-            Check(Invoke(0, "config", "log-retention", "show").Contains("inicial"), "initial policy");
+            Check(Invoke(0, "config", "log-retention", "show").Contains(Messages.RetentionInitial.ToString()), "initial policy");
             Invoke(0, "config", "log-retention", "set", "1.5GiB");
             Check(Invoke(0, "server", "log-retention", "show").Contains(ByteSize.Format(1610612736)), "default server inherits global");
             Invoke(0, "server", "other", "log-retention", "set", "512B");
             Invoke(0, "config", "log-retention", "set", "200MiB");
-            Check(Invoke(0, "server", "other", "log-retention", "show").Contains("512 B") && servers.Retention("other").Origin == "propio", "override independent of global changes");
+            Check(Invoke(0, "server", "other", "log-retention", "show").Contains("512 B") && servers.Retention("other").Origin == "own", "override independent of global changes");
             Check(new ServerManager(home).Retention(null).MaxBytes == 209715200, "persisted global policy");
             Invoke(0, "config", "log-retention", "set", "1mB");
             Check(manager.Retention().MaxBytes == 1048576, "binary alias persisted exactly");
@@ -59,9 +59,9 @@ internal static class RetentionTests
             Invoke(2, "server", "other", "log-retention", "set", "1", "extra");
             Check(File.ReadAllText(home.PathFor("catalogs/servers.json")) == before, "invalid CLI leaves catalog unchanged");
             Invoke(0, "server", "other", "log-retention", "unset");
-            Check(servers.Retention("other").Origin == "global", "unset restores global");
+            Check(servers.Retention("other").Origin == Messages.RetentionGlobal.ToString(), "unset restores global");
             Invoke(0, "config", "log-retention", "unset");
-            Check(manager.Retention().Origin == "inicial" && servers.Retention("other").MaxBytes == 104857600, "global unset restores initial");
+            Check(manager.Retention().Origin == "initial" && servers.Retention("other").MaxBytes == 104857600, "global unset restores initial");
             Invoke(2, "config", "set", "ctx-size", "512");
             Invoke(2, "config", "show", "--family", "cpu");
             var failing = new LocalStore(home, stage => { if (stage == WriteStage.BeforeReplace) throw new IOException("fixture"); });

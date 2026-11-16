@@ -3,6 +3,24 @@
 # References describe intended behavior; verify actual behavior in code and tests.
 version: 1
 features:
+  - id: user-text-localization
+    intent: Seleccionar textos de CLI y TUI con inglés de fallback, idiomas empotrados y catálogos externos; persistir diagnósticos mediante códigos y argumentos.
+    keywords: [i18n, language, localization, Messages, translation, fallback, config language]
+    entrypoints:
+      - src/Coquena/Program.cs
+      - src/Coquena/ConfigurationCli.cs
+      - src/Coquena/DashboardSettings.cs
+    implementation:
+      - src/Coquena/Localization/Localization.cs
+      - src/Coquena/Localization/MessageData.cs
+      - src/Coquena/Localization/es-AR.json
+      - src/Coquena/Messages.cs
+      - src/Coquena/Configuration/ConfigurationManager.cs
+    tests:
+      - tests/Coquena.Tests/LocalizationTests.cs
+    references:
+      - docs/design/comandos.md
+      - docs/design/interfaces-visuales.md
   - id: terminal-service-dashboard
     intent: Gestionar servicios, recetas, presets y parámetros, importar intención y aplicar planes de actualización desde Definiciones; observar hardware compartido, entradas y logs en En vivo.
     keywords: [tui, dashboard, Terminal.Gui, project, recipe, preset, param, import, update, upgrade, combination, up, down, services, hardware, logs, downloads tab, combination dropdown, spinner, modal, layers]

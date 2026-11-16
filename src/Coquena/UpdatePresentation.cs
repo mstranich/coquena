@@ -38,12 +38,12 @@ public static class UpdatePresentation
         var summary = UpdateSummary(report);
         output.WriteLine(summary.Code switch
         {
-            "no-resources" => "La receta no declara recursos para consultar.",
-            "all-current" => "Todo está al día.",
-            _ => summary.Count == 1 ? "Hay 1 actualización disponible." : $"Hay {summary.Count} actualizaciones disponibles."
+            "no-resources" => Messages.UpdateNoResources,
+            "all-current" => Messages.UpdateAllCurrent,
+            _ => summary.Count == 1 ? Messages.UpdateOneAvailable : Messages.UpdateManyAvailable.Format(summary.Count)
         });
         foreach (var line in summary.Lines) output.WriteLine($"  {Glyph(line.Code)} {Name(line)}: {Text(line)}");
-        if (summary.Code == "updates-available") output.WriteLine("Para aplicarlas: coquena upgrade.");
+        if (summary.Code == "updates-available") output.WriteLine(Messages.UpdateHowToApply);
     }
 
     public static void WriteUpgrade(JsonObject report, TextWriter output)
@@ -51,12 +51,12 @@ public static class UpdatePresentation
         var summary = UpgradeSummary(report);
         output.WriteLine(summary.Code switch
         {
-            "nothing-to-do" => "No había nada para actualizar.",
-            "none-applied" => "No se aplicó ninguna actualización.",
-            _ => summary.Count == 1 ? "Se aplicó 1 actualización." : $"Se aplicaron {summary.Count} actualizaciones."
+            "nothing-to-do" => Messages.UpgradeNothing,
+            "none-applied" => Messages.UpgradeNoneApplied,
+            _ => summary.Count == 1 ? Messages.UpgradeOneApplied : Messages.UpgradeManyApplied.Format(summary.Count)
         });
         foreach (var line in summary.Lines) output.WriteLine($"  {Glyph(line.Code)} {Name(line)}: {Text(line)}");
-        if (summary.Code == "applied") output.WriteLine("Los servicios en ejecución siguen con la versión anterior hasta reiniciarlos.");
+        if (summary.Code == "applied") output.WriteLine(Messages.UpgradeRestartNotice);
     }
 
     private static JsonObject[] Resources(JsonObject report) =>
@@ -76,7 +76,7 @@ public static class UpdatePresentation
     }
 
     private static string Name(ReportLine line) =>
-        line.Kind switch { "backend" => "Backend", "companion" => "Auxiliar " + line.Key, _ => "Modelo " + line.Key };
+        line.Kind switch { "backend" => "Backend", "companion" => Messages.UpdateCompanion.Format(line.Key), _ => Messages.UpdateModel.Format(line.Key) };
 
     private static string Glyph(string code) => code switch
     {
@@ -87,22 +87,22 @@ public static class UpdatePresentation
         _ => "⚠"
     };
 
-    private static string Change(ReportLine line) => line.From is null || line.To is null ? "nueva versión" :
-        line.Kind == "backend" ? $"{line.From} → {line.To}" : $"revisión {line.From} → {line.To}";
+    private static string Change(ReportLine line) => line.From is null || line.To is null ? Messages.UpdateNewVersion :
+        line.Kind == "backend" ? $"{line.From} → {line.To}" : Messages.UpdateRevision.Format(line.From, line.To);
 
     private static string Text(ReportLine line) => line.Code switch
     {
         "update-available" or "ready" => Change(line),
-        "prepared-for-next-application" => $"{Change(line)}; se usará en el próximo inicio",
-        "skipped" => "sin cambios",
-        "fixed-version" => "la receta fija la versión; para actualizar, cambiarla a latest",
-        "unchanged" => "al día",
-        "not-applicable" => "archivo externo; Coquena no lo actualiza",
-        "not-prepared" => "todavía no está descargado; se prepara con coquena up",
-        "inconclusive" => "no se encontró una versión compatible para comparar",
-        "query-failed" => "no se pudo consultar el origen; revisar la conexión y repetir",
-        "intervention-required" => "el origen cambió y hay que elegir los archivos; repetir update en una terminal interactiva",
-        "orphaned" => "ya no está en el origen",
+        "prepared-for-next-application" => Messages.UpdateNextStart.Format(Change(line)),
+        "skipped" => Messages.UpdateSkipped,
+        "fixed-version" => Messages.UpdateFixedVersion,
+        "unchanged" => Messages.UpdateUnchanged,
+        "not-applicable" => Messages.UpdateNotApplicable,
+        "not-prepared" => Messages.UpdateNotPrepared,
+        "inconclusive" => Messages.UpdateInconclusive,
+        "query-failed" => Messages.UpdateQueryFailed,
+        "intervention-required" => Messages.UpdateIntervention,
+        "orphaned" => Messages.UpdateOrphaned,
         var other => other
     };
 }

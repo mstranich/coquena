@@ -156,7 +156,7 @@ internal static class ServerRuntimeTests
             store.Update(DocumentKind.Instance, json.InstanceDocument, ContractValidation.Instance,
                 _ => first with { ProcessCreated = null }, server: "default");
             var uncertainRemoval = Cli(["server", "default", "remove"]);
-            Check(uncertainRemoval.Code == 1 && uncertainRemoval.Error.Contains("incierta") && File.ReadAllText(home.PathFor("catalogs/servers.json")) == removalBefore,
+            Check(uncertainRemoval.Code == 1 && uncertainRemoval.Error.Contains(Messages.ServerUncertainInstanceIdentityDNoActionOn.Format(first.InstanceId)) && File.ReadAllText(home.PathFor("catalogs/servers.json")) == removalBefore,
                 "server remove protects uncertain instance identity");
             Check(Directory.Exists(backendDirectory) && new Coquena.Backends.BackendInstaller(home).List().Any(b => b.Id == backend.Id),
                 "uncertain process identity also protects old build");
@@ -164,12 +164,12 @@ internal static class ServerRuntimeTests
             store.Update(DocumentKind.Backends, json.BackendsDocument, ContractValidation.Backends, _ => upgradeCatalog);
             store.Update(DocumentKind.Config, json.ConfigDocument, ContractValidation.Config, _ => upgradeConfig);
             var directoryState = File.ReadAllText(home.PathFor("catalogs/backends.json"));
-            Reject(() => new BackendDirectoryManager(home).Change("relocated-backends", output, () => "s", () => true), "live server blocks directory transfer");
+            Reject(() => new BackendDirectoryManager(home).Change("relocated-backends", output, () => Messages.YesAnswer.ToString(), () => true), "live server blocks directory transfer");
             Check(ProcessAlive(first.Pid) && File.ReadAllText(home.PathFor("catalogs/backends.json")) == directoryState &&
                 Directory.Exists(backendDirectory), "blocked live transfer preserves process and installation");
             ObservabilityTests.Run(home, runtime, first);
             var followId = Guid.NewGuid(); var followCapture = Path.Combine(root, "follow.txt");
-            using (var follower = WindowsServerProcess.Create(product, ["--m2-server-api", "server", "logs", "-f"], followCapture, followId, root))
+            using (var follower = WindowsServerProcess.Create(product, ["--language", Localization.Current, "--m2-server-api", "server", "logs", "-f"], followCapture, followId, root))
             {
                 follower.Activate();
                 try
@@ -193,7 +193,7 @@ internal static class ServerRuntimeTests
             manager.Default("other");
             Check(Cli(["server", "default", "stop"]).Code == 0, "explicit default name stops named server despite another designation");
             Check(Read() is null && !File.Exists(home.PathFor(first.IniPath)) && Log(first).Contains("graceful exit"), "graceful stop cleans active state and preserves log");
-            Check(Cli(["server", "default", "logs"]).Out.Contains("graceful exit"), "logs available after stop using last reference despite another default");
+            Check(Cli(["server", Messages.DefaultValue.ToString(), "logs"]).Out.Contains("graceful exit"), "logs available after stop using last reference despite another default");
             const string unicode = "recent UTF8 á 漢字 😀 fin";
             File.AppendAllText(home.PathFor(first.LogPath), new string('x', 70000) + "\n" + unicode + "\n", new UTF8Encoding(false));
             var logBytes = File.ReadAllBytes(home.PathFor(first.LogPath));
@@ -247,7 +247,7 @@ internal static class ServerRuntimeTests
 
             var consoleId = Guid.NewGuid(); var consoleLog = Path.Combine(root, "detached-console.txt");
             int consolePid;
-            using (var console = WindowsServerProcess.Create(product, ["--m2-server-api", "server", "start", "-d"], consoleLog, consoleId, root))
+            using (var console = WindowsServerProcess.Create(product, ["--language", Localization.Current, "--m2-server-api", "server", "start", "-d"], consoleLog, consoleId, root))
             {
                 consolePid = console.Pid; console.Activate(); Wait(() => !ProcessAlive(consolePid));
             }
@@ -263,7 +263,7 @@ internal static class ServerRuntimeTests
                 concurrentCli[i] = (result.Code, result.Out, result.Error);
             });
             var concurrentInstance = Read()!; live.Add(concurrentInstance); Wait(() => Log(concurrentInstance).Contains("ready"));
-            Check(concurrentCli.Count(result => result.Code == 0 && result.Out.StartsWith("Instancia ")) == 1,
+            Check(concurrentCli.Count(result => result.Code == 0 && result.Out.StartsWith(Messages.LiveInstance.Format(""))) == 1,
                 "concurrent CLI invocations publish one execution");
             Check(concurrentCli.All(result => result.Code is 0 or 1) && runtime.Recover("default")?.InstanceId == concurrentInstance.InstanceId,
                 "concurrent losers report active/busy without another process");
@@ -297,7 +297,7 @@ internal static class ServerRuntimeTests
             var detached = Read()!; live.Add(detached); Wait(() => Log(detached).Contains("ready"));
             Check(runtime.Recover("default")?.InstanceId == detached.InstanceId && !Log(detached).Contains("--metrics"), "child survives CLI exit and disabled metrics");
             var ps = Cli(["server", "ps"]);
-            Check(ps.Code == 0 && ps.Out.Contains(detached.InstanceId.ToString()) && ps.Out.Contains("desactivadas"), "CLI ps displays verified instance with disabled metrics");
+            Check(ps.Code == 0 && ps.Out.Contains(detached.InstanceId.ToString()) && ps.Out.Contains(Messages.ServerMetricsDisabled.ToString()), "CLI ps displays verified instance with disabled metrics");
             var newer = backend with { Id = Guid.NewGuid(), Build = "b11483" };
             store.Update(DocumentKind.Backends, json.BackendsDocument, ContractValidation.Backends, _ => new(1, [backend with { TracksLatest = false }, newer]));
             manager.Set(null, "models-autoload", "false");
@@ -329,7 +329,7 @@ internal static class ServerRuntimeTests
             var watch = Stopwatch.StartNew(); runtime.Stop(hanging.InstanceId, output);
             Check(watch.Elapsed.TotalSeconds >= 9.9 && watch.Elapsed.TotalSeconds < 14 && !ProcessAlive(hanging.Pid), "ten second policy forces unresponsive process");
             Check(!ProcessAlive(int.Parse(File.ReadAllText(Path.Combine(backendDirectory, "child.pid")))), "forced closure terminates router children too");
-            Check(Log(hanging).Contains("received Ctrl+C") && output.ToString().Contains("[Cierre forzado]"), "signal delivered and force label");
+            Check(Log(hanging).Contains("received Ctrl+C") && output.ToString().Contains(Messages.ServerForcedStopTerminatingGroup.ToString()), "signal delivered and force label");
 
             // Actual Windows console events reach the CLI in an isolated hidden
             // console. One/two keypresses use the same handler as a user keyboard.
@@ -356,7 +356,7 @@ internal static class ServerRuntimeTests
             // The synthetic latest switch above deliberately shared an executable;
             // restore the real installation before testing directory ownership.
             store.Update(DocumentKind.Backends, json.BackendsDocument, ContractValidation.Backends, _ => new(1, [backend]));
-            Check(new BackendDirectoryManager(home).Change("relocated-backends", output, () => "s", () => true), "stopped backend transfers as whole directory");
+            Check(new BackendDirectoryManager(home).Change("relocated-backends", output, () => Messages.YesAnswer.ToString(), () => true), "stopped backend transfers as whole directory");
             backendDirectory = home.PathFor("relocated-backends/" + backendSlot);
             var movedStart = runtime.Start(null, true, output).Instance; live.Add(movedStart); Wait(() => Log(movedStart).Contains("ready"));
             CheckBackend(movedStart, backendId, Path.Combine(backendDirectory, "Coquena.Tests.exe"), "server starts from moved backend without changing backend identity");
@@ -385,7 +385,7 @@ internal static class ServerRuntimeTests
             void Foreground(bool twice)
             {
                 var controllerId = Guid.NewGuid(); var capture = Path.Combine(root, controllerId + ".txt");
-                using var controller = WindowsServerProcess.Create(product, ["--m2-server-api", "server", "start"], capture, controllerId, root); controller.Activate();
+                using var controller = WindowsServerProcess.Create(product, ["--language", Localization.Current, "--m2-server-api", "server", "start"], capture, controllerId, root); controller.Activate();
                 InstanceDocument? active = null;
                 try
                 {
@@ -447,7 +447,7 @@ internal static class ServerRuntimeTests
         (int Code, string Out, string Error, byte[] OutBytes, byte[] ErrorBytes) Cli(string[] arguments)
         {
             var start = new ProcessStartInfo(product) { UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true, CreateNoWindow = true };
-            start.Environment["COQUENA_HOME"] = root; start.ArgumentList.Add("--m2-server-api"); foreach (var arg in arguments) start.ArgumentList.Add(arg);
+            start.Environment["COQUENA_HOME"] = root; start.ArgumentList.Add("--language"); start.ArgumentList.Add(Localization.Current); start.ArgumentList.Add("--m2-server-api"); foreach (var arg in arguments) start.ArgumentList.Add(arg);
             using var process = Process.Start(start)!;
             using var stdout = new MemoryStream(); using var stderr = new MemoryStream();
             var outputCopy = process.StandardOutput.BaseStream.CopyToAsync(stdout);

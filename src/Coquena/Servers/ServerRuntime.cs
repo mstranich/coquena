@@ -36,13 +36,13 @@ public sealed partial class ServerRuntime(Home home, LocalStore? storage = null)
     {
         var directory = home.PathFor($"run/{server}"); Directory.CreateDirectory(directory);
         try { return new(home.PathFor($"run/{server}/lifecycle.lock"), FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None); }
-        catch (IOException) { throw new ConfigurationException("Otro comando está iniciando o deteniendo este servidor; no se duplica la ejecución."); }
+        catch (IOException) { throw new ConfigurationException(Messages.ServerConcurrentStartOrStop.ToString()); }
     }
     private InstanceDocument? Read(string server) => store.Read(DocumentKind.Instance, Json.InstanceDocument, ContractValidation.Instance, server: server);
     private void Paths(string server, InstanceDocument instance)
     {
         if (instance.IniPath != $"run/{server}/{instance.InstanceId:D}.ini" || instance.LogPath != $"logs/{server}/{instance.InstanceId:D}.log")
-            throw new ConfigurationException($"Identidad/rutas inciertas de instancia {instance.InstanceId:D}; no se limpia.");
+            throw new ConfigurationException(Messages.ServerUncertainIdentityCleanupSkipped.Format(instance.InstanceId));
         _ = home.PathFor(instance.IniPath); _ = home.PathFor(instance.LogPath);
     }
     private void Clean(string server, InstanceDocument instance, TextWriter? output = null)
@@ -76,7 +76,7 @@ public sealed partial class ServerRuntime(Home home, LocalStore? storage = null)
         var existing = RecoverLocked(name);
         if (existing is not null)
         {
-            output.WriteLine($"Servidor ya ejecutándose; instancia {existing.InstanceId:D} (PID {existing.Pid}).");
+            output.WriteLine(Messages.ServerAlreadyRunningInstanceDPID.Format(existing.InstanceId, existing.Pid));
             return new ServerStartResult(existing, false);
         }
         var plan = Manager.ComposeLocked(name);
@@ -104,8 +104,8 @@ public sealed partial class ServerRuntime(Home home, LocalStore? storage = null)
             published = true;
             RememberLog(name, instance);
             child.Activate();
-            foreach (var diagnostic in plan.Presets.Diagnostics) output.WriteLine($"Diagnóstico: {diagnostic}");
-            output.WriteLine($"Instancia {id:D}; servidor {name}; PID {child.Pid}; {instance.Host}:{instance.Port}; {instance.Mode}.");
+            foreach (var diagnostic in plan.Presets.Diagnostics) output.WriteLine(Messages.DisplayDiagnostic.Format(diagnostic));
+            output.WriteLine(Messages.ServerInstanceDServerPID.Format(id, name, child.Pid, instance.Host, instance.Port, instance.Mode));
             output.Flush();
             return new ServerStartResult(instance, true);
         }
@@ -137,8 +137,8 @@ public sealed partial class ServerRuntime(Home home, LocalStore? storage = null)
     {
         IPAddress[] addresses;
         try { addresses = IPAddress.TryParse(host, out var address) ? [address] : Dns.GetHostAddresses(host); }
-        catch (SocketException e) { throw new ConfigurationException($"Host inválido: {e.Message}"); }
-        if (addresses.Length == 0) throw new ConfigurationException("Host sin direcciones de escucha.");
+        catch (SocketException e) { throw new ConfigurationException(Messages.ServerInvalidHost.Format(e.Message)); }
+        if (addresses.Length == 0) throw new ConfigurationException(Messages.ServerHostWithoutListeningAddresses.ToString());
         var sockets = new List<Socket>();
         try
         {
@@ -150,7 +150,7 @@ public sealed partial class ServerRuntime(Home home, LocalStore? storage = null)
                 socket.Bind(new IPEndPoint(address, port));
             }
         }
-        catch (SocketException e) { throw new ConfigurationException($"Puerto {port} ocupado o escucha no disponible en {host}: {e.Message}; no se reasigna."); }
+        catch (SocketException e) { throw new ConfigurationException(Messages.ServerPortBusyOrUnavailable.Format(port, host, e.Message)); }
         finally { foreach (var socket in sockets) socket.Dispose(); }
     }
     private (string Server, InstanceDocument Instance) Find(Guid id) => store.Exclusive(() =>
@@ -161,7 +161,7 @@ public sealed partial class ServerRuntime(Home home, LocalStore? storage = null)
             var instance = Read(name);
             if (instance?.InstanceId == id) { Paths(name, instance); return (name, instance); }
         }
-        throw new ConfigurationException($"Instancia ausente: {id:D}.");
+        throw new ConfigurationException(Messages.ServerInstanceMissingD.Format(id));
     });
     public void Stop(Guid id, TextWriter output, ServerInterrupt? interrupt = null)
     {
@@ -179,7 +179,7 @@ public sealed partial class ServerRuntime(Home home, LocalStore? storage = null)
         if (instance is null)
         {
             store.Exclusive(() => { RetainLogs(server.Name, null, output); return true; });
-            output.WriteLine($"[Detenido] Servidor {server.Name}: {Messages.NoActiveInstance}.");
+            output.WriteLine(Messages.ServerStoppedServer.Format(server.Name, Messages.NoActiveInstance));
             output.Flush(); return;
         }
         StopLocked(server.Name, instance.InstanceId, output, interrupt);
@@ -189,13 +189,13 @@ public sealed partial class ServerRuntime(Home home, LocalStore? storage = null)
         var instance = store.Exclusive(() =>
         {
             var record = Read(server);
-            if (record?.InstanceId != id) throw new ConfigurationException("La instancia cambió; no se detiene un sustituto.");
+            if (record?.InstanceId != id) throw new ConfigurationException(Messages.ServerInstanceChangedNoSubstituteStopped.ToString());
             Paths(server, record); return record;
         });
         using var process = WindowsServerProcess.Verified(instance, out var ended);
         if (!ended)
         {
-            output.WriteLine($"[Deteniendo] Instancia {id:D}; espera máxima 10 s."); output.Flush();
+            output.WriteLine(Messages.ServerStoppingInstanceDMaximumWaitS.Format(id)); output.Flush();
             var watch = Stopwatch.StartNew();
             using var signal = interrupt?.Count >= 2 ? null : LaunchSignal(instance);
             var forced = false;
@@ -203,13 +203,13 @@ public sealed partial class ServerRuntime(Home home, LocalStore? storage = null)
             {
                 if (interrupt?.Count >= 2 || watch.ElapsedMilliseconds >= 10000)
                 {
-                    output.WriteLine("[Cierre forzado] Terminando el grupo de procesos de la instancia."); output.Flush();
+                    output.WriteLine(Messages.ServerForcedStopTerminatingGroup.ToString()); output.Flush();
                     WindowsServerProcess.Force(instance, process!); forced = true; break;
                 }
                 WindowsServerProcess.Exited(process!, 25);
             }
             if (forced && !WindowsServerProcess.Exited(process!, 3000))
-                throw new ConfigurationException("El cierre no pudo confirmarse; registro e INI conservados.");
+                throw new ConfigurationException(Messages.ServerShutdownUnconfirmed.ToString());
             if (signal is not null)
             {
                 if (!signal.HasExited) signal.Kill();
@@ -221,17 +221,17 @@ public sealed partial class ServerRuntime(Home home, LocalStore? storage = null)
             if (Read(server)?.InstanceId == id) Clean(server, instance, output);
             return true;
         });
-        output.WriteLine($"[Detenido] Instancia {id:D}; log conservado."); output.Flush();
+        output.WriteLine(Messages.ServerStoppedInstanceDLogPreserved.Format(id)); output.Flush();
     }
     private Process LaunchSignal(InstanceDocument instance)
     {
         var start = Self("--internal-server-signal", instance.InstanceId.ToString("D"));
         start.Environment["COQUENA_HOME"] = home.Root;
-        return Process.Start(start) ?? throw new ConfigurationException("No se pudo solicitar la parada ordenada.");
+        return Process.Start(start) ?? throw new ConfigurationException(Messages.ServerCouldNotRequestGracefulStop.ToString());
     }
     public static ProcessStartInfo Self(params string[] args)
     {
-        var executable = Environment.ProcessPath ?? throw new ConfigurationException("Ejecutable de Coquena ausente.");
+        var executable = Environment.ProcessPath ?? throw new ConfigurationException(Messages.ServerCoquenaExecutableMissing.ToString());
         var start = new ProcessStartInfo(executable) { UseShellExecute = false, CreateNoWindow = true };
         if (Path.GetFileNameWithoutExtension(executable).Equals("dotnet", StringComparison.OrdinalIgnoreCase))
             start.ArgumentList.Add(Path.Combine(AppContext.BaseDirectory, "coquena.dll"));
@@ -272,7 +272,7 @@ public sealed partial class ServerRuntime(Home home, LocalStore? storage = null)
         Drain(int.MaxValue);
         var code = process is null ? 0 : WindowsServerProcess.ExitCode(process);
         store.Exclusive(() => { if (Read(found.Server)?.InstanceId == instance.InstanceId) Clean(found.Server, instance, output); return true; });
-        output.WriteLine($"[Finalizado] Instancia {instance.InstanceId:D}; salida {code}; log conservado.");
+        output.WriteLine(Messages.ServerFinishedInstanceDExitLogPreserved.Format(instance.InstanceId, code));
         return code == 0 ? 0 : 1;
 
         void Drain(int chunks = 16)

@@ -53,7 +53,7 @@ internal static class MaintenanceTests
         view.Toggle("model");
         Check(view.Plan is null && !view.Selection.Kinds.Contains("model"), "changing a TUI filter invalidates its old plan");
         Check(new DashboardCli.DefinitionsSource(home, first.Base).Places().Single(p => p.Scope.Here).Context is not null &&
-            Coquena.Observation.DefinitionsPresentation.Views(new("fixture", false, true, true, false)).Contains("Mantenimiento"),
+            Coquena.Observation.DefinitionsPresentation.Views(new("fixture", false, true, true, false)).Contains("maintenance"),
             "project without YAML has a maintenance context and tree entry");
         var initializeContext = Project("initialize");
         var initializeSource = new DashboardCli.DefinitionsSource(home, initializeContext.Base);

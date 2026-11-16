@@ -3,7 +3,7 @@ using Coquena.Contracts;
 
 namespace Coquena.Models;
 
-public sealed record IntegrityResult(string Status, ContentIdentity? Observed, string? Diagnostic);
+public sealed record IntegrityResult(string Status, ContentIdentity? Observed, MessageData? Diagnostic);
 
 // A single session covers the existing prefix and every newly written byte. Never serialize
 // SHA state or trust a checkpoint digest as a substitute for reading the prefix.
@@ -24,7 +24,7 @@ public sealed class FileHashSession : IDisposable
         while (length > 0)
         {
             var n = await prefix.ReadAsync(buffer.AsMemory(0, (int)Math.Min(buffer.Length, length)), cancellation);
-            if (n == 0) throw new EndOfStreamException("Prefijo reanudado truncado.");
+            if (n == 0) throw new EndOfStreamException(Messages.ModelTruncatedResumedPrefix.ToString());
             Append(buffer.AsSpan(0, n)); length -= n;
         }
     }
@@ -51,8 +51,8 @@ public static class FileIntegrity
     // No reference is created or replaced here. Non-comparable identities are not mismatches.
     public static IntegrityResult Compare(ContentIdentity observed, ContentIdentity? reference)
     {
-        if (!Comparable(observed)) throw new ArgumentException("SHA-256 de bytes completo requerido.");
-        return !Comparable(reference) ? new("no-reference", observed, "Sin referencia SHA-256 comparable de los bytes.") :
+        if (!Comparable(observed)) throw new ArgumentException(Messages.ModelCompleteByteSHARequired.ToString());
+        return !Comparable(reference) ? new("no-reference", observed, Messages.ModelNoComparableByteSHAReference.Data()) :
             new(string.Equals(observed.Value, reference!.Value, StringComparison.OrdinalIgnoreCase) ? "verified" : "mismatch", observed, null);
     }
 
@@ -70,10 +70,10 @@ public static class FileIntegrity
             cancellation.ThrowIfCancellationRequested();
             before.Refresh();
             if (!before.Exists || before.Length != size || before.LastWriteTimeUtc != date || stream.Length != size)
-                return new("changed-during-read", null, "El archivo cambió durante la lectura; resultado no concluyente.");
+                return new("changed-during-read", null, Messages.ModelFileChangedWhileReading.Data());
             return Compare(session.Finish(), reference);
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)
-        { return new("read-error", null, e.Message); }
+        { return new("read-error", null, Messages.FileReadFailure(e)); }
     }
 }

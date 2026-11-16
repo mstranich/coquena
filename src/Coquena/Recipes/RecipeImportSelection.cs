@@ -32,7 +32,7 @@ public sealed class RecipeImportSelection
     {
         var replacements = replace?.ToArray() ?? [];
         if (force && (select is not null || replacements.Length != 0))
-            throw recipe.Root.Error("import-option-conflict", "import", "Force no admite select ni replace.");
+            throw recipe.Root.Error("import-option-conflict", "import", Messages.RecipeForceDoesNotAcceptSelectOrReplace.ToString());
         var available = new Dictionary<string, bool>(StringComparer.Ordinal)
         {
             ["service"] = recipe.Root.Get("service") is not null,
@@ -45,14 +45,14 @@ public sealed class RecipeImportSelection
         foreach (var category in categories)
         {
             if (!available.TryGetValue(category, out var present) || !seen.Add(category))
-                throw recipe.Root.Error("invalid-import-selection", "import", "Categorías inválidas, vacías o repetidas.");
+                throw recipe.Root.Error("invalid-import-selection", "import", Messages.RecipeInvalidEmptyOrRepeatedCategories.ToString());
             if (!present)
-                throw recipe.Root.Error("absent-import-category", "import", "La categoría seleccionada no está declarada.");
+                throw recipe.Root.Error("absent-import-category", "import", Messages.RecipeTheSelectedCategoryIsNotDeclared.ToString());
         }
         if (asDefault && !seen.Contains("service"))
-            throw recipe.Root.Error("import-default-requires-service", "import", "As-default requiere seleccionar service.");
+            throw recipe.Root.Error("import-default-requires-service", "import", Messages.RecipeAsDefaultRequiresSelectingService.ToString());
         if (recipe.Target == "self" && !seen.Contains("service"))
-            throw recipe.Root.Error("import-self-requires-service", "import", "publish-to: self requiere importar service.");
+            throw recipe.Root.Error("import-self-requires-service", "import", Messages.RecipePublishToSelfRequiresImportingService.ToString());
 
         var entities = new List<ImportEntity>();
         if (seen.Contains("service")) Add("service:" + recipe.Name);
@@ -69,7 +69,7 @@ public sealed class RecipeImportSelection
         var authorized = new HashSet<string>(StringComparer.Ordinal);
         foreach (var replacement in replacements)
             if (!selectors.Contains(replacement) || !authorized.Add(replacement))
-                throw recipe.Root.Error("invalid-import-replacement", "import", "Replace requiere una entidad seleccionada y no repetida.");
+                throw recipe.Root.Error("invalid-import-replacement", "import", Messages.RecipeReplaceRequiresUniqueEntity.ToString());
         return new(categories, entities.ToArray(), authorized, asDefault, force);
 
         void Add(string selector) => entities.Add(new(selector));

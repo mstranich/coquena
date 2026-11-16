@@ -23,7 +23,7 @@ public sealed class ConfigurationManager(Home home, LocalStore? storage = null)
 
     private static T Named<T>(IEnumerable<T> entries, string name, Func<T, string> getName) where T : class =>
         entries.SingleOrDefault(e => getName(e).Equals(name, StringComparison.OrdinalIgnoreCase))
-        ?? throw new ConfigurationException($"Referencia ausente: {name}.");
+        ?? throw new ConfigurationException(Messages.MissingReference.Format(name));
 
     public BackendRecord? DefaultBackend()
     {
@@ -32,13 +32,13 @@ public sealed class ConfigurationManager(Home home, LocalStore? storage = null)
         var backends = store.Read(DocumentKind.Backends, Json.BackendsDocument, ContractValidation.Backends)?.Backends ?? [];
         var matches = backends.Where(b => selection.Kind == "fixed" ? b.Id == selection.BackendId :
             b.Origin == selection.Origin && b.Variant == selection.Variant && b.TracksLatest && b.Platform == "win-x64").ToArray();
-        if (matches.Length > 1) throw new ConfigurationException("Selección predeterminada de backend ambigua.");
+        if (matches.Length > 1) throw new ConfigurationException(Messages.DefaultBackendAmbiguous);
         return matches.SingleOrDefault();
     }
 
     public BackendRecord Backend(Guid id) =>
         store.Read(DocumentKind.Backends, Json.BackendsDocument, ContractValidation.Backends)?.Backends.SingleOrDefault(b => b.Id == id)
-        ?? throw new ConfigurationException($"Backend ausente: {id:D}.");
+        ?? throw new ConfigurationException(Messages.BackendMissing.Format(id.ToString("D")));
 
     // One canonical key per section, including aliases from existing documents.
     private Dictionary<string, string> Values(Dictionary<string, string>? values) => NormalizeValues(values, Parameters.Read().Definitions);
@@ -53,7 +53,7 @@ public sealed class ConfigurationManager(Home home, LocalStore? storage = null)
             if (ParameterCatalog.Find(key, definitions) is { } definition) ParameterManager.ValidateValue(definition, value);
             else ParameterCatalog.Literal(value);
             if (!result.TryAdd(key, value))
-                throw new ConfigurationException($"Alias duplicados para {key}; corregir el documento sin perder valores.");
+                throw new ConfigurationException(Messages.DuplicatedAliases.Format(key));
         }
         return result;
     }
@@ -96,9 +96,9 @@ public sealed class ConfigurationManager(Home home, LocalStore? storage = null)
             var key = ParameterCatalog.Canonical(pair.Key, definitions);
             ParameterCatalog.ModelParameter(key, definitions);
             if (!CanBind(ParameterCatalog.Find(key, definitions)))
-                throw new ConfigurationException($"{key}: el vínculo requiere un parámetro de texto de ámbito modelo o sin definición.");
+                throw new ConfigurationException(Messages.BindingNeedsText.Format(key));
             if (literalKeys.Contains(key) || !result.TryAdd(key, pair.Value))
-                throw new ConfigurationException($"Asignaciones duplicadas para {key}; literal y vínculo son excluyentes.");
+                throw new ConfigurationException(Messages.DuplicatedAssignments.Format(key));
         }
         return result;
     }
@@ -121,7 +121,7 @@ public sealed class ConfigurationManager(Home home, LocalStore? storage = null)
         }
         ParameterCatalog.ModelParameter(key, definitions);
         if (!CanBind(ParameterCatalog.Find(key, definitions)))
-            throw new ConfigurationException($"{key}: el vínculo requiere un parámetro de texto de ámbito modelo o sin definición.");
+            throw new ConfigurationException(Messages.BindingNeedsText.Format(key));
         var resource = Named(Models().Models, resourceName, m => m.Name);
         store.UpdateLocked(DocumentKind.Presets, Json.PresetsDocument, ContractValidation.Presets, old =>
         {
@@ -142,6 +142,10 @@ public sealed class ConfigurationManager(Home home, LocalStore? storage = null)
     public int InferenceHistory() => Config().InferenceHistoryLimit ?? 100;
     public void SetInferenceHistory(int? limit) => store.Update(DocumentKind.Config, Json.ConfigDocument, ContractValidation.Config,
         old => (old ?? new(1, null, null, new(5))) with { InferenceHistoryLimit = limit });
+    // null means auto: the language follows the system culture.
+    public string? Language() => Config().Language;
+    public void SetLanguage(string? code) => store.Update(DocumentKind.Config, Json.ConfigDocument, ContractValidation.Config,
+        old => (old ?? new(1, null, null, new(5))) with { Language = code });
     public bool FilterMonitoringLogs() => Config().FilterMonitoringLogs ?? true;
     public void SetFilterMonitoringLogs(bool enabled) => store.Update(DocumentKind.Config, Json.ConfigDocument, ContractValidation.Config,
         old => (old ?? new(1, null, null, new(5))) with { FilterMonitoringLogs = enabled ? null : false });
@@ -155,7 +159,7 @@ public sealed class ConfigurationManager(Home home, LocalStore? storage = null)
     public BackendRetention BackendRetention() => Config().BackendRetention;
     public void SetBackendRetention(int? count)
     {
-        if (count is <= 0) throw new ConfigurationException("Se requiere un entero positivo.");
+        if (count is <= 0) throw new ConfigurationException(Messages.PositiveInteger);
         store.Update(DocumentKind.Config, Json.ConfigDocument, ContractValidation.Config,
             old => (old ?? new(1, null, null, new(5))) with { BackendRetention = new(count ?? 5, count.HasValue) });
     }
@@ -174,7 +178,7 @@ public sealed class ConfigurationManager(Home home, LocalStore? storage = null)
             {
                 var catalog = old ?? new(1, []);
                 if (catalog.Presets.Any(p => p.Name.Equals(name, StringComparison.OrdinalIgnoreCase)))
-                    throw new ConfigurationException($"Preset ya existente: {name}.");
+                    throw new ConfigurationException(Messages.PresetExists.Format(name));
                 return catalog with { Presets = [.. catalog.Presets, record] };
             });
             return record;
@@ -200,7 +204,7 @@ public sealed class ConfigurationManager(Home home, LocalStore? storage = null)
             {
                 var catalog = old ?? new(1, []);
                 if (catalog.Presets.Any(p => p.Name.Equals(name, StringComparison.OrdinalIgnoreCase)))
-                    throw new ConfigurationException($"Preset ya existente: {name}.");
+                    throw new ConfigurationException(Messages.PresetExists.Format(name));
                 return catalog with { Presets = [.. catalog.Presets, clone] };
             });
             return clone;
@@ -231,7 +235,7 @@ public sealed class ConfigurationManager(Home home, LocalStore? storage = null)
     {
         var definition = ParameterCatalog.Find("model", Parameters.Read().Definitions);
         if (definition is not { Type: "reference", Application: "model" })
-            throw new ConfigurationException("La definición model no admite referencias de preset; restablezca el catálogo antes de asignar un modelo.");
+            throw new ConfigurationException(Messages.ModelNoPresetReferences);
     }
 
     public PresetView[] List(string? modelName = null) => store.Exclusive(() =>
@@ -244,13 +248,13 @@ public sealed class ConfigurationManager(Home home, LocalStore? storage = null)
             var model = models.SingleOrDefault(m => m.Id == p.ModelId);
             var diagnostics = new List<string>();
             var boundResources = new Dictionary<string, string>();
-            if (model is null) diagnostics.Add(p.ModelId is null ? "Preset sin asignación de modelo." : $"Modelo ausente: {p.ModelId:D}; {Messages.BrokenReference}.");
+            if (model is null) diagnostics.Add(p.ModelId is null ? Messages.PresetWithoutModel : Messages.ModelMissingBroken.Format(p.ModelId?.ToString("D"), Messages.BrokenReference));
             else Inspect(model, "model", diagnostics);
             foreach (var binding in Bindings(p, definitions))
             {
                 var resource = models.SingleOrDefault(m => m.Id == binding.Value);
                 boundResources[binding.Key] = resource?.Name ?? "ausente";
-                if (resource is null) diagnostics.Add($"{binding.Key}: recurso {binding.Value:D} ausente; {Messages.BrokenReference}.");
+                if (resource is null) diagnostics.Add(Messages.ResourceMissingBroken.Format(binding.Key, binding.Value.ToString("D"), Messages.BrokenReference));
                 else Inspect(resource, binding.Key, diagnostics);
             }
             return new PresetView(p, model, NormalizeValues(p.Parameters, definitions), NormalizeValues(p.Parameters, definitions), diagnostics.ToArray(), boundResources);
@@ -259,9 +263,9 @@ public sealed class ConfigurationManager(Home home, LocalStore? storage = null)
 
     private GgufUnit Inspect(ModelRecord resource, string parameter, List<string> diagnostics)
     {
-        if (resource.RemovalPending) diagnostics.Add($"{parameter}: {resource.Name}: retirada parcial pendiente; {Messages.NotServable}.");
+        if (resource.RemovalPending) diagnostics.Add(Messages.PartialRemovalPending.Format(parameter, resource.Name, Messages.NotServable));
         var inspection = GgufInspection.InspectPaths(resource.Files.Select(f => new ModelPaths(home).File(resource, f)).ToArray());
-        if (inspection.Status != "complete") diagnostics.Add($"{parameter}: {resource.Name}: {inspection.Status}; {Messages.NotServable}.");
+        if (inspection.Status != "complete") diagnostics.Add(Messages.ResourceInspectionNotServable.Format(parameter, resource.Name, inspection.Status, Messages.NotServable));
         return inspection;
     }
 
@@ -274,7 +278,7 @@ public sealed class ConfigurationManager(Home home, LocalStore? storage = null)
     internal ComposedPresets ComposeLocked(BackendRecord backend, Guid[] presetIds)
     {
         if (presetIds.Length == 0 || presetIds.Distinct().Count() != presetIds.Length)
-            throw new ConfigurationException("Se requiere una lista explícita, no vacía y sin duplicados de presets.");
+            throw new ConfigurationException(Messages.PresetListRequired);
         var common = new Dictionary<string, string>();
         var models = Models().Models;
         var presets = Presets().Presets;
@@ -286,33 +290,33 @@ public sealed class ConfigurationManager(Home home, LocalStore? storage = null)
         foreach (var id in presetIds)
         {
             var preset = presets.SingleOrDefault(p => p.Id == id)
-                ?? throw new ConfigurationException($"{Messages.MissingPreset(id.ToString("D"))}; {Messages.BrokenReference}.");
+                ?? throw new ConfigurationException(Messages.PresetMissingBroken.Format(Messages.MissingPreset(id.ToString("D")), Messages.BrokenReference));
             PresetName(preset.Name);
             ModelReference();
             var model = models.SingleOrDefault(m => m.Id == preset.ModelId)
-                ?? throw new ConfigurationException($"Modelo ausente: {preset.ModelId:D}; referencia rota en {preset.Name}.");
-            if (model.CompanionType is not null) throw new ConfigurationException("Un companion no puede ser el modelo principal de un preset.");
+                ?? throw new ConfigurationException(Messages.ModelMissingIn.Format(preset.ModelId?.ToString("D"), preset.Name));
+            if (model.CompanionType is not null) throw new ConfigurationException(Messages.CompanionNotMain);
             ResourceRemoval.CheckPending(home, store, [model.Id]);
             var paths = model.Files.Select(f => new ModelPaths(home).File(model, f)).ToArray();
             var inspection = GgufInspection.InspectPaths(paths);
             if (inspection.Status != "complete")
-                throw new ConfigurationException($"Modelo {model.Name}: {inspection.Status}; no se omite el preset {preset.Name}.");
+                throw new ConfigurationException(Messages.ModelNotOmitted.Format(model.Name, inspection.Status, preset.Name));
             var specific = Values(preset.Parameters);
             foreach (var binding in Bindings(preset, definitions))
             {
                 var definition = ParameterCatalog.Find(binding.Key, definitions);
                 var availability = ParameterManager.Availability(definition, backend);
-                if (availability == "no admitido")
+                if (availability == "unsupported")
                 {
-                    diagnostics.Add($"{preset.Name}: {binding.Key} {Messages.Unsupported}; se omite con warning y se conserva el vínculo.");
+                    diagnostics.Add(Messages.BindingUnsupported.Format(preset.Name, binding.Key, Messages.Unsupported));
                     continue;
                 }
                 var resource = models.SingleOrDefault(m => m.Id == binding.Value)
-                    ?? throw new ConfigurationException($"{preset.Name}: {binding.Key}: recurso {binding.Value:D} ausente; referencia rota.");
+                    ?? throw new ConfigurationException(Messages.BindingResourceMissing.Format(preset.Name, binding.Key, binding.Value.ToString("D")));
                 var boundInspection = Inspect(resource, binding.Key, diagnostics);
                 ResourceRemoval.CheckPending(home, store, [resource.Id]);
                 if (boundInspection.Status != "complete")
-                    throw new ConfigurationException($"{preset.Name}: {binding.Key}: {resource.Name}: {boundInspection.Status}; no se omite el preset.");
+                    throw new ConfigurationException(Messages.BindingNotOmitted.Format(preset.Name, binding.Key, resource.Name, boundInspection.Status));
                 var path = boundInspection.Parts[0].Path;
                 if (definition is not null) ParameterManager.ValidateValue(definition, path);
                 else ParameterCatalog.Literal(path);
@@ -322,16 +326,16 @@ public sealed class ConfigurationManager(Home home, LocalStore? storage = null)
             foreach (var key in specific.Keys.ToArray())
             {
                 var availability = ParameterManager.Availability(ParameterCatalog.Find(key, definitions), backend);
-                if (availability == "no admitido")
-                { specific.Remove(key); diagnostics.Add($"{preset.Name}: {key} no admitido para {backend.Repository}/{backend.Build}; se omite con warning y se conserva la asignación."); }
-                else if (availability == "desconocido") diagnostics.Add($"{preset.Name}: {key} desconocido para {backend.Repository}/{backend.Build}; se conserva.");
+                if (availability == "unsupported")
+                { specific.Remove(key); diagnostics.Add(Messages.ValueUnsupported.Format(preset.Name, key, backend.Repository, backend.Build)); }
+                else if (availability == "unknown") diagnostics.Add(Messages.ValueUnknown.Format(preset.Name, key, backend.Repository, backend.Build));
             }
             var modelDefinition = ParameterCatalog.Find("model", definitions)!;
             var modelAvailability = ParameterManager.Availability(modelDefinition, backend);
-            if (modelAvailability == "no admitido") diagnostics.Add($"{preset.Name}: model no admitido; se omite con warning y se conserva la referencia.");
+            if (modelAvailability == "unsupported") diagnostics.Add(Messages.ModelUnsupported.Format(preset.Name));
             else
             {
-                if (modelAvailability == "desconocido") diagnostics.Add($"{preset.Name}: model desconocido para {backend.Repository}/{backend.Build}; se conserva.");
+                if (modelAvailability == "unknown") diagnostics.Add(Messages.ModelValueUnknown.Format(preset.Name, backend.Repository, backend.Build));
                 specific["model"] = inspection.Parts[0].Path;
             }
             var cli = specific.Where(p => ParameterCatalog.Find(p.Key, definitions)?.Destination == "CLI").ToDictionary();
@@ -345,7 +349,7 @@ public sealed class ConfigurationManager(Home home, LocalStore? storage = null)
         var cliKeys = cliValues.SelectMany(v => v.Keys).Distinct().ToArray();
         foreach (var key in cliKeys)
             if (cliValues.Any(v => !v.TryGetValue(key, out var value) || value != cliValues[0].GetValueOrDefault(key)))
-                throw new ConfigurationException($"{key}: valores CLI de modelo distintos entre presets; no se puede representar la ejecución sin cambiar sus valores.");
+                throw new ConfigurationException(Messages.CliValuesDiffer.Format(key));
         var arguments = cliValues[0].SelectMany(p => Arguments(ParameterCatalog.Find(p.Key, definitions)!, p.Value)).ToArray();
         return new ComposedPresets(Render(common, sections, definitions), resources.Distinct().ToArray(), diagnostics.Distinct().ToArray(), arguments);
     }
@@ -363,7 +367,7 @@ public sealed class ConfigurationManager(Home home, LocalStore? storage = null)
         foreach (var preset in presets)
         {
             PresetName(preset.Name);
-            if (!names.Add(preset.Name)) throw new ConfigurationException("Sección de preset duplicada.");
+            if (!names.Add(preset.Name)) throw new ConfigurationException(Messages.PresetSectionDuplicated);
             // The model path was resolved by Compose, never accepted as config override.
             var values = NormalizeValues(preset.Values.Where(p => p.Key != "model").ToDictionary(), definitions);
             if (preset.Values.TryGetValue("model", out var model)) values["model"] = model;
@@ -387,6 +391,6 @@ public sealed class ConfigurationManager(Home home, LocalStore? storage = null)
     {
         if (string.IsNullOrWhiteSpace(name) || name != name.Trim() || name.Equals("default", StringComparison.OrdinalIgnoreCase) ||
             name == "*" || name.Any(char.IsControl) || name.IndexOfAny(['[', ']', ':', ';', '#']) >= 0)
-            throw new ConfigurationException("Nombre de preset no representable en INI; * y default están reservados por llama.cpp.");
+            throw new ConfigurationException(Messages.PresetNameNotIni);
     }
 }

@@ -104,8 +104,8 @@ internal static partial class DashboardCli
             }
             if (rows.Count == 0)
                 rows = [" " + Markup.Style("mut", Entry is null
-                    ? "Elegir servicio › preset para empezar una prueba."
-                    : "Escribir un mensaje. Enter envía · Shift+Enter nueva línea.")];
+                    ? Messages.TuiChatChooseServicePreset.ToString()
+                    : Messages.ChatInputHint.ToString())];
             History.Show(rows.Count, (row, _) => Markup.Fit(rows[row], width));
             if (following) History.ScrollToEnd();
             Panel.Rows = [.. metrics.Select(row => Markup.Fit(row, width)),

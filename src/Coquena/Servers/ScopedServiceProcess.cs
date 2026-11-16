@@ -17,11 +17,11 @@ public sealed partial class ScopedServiceProcess(ScopeStore store, TextWriter? o
     internal FileStream Lease(string serviceId)
     {
         if (!Guid.TryParseExact(serviceId, "D", out var id) || id == Guid.Empty || id.ToString("D") != serviceId)
-            throw new StorageException("invalid-service-id", "Identidad de servicio inválida.");
+            throw new StorageException("invalid-service-id", Messages.ServerInvalidServiceIdentity.ToString());
         var directory = store.Context.PathFor($"local/runtime/{serviceId}");
         Directory.CreateDirectory(directory);
         try { return new FileStream(Path.Combine(directory, "lifecycle.lock"), FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None); }
-        catch (IOException e) { throw new StorageException("service-busy", "Otra operación controla el servicio.", inner: e); }
+        catch (IOException e) { throw new StorageException("service-busy", Messages.ServerAnotherOperationControlsTheService.ToString(), inner: e); }
     }
 
     public bool Reconcile(string serviceId)
@@ -40,16 +40,16 @@ public sealed partial class ScopedServiceProcess(ScopeStore store, TextWriter? o
         var registered = snapshot.Documents.GetValueOrDefault("local/recipes.json")?["data"]?["recipes"]?.AsArray()
             .SelectMany(recipe => recipe!["entities"]!.AsArray())
             .SingleOrDefault(entity => entity!["kind"]!.GetValue<string>() == "service" && entity["id"]!.GetValue<string>() == serviceId);
-        if (registered is null) throw new StorageException("unknown-service", "Servicio no registrado.");
+        if (registered is null) throw new StorageException("unknown-service", Messages.ProjectServiceNotRegistered.ToString());
         var recorded = registered["instance"];
         if (active is null || active["terminated"]?.GetValue<bool>() == true)
         {
-            if (recorded is not null) throw new StorageException("instance-conflict", "El registro conserva una instancia sin evidencia activa coherente.");
+            if (recorded is not null) throw new StorageException("instance-conflict", Messages.ServerRegistryIncoherentInstance.ToString());
             return false;
         }
         if (recorded?["instance-id"]?.GetValue<string>() != active["instance-id"]?.GetValue<string>() ||
             !JsonNode.DeepEquals(recorded?["process"], active["process"]))
-            throw new StorageException("instance-conflict", "Las identidades de instancia no coinciden; se conserva evidencia.");
+            throw new StorageException("instance-conflict", Messages.ServerInstanceIdentityMismatch.ToString());
         var instance = Identity(serviceId, active);
         using var process = WindowsServerProcess.Verified(instance, out var ended);
         if (!ended) return true;
@@ -61,7 +61,7 @@ public sealed partial class ScopedServiceProcess(ScopeStore store, TextWriter? o
     public void Remove(string serviceId)
     {
         using var lease = Lease(serviceId);
-        if (ReconcileLocked(serviceId)) throw new StorageException("service-in-use", "El servicio está ejecutándose.");
+        if (ReconcileLocked(serviceId)) throw new StorageException("service-in-use", Messages.ServerServiceIsRunning.ToString());
         new RecipeRegistry(store).RemoveStoppedService(serviceId);
     }
 
@@ -80,16 +80,16 @@ public sealed partial class ScopedServiceProcess(ScopeStore store, TextWriter? o
         var active = store.Read().Documents[path]["data"]!.AsObject();
         var instance = Identity(serviceId, active);
         if (expectedInstanceId is not null && instance.InstanceId.ToString("D") != expectedInstanceId)
-            throw new StorageException("instance-conflict", "La instancia cambió; no se detiene su reemplazo.");
+            throw new StorageException("instance-conflict", Messages.ServerReplacementNotStopped.ToString());
         using var process = WindowsServerProcess.Verified(instance, out var ended);
         if (!ended)
         {
             using var group = WindowsServerProcess.VerifiedGroup(instance, process!);
-            output?.WriteLine("[Deteniendo] Parada ordenada; espera máxima 10 s.");
+            output?.WriteLine(Messages.ServerStoppingGracefulStopMaximumWaitS.ToString());
             var command = ServerRuntime.Self("--internal-scoped-signal", instance.InstanceId.ToString("D"),
                 instance.Pid.ToString(System.Globalization.CultureInfo.InvariantCulture),
                 instance.ProcessCreated!.Value.ToString(System.Globalization.CultureInfo.InvariantCulture), instance.ExecutablePath!);
-            using var signal = System.Diagnostics.Process.Start(command) ?? throw new ConfigurationException("No se pudo solicitar la parada ordenada.");
+            using var signal = System.Diagnostics.Process.Start(command) ?? throw new ConfigurationException(Messages.ServerCouldNotRequestGracefulStop.ToString());
             var elapsed = System.Diagnostics.Stopwatch.StartNew();
             var rootEnded = false;
             while (true)
@@ -102,19 +102,19 @@ public sealed partial class ScopedServiceProcess(ScopeStore store, TextWriter? o
                 if (rootEnded && WindowsServerProcess.GroupExited(group)) break;
                 if (forceRequested?.Invoke() == true || elapsed.Elapsed >= TimeSpan.FromSeconds(10))
                 {
-                    output?.WriteLine("[Cierre forzado] Terminando el grupo de procesos de la instancia.");
+                    output?.WriteLine(Messages.ServerForcedStopTerminatingGroup.ToString());
                     WindowsServerProcess.ForceGroup(group);
                     process!.Dispose();
                     var confirmation = System.Diagnostics.Stopwatch.StartNew();
                     while (!WindowsServerProcess.GroupExited(group) && confirmation.Elapsed < TimeSpan.FromSeconds(3)) Thread.Sleep(25);
                     if (!WindowsServerProcess.GroupExited(group))
-                        throw new ConfigurationException("No se confirmó la terminación; se conserva el registro.");
+                        throw new ConfigurationException(Messages.ServerTerminationUnconfirmedRecordPreserved.ToString());
                     break;
                 }
                 Thread.Sleep(25);
             }
             if (!signal.WaitForExit(1000)) { signal.Kill(); signal.WaitForExit(); }
-            if (signal.ExitCode != 0) output?.WriteLine("[Aviso] La señal ordenada no pudo confirmarse; se comprobó la terminación del proceso.");
+            if (signal.ExitCode != 0) output?.WriteLine(Messages.ServerGracefulStopUnconfirmed.ToString());
         }
         else WindowsServerProcess.RequireGroupEnded(instance.InstanceId);
         new RecipeRegistry(store).RecordTermination(serviceId, instance.InstanceId.ToString("D"));
@@ -145,7 +145,7 @@ public sealed partial class ScopedServiceProcess(ScopeStore store, TextWriter? o
     {
         using var lease = Lease(serviceId);
         if (PresetPublication.Service(store.Read(), serviceId)["publication-operation"] is not null)
-            throw new StorageException("publication-pending", "Reconciliar la publicación antes de reiniciar.");
+            throw new StorageException("publication-pending", Messages.ServerReconcilePublicationBeforeRestarting.ToString());
         var plan = await prepare(cancellation);
         ValidatePlan(plan);
         ValidateBindings(plan);
@@ -163,19 +163,19 @@ public sealed partial class ScopedServiceProcess(ScopeStore store, TextWriter? o
             !string.IsNullOrEmpty(plan.HealthUrl.UserInfo) || plan.Timeout <= TimeSpan.Zero ||
             plan.Interval < TimeSpan.FromMilliseconds(100) || plan.Interval > TimeSpan.FromSeconds(10) ||
             plan.LogDirectory is not null && !Path.IsPathFullyQualified(plan.LogDirectory) || plan.LogRetentionBytes is <= 0)
-            throw new StorageException("invalid-start-plan", "El plan de inicio o salud es inválido.");
-        if (!File.Exists(plan.Executable)) throw new StorageException("backend-missing", "El ejecutable del backend no existe.");
+            throw new StorageException("invalid-start-plan", Messages.ServerInvalidStartupOrHealthPlan.ToString());
+        if (!File.Exists(plan.Executable)) throw new StorageException("backend-missing", Messages.ServerBackendExecutableDoesNotExist.ToString());
         var host = plan.Endpoint["host"]?.GetValue<string>();
         var port = plan.Endpoint["port"]?.GetValue<int>();
         if (string.IsNullOrEmpty(host) || port is not (> 0 and <= 65535))
-            throw new StorageException("invalid-endpoint", "El inicio requiere host y puerto válidos.");
+            throw new StorageException("invalid-endpoint", Messages.ServerStartupRequiresValidHostAndPort.ToString());
     }
 
     private void ValidateBindings(ScopedStartPlan plan) => RecipeRegistry.ValidateRuntimeBindings(store.Read(), plan.Resources);
 
     private async Task<string> StartLockedAsync(string serviceId, ScopedStartPlan plan, CancellationToken cancellation, Func<bool>? forceRequested)
     {
-        if (ReconcileLocked(serviceId)) throw new StorageException("service-already-running", "El servicio ya está ejecutándose.");
+        if (ReconcileLocked(serviceId)) throw new StorageException("service-already-running", Messages.ServerServiceIsAlreadyRunning.ToString());
         var host = plan.Endpoint["host"]?.GetValue<string>();
         var port = plan.Endpoint["port"]?.GetValue<int>();
         cancellation.ThrowIfCancellationRequested();
@@ -184,7 +184,7 @@ public sealed partial class ScopedServiceProcess(ScopeStore store, TextWriter? o
         catch (ConfigurationException error)
         { throw new StorageException("endpoint-unavailable", error.Message, inner: error); }
         var id = plan.InstanceId ?? Guid.NewGuid();
-        if (id == Guid.Empty) throw new StorageException("invalid-instance-id", "Identidad de instancia inválida.");
+        if (id == Guid.Empty) throw new StorageException("invalid-instance-id", Messages.ServerInvalidInstanceIdentity.ToString());
         if (plan.LogDirectory is not null) plan = plan with { LogPath = Path.Combine(plan.LogDirectory, $"{id:D}.log") };
         Directory.CreateDirectory(Path.GetDirectoryName(plan.LogPath)!);
         if (plan.PresetIni || plan.Arguments.Contains("--models-preset", StringComparer.Ordinal) || plan.Snapshot["service"]?["backend"]?["version"] is not null)
@@ -211,17 +211,17 @@ public sealed partial class ScopedServiceProcess(ScopeStore store, TextWriter? o
         child.Activate();
         var instance = Identity(serviceId, active);
         using var process = WindowsServerProcess.Verified(instance, out var ended);
-        if (ended) { RecordEnded(serviceId, id.ToString("D")); throw new StorageException("process-exited", "El proceso terminó durante el inicio."); }
+        if (ended) { RecordEnded(serviceId, id.ToString("D")); throw new StorageException("process-exited", Messages.ServerProcessEndedDuringStartup.ToString()); }
         using var client = new HttpClient(new HttpClientHandler { AllowAutoRedirect = false }) { Timeout = TimeSpan.FromSeconds(5) };
         var clock = System.Diagnostics.Stopwatch.StartNew();
-        string diagnostic = "sin respuesta";
+        MessageData diagnostic = Messages.HealthNoResponse.Data();
         try
         {
             while (clock.Elapsed < plan.Timeout)
             {
                 cancellation.ThrowIfCancellationRequested();
                 if (WindowsServerProcess.Exited(process!))
-                { RecordEnded(serviceId, id.ToString("D")); throw new StorageException("process-exited", "El proceso terminó durante el inicio."); }
+                { RecordEnded(serviceId, id.ToString("D")); throw new StorageException("process-exited", Messages.ServerProcessEndedDuringStartup.ToString()); }
                 try
                 {
                     using var requestTimeout = CancellationTokenSource.CreateLinkedTokenSource(cancellation);
@@ -230,7 +230,7 @@ public sealed partial class ScopedServiceProcess(ScopeStore store, TextWriter? o
                     if (response.IsSuccessStatusCode)
                     {
                         if (WindowsServerProcess.Exited(process!))
-                        { RecordEnded(serviceId, id.ToString("D")); throw new StorageException("process-exited", "El proceso terminó durante el inicio."); }
+                        { RecordEnded(serviceId, id.ToString("D")); throw new StorageException("process-exited", Messages.ServerProcessEndedDuringStartup.ToString()); }
                         if (WindowsListeningPorts.IsOwned(host!, port.Value, id))
                         {
                             var warmups = active["preset-composition"]!.AsArray().SelectMany(c => c!["presets"]!.AsArray())
@@ -242,18 +242,18 @@ public sealed partial class ScopedServiceProcess(ScopeStore store, TextWriter? o
                                 foreach (var name in warmups)
                                     if (!await router.WarmupAsync(name, cancellation)) failures.Add(name);
                                 if (failures.Count != 0)
-                                    throw new StorageException("preset-warmup-failed", "Servicio disponible; precarga fallida: " + string.Join(", ", failures));
+                                    throw new StorageException("preset-warmup-failed", Messages.ServerPreloadFailed.Format(string.Join(", ", failures)));
                             }
                             registry.PromoteHealthy(serviceId, id.ToString("D"), plan.HealthUrl, (int)response.StatusCode,
                                 plan.Timeout, plan.Interval);
                             return id.ToString("D");
                         }
-                        diagnostic = "la escucha no corresponde al grupo de la instancia";
+                        diagnostic = Messages.HealthListenerUnverified.Data();
                     }
-                    else diagnostic = $"HTTP {(int)response.StatusCode}";
+                    else diagnostic = Messages.HealthHttp.Data((int)response.StatusCode);
                 }
-                catch (HttpRequestException) { if (diagnostic == "sin respuesta") diagnostic = "conexión no disponible"; }
-                catch (TaskCanceledException) when (!cancellation.IsCancellationRequested) { if (diagnostic == "sin respuesta") diagnostic = "plazo de consulta agotado"; }
+                catch (HttpRequestException) { if (diagnostic.Code == Messages.HealthNoResponse.Key) diagnostic = Messages.HealthConnectionUnavailable.Data(); }
+                catch (TaskCanceledException) when (!cancellation.IsCancellationRequested) { if (diagnostic.Code == Messages.HealthNoResponse.Key) diagnostic = Messages.HealthTimeout.Data(); }
                 var remaining = plan.Timeout - clock.Elapsed;
                 if (remaining > TimeSpan.Zero) await Task.Delay(remaining < plan.Interval ? remaining : plan.Interval, cancellation);
             }
@@ -263,7 +263,7 @@ public sealed partial class ScopedServiceProcess(ScopeStore store, TextWriter? o
             StopLocked(serviceId, forceRequested, id.ToString("D"));
             throw;
         }
-        throw new StorageException("health-timeout", $"No se confirmó salud ({diagnostic}); se conserva la instancia para reconciliación.");
+        throw new StorageException("health-timeout", Messages.ServerHealthUnconfirmedPreserved.Format(diagnostic));
     }
 
     private void RecordEnded(string serviceId, string instanceId)
@@ -277,12 +277,12 @@ public sealed partial class ScopedServiceProcess(ScopeStore store, TextWriter? o
         var path = store.RuntimeDocumentPath(serviceId, "active");
         var active = store.Read().Documents[path]["data"]!.AsObject();
         var instance = Identity(serviceId, active);
-        if (instance.InstanceId.ToString("D") != instanceId) throw new StorageException("instance-conflict", "La instancia cambió.");
+        if (instance.InstanceId.ToString("D") != instanceId) throw new StorageException("instance-conflict", Messages.ServerInstanceChanged.ToString());
         using var process = WindowsServerProcess.Verified(instance, out var ended);
         using var stream = new FileStream(active["log"]!.GetValue<string>(), FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
         using var reader = new StreamReader(stream);
         var buffer = new char[4096];
-        output.WriteLine("[Primer plano] Ctrl+C: parada ordenada; segundo Ctrl+C: cierre forzado.");
+        output.WriteLine(Messages.ServerForegroundCtrlCGracefulStopSecondCtrl.ToString());
         while (!ended && !WindowsServerProcess.Exited(process!))
         {
             Drain(16);
@@ -326,6 +326,6 @@ public sealed partial class ScopedServiceProcess(ScopeStore store, TextWriter? o
                 "detached", "", 0, false, [], [], "", "", created, executable);
         }
         catch (Exception e) when (e is InvalidOperationException or FormatException or NullReferenceException or ArgumentException)
-        { throw new ConfigurationException("Identidad de proceso incompleta; se conserva el registro y no se actúa sobre el PID."); }
+        { throw new ConfigurationException(Messages.ServerIncompleteProcessIdentity.ToString()); }
     }
 }

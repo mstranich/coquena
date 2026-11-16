@@ -89,34 +89,34 @@ internal static partial class DashboardCli
 
     internal static DefinitionsPresentation.Page RecipesPage(string scope, string? destination, IReadOnlyList<RecipeCombination> items, string? selected, int width, string? busy = null)
     {
-        var rows = new List<string> { " " + Markup.Style("mut", "  " + Pad("COMBINACIÓN", 28) + " " + Pad("ID", 8) + " ESTADO") };
+        var rows = new List<string> { " " + Markup.Style("mut", "  " + Pad(Messages.DefinitionsCombinationColumn.ToString(), 28) + " " + Pad("ID", 8) + Messages.DefinitionsStateColumn.ToString()) };
         foreach (var item in items)
         {
-            var state = item.Id is null ? "sin registrar" : item.Private ? "privada" : item.Current ? "● actual" : "conocida";
+            var state = item.Id is null ? Messages.DefinitionsStateUnregistered.ToString() : item.Private ? Messages.LabelsPrivate.ToString() : item.Current ? Messages.DefinitionsStateCurrent.ToString() : Messages.LabelsKnown.ToString();
             var text = (item.Key == selected ? "▸ " : "  ") + Pad(item.Files, 28) + " " + Pad(item.Id?[..Math.Min(6, item.Id.Length)] ?? "—", 8) + " " + state;
             rows.Add(item.Key == selected ? Markup.Style("focb", DashboardPresentation.Fit(text, width - 2).PadRight(Math.Max(0, width - 2)), "combination:" + item.Key)
                 : Markup.Style("nav", text, "combination:" + item.Key));
         }
-        if (items.Count == 0) rows.Add(" " + Markup.Style("mut", "Sin combinaciones registradas."));
+        if (items.Count == 0) rows.Add(" " + Markup.Style("mut", Messages.DefinitionsNoCombinations.ToString()));
         var chosen = items.FirstOrDefault(item => item.Key == selected);
         rows.Add("");
-        rows.Add(" " + ManagementPresentation.Button("+ Nueva combinación…", "recipe-new") + " " +
-            (chosen is null ? DefinitionsPresentation.Off("Editar") : ManagementPresentation.Button("Editar", "recipe-edit")) + " " +
-            (chosen?.Id is null ? DefinitionsPresentation.Off("Olvidar") : ManagementPresentation.Button("Olvidar", "recipe-forget")));
+        rows.Add(" " + ManagementPresentation.Button(Messages.DefinitionsNewCombinationButton.ToString(), "recipe-new") + " " +
+            (chosen is null ? DefinitionsPresentation.Off(Messages.LabelsEdit.ToString()) : ManagementPresentation.Button(Messages.LabelsEdit.ToString(), "recipe-edit")) + " " +
+            (chosen?.Id is null ? DefinitionsPresentation.Off(Messages.LabelsForget.ToString()) : ManagementPresentation.Button(Messages.LabelsForget.ToString(), "recipe-forget")));
         rows.Add("");
         if (chosen is not null)
-            rows.Add(" " + Markup.Style("mut", "archivos") + " " + string.Join(" " + Markup.Style("mut", "→") + " ",
+            rows.Add(" " + Markup.Style("mut", Messages.LabelsFiles.ToString()) + " " + string.Join(" " + Markup.Style("mut", "→") + " ",
                 chosen.Selection.Files.Concat(chosen.Selection.EnvFiles).Select(file => Markup.Escape(Path.GetFileName(file)))));
-        rows.Add(" " + Markup.Style("mut", (chosen?.Private == true ? "☑" : "☐") + " preparación privada"));
+        rows.Add(" " + Markup.Style("mut", (chosen?.Private == true ? "☑" : "☐") + Messages.EditorPrivatePreparationCheck.ToString()));
         rows.Add("");
         // While Up runs, its button keeps its place, disabled, with the spinner, and a status row says so.
         var spinner = DashboardPresentation.Spinner();
         rows.Add(" " + (busy is null ? ManagementPresentation.Button("▲ Up", "up") : DefinitionsPresentation.Off((busy == "up" ? spinner : "▲") + " Up")) + " " +
             (busy is null && chosen is not null ? ManagementPresentation.Button("▼ Down", "down") : DefinitionsPresentation.Off((busy == "down" ? spinner : "▼") + " Down")) + " " +
-            (chosen is null || busy is not null ? DefinitionsPresentation.Off("Importar") : ManagementPresentation.Button("Importar", "recipe-import")) + " " + DefinitionsPresentation.Off("Ver en vivo"));
+            (chosen is null || busy is not null ? DefinitionsPresentation.Off(Messages.LabelsImport.ToString()) : ManagementPresentation.Button(Messages.LabelsImport.ToString(), "recipe-import")) + " " + DefinitionsPresentation.Off(Messages.AuthoringViewLiveButton.ToString()));
         if (busy is not null)
-            rows.Add(" " + Markup.Style("warn", spinner + " ") + Markup.Style("mut", (busy == "down" ? "Deteniendo" : "Ejecutando Up") + "… Se puede cambiar de vista; la operación sigue."));
-        return new("Recetas de " + Markup.Escape(scope) + (destination is null ? "" : " " + Markup.Style("mut", "→") + " " + Markup.Escape(destination)), rows);
+            rows.Add(" " + Markup.Style("warn", spinner + " ") + Markup.Style("mut", Messages.EditorBackgroundProgress.Format(busy == "down" ? Messages.LabelsStopping.ToString() : Messages.EditorRunningUp.ToString())));
+        return new(Messages.RecipesInScope.Format(Markup.Escape(scope)) + (destination is null ? "" : " " + Markup.Style("mut", "→") + " " + Markup.Escape(destination)), rows);
 
         static string Pad(string text, int size) => DashboardPresentation.Fit(text, size - 1).PadRight(size);
     }
@@ -218,7 +218,7 @@ internal static partial class DashboardCli
         public void Stage(string path, byte[] bytes)
         {
             var at = Files.FindIndex(file => file.Path.Equals(path, StringComparison.OrdinalIgnoreCase));
-            if (at < 0) throw new ArgumentException("El archivo no pertenece a la combinación abierta.");
+            if (at < 0) throw new ArgumentException(Messages.EditorFileNotInCombination.ToString());
             Files[at].View.Text = RecipeYaml.ReadText(path, false, bytes);
             Diff(Files[at]); Validated = false; Show(at); Changed?.Invoke();
         }
@@ -302,18 +302,17 @@ internal static partial class DashboardCli
                 return i == Current ? Markup.Style("sel", label, "tab:" + i) : Markup.Style("nav", label, "tab:" + i);
             }));
             Tabs.Rows = [tabs + "{pad}" + Markup.Style("mut", Status ?? clock) + " "];
-            Tools.Rows = [" " + Button("Guardar", "save") + " " + Button("Validar", "validate") + " " +
+            Tools.Rows = [" " + Button(Messages.LabelsSave.ToString(), "save") + " " + Button(Messages.LabelsValidate.ToString(), "validate") + " " +
                 (ImportedContext is null ? Button("▲ Up", "up") : DefinitionsPresentation.Off("▲ Up")) + " " +
-                (ImportedContext is null ? Button("▼ Down", "down") : DefinitionsPresentation.Off("▼ Down")) + "   " + Button("Copiar", "copy") + " " + Button("Cortar", "cut") + " " + Button("Pegar", "paste") +
-                "{pad}" + Button("Cerrar", "close") + " "];
-            ValidationTitle.Rows = [" Validación" + (Problems.Count > 1 ? Markup.Style("mut", " · " + Problems.Count + " problemas" +
-                (Problems.Count > ValidationRows ? ", se muestran " + ValidationRows : "")) : "")];
+                (ImportedContext is null ? Button("▼ Down", "down") : DefinitionsPresentation.Off("▼ Down")) + "   " + Button(Messages.LabelsCopy.ToString(), "copy") + " " + Button(Messages.LabelsCut.ToString(), "cut") + " " + Button(Messages.LabelsPaste.ToString(), "paste") +
+                "{pad}" + Button(Messages.LabelsClose.ToString(), "close") + " "];
+            ValidationTitle.Rows = [Messages.EditorValidationTitle.ToString() + (Problems.Count > 1 ? Markup.Style("mut", " · " + (Problems.Count > ValidationRows ? Messages.EditorValidationProblemsShowing.Format(Problems.Count, ValidationRows) : Messages.EditorValidationProblems.Format(Problems.Count))) : "")];
             Validation.Height = ValidationRows;
             Validation.Rows = Problems.Count != 0
                 ? Problems.Take(ValidationRows).Select((problem, i) => " " + Markup.Style("err", "✗") + " " + Markup.Style("nav", Markup.Escape(DashboardPresentation.Fit(
                     (problem.Line is { } line ? Messages.AtLine(System.IO.Path.GetFileName(problem.File), line) : "") + problem.Message, width - 4)), "problem:" + i)).ToArray()
                 : [Validated ? " " + Markup.Style("ok", "✓") + " " + Markup.Style("mut", Messages.RecipeValid)
-                : " " + Markup.Style("mut", "Sin validar. Validar comprueba los borradores sin guardarlos.")];
+                : " " + Markup.Style("mut", Messages.EditorNotValidatedHint.ToString())];
         }
 
         private static string Button(string text, string action) => Markup.Style("btn", " " + text + " ", action);

@@ -32,15 +32,15 @@ public sealed class RecipeImporter(ScopeContext context)
         Func<string, bool>? running = null, Func<string, IPresetRouter?>? router = null,
         Action<ScopeWriteStage>? fault = null, CancellationToken cancellation = default, Action<PublicationStage>? publicationFault = null)
     {
-        if (!context.IsGlobal) throw new ArgumentException("Import requiere ámbito global.");
+        if (!context.IsGlobal) throw new ArgumentException(Messages.ProjectImportRequiresGlobalScope.ToString());
         var replacements = replace?.ToArray() ?? [];
         if (force && (select is not null || replacements.Length != 0))
-            throw new RecipeException("import-option-conflict", "import", new(selection.Files[0], 1, 1, "$selection"), "Force no admite select ni replace.");
+            throw new RecipeException("import-option-conflict", "import", new(selection.Files[0], 1, 1, "$selection"), Messages.RecipeForceDoesNotAcceptSelectOrReplace.ToString());
         if (select is not null)
         {
             var categories = select.Split(',');
             if (categories.Distinct(StringComparer.Ordinal).Count() != categories.Length || categories.Any(c => c is not ("service" or "presets" or "model" or "params")))
-                throw new RecipeException("invalid-import-selection", "import", new(selection.Files[0], 1, 1, "$selection"), "Categorías inválidas, vacías o repetidas.");
+                throw new RecipeException("invalid-import-selection", "import", new(selection.Files[0], 1, 1, "$selection"), Messages.RecipeInvalidEmptyOrRepeatedCategories.ToString());
             selection = new(selection.Base, selection.Files, selection.Base, selection.EnvFiles) { ImportCategories = categories.ToHashSet(StringComparer.Ordinal) };
         }
         else selection = new(selection.Base, selection.Files, selection.Base, selection.EnvFiles);
@@ -63,7 +63,7 @@ public sealed class RecipeImporter(ScopeContext context)
             r["source-volume"]?.GetValue<string>() == physical.Volume && r["source-file-id"]?.GetValue<string>() == physical.FileId &&
             (r["source-files"]?.AsArray().FirstOrDefault()?.GetValue<string>().Equals(files[0]!.GetValue<string>(), StringComparison.OrdinalIgnoreCase) == true ||
              r["source-entrypoint-volume"]?.GetValue<string>() == entrypoint.Volume && r["source-entrypoint-file-id"]?.GetValue<string>() == entrypoint.FileId)).ToArray();
-        if (associations.Length > 1) throw new StorageException("import-source-identity-conflict", "Varias asociaciones reclaman la fuente; no se infiere propietario ni nombre.");
+        if (associations.Length > 1) throw new StorageException("import-source-identity-conflict", Messages.ProjectAmbiguousSourceAssociations.ToString());
         var association = associations.SingleOrDefault()?.AsObject();
         if (association is null)
         {
@@ -92,11 +92,11 @@ public sealed class RecipeImporter(ScopeContext context)
             var path = $"services/{service.ServiceId}/recipe.yaml";
             if (roots.ContainsKey(path)) continue;
             var file = context.PathFor(path);
-            if (!File.Exists(file)) throw new StorageException("missing-service-intention", "Falta la intención del servicio registrado; no se sustituye por una importación implícita.");
+            if (!File.Exists(file)) throw new StorageException("missing-service-intention", Messages.ProjectServiceIntentionMissing.ToString());
             inputs[file] = RecipeYaml.ReadBytes(file); roots[path] = new RecipeYaml(file, inputs[file]).Read(); bases[path] = new JsonObject();
         }
         if (!roots.ContainsKey("recipe.yaml") && File.Exists(context.PathFor("recipe.yaml")))
-            throw new StorageException("unregistered-global-intention", "Existe intención global sin una generación registrada; se conserva sin sobrescribir ni adoptar por existencia.");
+            throw new StorageException("unregistered-global-intention", Messages.ProjectGlobalIntentionUnregistered.ToString());
         roots.TryAdd("recipe.yaml", Map([])); bases.TryAdd("recipe.yaml", new JsonObject());
         var originalRoots = roots.ToDictionary(StringComparer.Ordinal);
         var common = roots["recipe.yaml"].Fields.ToDictionary(StringComparer.Ordinal);
@@ -119,7 +119,7 @@ public sealed class RecipeImporter(ScopeContext context)
                 value = ParameterIntention(sourceSchema!, key, source.SourceRoot);
             }
             else value = source.SourceRoot.Get(kind switch { "service" => "service", "preset" => "presets", "model" => "models", _ => "companions" }) is { } group
-                ? kind == "service" ? group : group.Get(key)! : throw new StorageException("invalid-import-intention", "Entidad de origen ausente.");
+                ? kind == "service" ? group : group.Get(key)! : throw new StorageException("invalid-import-intention", Messages.ProjectSourceEntityMissing.ToString());
             if (kind == "preset")
             {
                 var fields = value.Fields.ToDictionary(StringComparer.Ordinal);
@@ -147,7 +147,7 @@ public sealed class RecipeImporter(ScopeContext context)
                 }
                 else
                 {
-                    if (registeredName is "global" or "default" or "self") throw new StorageException("reserved-service-name", "Nombre de servicio reservado.");
+                    if (registeredName is "global" or "default" or "self") throw new StorageException("reserved-service-name", Messages.ProjectReservedServiceName.ToString());
                     owner = association; serviceId = ProjectDocuments.Id();
                     owner["entities"]!.AsArray().Add((JsonNode)new JsonObject { ["kind"] = "service", ["name"] = registeredName, ["id"] = serviceId, ["owner"] = owner["recipe-id"]!.DeepClone() });
                 }
@@ -180,25 +180,25 @@ public sealed class RecipeImporter(ScopeContext context)
         if (selectedOperation is not null)
         {
             if (selectedOperation["global"]?.GetValue<bool>() != true || selectedOperation["target-scope-id"]?.GetValue<string>() != before.ScopeId)
-                throw new StorageException("import-publication-conflict", "La operación pendiente no pertenece al ámbito global comprobado.");
+                throw new StorageException("import-publication-conflict", Messages.ProjectPendingOpOutsideGlobalScope.ToString());
             serviceId = selectedOperation["service-id"]!.GetValue<string>();
         }
         else if (pending.Count != 0 && serviceId is null)
             serviceId = new RecipeRegistry(store).ResolveGlobalService(GlobalSelector(source.Target));
         var knownService = new RecipeRegistry(store).Services().Any(s => s.ServiceId == serviceId);
-        if (selectedOperation is not null && !knownService) throw new StorageException("import-publication-conflict", "El destino pendiente ya no está registrado; no se redirige al alias actual.");
+        if (selectedOperation is not null && !knownService) throw new StorageException("import-publication-conflict", Messages.ProjectPendingTargetUnregistered.ToString());
         var live = pending.Count != 0 && knownService && (running?.Invoke(serviceId!) ?? new ScopedServiceProcess(store).Reconcile(serviceId!));
-        if (live && !interactive) throw new StorageException("interaction-required", "Publicar presets importados en una instancia activa requiere interacción.");
+        if (live && !interactive) throw new StorageException("interaction-required", Messages.ProjectImportPresetsInteractiveRequired.ToString());
         var selectedRouter = live ? router?.Invoke(serviceId!) : null;
         var activePath = serviceId is null ? null : store.RuntimeDocumentPath(serviceId, "active");
         var expectedInstance = live ? store.Read().Documents.GetValueOrDefault(activePath!)?["data"]?["instance-id"]?.GetValue<string>() : null;
-        if (live && selectedRouter is null) throw new StorageException("publication-unsupported", "Falta un adaptador del router activo.");
+        if (live && selectedRouter is null) throw new StorageException("publication-unsupported", Messages.ProjectActiveRouterAdapterMissing.ToString());
         if (knownService && PresetPublication.Service(store.Read(), serviceId!)["publication-operation"] is JsonNode operation)
         {
             var ownerId = operation["recipe-id"]!.GetValue<string>();
             var owned = pending.SingleOrDefault(p => p.Owner["recipe-id"]!.GetValue<string>() == ownerId);
             if (owned.Owner is null || association["import-pending"] is not JsonArray savedPending || !savedPending.Any(n => n!.GetValue<string>() == owned.Key))
-                throw new StorageException("publication-pending", "La operación pendiente corresponde a otra publicación.");
+                throw new StorageException("publication-pending", Messages.ProjectPendingOpAnotherPublication.ToString());
             var reconciled = await new PresetPublication(store, store, serviceId!).ReconcileAsync(ownerId, selectedRouter, !live, cancellation);
             var wasRestoring = operation["restoring"]?.GetValue<bool>() == true;
             var latestOwner = store.Read().Documents[Registry]["data"]!["recipes"]!.AsArray().Single(r => r!["recipe-id"]!.GetValue<string>() == ownerId)!;
@@ -285,14 +285,14 @@ public sealed class RecipeImporter(ScopeContext context)
         void Validate()
         {
             if (Changed(inputs))
-                throw new StorageException("intention-conflict", "Cambió la fuente o intención global durante import.");
+                throw new StorageException("intention-conflict", Messages.ProjectIntentionChangedDuringImport.ToString());
         }
         Validate();
         var current = store.Read();
         RecipeRegistry.ValidateRuntimeBindings(current, new JsonArray(prepared.Resources.Select(r => (JsonNode?)new JsonObject
         { ["resource-id"] = r.ResourceId, ["installation-id"] = r.InstallationId }).ToArray()));
         if (!JsonNode.DeepEquals(before.Documents.GetValueOrDefault(Registry)?["data"], current.Documents.GetValueOrDefault(Registry)?["data"]))
-            throw new StorageException("import-conflict", "Cambió el registro durante la preparación.");
+            throw new StorageException("import-conflict", Messages.ProjectRegistryChangedDuringPreparation.ToString());
         var next = RecipeRegistry.Next(current); next[Registry] = ProjectDocuments.Create("recipe-registry", next.GetValueOrDefault(Registry)?["revision"]?.GetValue<long>() ?? 1, documents[Registry]["data"]!.AsObject());
         foreach (var resource in prepared.Resources)
             if (resource.Kind == "backend" && chosen.Categories.Contains("service") ||
@@ -307,7 +307,7 @@ public sealed class RecipeImporter(ScopeContext context)
             var destination = context.PathFor(pair.Key);
             if (File.Exists(destination) && sourceIdentities.Contains(PhysicalDirectory.Read(destination)) &&
                 !RecipeYaml.ReadBytes(destination).AsSpan().SequenceEqual(ProjectDocuments.Utf8.GetBytes(text)))
-                throw new StorageException("import-source-conflict", "La publicación modificaría un archivo fuente; se conserva el original.");
+                throw new StorageException("import-source-conflict", Messages.ProjectPublicationWouldModifySource.ToString());
             var data = new JsonObject { ["text"] = text, ["path-bases"] = bases[pair.Key].DeepClone() };
             next[pair.Key] = ProjectDocuments.Create("recipe-intention", next.GetValueOrDefault(pair.Key)?["revision"]?.GetValue<long>() ?? 1, data);
         }
@@ -323,12 +323,12 @@ public sealed class RecipeImporter(ScopeContext context)
         void ValidatePublication()
         {
             if (Changed(sourceInputs))
-                throw new StorageException("intention-conflict", "Cambió la fuente antes de publicar presets importados.");
+                throw new StorageException("intention-conflict", Messages.ProjectSourceChangedBeforePublish.ToString());
             foreach (var path in pending.Select(p => p.Path).Append("recipe.yaml"))
                 if (SharedFile.ReadAllText(context.PathFor(path)) != next[path]["data"]!["text"]!.GetValue<string>())
-                    throw new StorageException("intention-conflict", "Cambió la intención global antes de publicar.");
+                    throw new StorageException("intention-conflict", Messages.ProjectGlobalChangedBeforePublish.ToString());
             if (expectedInstance is not null && ProjectDocuments.Read(SharedFile.ReadAllBytes(context.PathFor(activePath!)), "active")["data"]?["instance-id"]?.GetValue<string>() != expectedInstance)
-                throw new StorageException("instance-conflict", "Cambió la instancia durante la importación.");
+                throw new StorageException("instance-conflict", Messages.ProjectInstanceChangedDuringImport.ToString());
         }
         var warmupFailed = false;
         try
@@ -361,11 +361,11 @@ public sealed class RecipeImporter(ScopeContext context)
             }
         }
         catch (OperationCanceledException e)
-        { throw new OperationCanceledException("Intención importada; publicación cancelada y remanentes conservados.", e, cancellation); }
+        { throw new OperationCanceledException(Messages.ProjectImportPublicationCancelled.ToString(), e, cancellation); }
         catch (StorageException e)
-        { throw new StorageException(e.Code, "Intención importada; publicación incompleta y remanentes conservados. Causa: " + e.Code + ".", true, e); }
+        { throw new StorageException(e.Code, Messages.ProjectImportIncompleteCause.Format(e.Code), true, e); }
         catch (IOException e)
-        { throw new StorageException("import-publication-io", "Intención importada; fallo de escritura de publicación y remanentes conservados.", true, e); }
+        { throw new StorageException("import-publication-io", Messages.ProjectImportPublicationWriteFailed.ToString(), true, e); }
         return new(true, warmupFailed, Remaining(association));
 
         string[] Remaining(JsonObject owner) => store.Read().Documents[Registry]["data"]!["recipes"]!.AsArray()
@@ -378,15 +378,14 @@ public sealed class RecipeImporter(ScopeContext context)
                 var old = Normalize(previous, selector); var next = Normalize(value, selector);
                 var changed = old.Fields.Keys.Union(next.Fields.Keys, StringComparer.Ordinal)
                     .Where(k => old.Get(k) is not { } a || next.Get(k) is not { } b || !Equivalent(a, b)).Order(StringComparer.Ordinal).ToArray();
-                var fields = changed.Length == 0 ? (Equivalent(old, next) ? "base de rutas" : "valor/forma") : string.Join(", ", changed);
+                var fields = changed.Length == 0 ? (Equivalent(old, next) ? Messages.ProjectPathBase.ToString() : "valor/forma") : string.Join(", ", changed);
                 var key = selector[(selector.IndexOf(':') + 1)..];
                 var kind = selector[..selector.IndexOf(':')];
-                var impact = kind == "param" ? "Asignaciones directas del argumento en destino: " + roots.Values.Sum(root => CountAssignments(root, key)) :
-                    kind is "model" or "companion" ? "Referencias tipadas en intención global: " + roots.Values.Sum(root => CountReferences(root, kind + "://" + key)) :
-                    kind == "preset" ? "Publicaciones registradas del nombre: " + recipes.Sum(r => (r!["publications"] as JsonArray ?? []).Sum(p => p!["presets"]!.AsArray().Count(v => v!["name"]!.GetValue<string>() == key))) :
-                    "Consumidores del servicio: " + recipes.SelectMany(r => r!["entities"]!.AsArray()).Where(e => e!["kind"]!.GetValue<string>() == "service" && e["name"]!.GetValue<string>() == key).Sum(e => (e!["consumers"] as JsonArray ?? []).Count);
-                throw new StorageException("import-entity-conflict", "Contenido global diferente: " + selector + ". Campos: " + fields +
-                    ". " + impact + ". Se conservan intención, publicaciones y revisiones activas. Autorizar reemplazo explícito.");
+                var impact = kind == "param" ? Messages.ProjectImportImpactAssignments.Format(roots.Values.Sum(root => CountAssignments(root, key))) :
+                    kind is "model" or "companion" ? Messages.ProjectImportImpactReferences.Format(roots.Values.Sum(root => CountReferences(root, kind + "://" + key))) :
+                    kind == "preset" ? Messages.ProjectImportImpactPublications.Format(recipes.Sum(r => (r!["publications"] as JsonArray ?? []).Sum(p => p!["presets"]!.AsArray().Count(v => v!["name"]!.GetValue<string>() == key)))) :
+                    Messages.ProjectImportImpactServiceConsumers.Format(recipes.SelectMany(r => r!["entities"]!.AsArray()).Where(e => e!["kind"]!.GetValue<string>() == "service" && e["name"]!.GetValue<string>() == key).Sum(e => (e!["consumers"] as JsonArray ?? []).Count));
+                throw new StorageException("import-entity-conflict", Messages.ProjectImportEntityConflict.Format(selector, fields, impact));
             }
         }
         void AddBases(JsonObject pathBases, string prefix, RecipeValue value, string kind)
@@ -432,7 +431,7 @@ public sealed class RecipeImporter(ScopeContext context)
     private FileStream ImportLease()
     {
         try { return new FileStream(context.PathFor("local/import.lock"), FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None); }
-        catch (IOException e) { throw new StorageException("import-busy", "Otra importación está en curso.", inner: e); }
+        catch (IOException e) { throw new StorageException("import-busy", Messages.ProjectAnotherImportIsInProgress.ToString(), inner: e); }
     }
     private static ValidatedArgumentBlock CliBlock(ValidatedArgumentBlock block, IArgumentAdapter adapter) => block with
     { Arguments = block.Arguments.Where(p => adapter.Supports(p.Key, "preset", "cli")).ToDictionary(p => p.Key, p => p.Value, StringComparer.Ordinal) };

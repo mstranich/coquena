@@ -27,7 +27,7 @@ public static class SystemMetrics
         {
             cancellation.ThrowIfCancellationRequested();
             var now = DateTimeOffset.UtcNow;
-            return Task.FromResult(new HardwareSnapshot("unsupported", now, now, [], [], ["Sistema operativo sin proveedor de métricas."]));
+            return Task.FromResult(new HardwareSnapshot("unsupported", now, now, [], [], [Messages.ObservationOperatingSystemWithoutMetricsProvider.ToString()]));
         }
     }
 }

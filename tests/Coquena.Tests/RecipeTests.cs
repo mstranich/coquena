@@ -29,7 +29,7 @@ internal static class RecipeTests
         RecipeValue Args(EffectiveRecipe recipe) => recipe.Root.Get("presets")!.Get("p")!.Get("args")!;
 
         var editable = Read("");
-        Check(editable.Root.Fields.Count == 0 && editable.Target == "global" && editable.ArgsMode == "permissive", "empty editable recipe and defaults");
+        Check(editable.Root.Fields.Count == 0 && editable.Target == Messages.RetentionGlobal.ToString() && editable.ArgsMode == "permissive", "empty editable recipe and defaults");
         Check(!Directory.Exists(Path.Combine(root, ".coquena")), "pure reading creates no project state");
         Check(Read("{}").Root.Fields.Count == 0, "flow root");
         Check(Read("# comentario\n").Root.Fields.Count == 0, "comment-only root");

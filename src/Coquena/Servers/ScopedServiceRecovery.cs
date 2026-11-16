@@ -26,15 +26,15 @@ public sealed partial class ScopedServiceProcess
         var running = ReconcileLocked(serviceId);
         var before = store.Read();
         if (PresetPublication.Service(before, serviceId)["publication-operation"] is not null)
-            throw new StorageException("publication-pending", "Reconciliar la publicación antes de iniciar o reiniciar.");
+            throw new StorageException("publication-pending", Messages.ServerReconcileBeforeStart.ToString());
         var activePath = store.RuntimeDocumentPath(serviceId, "active");
         var originalInstance = running ? before.Documents[activePath]["data"]!["instance-id"]!.GetValue<string>() : null;
         if (expectedInstanceId is not null && originalInstance != expectedInstanceId)
-            throw new StorageException("instance-conflict", "La instancia cambió desde que se confirmó la operación.");
+            throw new StorageException("instance-conflict", Messages.ServerInstanceChangedSinceConfirm.ToString());
         if (running && !restart) return originalInstance!;
         var good = before.Documents.GetValueOrDefault(store.RuntimeDocumentPath(serviceId, "last-good"))?["data"]?.DeepClone().AsObject();
         if (good is not null && good["service-id"]?.GetValue<string>() != serviceId)
-            throw new StorageException("instance-conflict", "La última buena no corresponde al servicio seleccionado.");
+            throw new StorageException("instance-conflict", Messages.ServerLastGoodVersionDoesNotMatchSelected.ToString());
         string? failedCandidate = null, failedCode = null;
         var recoveryResult = "not-attempted";
         var available = running;
@@ -76,7 +76,7 @@ public sealed partial class ScopedServiceProcess
                     if (ReconcileLocked(serviceId))
                         StopLocked(serviceId, forceRequested, candidateId);
                     running = false; available = false;
-                    ReportRecovery(serviceId, $"La nueva configuración no arrancó ({code}).");
+                    ReportRecovery(serviceId, Messages.ServerNewConfigurationDidNotStart.Format(code));
                     var choice = detached ? ServiceRecoveryChoice.LastGood : decide?.Invoke(code, good is not null) ?? ServiceRecoveryChoice.Cancel;
                     if (choice == ServiceRecoveryChoice.Retry) continue;
                     if (choice != ServiceRecoveryChoice.LastGood || good is null)
@@ -107,7 +107,7 @@ public sealed partial class ScopedServiceProcess
                         RecordRecovery(serviceId, code, "last-good-failed", recoveryId, FailureCode(recoveryFailure));
                         ReportRecovery(serviceId, Messages.RecoveryFailed(FailureCode(recoveryFailure)));
                         if (FailureCode(recoveryFailure).Contains("integrity", StringComparison.Ordinal)) throw;
-                        throw new StorageException("service-recovery-failed", $"Falló candidata ({code}) y última buena ({FailureCode(recoveryFailure)}).", inner: recoveryFailure);
+                        throw new StorageException("service-recovery-failed", Messages.ServerCandidateAndLastGoodVersionFailed.Format(code, FailureCode(recoveryFailure)), inner: recoveryFailure);
                     }
                 }
                 catch (Exception fatal) when (FailureCode(fatal).Contains("integrity", StringComparison.Ordinal) || FailureCode(fatal) is
@@ -144,7 +144,7 @@ public sealed partial class ScopedServiceProcess
 
     private void ReportRecovery(string serviceId, string message, bool warning = true)
     {
-        var line = $"[Servicio] {message}";
+        var line = Messages.ServerRecoveryLine.Format(message);
         (warning ? diagnostics ?? output : output)?.WriteLine(line);
         var path = store.Context.PathFor($"local/runtime/{serviceId}/recovery.log");
         try
@@ -153,7 +153,7 @@ public sealed partial class ScopedServiceProcess
             File.AppendAllText(path, $"{DateTimeOffset.UtcNow:O} {line}{Environment.NewLine}");
         }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException)
-        { (diagnostics ?? output)?.WriteLine("[Aviso] No se pudo escribir el log de recuperación."); }
+        { (diagnostics ?? output)?.WriteLine(Messages.ServerWarningCouldNotWriteRecoveryLog.ToString()); }
     }
 
     private static string FailureCode(Exception failure) => failure switch
