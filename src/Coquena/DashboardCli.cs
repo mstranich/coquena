@@ -1499,8 +1499,6 @@ internal static partial class DashboardCli
                     if (action is "preset-next" or "preset-prev")
                     { managedSelection[context.Root + "presets"] = items[Math.Clamp(Array.IndexOf(items, chosen) + (action == "preset-next" ? 4 : -4), 0, items.Length - 1)].Id; }
                     else if (action == "preset-edit") { OpenEditor(chosen.Recipe.Selection, place.Scope.Name, AuthorPrivate(place, chosen.Recipe.Selection)); FocusOrigin(chosen.Value.Origin); return; }
-                    else if (action == "preset-detail") Choose(app, chosen.Name, [Messages.PresetDetailRecipe.Format(chosen.Recipe.Name), Messages.PresetDetailFile.Format(chosen.Value.Origin.File),
-                        chosen.Value.Redacted()?.ToJsonString() ?? "—", Messages.PresetDetailPublication.Format(chosen.Published is null ? Messages.PresetPublicationNoEvidence.ToString() : Messages.PresetPublicationSnapshotNote.ToString())], null);
                     else if (action == "preset-clone")
                     {
                         // An invalid name says why and reopens the form with what was typed.
@@ -1576,7 +1574,6 @@ internal static partial class DashboardCli
                                 if (Query(app, Messages.ParameterRemoveTitle.Format(chosen.Name), Messages.ParameterRemoveConfirm.Format(string.Join(", ", chosen.Uses)), Messages.LabelsCancel.ToString(), Messages.AuthoringOpenDraftButton.ToString()) != 1) return;
                                 StageEdit(chosen.Recipe.Selection, place.Scope.Name, ParameterFile(chosen.Recipe), ["parameters", chosen.Name], new EditRemove(), true); return;
                             }
-                            if (action == "param-detail") Choose(app, Messages.ParameterEffectiveTitle.Format(chosen.Name), [Messages.ParameterDetailSource.Format(chosen.Value.Origin.File), chosen.Value.Redacted()?.ToJsonString() ?? "—", Messages.ParameterDetailUsedBy.Format(string.Join(", ", chosen.Uses))], null);
                         }
                     }
                     definitionPage = null; Render(); return;

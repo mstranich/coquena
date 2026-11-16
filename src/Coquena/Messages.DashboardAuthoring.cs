@@ -133,17 +133,11 @@ public static partial class Messages
     public static readonly Text UpdatesApplyTitle = new("Update \u00B7 {0}");
     public static readonly Text UpdatesApplyConfirm = new("{0}\nApplies the persisted plan as a set; does not modify YAML or restart services.");
     public static readonly Text UpdatesAppliedIn = new("Update in {0}\n{1}");
-    public static readonly Text PresetDetailRecipe = new("Recipe: {0}");
-    public static readonly Text PresetDetailFile = new("File: {0}");
-    public static readonly Text PresetDetailPublication = new("Publication: {0}");
     public static readonly Text PresetCloneTitle = new("Clone preset \u00B7 {0}");
     public static readonly Text PresetAlreadyExists = new("A preset named \u201C{0}\u201D already exists in this combination.");
     public static readonly Text PresetRemoveTitle = new("Remove definition \u00B7 {0}");
     public static readonly Text ParameterRemoveTitle = new("Remove definition \u00B7 {0}");
     public static readonly Text ParameterRemoveConfirm = new("Assignments in the selection: {0}\nValues and resources are preserved. Strict mode and rules are validated before saving is allowed.");
-    public static readonly Text ParameterEffectiveTitle = new("{0} \u00B7 effective definition");
-    public static readonly Text ParameterDetailSource = new("Source: {0}");
-    public static readonly Text ParameterDetailUsedBy = new("Used by: {0}");
     public static readonly Text VerifyScopeTitle = new("Verify \u00B7 {0}");
     public static readonly Text CombinationForgetTitle = new("Forget combination \u00B7 {0}");
     public static readonly Text CombinationForgetConfirm = new("{0} \u00B7 {1}\nRemoves it from the .coquena registry. YAML, weights and publications are preserved; an active instance stays unchanged.");

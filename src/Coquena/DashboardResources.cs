@@ -294,7 +294,7 @@ internal static partial class DashboardCli
             }
             else rows.Add(" " + Markup.Style("mut", Messages.ResourceCompatibilityLabel.ToString()) + Escape(BackendCompatibility(current, hardware)));
             rows.Add(" " + Markup.Style("mut", Messages.ResourceLocalReferencesLabel.ToString()) + Escape(current.References.Length == 0 ? Messages.ResourceNoReferencesRecorded.ToString() : string.Join(", ", current.References)));
-            rows.Add(" " + ManagementPresentation.Button(Messages.ResourceFilesAndObservationsButton.ToString(), "resource-detail"));
+            rows.Add(" " + ManagementPresentation.Button(Messages.LabelsDetails.ToString(), "resource-detail"));
             rows.Add(" " + (backend && current.External ? Markup.Style("mut", Messages.ResourceExternalOwnershipPreserved.ToString()) :
                 ManagementPresentation.Button(current.Protected ? Messages.ResourceRemoveProtectionButton.ToString() : Messages.LabelsProtect.ToString(), "resource-protect")) +
                 (!backend ? " " + ManagementPresentation.Button(Messages.LabelsVerify.ToString(), "resource-verify") : ""));

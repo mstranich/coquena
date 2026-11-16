@@ -79,7 +79,7 @@ internal static partial class DashboardCli
             }
             rows.Add(" " + Markup.Style("mut", Messages.AuthoringPublishedSnapshotNote.ToString()));
             rows.Add(" " + ManagementPresentation.Button(Messages.LabelsClone.ToString(), "preset-clone") + " " + ManagementPresentation.Button(Messages.AuthoringEditYamlButton.ToString(), "preset-edit") + " " + ManagementPresentation.Button(Messages.LabelsRemove.ToString(), "preset-remove"));
-            rows.Add(" " + (chosen.Target is null ? DefinitionsPresentation.Off(Messages.AuthoringViewLiveButton.ToString()) : ManagementPresentation.Button(Messages.AuthoringViewLiveButton.ToString(), "preset-live")) + " " + ManagementPresentation.Button(Messages.LabelsDetails.ToString(), "preset-detail"));
+            rows.Add(" " + (chosen.Target is null ? DefinitionsPresentation.Off(Messages.AuthoringViewLiveButton.ToString()) : ManagementPresentation.Button(Messages.AuthoringViewLiveButton.ToString(), "preset-live")));
         }
         return new(Messages.PresetsInScope.Format(Markup.Escape(scope)) + "{pad}" + ManagementPresentation.CombinationButton(combination), rows);
     }
@@ -146,7 +146,6 @@ internal static partial class DashboardCli
         rows.Add(" " + ManagementPresentation.Button(Messages.LabelsDefine.ToString(), "param-define") + " " +
             (chosen is null ? DefinitionsPresentation.Off(Messages.LabelsEdit.ToString()) : ManagementPresentation.Button(Messages.LabelsEdit.ToString(), "param-edit")) + " " +
             (chosen is null ? DefinitionsPresentation.Off(Messages.AuthoringRemoveDefinitionButton.ToString()) : ManagementPresentation.Button(Messages.AuthoringRemoveDefinitionButton.ToString(), "param-remove")));
-        if (chosen is not null) rows.Add(" " + ManagementPresentation.Button(Messages.LabelsDetails.ToString(), "param-detail"));
         return new(Messages.ParametersInScope.Format(Markup.Escape(scope)) + "{pad}" + ManagementPresentation.CombinationButton(combination), rows);
     }
 

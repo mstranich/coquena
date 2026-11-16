@@ -149,6 +149,10 @@ progreso de una descarga se consulta en Descargas y su resultado queda como avis
 de la sesión, sin interrumpir con un modal.
 Los detalles muestran argumentos redactados y consumidores según las publicaciones
 registradas, separados del estado observado del proceso.
+En Modelos y Backends, Detalle… reúne lo que el panel resume: propiedad,
+identificadores de instalación y recurso, archivos con su tamaño, la última
+verificación y las referencias locales. Presets y Parámetros no tienen Detalle:
+el panel ya muestra su origen, valores y capas, y Editar YAML abre la definición.
 
 Configuración lee el valor efectivo al abrir y después de guardar o
 restablecer. Guardar asigna el valor elegido y restablecer elimina el override

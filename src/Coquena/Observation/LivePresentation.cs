@@ -39,7 +39,7 @@ internal static class LivePresentation
         var notice = active == 4 ? Style("sel", " ▲ " + notices + " ", "notices")
             : Style(notices > 0 ? "warn" : "mut", "▲ " + notices, "notices");
         // Configuración is the icon at the far right of the bar, after the indicators.
-        var settings = active == 2 ? Style("sel", " ≡ ", "tab2") : " " + Style("nav", "≡", "tab2") + " ";
+        var settings = active == 2 ? Style("sel", " ≡ ", "tab2") : Style("nav", " ≡ ", "tab2");
         return tabs + "{pad}" + download + "  " + notice + " " + settings;
     }
 

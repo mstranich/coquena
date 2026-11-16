@@ -49,7 +49,6 @@ public static partial class Messages
     public static readonly Text ResourceCompatibilityLabel = new("compatibility ");
     public static readonly Text ResourceLocalReferencesLabel = new("local references ");
     public static readonly Text ResourceNoReferencesRecorded = new("no references recorded in this scope");
-    public static readonly Text ResourceFilesAndObservationsButton = new("Files and observations\u2026");
     public static readonly Text ResourceExternalOwnershipPreserved = new("External ownership; files preserved");
     public static readonly Text ResourceRemoveProtectionButton = new("Remove protection");
     public static readonly Text ResourceAddLocalButton = new("\u002B Add local\u2026");
