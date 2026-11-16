@@ -79,7 +79,7 @@ un servicio o modelo. El monitor conserva fases y tasas por entrada o tarea.
 
 ## Dashboards de observación
 
-La TUI organiza la navegación en ● En vivo, ◇ Definiciones y ≡ Configuración,
+La TUI organiza la navegación en En vivo, Definiciones, Herramientas y ≡ Configuración,
 sin marca ni fila de atajos. En vivo agrupa servicios y la receta local en un
 árbol lateral; Definiciones consulta información y ofrece operaciones de gestión
 sobre el ámbito seleccionado. Configuración separa los valores de Coquena
@@ -191,12 +191,13 @@ No convertir configuración de parámetros en requisito diario para usar el pane
 
 ## Chat de prueba
 
-Chat dispone de una vista propia. El botón Chat en En vivo lleva a
+Chat dispone de una vista propia, como categoría de la pestaña Herramientas
+(pantalla CH). El botón Chat en En vivo lleva a
 ella con el servicio y preset enfocados, conservando su identidad publicada.
 El modelo se consulta a través del preset, sin una selección independiente.
 
 El [laboratorio interactivo](benchmarking.md#laboratorio-interactivo) organiza la
-prueba alrededor del preset elegido en el árbol servicio → proyecto → preset,
+prueba alrededor del preset elegido en el selector servicio › preset,
 con el modelo como información de ese preset. La conversación,
 el campo de mensaje y la observación de la respuesta comparten el recorrido con
 las métricas de En vivo, reorganizadas para seguir ese experimento. El diseño

@@ -1,14 +1,21 @@
 ---
-status: draft
+status: complete
 created: 2026-11-12
 tags:
 - m5
 - tui
 - cli
 created_at: 2026-11-12T03:19:48.954534500Z
-updated_at: 2026-11-12T03:19:48.954534500Z
+updated_at: 2026-11-16T13:09:23.384456100Z
+completed_at: 2026-11-16T13:09:23.384456100Z
+transitions:
+- status: planned
+  at: 2026-11-14T19:01:06.668758200Z
+- status: in-progress
+  at: 2026-11-14T19:01:06.892874200Z
+- status: complete
+  at: 2026-11-16T13:09:23.384456100Z
 ---
-
 # Probar un preset con un chat
 
 ## Objetivo
@@ -35,7 +42,7 @@ Entrega de
 - Disponible desde la TUI y desde la CLI.
 - Vista Chat en la TUI, con acceso rápido desde el botón Chat de
   En vivo para el preset enfocado.
-- `chat --preset <service>/<preset>` para la prueba rápida por CLI;
+- `chat <preset> [--service <nombre|default|self> | --global] [--load]` para la prueba rápida por CLI;
   la referencia usa el nombre publicado completo del preset dentro del servicio.
 - Sesión CLI interactiva con `/exit` o Ctrl+C para salir. Línea de telemetría
   permanente debajo del área de escritura, actualizada sin alterar texto ni cursor.
@@ -48,14 +55,23 @@ Entrega de
 - Mostrar métricas disponibles con fuente y alcance; no evaluar calidad automáticamente.
 - La política de sesión no cambia la retención de logs del backend.
 
+## Decisiones de interacción tomadas
+
+- Pantalla CH (pestaña Herramientas, categoría única Chat) según la
+  [vista previa](../../docs/design/tui/vista-previa.html) y su wireframe.
+- Contrato: `/v1/chat/completions` de llama-server con `stream`, `timings_per_token`
+  y `return_progress`; métricas de la petición desde `timings` y `prompt_progress` de
+  la propia respuesta. Sin parámetros de generación: rigen los del preset.
+- Enviar pasa a Detener durante la respuesta; cambiar de destino o Nueva sesión
+  vacía la conversación.
+- Servicio detenido: modal (TUI) o pregunta (CLI) antes de iniciarlo.
+- CLI con entrada o salida redirigidas: se rechaza.
+
 ## Decisiones de interacción abiertas
 
-- Contrato de conversación, límites de contexto y parámetros de generación.
-- Streaming, interrupción de respuesta y presentación de errores.
-- Reinicio de contexto y comportamiento al cambiar de preset o de instancia.
+- Límites de contexto y su presentación cuando la conversación excede el contexto del slot.
 - Contrato de correlación entre petición y tarea observada; sin evidencia, mostrar
   actividad de la entrada como contexto, sin adjudicarla al mensaje enviado.
-- Comportamiento con entrada/salida redirigidas pendiente de definir.
 - Campos y compactación de la línea de telemetría; comprobar edición con texto
   largo, redimensionado, ausencia de métricas y recepción de respuesta.
 
@@ -68,20 +84,40 @@ el vínculo con su slot. No trasladar conteo de fragmentos SSE como tokens.
 
 ## Criterios de aceptación (borrador)
 
-- [ ] Vista previa TUI revisada antes de implementar.
+- [x] Vista previa TUI revisada antes de implementar.
 - [ ] Conversación real con un preset publicado.
 - [ ] Recorrido rápido con pocos prompts permite seguir procesamiento, generación,
   caché y especulación disponibles; las métricas ausentes se identifican sin inventarlas.
 - [ ] Botón Chat de En vivo abre Chat con el mismo servicio/preset.
-- [ ] Invocación CLI selecciona el mismo destino con `--preset <service>/<preset>`.
+- [x] Invocación CLI selecciona el mismo destino con `chat proyecto/clave`, la clave
+  local o `servicio/proyecto/clave`; el servicio sale del destino de la receta o de `--service`.
 - [ ] CLI interactiva: telemetría debajo de la entrada durante edición y respuesta,
   sin perder texto/cursor ni imprimir una nueva línea por cada refresco.
 - [ ] `/exit` y Ctrl+C salen desde edición y espera de respuesta; se restaura
   el terminal y se cancela la petición propia sin detener el servicio.
-- [ ] No presentar desconexión del cliente como cancelación acreditada del backend.
+- [x] No presentar desconexión del cliente como cancelación acreditada del backend.
 - [ ] Preset elegido con su jerarquía y modelo informativo; respuesta y métricas
   disponibles observables simultáneamente, con evidencia de fuente y alcance.
 - [ ] Prueba con tráfico ajeno y telemetría ausente: no atribuir acumulados,
   tareas o recursos compartidos como cifras exclusivas del mensaje.
-- [ ] Cierre de sesión sin historial persistente de conversación.
-- [ ] Publicación Native AOT y ejecución del binario.
+- [x] Cierre de sesión sin historial persistente de conversación.
+- [x] Publicación Native AOT y ejecución del binario.
+
+## Evidencia
+
+- `--dashboard-tests`: 258 comprobaciones, incluidas las de `ChatTests` (SSE con el
+  formato de llama-server, contexto de sesión, error HTTP, cancelación sin acreditar
+  la del backend, anchos 80×24 y pestaña Herramientas). `RecipeWriterTests` falla
+  también en el commit base; se verificó omitiéndolo de forma temporal.
+- Publicación Native AOT `win-x64` sin advertencias; el binario ejecuta
+  `chat --help`, rechaza sintaxis inválida (código 2) y entrada redirigida.
+- CLI contra un servicio activo, sin enviar mensajes: `chat news/<clave>`, la clave
+  sola dentro del proyecto, `--global` y `servicio/proyecto/clave` resuelven el mismo
+  destino; un nombre no publicado lista los presets publicados con su servicio.
+- La publicación Native AOT final ejecuta `chat --help` con la sintaxis vigente.
+- Prueba manual del usuario en la TUI: reveló un cierre por enumeración concurrente
+  del historial durante la respuesta, corregido con un candado compartido.
+- Cierre: el usuario dio la tarea por terminada tras su prueba manual. Los criterios
+  sin marcar no tienen evidencia registrada en esta tarjeta (conversación real
+  documentada, `--load` con carga real, Ctrl+C durante la respuesta, botón Chat de
+  En vivo, tráfico ajeno); se cerró con `--force`.

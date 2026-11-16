@@ -55,14 +55,27 @@ public sealed class LlamaPresetRouter(HttpClient client, Uri endpoint) : IPreset
         using var response = await client.GetAsync(Url("/models?reload=1"), cancellation);
         return response.IsSuccessStatusCode;
     }
-    public async Task<bool> WarmupAsync(string name, CancellationToken cancellation)
+    // Asks the router to load the entry without waiting for it.
+    public async Task<bool> RequestLoadAsync(string name, CancellationToken cancellation)
     {
         using var request = new HttpRequestMessage(HttpMethod.Post, Url("/models/load"))
         { Content = new StringContent(new JsonObject { ["model"] = name }.ToJsonString(), System.Text.Encoding.UTF8, "application/json") };
+        using var response = await client.SendAsync(request, cancellation);
+        return response.IsSuccessStatusCode;
+    }
+
+    // State of one entry in the router catalog: loaded, failed, or still on its way.
+    public async Task<(bool Loaded, bool Failed)> LoadStateAsync(string name, CancellationToken cancellation)
+    {
+        var item = (await ObserveAsync(cancellation)).SingleOrDefault(p => p?["id"]?.GetValue<string>() == name);
+        return (item?["status"]?["value"]?.GetValue<string>() == "loaded", item?["status"]?["failed"]?.GetValue<bool>() == true);
+    }
+
+    public async Task<bool> WarmupAsync(string name, CancellationToken cancellation)
+    {
         try
         {
-            using var response = await client.SendAsync(request, cancellation);
-            if (!response.IsSuccessStatusCode) return false;
+            if (!await RequestLoadAsync(name, cancellation)) return false;
             var clock = System.Diagnostics.Stopwatch.StartNew();
             do
             {

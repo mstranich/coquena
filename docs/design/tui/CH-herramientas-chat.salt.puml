@@ -1,0 +1,33 @@
+@startsalt
+{
+  {/ ● En vivo | Definiciones | <b>Herramientas | . | ⇣ 1 · 68% | ▲ 2 | ≡ }
+  {
+    {
+    {
+      <b>Chat
+    }
+    } | {
+      { . | [Nueva sesión] }
+      {
+        tú 12:10
+        Resume en una línea qué es un GGUF.
+        asistente 12:10 · 38 tk · 21,4 tk/s
+        Un archivo de llama.cpp con pesos cuantizados y metadatos.
+        tú 12:11
+        ¿Qué cambia entre Q4_0 y Q5_K_M?
+        asistente ⠹ generando
+        Q5_K_M usa 5 bits por peso en bloques k, más…
+      }
+      {
+        ● GENERANDO | prompt ▂▃▅▆▇▆ 676 tk/s | caché 79%
+        96/512 tk | gen ▂▅▆▆▆▅ 21 tk/s | acept. 68%
+      }
+      { ^principal › código/asistente^ | ● gemma-4-12B }
+      { "› ¿Y para una GPU de 8 GB?                         " }
+      { [Ir a la definición] | . | [Enviar] }
+    }
+  }
+  { CPU ▂▃▅▆▅ 42% | RAM ▅▅▆▆ 18,2/32G }
+  { GPU0 ▅▆▇▇ 91% 20,1/24G +0,4G | GPU1 ▂▃▂▁ 12% 0,1/0,5G +1,1G }
+}
+@endsalt

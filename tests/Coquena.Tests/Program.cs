@@ -50,6 +50,7 @@ if (args is ["--dashboard-tests"])
         Coquena.Tests.InferencePresentationTests.Run(Check);
         Coquena.Tests.DashboardPresentationTests.Run(Check);
         Coquena.Tests.LivePresentationTests.Run(Check);
+        await Coquena.Tests.ChatTests.Run(Check);
         Coquena.Tests.DefinitionsPresentationTests.Run(Check);
         Coquena.Tests.DefinitionsPresentationTests.RunSource(Check);
         Coquena.Tests.SettingsPresentationTests.Run(Check);

@@ -14,8 +14,9 @@ internal static class LivePresentationTests
             "markup keeps classes and actions of each span");
         check(Markup.Plain(Markup.Escape("{\"a\":1} | x")) == "{\"a\":1} | x" && Markup.Parse(Markup.Escape("{x|y}")).Count == 1,
             "escaped text with braces and bars is drawn literally");
-        var tabs = Markup.Fit(LivePresentation.Tabs(0, 0, 2), 80);
-        check(Markup.Width(tabs) == 80 && Markup.Plain(tabs).StartsWith(" ● En vivo ") && Markup.Plain(tabs).EndsWith("⇣ 0  ▲ 2  ≡ "),
+        var tabs = Markup.Fit(LivePresentation.Tabs(0, 0, 2, running: true), 80);
+        check(Markup.Width(tabs) == 80 && Markup.Plain(tabs).StartsWith(" ● En vivo ") &&
+            Markup.Plain(LivePresentation.Tabs(0, 0, 2)).StartsWith(" ○ En vivo ") && !Markup.Plain(tabs).Contains("◇") && Markup.Plain(tabs).EndsWith("⇣ 0  ▲ 2  ≡ "),
             "top bar fits 80 columns with tabs, both indicators and the settings icon at the far right");
         var noticeTab = Markup.Fit(LivePresentation.Tabs(4, 0, 2), 80);
         check(Markup.Width(noticeTab) == 80 && Markup.Parse(noticeTab).Any(span => span.Class == "sel" && span.Action == "notices" && span.Text == " ▲ 2 ") &&

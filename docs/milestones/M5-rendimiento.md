@@ -27,7 +27,7 @@ M5 incluye dos entregas, ambas en estado draft:
   textos de usuario traducibles en CLI y TUI, etiquetas de datos y diagnósticos
   persistidos mediante códigos y datos.
 
-El comando pasa de la agrupación anterior a `chat --preset <service>/<preset>`.
+El comando pasa de la agrupación anterior a `chat <preset> [--service <nombre|default|self> | --global] [--load]`.
 
 ## Contrato y aceptación
 

@@ -24,11 +24,30 @@ Chat dispone de una vista propia en la TUI. El botón Chat de En vivo abre
 esa vista con el preset enfocado y su servicio ya seleccionados. El acceso
 rápido conserva la identidad de la entrada; no crea otra pantalla de chat ni elige
 otro preset por coincidencia de modelo. Requiere una selección de preset.
+En la TUI, Chat es la categoría de la pestaña Herramientas; el destino se elige en
+un selector servicio › preset que lista los servicios conocidos y sus presets
+publicados. Elegir otro destino, o Nueva sesión, empieza una conversación vacía:
+el contexto de un preset no se envía a otro. Mientras llega una respuesta, Enviar
+pasa a Detener, que interrumpe sólo la petición propia.
 
-En CLI, `chat --preset <service>/<preset>` inicia la prueba con el servicio
-y el nombre publicado del preset indicados. El componente de preset identifica
-la entrada completa dentro del servicio, incluida la identidad publicada del
-proyecto cuando corresponda; no es sólo un nombre corto ambiguo entre proyectos.
+En CLI, `chat <preset> [--service <nombre|default|self> | --global] [--load]`
+inicia la prueba; `--global` equivale a `--service global`. El preset se nombra por su nombre publicado (`proyecto/clave`); dentro de
+la carpeta de un proyecto basta su clave. Sin `--service`, el servicio es el
+destino que declara la receta del proyecto, como en `up`; `--service` elige otro
+servicio o resuelve un preset sin receta conocida. También se acepta
+`servicio/proyecto/clave`. Si la receta no determina el destino, se busca el
+nombre entre los servicios activos: una sola coincidencia se usa; varias se
+listan con su servicio para elegir, sin elegir una por coincidencia. Un nombre
+no publicado lista los presets publicados de los servicios activos. `--load` pide
+al servidor cargar el preset, con la misma operación que el precalentamiento de
+un preset, y abre el chat sin esperar. Mientras carga, la línea de telemetría lo
+indica con el tiempo transcurrido, sin límite de espera; se puede escribir, pero
+Enter no envía hasta que el modelo esté cargado: lo informa en esa línea y
+conserva el texto para enviarlo después, editarlo o borrarlo. `/exit` y Ctrl+C
+salen en cualquier momento; salir no cancela la carga en el servidor. Una carga
+fallida se informa en la misma línea. Así el primer mensaje no incluye la carga
+del modelo. Sin `--load`, el primer mensaje carga el preset si el servidor no lo
+tiene cargado.
 La jerarquía de la TUI y la referencia CLI seleccionan el mismo destino.
 
 El comando abre una sesión interactiva: el usuario escribe un mensaje, lo envía
@@ -72,6 +91,15 @@ historial persistente de conversación. No guarda el diálogo como resultado de
 benchmark. Esto no cambia la política de logs del backend ni elimina registros ajenos.
 
 Enviar mensajes no modifica la receta, publica presets ni inicia servicios
-implícitamente. Una entrada no disponible produce un diagnóstico. Las tasas
+implícitamente. Una entrada no disponible produce un diagnóstico. Si el servicio
+elegido no está en ejecución, Chat pregunta si iniciarlo (un modal en la TUI, una
+pregunta en la CLI) y sólo lo inicia con esa confirmación, con la misma operación
+que Iniciar.
+
+Las métricas de la petición salen de la telemetría que llama-server adjunta a la
+propia respuesta en streaming: progreso del prompt, tokens reutilizados de caché,
+tiempos y tasas de prompt y generación, y borradores especulativos propuestos y
+aceptados. Al pertenecer a la respuesta, no dependen de correlacionar un slot con
+el mensaje. Los parámetros de generación son los del preset; el chat no los envía. Las tasas
 conservan fuente y alcance; una conversación libre no acredita una comparación
 controlada ni evalúa automáticamente la calidad de las respuestas.

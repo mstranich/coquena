@@ -264,6 +264,25 @@ public sealed class ServiceObservation(ScopeStore store, HttpClient? client = nu
         return (host, port, child.Pid, child.Creation);
     }
 
+    // Address of the running instance with the same checks as a capture: registered, alive and
+    // listening on its own endpoint. A stopped service returns no address and no problem.
+    internal (Uri? Address, string? Problem) Endpoint(ServiceIdentity service)
+    {
+        var state = store.ReadVerified();
+        var active = state.Documents.GetValueOrDefault(store.RuntimeDocumentPath(service.ServiceId, "active"))?["data"] as JsonObject;
+        if (active is null || active["terminated"]?.GetValue<bool>() == true) return (null, null);
+        var check = (instanceProbe ?? InstanceProbe.Create()).Open(Identity(service.ServiceId, active));
+        using var process = check.Instance;
+        if (process is null) return (null, check.State == "stopped" ? null : check.Diagnostic ?? "Instancia no verificada.");
+        var endpoint = active["endpoint"]!;
+        var host = endpoint["host"]!.GetValue<string>(); var port = endpoint["port"]!.GetValue<int>();
+        if (!process.OwnsEndpoint(host, port)) return (null, "Proceso vivo; escucha no comprobada como propia.");
+        var configuredHealth = active["snapshot"]?["service"]?["server"]?["health"]?["url"]?["value"]?.GetValue<string>();
+        var scheme = Uri.TryCreate(configuredHealth, UriKind.Absolute, out var configuredUrl) ? configuredUrl.Scheme : "http";
+        if (scheme is not ("http" or "https")) return (null, "Protocolo del servicio inválido.");
+        return (new UriBuilder(scheme, host == "0.0.0.0" ? "127.0.0.1" : host == "::" ? "::1" : host, port).Uri, null);
+    }
+
     internal static InstanceDocument Identity(string serviceId, JsonObject active)
     {
         var process = active["process"]!;

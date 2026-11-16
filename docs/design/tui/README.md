@@ -12,7 +12,8 @@ están en [interfaces visuales](../interfaces-visuales.md) y
 | | Pantalla | Se llega desde |
 |---|---|---|
 | A | En vivo | pestaña ● En vivo, Ver en vivo |
-| B | Definiciones › Recetas: combinaciones registradas (`combination list`), Olvidar (`combination forget`) | pestaña ◇ Definiciones, nodo Recetas |
+| CH | Herramientas › Chat: historial, métricas de la respuesta, destino servicio › preset, mensaje y acciones | pestaña Herramientas, botón Chat de En vivo |
+| B | Definiciones › Recetas: combinaciones registradas (`combination list`), Olvidar (`combination forget`) | pestaña Definiciones, nodo Recetas |
 | P | Definiciones › Presets: presets de la combinación elegida y capa de cada valor (P2: desplegable de combinación abierto) | nodo Presets |
 | W | Definiciones › Modelos (inventario) | nodo Modelos, modelo de un preset |
 | C | Definiciones › Modelos (búsqueda en Hugging Face) | selector Hugging Face en Modelos |
@@ -68,8 +69,9 @@ Pestañas, sin marca ni fila de atajos:
 
 | Pestaña | Contenido |
 |---|---|
-| ● En vivo | Árbol servicio → proyecto → preset; detalle del servicio (puerto, estado, CPU y RAM del proceso, cola) y de la entrada (tasas, caché, especulación, contexto por slot, tareas); log del servicio. |
-| ◇ Definiciones | Árbol por ámbito (Global y cada proyecto del índice; sólo el enfocado expandido). En un proyecto: Recetas, Backends, Servicio, Modelos, Parámetros, Presets, Actualizaciones y Mantenimiento; en Global: Backends, Servicios, Modelos, Parámetros, Presets, Actualizaciones y Mantenimiento. |
+| ● En vivo | Su glifo indica si hay algún servicio activo (●) o ninguno (○). Árbol servicio → proyecto → preset; detalle del servicio (puerto, estado, CPU y RAM del proceso, cola) y de la entrada (tasas, caché, especulación, contexto por slot, tareas); log del servicio. |
+| Definiciones | Árbol por ámbito (Global y cada proyecto del índice; sólo el enfocado expandido). En un proyecto: Recetas, Backends, Servicio, Modelos, Parámetros, Presets, Actualizaciones y Mantenimiento; en Global: Backends, Servicios, Modelos, Parámetros, Presets, Actualizaciones y Mantenimiento. |
+| Herramientas | Una categoría, Chat: historial de la conversación (crece con la terminal), dos filas de métricas de la petición, selector servicio › preset con el estado de carga y el nombre lógico del modelo, mensaje y acciones (Ir a la definición, que abre los presets del ámbito que define el preset, y Enviar/Detener). Tab y Shift+Tab salen del mensaje. |
 | ≡ (Configuración) | Categorías Coquena (lo mismo que `coquena config`), TUI (filtro del log, recursos de la barra inferior) y Sistema (`system probe`). |
 
 Las dos últimas filas son hardware medido por dispositivo: CPU, RAM, y por GPU uso,

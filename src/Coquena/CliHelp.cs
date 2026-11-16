@@ -35,6 +35,10 @@ internal static class CliHelp
           ps [--service <nombre|default|self>] [-w|--watch]
                                            Consultar o seguir hardware y servicios
           tui                              Abrir el monitor de servicios en terminal
+          chat <preset> [--service <nombre|default|self> | --global] [--load]
+                                           Probar un preset con un chat y su telemetría
+            preset: proyecto/clave, la clave local o servicio/proyecto/clave
+            --load pide cargar el preset; Enter envía cuando termina
           backend (runtime)                Consultar y preparar backends por ámbito
           model                            Descargar y administrar modelos
           model companion                  Administrar auxiliares mmproj y MTP

@@ -90,7 +90,7 @@ internal static partial class DashboardCli
     internal static int RunDashboard(ISystemMetrics? metrics = null, HardwareProbe.AdapterEvidence? adapters = null)
     {
         const int Left = LivePresentation.TreeWidth, Right = Left + 1;
-        const int Live = 0, Definitions = 1, Settings = 2, Hardware = 3, History = 4, Notices = 5, Editing = 6, DownloadsPage = 7;
+        const int Live = 0, Definitions = 1, Settings = 2, Hardware = 3, History = 4, Notices = 5, Editing = 6, DownloadsPage = 7, Tools = 8;
         const string Finished = "ya había terminado o fue retirada; no hubo cambios.";
         var targets = Discover(out var diagnostic);
         var preferences = new ConfigurationManager(Home.Resolve());
@@ -145,6 +145,8 @@ internal static partial class DashboardCli
         window.Add(tabs, leftTitle, rightTitle, tree, detail, tasks, logTitle, logLines, hardwareDetail,
             historyTitle, historyControls, regex, historyLines, historyFooter, noticeTitle, noticeList, definitionDetail, downloadTitle, downloadDetail, pageView, settingsView, bar);
         window.Add(recipeEditor.Views.ToArray());
+        var chat = new ChatPage(app, useColor, Right);
+        window.Add(chat.Views.ToArray());
         if (useColor)
         {
             Paint(window, Palette.Text, Palette.Base);
@@ -258,6 +260,35 @@ internal static partial class DashboardCli
         };
         definitionDetail.Pressed += DefinitionAction;
         downloadDetail.Pressed += DownloadAction;
+        chat.Changed += () => { if (page == Tools) Render(); };
+        rightTitle.Pressed += action =>
+        {
+            if (page != Tools || action != "chat-new") return;
+            if (chat.Answering && Query(app, "Nueva sesión", "Hay una respuesta en curso; se va a interrumpir.", "Cancelar", "Nueva sesión") != 1) return;
+            chat.Clear();
+            Render();
+        };
+        chat.Panel.Pressed += action => { if (action == "target") ChooseChatTarget(); };
+        chat.Buttons.Pressed += action =>
+        {
+            if (action == "send") { if (chat.Answering) chat.Cancel(); else SendChat(); }
+            else if (action == "definition") OpenChatDefinition();
+            Render();
+        };
+        chat.Input.KeyDown += (_, key) =>
+        {
+            // The message box keeps Tab for focus: Tab goes to the buttons, Shift+Tab to the selector.
+            if (key == Key.Tab || key == Key.Tab.WithShift)
+            {
+                key.Handled = true;
+                (key == Key.Tab ? (View)chat.Buttons : chat.Panel).SetFocus();
+                return;
+            }
+            if (key != Key.Enter) return;
+            key.Handled = true;
+            if (!chat.Answering) SendChat();
+            Render();
+        };
 
         // Events.
         tabs.Pressed += action =>
@@ -267,6 +298,7 @@ internal static partial class DashboardCli
                 case "tab0": Open(Live); break;
                 case "tab1": Open(Definitions); break;
                 case "tab2": Open(Settings); break;
+                case "tab5": Open(Tools); break;
                 case "notices": Open(Notices); break;
                 case "downloads": Open(DownloadsPage); break;
             }
@@ -289,6 +321,7 @@ internal static partial class DashboardCli
             {
                 case Settings: settingsCategory = row; Render(); return;
                 case Hardware: hardwareSelection = row; Render(); return;
+                case Tools: return;
                 case Definitions:
                     if (row < 0 || row >= definitionNodes.Count) return;
                     var chosen = definitionNodes[row];
@@ -328,7 +361,12 @@ internal static partial class DashboardCli
         };
         detail.Pressed += action =>
         {
-            if (action == "stop") BeginServiceAction(stopService: true);
+            if (action == "chat" && targets.ElementAtOrDefault(index) is { Service: { } focused } && preferredEntry is { } focusedEntry)
+            {
+                chat.Choose(index, focused.Name, focusedEntry, ChatModel(focusedEntry));
+                Open(Tools);
+            }
+            else if (action == "stop") BeginServiceAction(stopService: true);
             else if (action is "start" or "restart") BeginServiceAction(stopService: false);
         };
         logTitle.Pressed += action =>
@@ -384,8 +422,8 @@ internal static partial class DashboardCli
         {
             if (page == Editing && key == Key.S.WithCtrl) { key.Handled = true; SaveDrafts(); Render(); return; }
             // Esc on a tab quits; leaving stops the running work, so ask first.
-            if (key == Key.Esc && page is Live or Definitions or Settings or Notices or DownloadsPage &&
-                (operation is not null || managementJobs.Values.Any(job => !job.IsCompleted)))
+            if (key == Key.Esc && page is Live or Definitions or Settings or Notices or DownloadsPage or Tools &&
+                (operation is not null || chat.Answering || managementJobs.Values.Any(job => !job.IsCompleted)))
             {
                 key.Handled = true;
                 if (Query(app, "Salir", "Hay un proceso en curso; al salir se va a detener. ¿Salir de todos modos?", "Cancelar", "Salir") == 1)
@@ -393,7 +431,7 @@ internal static partial class DashboardCli
                 return;
             }
             // Tabs have no «Volver»: Esc only leaves subpages and the Editor.
-            if (key != Key.Esc || page is Live or Definitions or Settings or Notices or DownloadsPage) return;
+            if (key != Key.Esc || page is Live or Definitions or Settings or Notices or DownloadsPage or Tools) return;
             key.Handled = true;
             if (page == Editing) { CloseEditor(); return; }
             if (page == History) CloseHistory(); else Open(Live);
@@ -420,6 +458,7 @@ internal static partial class DashboardCli
                 if (page == Live) Render();
             }
             else if (upButton.Text != " ▲ Up " || downButton.Text != " ▼ Down ") { upButton.Text = " ▲ Up "; downButton.Text = " ▼ Down "; }
+            if (page == Tools && chat.Answering) Render();
             if (page == Definitions && places.ElementAtOrDefault(focusedPlace)?.Context is { } shown &&
                 (managementJobs.Keys.Any(key => key.EndsWith(":" + shown.Root, StringComparison.Ordinal)) ||
                  operation is not null && definitionView == "Recetas"))
@@ -438,6 +477,7 @@ internal static partial class DashboardCli
         {
             Console.SetError(consoleError);
             stop.Cancel();
+            chat.Dispose();
             // A directory move holds the writer lease and commits a recoverable transaction:
             // let it finish instead of ending the process halfway. Pending questions answer Cancelar.
             if (!settings.Pending.IsCompleted)
@@ -481,7 +521,7 @@ internal static partial class DashboardCli
             Arrange();
             Render();
             if (page == Editing) { recipeEditor.Show(recipeEditor.Current); return; }
-            (page switch { Hardware or Settings or Live or Definitions => tree, Notices => noticeList, DownloadsPage => downloadDetail, _ => (View)historyLines }).SetFocus();
+            (page switch { Hardware or Settings or Live or Definitions => tree, Notices => noticeList, DownloadsPage => downloadDetail, Tools => chat.Input, _ => (View)historyLines }).SetFocus();
         }
 
         void Tick()
@@ -549,7 +589,15 @@ internal static partial class DashboardCli
             {
                 serviceSamples.Remove(targetIndex);
                 var selected = operation is null && targetIndex == index && pending.Epoch == selectionEpoch;
-                if (!selected) continue;
+                if (!selected)
+                {
+                    // Other targets only feed the "any service active" glyph of the Live tab.
+                    if (targetIndex == index) { serviceCaptures.Remove(targetIndex); continue; }
+                    if (targetIndex >= targets.Count) continue;
+                    if (pending.Task.IsCompletedSuccessfully) snapshots[targetIndex] = pending.Task.Result.Snapshot;
+                    else if (pending.Task.IsFaulted) snapshots.Remove(targetIndex);
+                    continue;
+                }
                 if (pending.Task.IsCompletedSuccessfully) Show(pending.Task.Result.Snapshot);
                 else if (pending.Task.IsFaulted)
                 {
@@ -567,6 +615,15 @@ internal static partial class DashboardCli
                 var clock = new Stopwatch();
                 serviceCaptures[index] = clock;
                 serviceSamples.Add(index, (selectionEpoch, Task.Run(() => { clock.Start(); return CaptureAsync(target, stop.Token); })));
+            }
+            for (var other = 0; operation is null && other < targets.Count && serviceSamples.Count < 4; other++)
+            {
+                if (other == index || targets[other].Service is null || serviceSamples.ContainsKey(other) ||
+                    serviceCaptures.TryGetValue(other, out var otherCapture) && otherCapture.Elapsed < CaptureInterval) continue;
+                var target = targets[other];
+                var clock = Stopwatch.StartNew();
+                serviceCaptures[other] = clock;
+                serviceSamples.Add(other, (-1, Task.Run(() => CaptureAsync(target, stop.Token, observeInference: false))));
             }
             if ((window.Viewport.Width, window.Viewport.Height) != layoutSize) Arrange();
             ReadLog();
@@ -586,9 +643,12 @@ internal static partial class DashboardCli
             var definitions = page == Definitions;
 
             // Configuración has no title over its categories, so the tree starts one row higher.
-            leftTitle.Visible = live || hardwareView || definitions;
-            rightTitle.Visible = live || hardwareView || definitions || settingsPage;
-            tree.Visible = live || hardwareView || settingsPage || definitions;
+            var tools = page == Tools;
+            leftTitle.Visible = live || hardwareView || definitions || tools;
+            rightTitle.Visible = live || hardwareView || definitions || settingsPage || tools;
+            tree.Visible = live || hardwareView || settingsPage || definitions || tools;
+            foreach (var view in chat.Views) view.Visible = tools;
+            chat.Arrange(content);
             tree.Y = settingsPage ? 1 : 2;
             tree.Height = live ? upper - 1 : content - (settingsPage ? 0 : 1);
             detail.Visible = tasks.Visible = logTitle.Visible = logLines.Visible = live;
@@ -709,8 +769,8 @@ internal static partial class DashboardCli
         void Render()
         {
             var now = DateTimeOffset.UtcNow;
-            tabs.Rows = [LivePresentation.Tabs(page is Definitions or Editing ? 1 : page is Settings ? 2 : page is DownloadsPage ? 3 : page is Notices ? 4 : 0,
-                transferCount, unread, transferIndicator)];
+            tabs.Rows = [LivePresentation.Tabs(page is Definitions or Editing ? 1 : page is Settings ? 2 : page is DownloadsPage ? 3 : page is Notices ? 4 : page is Tools ? 5 : 0,
+                transferCount, unread, transferIndicator, snapshots.Values.Any(snapshot => snapshot.ProcessState == "alive"))];
             RenderBar(now);
             switch (page)
             {
@@ -721,8 +781,120 @@ internal static partial class DashboardCli
                 case DownloadsPage: RenderDownloads(); break;
                 case Definitions: RenderDefinitions(); break;
                 case Editing: recipeEditor.Render(window.Viewport.Width); break;
+                case Tools: RenderChat(); break;
                 default: RenderSettings(); break;
             }
+        }
+
+        // CH · Herramientas › Chat: one category; the target is chosen in the selector.
+        void RenderChat()
+        {
+            var width = Math.Max(20, window.Viewport.Width - Right);
+            tree.Show(1, (_, _) => Markup.Style("focb", " Chat".PadRight(Left)), 0);
+            leftTitle.Rows = [""];
+            rightTitle.Rows = ["{pad}" + Markup.Style("btn", " Nueva sesión ", "chat-new")];
+            var entry = chat.Target is int at && chat.Entry is { } name ? catalogues.GetValueOrDefault(at)?.FirstOrDefault(candidate => candidate.Name == name) : null;
+            if (chat.Model is null && entry?.Inference?.Model is { } model) chat.Model = LivePresentation.ModelName(model);
+            chat.State = entry is null ? chat.State : entry.State == "loaded" ? Markup.Style("ok", "●") : Markup.Style("mut", "○ " + entry.State);
+            chat.Render(width);
+        }
+
+        (Uri? Address, string? Problem) ChatEndpoint(int target)
+        {
+            if (targets.ElementAtOrDefault(target)?.Service is not { } service) return (null, "Sin servicio.");
+            try { return new ServiceObservation(targets[target].Store).Endpoint(service); }
+            catch (Exception error) when (ServiceObservation.ObservationError(error)) { return (null, error.Message); }
+        }
+
+        IReadOnlyList<EntrySnapshot> ChatEntries(int target)
+        {
+            if (catalogues.TryGetValue(target, out var known) && known.Count > 0) return known;
+            try
+            {
+                var panel = Task.Run(() => CaptureAsync(targets[target], stop.Token)).GetAwaiter().GetResult();
+                if (target == index) Show(panel.Snapshot);
+                return catalogues[target] = panel.Snapshot.Entries;
+            }
+            catch (Exception error) when (ServiceObservation.ObservationError(error)) { return []; }
+        }
+
+        // Every service with its published presets; a stopped one is listed so it can be started.
+        void ChooseChatTarget()
+        {
+            if (chat.Answering) { Query(app, "Chat", "Hay una respuesta en curso; detenerla antes de cambiar de destino.", "Aceptar"); return; }
+            var options = new List<(int Target, string Service, string? Entry, string? Model, bool Running)>();
+            var labels = new List<string>();
+            for (var i = 0; i < targets.Count; i++)
+            {
+                if (targets[i].Service is not { } service) continue;
+                var (address, problem) = ChatEndpoint(i);
+                if (address is null)
+                {
+                    if (problem is not null) continue;
+                    options.Add((i, service.Name, null, null, false));
+                    labels.Add(service.Name + "  ○ detenido");
+                    continue;
+                }
+                foreach (var entry in ChatEntries(i))
+                {
+                    options.Add((i, service.Name, entry.Name, entry.Inference?.Model, true));
+                    labels.Add(service.Name + " › " + entry.Name + (entry.State == "loaded" ? "" : "  ○ " + entry.State));
+                }
+            }
+            if (options.Count == 0) { Query(app, "Chat", "No hay servicios con presets publicados.", "Aceptar"); return; }
+            if (Choose(app, "Servicio › preset", labels, "Elegir") is not int row || row >= options.Count) return;
+            var chosen = options[row];
+            if (!chosen.Running) { StartForChat(chosen.Target); return; }
+            chat.Choose(chosen.Target, chosen.Service, chosen.Entry, ChatModel(chosen.Entry));
+            chat.State = null;
+            Render();
+        }
+
+        // Chat never starts a service on its own: it asks first and uses the same operation as Iniciar.
+        void StartForChat(int target)
+        {
+            var name = targets[target].Service?.Name ?? targets[target].Name;
+            if (operation is not null) { Query(app, "Chat", "Hay otra operación de servicio en curso.", "Aceptar"); return; }
+            if (Query(app, "Iniciar servicio", $"«{name}» no está en ejecución. ¿Iniciarlo para probar el chat?", "Cancelar", "Iniciar") != 1) return;
+            if (index != target) { index = target; preferredEntry = null; selectionEpoch++; Select(); }
+            try { Show(Task.Run(() => CaptureAsync(targets[target], stop.Token)).GetAwaiter().GetResult().Snapshot); }
+            catch (Exception error) when (ServiceObservation.ObservationError(error)) { Query(app, "Chat", error.Message, "Aceptar"); return; }
+            BeginServiceAction(stopService: false);
+            chat.Choose(target, name, null, null);
+            chat.State = Markup.Style("mut", "iniciando… elegir el preset al terminar");
+            Render();
+        }
+
+        void SendChat()
+        {
+            if (chat.Target is not int target || chat.Entry is null) { ChooseChatTarget(); return; }
+            var (address, problem) = ChatEndpoint(target);
+            if (address is null)
+            {
+                if (problem is not null) Query(app, "Chat", problem, "Aceptar");
+                else StartForChat(target);
+                return;
+            }
+            chat.Send(address);
+        }
+
+        string? ChatModel(string? entry)
+        {
+            if (entry is null) return null;
+            try { return definitionSource.Locate(definitionSource.Places(), entry).Model; }
+            catch (Exception error) when (ServiceObservation.ObservationError(error)) { return null; }
+        }
+
+        // The presets of the scope that defines the chosen preset: its project, or Global.
+        void OpenChatDefinition()
+        {
+            if (chat.Entry is not { } entry) return;
+            places = definitionSource.Places();
+            var place = definitionSource.Locate(places, entry).Place;
+            if (place < 0) { Query(app, "Definición", "El ámbito que define el preset no está disponible.", "Aceptar"); return; }
+            focusedPlace = place;
+            definitionView = "Presets";
+            Open(Definitions);
         }
 
         void RenderNavigation()
@@ -748,6 +920,9 @@ internal static partial class DashboardCli
             var stopped = selectedSnapshot?.ProcessState == "stopped" || target is { Service: null, DeclaresService: true };
             var controls = LivePresentation.Controls(running, stopped, operation is null && target is not null,
                 operation is not null && operationLabel == target?.Label ? operationVerb : null);
+            // Chat opens Herramientas › Chat with the focused preset and its service.
+            if (preferredEntry is not null && target?.Service is not null)
+                controls = (controls.Length > 0 ? controls : "") + "{pad}" + Markup.Style("btn", " Chat ", "chat");
             if (controls.Length > 0) rows.Add(controls);
             if (operation is not null && operationLabel == target?.Label && operationSteps?.Rows() is { Count: > 0 } stepRows)
                 foreach (var step in stepRows)
@@ -2570,9 +2745,9 @@ internal static partial class DashboardCli
         }
     }
 
-    private static async Task<ServicePanel> CaptureAsync(Target target, CancellationToken cancellation)
+    private static async Task<ServicePanel> CaptureAsync(Target target, CancellationToken cancellation, bool observeInference = true)
     {
-        var snapshot = await new ServiceObservation(target.Store).CaptureAsync(target.Service!, cancellation: cancellation, observeInference: true);
+        var snapshot = await new ServiceObservation(target.Store).CaptureAsync(target.Service!, cancellation: cancellation, observeInference: observeInference);
         cancellation.ThrowIfCancellationRequested();
         return new(snapshot);
     }

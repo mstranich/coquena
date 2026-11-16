@@ -60,6 +60,23 @@ features:
       - docs/design/tui/README.md
       - docs/design/tui/A-en-vivo.salt.puml
       - docs/design/tui/N-definiciones-descargas.salt.puml
+  - id: preset-chat-test
+    intent: Probar un preset publicado con una conversación en streaming y la telemetría de la respuesta, desde Herramientas › Chat en la TUI o con chat <preset>.
+    keywords: [chat, herramientas, tools, preset, streaming, SSE, timings, prompt_progress, speculative, draft, cache_n, Detener]
+    entrypoints:
+      - src/Coquena/ChatCli.cs
+      - src/Coquena/DashboardChat.cs
+    implementation:
+      - src/Coquena/Chat/ChatSession.cs
+      - src/Coquena/Chat/ChatPresentation.cs
+      - src/Coquena/Observation/ServiceObservation.cs
+      - src/Coquena/DashboardCli.cs
+    tests:
+      - tests/Coquena.Tests/ChatTests.cs
+    references:
+      - docs/design/benchmarking.md
+      - docs/design/tui/CH-herramientas-chat.salt.puml
+
   - id: continuous-service-observation
     intent: Seguir servicios por identidad con snapshots reconciliados y eventos acotados sin controlar el backend.
     keywords: [ps, watch, SSE, reconnect, cancellation, observer-retry]

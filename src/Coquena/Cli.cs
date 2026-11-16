@@ -20,6 +20,8 @@ public static class Cli
             return ProjectCli.Run(args, output, error);
         if (args.Length > 0 && args[0] == "tui")
             return DashboardCli.Run(args[1..], output, error);
+        if (args.Length > 0 && args[0] == "chat")
+            return ChatCli.Run(args[1..], output, error);
 
         var prefix = 0;
         while (prefix < args.Length)

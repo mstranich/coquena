@@ -26,12 +26,13 @@ internal static class LivePresentation
     public static string Spark(IEnumerable<double?> ratios) =>
         new(ratios.Select(ratio => ratio is double value ? Levels[Math.Clamp((int)(Math.Clamp(value, 0, 1) * Levels.Length), 0, Levels.Length - 1)] : ' ').ToArray());
 
-    // Top bar: two tabs, downloads, notices and the Configuración icon. The indicators always keep their space.
-    // active: 0 En vivo, 1 Definiciones, 2 Configuración, 3 Descargas, 4 Notificaciones.
-    public static string Tabs(int active, int downloads, int notices, string? downloadText = null)
+    // Top bar: three tabs, downloads, notices and the Configuración icon. The indicators always keep their space.
+    // active: 0 En vivo, 1 Definiciones, 2 Configuración, 3 Descargas, 4 Notificaciones, 5 Herramientas.
+    // En vivo shows ● while some service is running and ○ when none is.
+    public static string Tabs(int active, int downloads, int notices, string? downloadText = null, bool running = false)
     {
-        string[] names = ["● En vivo", "◇ Definiciones"];
-        var tabs = string.Join(" ", names.Select((name, i) => i == active ? Style("sel", " " + name + " ", "tab" + i) : " " + Style("nav", name, "tab" + i) + " "));
+        (string Name, int Page)[] names = [((running ? "●" : "○") + " En vivo", 0), ("Definiciones", 1), ("Herramientas", 5)];
+        var tabs = string.Concat(names.Select(tab => tab.Page == active ? Style("sel", " " + tab.Name + " ", "tab" + tab.Page) : " " + Style("nav", tab.Name, "tab" + tab.Page) + " "));
         downloadText ??= "⇣ " + downloads;
         var download = active == 3 ? Style("sel", " " + downloadText + " ", "downloads")
             : Style(downloads > 0 ? "nav" : "mut", downloadText, "downloads");

@@ -85,8 +85,10 @@ la herramienta de referencia para composición de archivos.
 ### chat
 
 La prueba rápida se invoca con
-`chat --preset <service>/<preset>`: selecciona un servicio y una entrada
-publicada con el nombre completo de preset dentro de ese servicio. No infiere
+`chat <preset> [--service <nombre|default|self> | --global] [--load]`: el preset se nombra
+por su nombre publicado `proyecto/clave`, por su clave dentro de la carpeta del
+proyecto o como `servicio/proyecto/clave`; sin `--service`, el servicio es el
+destino de la receta y `--load` pide cargarlo al abrir el chat (ver [Chat de prueba](benchmarking.md)). No infiere
 el proyecto por el modelo ni publica o inicia servicios al enviar mensajes.
 El diálogo vive durante la sesión, sin historial persistente de conversación.
 Abre un chat CLI interactivo con `/exit` y Ctrl+C como salidas. Mantiene

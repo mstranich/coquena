@@ -118,6 +118,48 @@ internal static partial class DashboardCli
                 place.Recipe?.Files.Select(Path.GetFileName).OfType<string>().ToArray() ?? []);
         }
 
+        // The scope that defines a published entry and the logical model of its preset:
+        // «proyecto/clave» belongs to the project with that recipe name; otherwise, to Global.
+        public (int Place, string? Model) Locate(List<Place> places, string entry)
+        {
+            var slash = entry.LastIndexOf('/');
+            var key = entry[(slash + 1)..];
+            if (slash > 0)
+            {
+                var project = entry[..slash];
+                var at = places.FindIndex(place => !place.Scope.Global && place.Recipe is not null && place.Scope.Name == project);
+                if (at >= 0) return (at, Model(PresetRecipes(places[at]), project, key));
+            }
+            var global = places.FindIndex(place => place.Scope.Global);
+            if (global < 0) return (-1, null);
+            return (global, Model(PresetRecipes(places[global]), slash > 0 ? entry[..slash] : null, key));
+        }
+
+        private static string? Model(IEnumerable<EffectiveRecipe> recipes, string? project, string key)
+        {
+            foreach (var recipe in recipes.OrderBy(recipe => recipe.Name == project ? 0 : 1))
+            {
+                if (recipe.Root.Get("presets")?.Get(key)?.Get("args")?.Get("model")?.Text is { } model)
+                    return model.StartsWith("model://", StringComparison.Ordinal) ? model["model://".Length..] : model;
+            }
+            return null;
+        }
+
+        private static EffectiveRecipe[] PresetRecipes(Place place)
+        {
+            try
+            {
+                return place.Recipe is not null ? [RecipeReader.Read(place.Recipe)]
+                    : new RecipeRegistry(new ScopeStore(place.Context!)).Services()
+                        .Select(service =>
+                        {
+                            try { return RecipeReader.Read(new RecipeImporter(place.Context!).ServiceSelection(service.ServiceId)); }
+                            catch (Exception error) when (ServiceObservation.ObservationError(error) || error is RecipeException) { return null; }
+                        }).OfType<EffectiveRecipe>().ToArray();
+            }
+            catch (Exception error) when (ServiceObservation.ObservationError(error) || error is RecipeException) { return []; }
+        }
+
         private static View.Page Presets(Place place, IReadOnlyList<Target> targets, IReadOnlyDictionary<int, ServiceSnapshot> snapshots)
         {
             // A project shows its recipe; Global, the recipe of each global service.
