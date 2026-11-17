@@ -64,7 +64,7 @@ internal static class ChatCli
     // The preset is named by its published name (proyecto/clave), by the key of this folder's
     // recipe, or as servicio/proyecto/clave. Without --service, the recipe's destination decides
     // the service; when that does not apply, running services are searched for the name.
-    private static (DashboardCli.Target Target, Uri Address, string Entry)? Resolve(string reference, string? serviceName, TextWriter output, TextWriter error)
+    internal static (DashboardCli.Target Target, Uri Address, string Entry)? Resolve(string reference, string? serviceName, TextWriter output, TextWriter error, bool offerStart = true)
     {
         var discovered = DashboardCli.Discover(out var diagnostic);
         var targets = discovered.Where(target => target.Service is not null).ToList();
@@ -105,6 +105,7 @@ internal static class ChatCli
             if (address is not null) continue;
             if (problem is not null) { error.WriteLine(Messages.ChatServiceUnavailable.Format(problem)); return null; }
             var name = candidate.Target.Service!.Name;
+            if (!offerStart) { error.WriteLine(Messages.PresetServiceStopped.Format(name)); return null; }
             output.Write(Messages.ChatStartQuestion.Format(name));
             if (!Messages.IsYes(Console.ReadLine())) return null;
             Start(candidate.Target, output, error);

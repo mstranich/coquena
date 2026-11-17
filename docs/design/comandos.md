@@ -97,6 +97,17 @@ mensaje en edición. Su interacción y cancelación siguen el
 [laboratorio interactivo](benchmarking.md#laboratorio-interactivo).
 La TUI ofrece la misma operación desde Chat y el acceso Chat de En vivo.
 
+### load y unload
+
+`load <preset> [--service <nombre|default|self> | --global]` y `unload <preset>` con las mismas
+opciones cargan o descargan un preset publicado en el router, de a uno por invocación. El
+preset se nombra como en `chat`. Esperan a que el router informe el estado final (carga
+completa, fallo o descarga) con un límite de 120 s para cargar y 60 s para descargar.
+Un servicio detenido o un preset no publicado se rechazan con el motivo: no inician servicios
+ni publican. Pedir el estado que el preset ya tiene no envía nada. Descargar un preset que
+atiende peticiones pide confirmación y, sin interacción disponible, se rechaza.
+En vivo ofrece las mismas acciones para el preset enfocado.
+
 ### system
 
 Consulta plataforma, arquitectura y capacidades cuando se solicita.

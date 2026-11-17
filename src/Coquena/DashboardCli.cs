@@ -367,6 +367,17 @@ internal static partial class DashboardCli
                 chat.Choose(index, focused.Name, focusedEntry, ChatModel(focusedEntry));
                 Open(Tools);
             }
+            else if (action is "entry-load" or "entry-unload" && targets.ElementAtOrDefault(index) is { Service: not null } loadTarget && preferredEntry is { } loadEntry)
+                BeginLoad(loadTarget, loadEntry, action == "entry-load");
+            else if (action == "entry-withdraw" && targets.ElementAtOrDefault(index) is { Service: not null } withdrawTarget && preferredEntry is { } withdrawEntry)
+            {
+                // Withdraw belongs to the project that defines the preset, found as Chat finds it.
+                places = definitionSource.Places();
+                var owner = definitionSource.Locate(places, withdrawEntry).Place;
+                if (owner < 0 || places[owner].Recipe is not { } recipe)
+                    Query(app, Messages.DashboardDefinitionTitle.ToString(), Messages.DashboardPresetScopeUnavailable.ToString(), Messages.LabelsAccept.ToString());
+                else BeginPublication("withdraw", recipe, withdrawTarget.Label, AuthorPrivate(places[owner], recipe), withdrawEntry);
+            }
             else if (action == "stop") BeginServiceAction(stopService: true);
             else if (action is "start" or "restart") BeginServiceAction(stopService: false);
         };
@@ -923,14 +934,24 @@ internal static partial class DashboardCli
             var stopped = selectedSnapshot?.ProcessState == "stopped" || target is { Service: null, DeclaresService: true };
             var controls = LivePresentation.Controls(running, stopped, operation is null && target is not null,
                 operation is not null && operationLabel == target?.Label ? operationVerb : null);
-            // Chat opens Herramientas › Chat with the focused preset and its service.
+            // With a preset in focus: Load or Unload by its state, Withdraw and Chat, which opens Herramientas › Chat.
+            // While an operation runs or the preset is loading, the three actions stay disabled.
             if (preferredEntry is not null && target?.Service is not null)
-                controls = (controls.Length > 0 ? controls : "") + "{pad}" + Markup.Style("btn", " Chat ", "chat");
+            {
+                var entryState = selectedSnapshot?.Entries.FirstOrDefault(entry => entry.Name == preferredEntry)?.State;
+                var idle = operation is null && running && entryState != "loading";
+                string Action(string label, string name, bool enabled) => enabled ? Markup.Style("btn", " " + label + " ", name) : Markup.Style("off", " " + label + " ");
+                controls = (controls.Length > 0 ? controls : "") + "{pad}" +
+                    (entryState == "loaded" ? Action(Messages.LiveUnloadButton.ToString(), "entry-unload", idle) : Action(Messages.LiveLoadButton.ToString(), "entry-load", idle)) + " " +
+                    Action(Messages.LabelsWithdraw.ToString(), "entry-withdraw", idle) + " " + Markup.Style("btn", " Chat ", "chat");
+            }
             if (controls.Length > 0) rows.Add(controls);
             if (operation is not null && operationLabel == target?.Label && operationSteps?.Rows() is { Count: > 0 } stepRows)
                 foreach (var step in stepRows)
                     rows.Add(" " + Markup.Style(step.State switch { StepState.Done => "ok", StepState.Failed => "err", _ => "warn" },
                         Markup.Escape(StepProgress.Format(step, Glyphs.Unicode))));
+            else if (operation is null && target is not null && outcomes.GetValueOrDefault(target.Label) is { } outcome)
+                rows.AddRange(OperationRows(null, null, outcome, width));
 
             // Entry and task in focus.
             visibleTasks = target?.Service is { } service ? InferencePresentation.Rows(inference,
@@ -2495,6 +2516,45 @@ internal static partial class DashboardCli
             }
             if (page == Editing) file.View.SetFocus();
             Render();
+        }
+
+        // Load or Unload of the preset in focus; unloading one that answers requests asks first.
+        void BeginLoad(Target loadTarget, string entry, bool load)
+        {
+            if (operation is not null) return;
+            var (address, problem) = new ServiceObservation(loadTarget.Store).Endpoint(loadTarget.Service!);
+            if (address is null) { Notify("✗", "err", problem ?? Messages.PresetServiceStopped.Format(loadTarget.Service!.Name), -1); return; }
+            var client = new HttpClient(new HttpClientHandler { AllowAutoRedirect = false, UseProxy = false }) { Timeout = TimeSpan.FromSeconds(30) };
+            var router = new LlamaPresetRouter(client, address);
+            if (!load)
+            {
+                var busy = false;
+                try { busy = router.ProcessingAsync(entry, CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(3)).GetAwaiter().GetResult(); }
+                catch (Exception error) when (error is HttpRequestException or TimeoutException or TaskCanceledException) { }
+                if (busy && Query(app, Messages.PresetUnloadBusyTitle.Format(entry), Messages.PresetUnloadBusyConfirm.ToString(),
+                    Messages.LabelsCancel.ToString(), Messages.LiveUnloadButton.ToString()) != 1) { client.Dispose(); return; }
+            }
+            operationVerb = load ? "load" : "unload";
+            publicationExit = null;
+            var steps = operationSteps = StepProgress.Silent();
+            operationLabel = loadTarget.Label;
+            selectionEpoch++;
+            operation = Task.Run<string?>(async () =>
+            {
+                using var owned = client;
+                try
+                {
+                    var result = await steps.Run((load ? Messages.StepLoadPreset : Messages.StepUnloadPreset).Format(entry),
+                        _ => PresetLoad.RunAsync(router, entry, load, stop.Token));
+                    publicationExit = 0;
+                    return result;
+                }
+                catch (Exception error) when (error is StorageException or HttpRequestException or TaskCanceledException)
+                {
+                    publicationExit = 1;
+                    return error.Message;
+                }
+            });
         }
 
         void BeginPublication(string action, RecipeSelection? requested = null, string? requestedLabel = null, bool requestedPrivate = false, string? preset = null)

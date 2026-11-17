@@ -78,6 +78,22 @@ features:
       - docs/design/tui/README.md
       - docs/design/tui/A-en-vivo.salt.puml
       - docs/design/tui/N-definiciones-descargas.salt.puml
+  - id: preset-load-unload
+    intent: Cargar o descargar un preset publicado en el router y retirarlo desde En vivo, con load y unload <preset> en la CLI.
+    keywords: [load, unload, cargar, descargar, retirar, withdraw, models/load, models/unload, En vivo]
+    entrypoints:
+      - src/Coquena/PresetLoadCli.cs
+      - src/Coquena/DashboardCli.cs
+    implementation:
+      - src/Coquena/Servers/PresetLoad.cs
+      - src/Coquena/Servers/LlamaPresetRouter.cs
+      - src/Coquena/ChatCli.cs
+    tests:
+      - tests/Coquena.Tests/PresetLoadTests.cs
+    references:
+      - docs/design/comandos.md
+      - docs/design/ui-servicio.md
+      - specs/098-cargar-y-retirar-presets-en-vivo/README.md
   - id: preset-chat-test
     intent: Probar un preset publicado con una conversación en streaming y la telemetría de la respuesta, desde Herramientas › Chat en la TUI o con chat <preset>.
     keywords: [chat, herramientas, tools, preset, streaming, SSE, timings, prompt_progress, speculative, draft, cache_n, Detener]

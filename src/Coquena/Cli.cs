@@ -22,6 +22,8 @@ public static class Cli
             return DashboardCli.Run(args[1..], output, error);
         if (args.Length > 0 && args[0] == "chat")
             return ChatCli.Run(args[1..], output, error);
+        if (args.Length > 0 && args[0] is "load" or "unload")
+            return PresetLoadCli.Run(args[0], args[1..], output, error);
 
         var prefix = 0;
         while (prefix < args.Length)

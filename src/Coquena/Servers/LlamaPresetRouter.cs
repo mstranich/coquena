@@ -2,7 +2,7 @@ using System.Text.Json.Nodes;
 
 namespace Coquena.Servers;
 
-public sealed class LlamaPresetRouter(HttpClient client, Uri endpoint) : IPresetRouter
+public sealed class LlamaPresetRouter(HttpClient client, Uri endpoint) : IPresetRouter, IPresetLoader
 {
     private Uri Url(string path) => new(endpoint, path);
     public async Task<JsonArray> ObserveAsync(CancellationToken cancellation)
@@ -62,6 +62,24 @@ public sealed class LlamaPresetRouter(HttpClient client, Uri endpoint) : IPreset
         { Content = new StringContent(new JsonObject { ["model"] = name }.ToJsonString(), System.Text.Encoding.UTF8, "application/json") };
         using var response = await client.SendAsync(request, cancellation);
         return response.IsSuccessStatusCode;
+    }
+
+    // Asks the router to unload the entry without waiting for it.
+    public async Task<bool> RequestUnloadAsync(string name, CancellationToken cancellation)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Post, Url("/models/unload"))
+        { Content = new StringContent(new JsonObject { ["model"] = name }.ToJsonString(), System.Text.Encoding.UTF8, "application/json") };
+        using var response = await client.SendAsync(request, cancellation);
+        return response.IsSuccessStatusCode;
+    }
+
+    // Whether a slot of the entry is processing a request; without autoload, so it never loads it.
+    public async Task<bool> ProcessingAsync(string name, CancellationToken cancellation)
+    {
+        using var response = await client.GetAsync(Url("/slots?autoload=false&model=" + Uri.EscapeDataString(name)), cancellation);
+        if (!response.IsSuccessStatusCode) return false;
+        return JsonNode.Parse(await response.Content.ReadAsStringAsync(cancellation)) is JsonArray slots &&
+            slots.Any(slot => slot?["is_processing"]?.GetValue<bool>() == true);
     }
 
     // State of one entry in the router catalog: loaded, failed, or still on its way.

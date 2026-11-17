@@ -18,6 +18,8 @@ public static partial class Messages
                                            Try a preset with a chat and its telemetry
             preset: project/key, the local key or service/project/key
             --load asks to load the preset; Enter sends when it finishes
+          load|unload <preset> [--service <name|default|self> | --global]
+                                           Load or unload a published preset
           backend (runtime)                Query and prepare backends by scope
           model                            Download and manage models
           model companion                  Manage mmproj and MTP companions

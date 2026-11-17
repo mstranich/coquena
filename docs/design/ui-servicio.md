@@ -16,6 +16,13 @@ abre Chat con ese destino seleccionado. Es un acceso al
 las métricas alrededor de la prueba y permite enviar mensajes. Abrirlo no publica
 ni inicia el servicio.
 
+Junto a Chat, el preset enfocado ofrece Cargar o Descargar según su estado y Retirar.
+Cargar y Descargar usan [`load` y `unload`](comandos.md#load-y-unload): esperan el estado final
+y no inician servicios ni publican. Descargar un preset que atiende peticiones pide
+confirmación. Retirar usa `withdraw` del proyecto que define el preset, buscado como lo
+busca Chat. Mientras corre una operación o el preset está cargando, las tres acciones
+quedan deshabilitadas; los pasos y el resultado, con su hora, se muestran debajo, sin modal.
+
 El contenido del servicio enfocado se organiza en estas zonas:
 
 1. Cabecera: nombre, puerto, estado, salud y CPU/RAM privada del proceso

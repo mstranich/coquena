@@ -17,7 +17,7 @@
       }
     } | {
       { <b>principal | :9931 | ● en línea | CPU 21% · RAM 3,1G · cola 2 }
-      { [■ Detener] | [⟳ Reiniciar] }
+      { [■ Detener] | [⟳ Reiniciar] | . | [Descargar] | [Retirar] | [Chat] }
       { <b>código/asistente | gemma-4-12B Q4_0 | ≠ receta }
       { prompt ▂▃▅▆▇▆▅▆▇ 80 tk/s · pico 96 }
       { gen ▂▅▆▆▆▅▆▆▇ 20 tk/s · pico 24 }
