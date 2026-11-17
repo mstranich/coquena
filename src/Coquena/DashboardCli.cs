@@ -1294,7 +1294,9 @@ internal static partial class DashboardCli
                         var selected = managedSelection.GetValueOrDefault(key);
                         if (!presets.Any(preset => preset.Id == selected)) selected = presets.FirstOrDefault()?.Id;
                         if (selected is not null) managedSelection[key] = selected;
-                        definitionPage = PresetsPage(place.Scope.Name, presets, selected, Math.Max(20, window.Viewport.Width - Right), CombinationTitle(place));
+                        definitionPage = PresetsPage(place.Scope.Name, presets, selected, Math.Max(20, window.Viewport.Width - Right), CombinationTitle(place),
+                            operation is not null && operationLabel == place.Scope.Name ? operationVerb : null,
+                            operation is not null && operationLabel == place.Scope.Name ? operationSteps?.Rows() : null, outcomes.GetValueOrDefault(place.Scope.Name));
                     }
                     else if (definitionView == "updates" && place.Context is not null)
                     {
@@ -1526,6 +1528,8 @@ internal static partial class DashboardCli
                         if (Query(app, Messages.PresetRemoveTitle.Format(chosen.Name), Messages.PresetRemoveConfirm.ToString(), Messages.LabelsCancel.ToString(), Messages.AuthoringOpenDraftButton.ToString()) != 1) return;
                         StageEdit(chosen.Recipe.Selection, place.Scope.Name, chosen.Recipe.Selection.Files[^1], ["presets", chosen.Name], new EditRemove()); return;
                     }
+                    else if (action is "preset-apply" or "preset-withdraw")
+                    { BeginPublication(action[7..], chosen.Recipe.Selection, place.Scope.Name, AuthorPrivate(place, chosen.Recipe.Selection), chosen.Name); return; }
                     else if (action == "preset-live" && chosen.Target is int target)
                     { index = target; preferredEntry = context.IsGlobal ? chosen.Name : chosen.Recipe.Name + "/" + chosen.Name; selectionEpoch++; Select(); Open(Live); return; }
                     else if (action.StartsWith("preset-resource:", StringComparison.Ordinal))
@@ -2493,7 +2497,7 @@ internal static partial class DashboardCli
             Render();
         }
 
-        void BeginPublication(string action, RecipeSelection? requested = null, string? requestedLabel = null, bool requestedPrivate = false)
+        void BeginPublication(string action, RecipeSelection? requested = null, string? requestedLabel = null, bool requestedPrivate = false, string? preset = null)
         {
             if (operation is not null) return;
             var selection = requested ?? targets.ElementAtOrDefault(index)?.Recipe;
@@ -2524,6 +2528,8 @@ internal static partial class DashboardCli
                 if (usePrivateResources) args.Add("--private");
                 foreach (var file in selection.Files) args.AddRange(["--file", file]);
                 foreach (var file in selection.EnvFiles) args.AddRange(["--env-file", file]);
+                // The preset goes last, after "--", so a key that starts with a dash is not read as an option.
+                if (preset is not null) args.AddRange(["--", preset]);
                 var result = PublicationCli.Execute(args.ToArray(), output, error,
                     new DashboardPublicationInteraction(app, label, stop.Token), frontend);
                 publicationExit = result;

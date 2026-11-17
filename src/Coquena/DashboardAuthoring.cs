@@ -47,7 +47,8 @@ internal static partial class DashboardCli
         return rows.ToArray();
     }
 
-    internal static DefinitionsPresentation.Page PresetsPage(string scope, IReadOnlyList<PresetRow> presets, string? selected, int width, string? combination = null)
+    internal static DefinitionsPresentation.Page PresetsPage(string scope, IReadOnlyList<PresetRow> presets, string? selected, int width, string? combination = null,
+        string? busy = null, IReadOnlyList<StepRow>? steps = null, OperationOutcome? last = null)
     {
         combination ??= Messages.AuthoringCombinationDefault;
         var rows = new List<string> { " " + Markup.Style("mut", Messages.AuthoringPresetTableHeader.ToString()) };
@@ -79,7 +80,12 @@ internal static partial class DashboardCli
             }
             rows.Add(" " + Markup.Style("mut", Messages.AuthoringPublishedSnapshotNote.ToString()));
             rows.Add(" " + ManagementPresentation.Button(Messages.LabelsClone.ToString(), "preset-clone") + " " + ManagementPresentation.Button(Messages.AuthoringEditYamlButton.ToString(), "preset-edit") + " " + ManagementPresentation.Button(Messages.LabelsRemove.ToString(), "preset-remove"));
-            rows.Add(" " + (chosen.Target is null ? DefinitionsPresentation.Off(Messages.AuthoringViewLiveButton.ToString()) : ManagementPresentation.Button(Messages.AuthoringViewLiveButton.ToString(), "preset-live")));
+            // Apply publishes or reloads the preset; Withdraw is offered only once it is published.
+            var spinner = DashboardPresentation.Spinner();
+            rows.Add(" " + (busy is null ? ManagementPresentation.Button(Messages.LabelsApply.ToString(), "preset-apply") : DefinitionsPresentation.Off((busy == "apply" ? spinner + " " : "") + Messages.LabelsApply)) + " " +
+                (busy is null && chosen.Published is not null ? ManagementPresentation.Button(Messages.LabelsWithdraw.ToString(), "preset-withdraw") : DefinitionsPresentation.Off((busy == "withdraw" ? spinner + " " : "") + Messages.LabelsWithdraw)) + " " +
+                (chosen.Target is null ? DefinitionsPresentation.Off(Messages.AuthoringViewLiveButton.ToString()) : ManagementPresentation.Button(Messages.AuthoringViewLiveButton.ToString(), "preset-live")));
+            rows.AddRange(OperationRows(busy, steps, last, width));
         }
         return new(Messages.PresetsInScope.Format(Markup.Escape(scope)) + "{pad}" + ManagementPresentation.CombinationButton(combination), rows);
     }

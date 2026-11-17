@@ -87,6 +87,23 @@ internal static partial class DashboardCli
         return items.ToArray();
     }
 
+    // While an operation runs, a section shows the same steps as the CLI; afterwards, the result and when it ended.
+    internal static List<string> OperationRows(string? busy, IReadOnlyList<StepRow>? steps, OperationOutcome? last, int width)
+    {
+        var rows = new List<string>();
+        if (busy is not null)
+            foreach (var step in steps ?? [])
+                rows.Add(" " + Markup.Style(step.State switch { StepState.Done => "ok", StepState.Failed => "err", _ => "warn" }, Markup.Escape(StepProgress.Format(step, Glyphs.Unicode))));
+        else if (last is not null)
+        {
+            rows.Add(" " + Markup.Style(last.Tone, (last.Tone == "ok" ? "✓ " : last.Tone == "warn" ? "▲ " : "✗ ") +
+                Messages.EditorLastOperation.Format(last.At.ToLocalTime().ToString("g", System.Globalization.CultureInfo.CurrentCulture))));
+            foreach (var line in last.Text.Split('\n').SelectMany(line => DashboardPresentation.Wrap(line.TrimEnd('\r'), Math.Max(10, width - 3))))
+                rows.Add(" " + Markup.Escape(line));
+        }
+        return rows;
+    }
+
     // The end of the last Up or Down of a recipe: tone, when it ended and what it printed.
     internal sealed record OperationOutcome(string Tone, DateTimeOffset At, string Text);
 
@@ -118,17 +135,7 @@ internal static partial class DashboardCli
         rows.Add(" " + (busy is null ? ManagementPresentation.Button("▲ Up", "up") : DefinitionsPresentation.Off((busy == "up" ? spinner : "▲") + " Up")) + " " +
             (busy is null && chosen is not null ? ManagementPresentation.Button("▼ Down", "down") : DefinitionsPresentation.Off((busy == "down" ? spinner : "▼") + " Down")) + " " +
             (chosen is null || busy is not null ? DefinitionsPresentation.Off(Messages.LabelsImport.ToString()) : ManagementPresentation.Button(Messages.LabelsImport.ToString(), "recipe-import")) + " " + DefinitionsPresentation.Off(Messages.AuthoringViewLiveButton.ToString()));
-        // While it runs, the section shows the same steps as the CLI; afterwards, the result and when it ended.
-        if (busy is not null)
-            foreach (var step in steps ?? [])
-                rows.Add(" " + Markup.Style(step.State switch { StepState.Done => "ok", StepState.Failed => "err", _ => "warn" }, Markup.Escape(StepProgress.Format(step, Glyphs.Unicode))));
-        else if (last is not null)
-        {
-            rows.Add(" " + Markup.Style(last.Tone, (last.Tone == "ok" ? "✓ " : last.Tone == "warn" ? "▲ " : "✗ ") +
-                Messages.EditorLastOperation.Format(last.At.ToLocalTime().ToString("g", System.Globalization.CultureInfo.CurrentCulture))));
-            foreach (var line in last.Text.Split('\n').SelectMany(line => DashboardPresentation.Wrap(line.TrimEnd('\r'), Math.Max(10, width - 3))))
-                rows.Add(" " + Markup.Escape(line));
-        }
+        rows.AddRange(OperationRows(busy, steps, last, width));
         return new(Messages.RecipesInScope.Format(Markup.Escape(scope)) + (destination is null ? "" : " " + Markup.Style("mut", "→") + " " + Markup.Escape(destination)), rows);
 
         static string Pad(string text, int size) => DashboardPresentation.Fit(text, size - 1).PadRight(size);

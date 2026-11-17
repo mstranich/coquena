@@ -89,7 +89,9 @@ El selector de idioma comparte la preferencia de [config language](comandos.md#c
 el cambio de textos se aplica al reiniciar la TUI. La [consulta de definiciones](tui/B-definiciones-recetas.salt.puml)
 conserva el catálogo observado. Durante Up o Down, la sección Recetas muestra los mismos pasos que
 imprime la CLI; al terminar, deja ahí el resultado con la hora de la última ejecución,
-exitosa o fallida, sin abrir un modal. La [vista por servidor](ui-servicio.md) muestra inferencia en
+exitosa o fallida, sin abrir un modal. En Presets, el preset elegido ofrece Aplicar, que lo publica o lo
+recarga como `apply`, y Retirar, sólo si está publicado, como `withdraw`. Sus pasos y su
+resultado se muestran en la misma sección. La [vista por servidor](ui-servicio.md) muestra inferencia en
 curso, rendimiento, recursos compartidos y logs. El log queda accesible dentro
 del servidor aunque el espacio vertical obligue a separarlo del monitor.
 

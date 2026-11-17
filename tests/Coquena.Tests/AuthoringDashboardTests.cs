@@ -40,6 +40,9 @@ internal static class AuthoringDashboardTests
             var presetPage = DashboardCli.PresetsPage("fixture", presets, presets[0].Id, 56);
             var actions = presetPage.Rows.SelectMany(Markup.Parse).Select(span => span.Action).ToArray();
             check(actions.Contains("preset-clone") && actions.Contains("preset-edit") && actions.Contains("preset-remove") && !actions.Contains("preset-live"), "P enables authoring without fabricating a live target");
+            check(actions.Contains("preset-apply") && presets[0].Published is null == !actions.Contains("preset-withdraw"), "P offers Apply, and Withdraw only for a published preset");
+            var applying = DashboardCli.PresetsPage("fixture", presets, presets[0].Id, 56, busy: "apply").Rows.SelectMany(Markup.Parse).Select(span => span.Action).ToArray();
+            check(!applying.Contains("preset-apply") && !applying.Contains("preset-withdraw"), "P disables Apply and Withdraw while an operation runs");
             var definitions = DashboardCli.DefinitionRows([selection]);
             check(definitions.Single().Name == "context" && definitions[0].Uses.SequenceEqual(["fixture/assistant"]), "Q reads the selected YAML schema and assignment owners");
             check(DashboardCli.ParametersPage("fixture", definitions, definitions[0].Id, "").Rows.Count <= 20, "Q retains list and detail in 80x24 content");

@@ -36,7 +36,8 @@
         -ngl | 99 | 99 | ¹
         -dev | CUDA0 | CUDA0 | ²
       }
-      { [Clonar…] | [Editar YAML] | [Eliminar] | [Ver en vivo] }
+      { [Clonar…] | [Editar YAML] | [Eliminar] }
+      { [Aplicar] | [Retirar] | [Ver en vivo] }
     }
   }
   { CPU ▂▃▅▆▅ 42% | RAM ▅▅▆▆ 18,2/32G }

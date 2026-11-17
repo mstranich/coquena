@@ -34,6 +34,7 @@ public static partial class Messages
     public static readonly Text LabelsMaintenance = new("Maintenance");
     public static readonly Text LabelsDefinitions = new("Definitions");
     public static readonly Text LabelsApply = new("Apply");
+    public static readonly Text LabelsWithdraw = new("Withdraw");
     public static readonly Text LabelsName = new("name");
     public static readonly Text LabelsFilter = new("Filter");
     public static readonly Text LabelsType = new("type");

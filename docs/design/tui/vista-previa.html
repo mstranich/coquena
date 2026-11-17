@@ -80,7 +80,8 @@ const PRESETS=[
 "   -ngl        99        99       ¹",
 "   -dev        CUDA0     CUDA0    ²",
 "",
-" {btn| Clonar… } {btn| Editar YAML } {btn| Eliminar } {btn| Ver en vivo }"];
+" {btn| Clonar… } {btn| Editar YAML } {btn| Eliminar }",
+" {btn| Aplicar } {btn| Retirar } {btn| Ver en vivo }"];
 // Desplegable: las combinaciones registradas en Recetas; ● marca la elegida. Clic o Enter elige; Esc cierra.
 const DROP=(items,sel)=>{const w=28;return ["{bdr|╭"+"─".repeat(w)+"╮}",
  ...items.map((t,i)=>"{bdr|│}"+(i===sel?"{focb|"+fill(" ● "+t,w)+"}":"{dlg|"+fill("   "+t,w)+"}")+"{bdr|│}"),"{bdr|╰"+"─".repeat(w)+"╯}"];};
