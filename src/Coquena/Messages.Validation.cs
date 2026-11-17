@@ -48,7 +48,6 @@ public static partial class Messages
     public static readonly Text ValidationMetricsMustBeBoolean = new("metrics must be boolean.");
     public static readonly Text ValidationParameterMustBeAScalarLiteral = new("Parameter must be a scalar literal.");
     public static readonly Text ValidationInvalidReconnectionInitialMaximumSeconds = new("Invalid reconnection: 1 \u003C= initial \u003C= maximum \u003C= 3600 seconds.");
-    public static readonly Text ValidationInvalidInferenceHistoryToTasks = new("Invalid inference history: 0 to 10000 tasks.");
     public static readonly Text ValidationInvalidHiddenBarResources = new("Invalid hidden bar resources.");
     public static readonly Text ValidationInvalidLanguage = new("Invalid language.");
     public static readonly Text ValidationInvalidRetention = new("Invalid retention.");

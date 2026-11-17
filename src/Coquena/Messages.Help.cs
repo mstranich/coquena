@@ -205,9 +205,6 @@ public static partial class Messages
           config observer-retry show|unset  Query/reset reconnection (1..30 s)
           config observer-retry set <initial-s> <maximum-s>
                                            Exponential backoff, at most 3600 s
-          config inference-history show|unset
-          config inference-history set <count>
-            Tasks the TUI remembers per session (0..10000)
           config log-retention show        Query the global log retention
           config log-retention set <size>  Set the global log limit
             Integer in bytes or B; KiB/MiB/GiB/TiB/PiB/EiB and their aliases

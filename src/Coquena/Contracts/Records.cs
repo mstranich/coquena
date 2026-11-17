@@ -75,7 +75,8 @@ public sealed record ConfigDocument(int SchemaVersion, Guid? DefaultServerId,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? BackendsDirectory = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? ModelsDirectory = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] ObserverPreferences? Observer = null,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] int? InferenceHistoryLimit = null,
+    // Retired: accepted when reading an older config.json and never written back.
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.Always)] int? InferenceHistoryLimit = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] bool? FilterMonitoringLogs = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string[]? HiddenBarResources = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? Language = null);

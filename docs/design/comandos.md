@@ -253,10 +253,6 @@ como contenido.
 Preferencias de observadores/reconexión y retención predeterminada de logs
 pertenecen a ese ámbito. Un override de retención del servidor y el destino de sus
 logs pertenecen al YAML y se editan como configuración del proyecto.
-`config inference-history show|unset` consulta o restablece el límite de tareas
-finalizadas que se conservan por sesión de la TUI. `config inference-history set <cantidad>`
-acepta de 0 a 10000, con 100 por defecto. Cero desactiva el histórico de
-finalizadas. La preferencia se aplica al abrir la TUI.
 
 `config observer-retry show|unset` consulta o restablece la espera de reconexión;
 `config observer-retry set <inicial-s> <máximo-s>` establece los valores en segundos

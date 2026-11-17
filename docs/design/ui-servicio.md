@@ -107,13 +107,10 @@ proceso de un modelo separa tareas aunque el servicio y router sigan activos.
 
 ## Histórico visual
 
-Una preferencia del observador configura cuántas filas de tareas finalizadas se
-conservan visibles en el histórico. Las filas activas se distinguen de las finalizadas;
-el límite histórico no limita la ejecución ni elimina actividad actual. El histórico
-es acotado a la sesión y se puede recorrer cuando no cabe en pantalla.
-
-El límite configura exclusivamente las filas históricas del observador. La capacidad
-de ejecución del backend y la retención de logs se configuran por separado.
+En vivo conserva en memoria las últimas 100 tareas finalizadas de la sesión. Las
+filas activas se distinguen de las finalizadas; el histórico no limita la ejecución
+ni elimina actividad actual, no se guarda al cerrar la TUI y no es configurable.
+Se puede recorrer cuando no cabe en pantalla.
 Una fila finalizada conserva sus últimos valores observados. El historial distingue
 instancias aunque sus tareas tengan el mismo número.
 

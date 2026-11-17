@@ -139,9 +139,6 @@ public sealed class ConfigurationManager(Home home, LocalStore? storage = null)
     public ObserverPreferences Observer() => Config().Observer ?? new();
     public void SetObserver(ObserverPreferences? preferences) => store.Update(DocumentKind.Config, Json.ConfigDocument, ContractValidation.Config,
         old => (old ?? new(1, null, null, new(5))) with { Observer = preferences });
-    public int InferenceHistory() => Config().InferenceHistoryLimit ?? 100;
-    public void SetInferenceHistory(int? limit) => store.Update(DocumentKind.Config, Json.ConfigDocument, ContractValidation.Config,
-        old => (old ?? new(1, null, null, new(5))) with { InferenceHistoryLimit = limit });
     // null means auto: the language follows the system culture.
     public string? Language() => Config().Language;
     public void SetLanguage(string? code) => store.Update(DocumentKind.Config, Json.ConfigDocument, ContractValidation.Config,

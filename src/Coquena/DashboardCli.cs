@@ -192,7 +192,7 @@ internal static partial class DashboardCli
         StepProgress? operationSteps = null;
         var outcomes = new Dictionary<string, OperationOutcome>();
         ServiceSnapshot? selectedSnapshot = null;
-        var inference = new InferenceTasks(preferences.InferenceHistory());
+        var inference = new InferenceTasks();
         string? preferredEntry = null, inferenceEntry = null;
         IReadOnlyList<InferenceTask> visibleTasks = [];
         InferenceTaskIdentity? preferredTask = null;
@@ -449,7 +449,7 @@ internal static partial class DashboardCli
             if (page == History) CloseHistory(); else Open(Live);
         };
         settings.FilterLogs.ValueChanged += (_, _) => ReadLog(force: true);
-        settings.Changed += () => { inference.HistoryLimit = settings.HistoryLimit; RenderBar(DateTimeOffset.UtcNow); };
+        settings.Changed += () => RenderBar(DateTimeOffset.UtcNow);
         systemDetail.Pressed += action =>
         {
             if (action != "probe" || !probe.IsCompleted) return;

@@ -8,7 +8,6 @@ public static partial class Messages
     public static readonly Text InvalidArguments = new("Invalid arguments.");
 
     // config
-    public static readonly Text ConfigInferenceHistory = new("Inference history: {0} tasks.");
     public static readonly Text ConfigReconnection = new("Reconnection: initial {0} s; maximum {1} s; exponential backoff x2.");
     public static readonly Text ConfigDirectory = new("{0} | {1} | location: {2}");
     public static string OwnOrDefault(bool own) => own ? OwnValue : DefaultValue;

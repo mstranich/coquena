@@ -24,7 +24,7 @@ internal static partial class DashboardCli
         private readonly ConfigurationManager manager;
         private readonly Home home;
         private readonly bool color;
-        private readonly Field models, backends, initial, maximum, history, retention;
+        private readonly Field models, backends, initial, maximum, retention;
         private readonly Label status, tuiStatus;
         private readonly View resourceRows;
         private readonly Button language;
@@ -40,7 +40,6 @@ internal static partial class DashboardCli
         public View Tui { get; }
         public CheckBox FilterLogs { get; }
         public HashSet<string> Hidden { get; private set; }
-        public int HistoryLimit { get; private set; }
         public event Action? Changed;
 
         private sealed record Field(string Name, TextField Text, Label Origin, Func<string> Default)
@@ -54,7 +53,7 @@ internal static partial class DashboardCli
             (this.app, this.manager, this.home, this.color, this.closing) = (app, manager, home, color, closing);
             Coquena = new View { Width = Dim.Fill(), Height = Dim.Fill(), CanFocus = true };
             Tui = new View { Width = Dim.Fill(), Height = Dim.Fill(), CanFocus = true };
-            status = new Label { X = 1, Y = 16, Width = Dim.Fill(1), Height = 3 };
+            status = new Label { X = 1, Y = 15, Width = Dim.Fill(1), Height = 3 };
 
             Heading(Coquena, 0, Messages.SettingsLanguage);
             language = Button(Coquena, 2, 1, LanguageLabel(), ChooseLanguage);
@@ -64,16 +63,15 @@ internal static partial class DashboardCli
             Heading(Coquena, 5, Messages.SettingsObservation);
             initial = Add(6, Messages.SettingsRetryInitial, Column, 6, "s", () => new ObserverPreferences().RetryInitialSeconds.ToString(CultureInfo.InvariantCulture));
             maximum = Add(7, Messages.SettingsRetryMaximum, Column, 6, "s", () => new ObserverPreferences().RetryMaxSeconds.ToString(CultureInfo.InvariantCulture));
-            history = Add(8, Messages.SettingsHistory, Column, 6, "", () => "100");
-            Heading(Coquena, 9, Messages.SettingsLogs);
-            retention = Add(10, Messages.SettingsRetention, Column, 9, "", () => ByteSize.Format(LogRetentionPolicy.InitialBytes, CultureInfo.InvariantCulture));
-            Heading(Coquena, 11, Messages.SettingsParameters);
-            Text(Coquena, 2, 12, Messages.SettingsGlobalCatalog, Palette.Text);
-            var simulate = Button(Coquena, Column, 12, Messages.SettingsSimulateReset, SimulateReset);
-            Button(Coquena, Pos.Right(simulate) + 2, 12, Messages.SettingsReset, ResetCatalog);
-            var save = Button(Coquena, 1, 14, Messages.SettingsSave, Save);
-            var defaults = Button(Coquena, Pos.Right(save) + 2, 14, Messages.SettingsReset, Defaults);
-            Button(Coquena, Pos.Right(defaults) + 2, 14, Messages.SettingsReload, () => Load());
+            Heading(Coquena, 8, Messages.SettingsLogs);
+            retention = Add(9, Messages.SettingsRetention, Column, 9, "", () => ByteSize.Format(LogRetentionPolicy.InitialBytes, CultureInfo.InvariantCulture));
+            Heading(Coquena, 10, Messages.SettingsParameters);
+            Text(Coquena, 2, 11, Messages.SettingsGlobalCatalog, Palette.Text);
+            var simulate = Button(Coquena, Column, 11, Messages.SettingsSimulateReset, SimulateReset);
+            Button(Coquena, Pos.Right(simulate) + 2, 11, Messages.SettingsReset, ResetCatalog);
+            var save = Button(Coquena, 1, 13, Messages.SettingsSave, Save);
+            var defaults = Button(Coquena, Pos.Right(save) + 2, 13, Messages.SettingsReset, Defaults);
+            Button(Coquena, Pos.Right(defaults) + 2, 13, Messages.SettingsReload, () => Load());
             Coquena.Add(status);
 
             Heading(Tui, 0, Messages.SettingsLog);
@@ -109,12 +107,10 @@ internal static partial class DashboardCli
                 var view = manager.ModelDirectory.Show();
                 var backendView = manager.BackendDirectory.Show();
                 var retentionView = manager.Retention();
-                HistoryLimit = manager.InferenceHistory();
                 Set(models, view.EffectivePath, view.Own);
                 Set(backends, backendView.EffectivePath, backendView.Own);
                 Set(initial, retry.RetryInitialSeconds.ToString(CultureInfo.InvariantCulture), retry != new ObserverPreferences());
                 Set(maximum, retry.RetryMaxSeconds.ToString(CultureInfo.InvariantCulture), retry != new ObserverPreferences());
-                Set(history, HistoryLimit.ToString(CultureInfo.InvariantCulture), HistoryLimit != 100);
                 Set(retention, ByteSize.Format(retentionView.MaxBytes, CultureInfo.InvariantCulture), retentionView.Origin != "initial");
                 FilterLogs.Value = manager.FilterMonitoringLogs() ? CheckState.Checked : CheckState.UnChecked;
                 Hidden = manager.HiddenBarResources().ToHashSet(StringComparer.Ordinal);
@@ -209,13 +205,12 @@ internal static partial class DashboardCli
         private void Save()
         {
             if (directoryChange is { IsCompleted: false }) { Tell(status, Messages.SettingsMoveRunning, true); return; }
-            int first, last, limit;
+            int first, last;
             long bytes;
             try
             {
                 first = Integer(initial, 1, 3600);
                 last = Integer(maximum, first, 3600);
-                limit = Integer(history, 0, 10000);
                 bytes = LogRetentionPolicy.Parse(retention.Text.Text.Trim());
             }
             catch (ConfigurationException error) { Tell(status, error.Message, true); return; }
@@ -228,7 +223,6 @@ internal static partial class DashboardCli
                     manager.SetObserver(preferences == new ObserverPreferences() ? null : preferences);
                     done.Add(Messages.SettingsReconnection);
                 }
-                if (Edited(history)) { manager.SetInferenceHistory(limit == 100 ? null : limit); HistoryLimit = limit; done.Add(Messages.SettingsHistoryDone); }
                 if (Edited(retention)) { manager.SetRetention(bytes == LogRetentionPolicy.InitialBytes ? null : bytes); done.Add(Messages.SettingsRetentionDone); }
             }
             catch (Exception error) when (Expected(error)) { Tell(status, Messages.SettingsNotSaved.Format(error.Message), true); return; }
@@ -317,7 +311,7 @@ internal static partial class DashboardCli
             int.TryParse(field.Text.Text.Trim(), NumberStyles.None, CultureInfo.InvariantCulture, out var value) && value >= minimum && value <= maximum
                 ? value : throw new ConfigurationException(Messages.SettingsInteger.Format(field.Name, minimum, maximum));
 
-        private IEnumerable<Field> Fields() => [models, backends, initial, maximum, history, retention];
+        private IEnumerable<Field> Fields() => [models, backends, initial, maximum, retention];
 
         private void Set(Field field, string value, bool own)
         {

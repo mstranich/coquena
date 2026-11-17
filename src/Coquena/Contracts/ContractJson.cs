@@ -204,7 +204,6 @@ public static class ContractValidation
     {
         Version(value.SchemaVersion);
         Require(value.Observer is null || value.Observer.RetryInitialSeconds >= 1 && value.Observer.RetryMaxSeconds >= value.Observer.RetryInitialSeconds && value.Observer.RetryMaxSeconds <= 3600, Messages.ValidationInvalidReconnectionInitialMaximumSeconds.ToString());
-        Require(value.InferenceHistoryLimit is null or (>= 0 and <= 10000), Messages.ValidationInvalidInferenceHistoryToTasks.ToString());
         if (value.BackendsDirectory is not null) Text(value.BackendsDirectory);
         if (value.ModelsDirectory is not null) Text(value.ModelsDirectory);
         Require(value.LogRetention is null || value.LogRetention.MaxBytes > 0, Messages.ValidationInvalidLogRetention.ToString());
