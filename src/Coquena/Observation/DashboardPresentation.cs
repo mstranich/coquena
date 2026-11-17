@@ -19,7 +19,10 @@ internal static class DashboardPresentation
             {
                 if (row.Length > 0 && row.Length + word.Length + 1 > width)
                 { rows.Add(row); row = ""; }
-                row += (row.Length > 0 ? " " : "") + word;
+                // A word wider than the row, such as a path, is cut across rows instead of overflowing.
+                var rest = word;
+                while (width > 0 && row.Length == 0 && rest.Length > width) { rows.Add(rest[..width]); rest = rest[width..]; }
+                row += (row.Length > 0 ? " " : "") + rest;
             }
             rows.Add(row);
         }

@@ -186,8 +186,9 @@ internal static partial class DashboardCli
     {
         var dialog = new Dialog
         {
-            Width = Math.Max(10, Math.Min(width + 2, app.Screen.Width - 2)),
-            Height = Math.Max(5, Math.Min(height + 2, app.Screen.Height - 2)),
+            // Border plus the one-cell margin the dialog keeps on the right and bottom, even without a shadow.
+            Width = Math.Max(10, Math.Min(width + 3, app.Screen.Width - 2)),
+            Height = Math.Max(5, Math.Min(height + 3, app.Screen.Height - 2)),
             BorderStyle = LineStyle.Rounded, ShadowStyle = ShadowStyles.None,
         };
         dialog.Border.Settings &= ~BorderSettings.Title;

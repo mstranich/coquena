@@ -198,6 +198,9 @@ Cambiar backend exige restart; capacidades de recarga son por build.
   una decisión explícita del usuario.
 - Si faltan recursos de última buena, intentar versión exacta, sin resolver latest.
   Si también falla o no existe última buena, informar/registrar y terminar sin bucles.
+  Sin última buena, por ejemplo porque se retiró al pasar el proyecto a otro
+  servicio, el daemon prepara la candidata y descarga lo que la receta pida; si
+  falla, informa y dispara el hook de fallo de inicio con recuperación not-attempted.
 - Integridad inválida conocida de recurso seleccionado es fatal en ambos modos:
   no reparar/redescargar ni fallback automático. Preservar instancia activa;
   bloquear siguientes inicios que lo incluyan hasta resolver/excluir.

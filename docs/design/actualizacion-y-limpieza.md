@@ -44,6 +44,11 @@ o un matching informativo con Hugging Face no las convierte en gestionadas.
 Conservar conjunto anterior hasta comprobar nuevo arranque. Tras health check,
 nueva última buena reemplaza a anterior; sus recursos solo pasan a limpieza sin
 otras protecciones. Éxito local no se importa como éxito desde otra máquina.
+Cuando un Up de un proyecto queda sano en un servicio, se retira la última buena
+que ese proyecto dejó en otro servicio, en cualquier ámbito, si era su único
+consumidor y ninguna receta publica ya en ese servicio. Retirarla no borra
+archivos: sus recursos pasan a limpieza sin otras protecciones, y Up informa la
+liberación. Una instancia viva de ese servicio sigue protegiendo lo que usa.
 Política de [servidores](servidores.md#recuperación-y-fallos).
 
 ## Verificación y bloqueos
@@ -91,6 +96,13 @@ Edición de intención por CLI no equivale a pedir descarga explícita.
 Proteger instancia activa, identidad incierta, combinaciones registradas, recuperación
 vigente, operaciones pendientes y descargas explícitas. No imponer retención de cinco
 builds que retire esas referencias. Externos conservan archivos.
+Una instancia es activa mientras vive su proceso: si el proceso registrado terminó
+o su PID pertenece a otro proceso, la instancia ya no retiene recursos. Si la
+identidad del proceso no puede comprobarse, la instancia sigue protegiéndolos.
+Una actualización en curso protege sólo lo que descarga, nunca la versión que
+reemplaza: eliminar esa versión invalida la actualización. Esa protección dura mientras su plan siga siendo el
+registrado para la combinación. Si un `update` posterior reemplazó ese plan, la
+actualización ya no puede completarse y deja de retener recursos.
 Una copia local registrada como externa también se conserva: pertenecer a la
 carpeta no la convierte en archivo propio eliminable por limpieza.
 
@@ -139,7 +151,8 @@ pendientes mantienen sus protecciones independientes. Un error de permisos o
 lectura no demuestra que un destino desapareció. Antes del borrado se reevalúan
 estas condiciones: una referencia que vuelve a estar vigente invalida la vista previa.
 Down confirmado retira la referencia de publicación; otras combinaciones, pins,
-última buena y descargas explícitas pueden seguir protegiéndolo.
+última buena y descargas explícitas pueden seguir protegiéndolo. La última buena
+se retira cuando el proyecto queda sano en otro servicio.
 
 Update informa novedades de un backend fijado sin cambiar el pin. Upgrade de ese
 recurso exige intención latest y plan nuevo; no modifica YAML por sí mismo. El

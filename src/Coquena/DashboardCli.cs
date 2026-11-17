@@ -1856,7 +1856,9 @@ internal static partial class DashboardCli
                         {
                             var cleanup = new ResourceCleanup(context, Home.Resolve());
                             var plan = cleanup.Preview(Guid.Parse(item.Id));
-                            if (plan.Items.Count == 0) throw new ArgumentException(Messages.ResourceBackendCannotRemove.ToString());
+                            if (plan.Items.Count == 0) throw new ArgumentException((item.Protected ? Messages.ResourceBackendProtectedCannotRemove.Format(item.Label)
+                                : item.References.Length > 0 ? Messages.ResourceBackendInUseCannotRemove.Format(item.Label, string.Join(", ", item.References))
+                                : Messages.ResourceBackendCannotRemove).ToString());
                             if (Query(app, Messages.ResourceRemoveTitle.Format(place.Scope.Name), Messages.ResourceRemoveReclaimable.Format(item.Label, ByteSize.Format(plan.Bytes)), Messages.LabelsCancel.ToString(), Messages.LabelsRemove.ToString()) == 1)
                                 ManagementJob("remove:" + context.Root + item.Id, () => Task.FromResult(CleanupText(cleanup.Apply(plan))));
                         }

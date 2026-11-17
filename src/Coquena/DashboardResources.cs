@@ -228,7 +228,8 @@ internal static partial class DashboardCli
         public string Id => Installation["installation-id"]!.GetValue<string>();
         public string Kind => Resource["kind"]!.GetValue<string>();
         public bool External => Resource["ownership"]?.GetValue<string>() == "external";
-        public bool Protected => Installation["protected"]?.GetValue<bool>() == true;
+        // Without an explicit value, a download requested explicitly stays protected, as cleanup applies it.
+        public bool Protected => Installation["protected"]?.GetValue<bool>() ?? Installation["origin"]?.GetValue<string>() == "explicit";
         public string Name => Resource["identity"]?.GetValue<string>() ?? Resource["logical-key"]!.GetValue<string>();
         public long Size => (Installation["files"] as JsonArray ?? []).Sum(file => file?["size"]?.GetValue<long>() ?? 0);
         public string Label => Kind == "backend" ?
@@ -244,9 +245,11 @@ internal static partial class DashboardCli
         return resources.SelectMany(resource => resource!["installations"]!.AsArray()
             .Select(installation => new InventoryRow(resource, installation!)
             {
-                References = documents.Where(document => document.Key != "local/inventory.json" &&
-                    ContainsIdentity(document.Value, installation!["installation-id"]!.GetValue<string>()))
-                    .Select(document => document.Key).ToArray()
+                // The same evidence cleanup applies, named by what uses the installation.
+                References = documents.Select(document => (Kind: document.Value["kind"]?.GetValue<string>(),
+                        Node: document.Value["kind"]?.GetValue<string>() == "recipe-registry" ? document.Value : ResourceCleanup.UsageEvidence(document.Value)))
+                    .Where(entry => entry.Kind is not null && entry.Node is not null && ContainsIdentity(entry.Node, installation!["installation-id"]!.GetValue<string>()))
+                    .Select(entry => Messages.UsageShortReference(new(context.Base, entry.Kind!), true)).Distinct().ToArray()
             })).ToArray();
     }
 

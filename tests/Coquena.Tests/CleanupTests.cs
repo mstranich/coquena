@@ -104,6 +104,30 @@ internal static class CleanupTests
         Check(new CombinationPreparation(context).List().Count == 0 && File.Exists(yaml) && File.Exists(PathOf(referenced)), "forget preserves YAML and weights");
         Check(!store.Read().Documents.ContainsKey("local/last-good.json") && !File.Exists(context.PathFor("local/last-good.json")), "forget removes last good and its projection");
         Check(!cleanup.Preview().Items.Any(i => i.InstallationId == referenced), "active protection survives forget");
+        if (OperatingSystem.IsWindows())
+        {
+            // A run whose process ended without being recorded no longer keeps its resources.
+            using var ended = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("cmd.exe", "/c exit") { CreateNoWindow = true, UseShellExecute = false })!;
+            ended.WaitForExit(); var pid = ended.Id; ended.Dispose();
+            Change(docs => { var data = docs["local/active.json"]["data"]!; data["service-id"] = Guid.NewGuid().ToString("D"); data["instance-id"] = Guid.NewGuid().ToString("D");
+                data["process"] = new JsonObject { ["pid"] = pid, ["creation-time"] = 1L, ["executable"] = Environment.ProcessPath }; });
+            Check(cleanup.Preview().Items.Any(i => i.InstallationId == referenced), "a run whose process ended releases its reference");
+            using var self = System.Diagnostics.Process.GetCurrentProcess();
+            Change(docs => docs["local/active.json"]["data"]!["process"] = new JsonObject { ["pid"] = Environment.ProcessId,
+                ["creation-time"] = self.StartTime.ToFileTimeUtc(), ["executable"] = Path.Combine(Path.GetTempPath(), "other-server.exe") });
+            Check(!cleanup.Preview().Items.Any(i => i.InstallationId == referenced), "a run that cannot be verified as ended keeps its reference");
+        }
+        // An upgrade whose plan was replaced by a later update can never complete and keeps nothing.
+        var upgradePlan = new JsonObject { ["combination-id"] = "c", ["base-revision"] = 2 };
+        JsonNode Upgrades(JsonNode recorded) => new JsonObject { ["kind"] = "update-plan", ["data"] = new JsonObject {
+            ["plans"] = new JsonObject { ["c"] = recorded.DeepClone() },
+            ["upgrades"] = new JsonObject { ["u"] = new JsonObject { ["plan"] = upgradePlan.DeepClone(), ["units"] = new JsonArray() } } } };
+        Check(ResourceCleanup.UsageEvidence(Upgrades(upgradePlan)) is not null, "an upgrade of the recorded plan keeps its resources");
+        var source = Upgrades(upgradePlan); source["data"]!["upgrades"]!["u"]!["units"]!.AsArray().Add(new JsonObject {
+            ["observation"] = new JsonObject { ["installation-id"] = "old-version" }, ["candidate"] = new JsonObject { ["installation-id"] = "new-version" } });
+        var kept = ResourceCleanup.UsageEvidence(source)!.ToJsonString();
+        Check(kept.Contains("new-version") && !kept.Contains("old-version"), "an upgrade keeps its candidate, not the version it replaces");
+        Check(ResourceCleanup.UsageEvidence(Upgrades(new JsonObject { ["combination-id"] = "c", ["base-revision"] = 3 })) is null, "an upgrade of a replaced plan keeps nothing");
         Change(docs => docs["local/active.json"]["data"]!["terminated"] = true);
         Check(cleanup.Preview().Items.Any(i => i.InstallationId == referenced), "terminated active releases its reference");
         new Coquena.Models.ScopedModels(context).Protect(explicitId, false);

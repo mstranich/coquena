@@ -407,6 +407,10 @@ public static class PublicationCli
                 output.WriteLine((current is null ? Messages.PresetWithdrawn : Messages.PresetPublished).Format(changed, model));
             }
             if (result.ChangedEntries is null) output.WriteLine(Messages.PresetsNoChanges);
+            // Running healthy here retires the recovery this project left in another service.
+            if (running && !withdrawing)
+                foreach (var released in RecoveryRelease.Release(store, entry["consumer-id"]!.GetValue<string>(), targetStore, service.ServiceId, home))
+                    output.WriteLine(Messages.PublicationRecoveryReleased.Format(released.ServiceName, Messages.GlobalOrProject(released.Global)));
             return 0;
         }
         output.WriteLine(result.Confirmed ? (result.WarmupFailed ? (result.Restored ? Messages.LoadFailedEntriesRestored : Messages.LoadFailedNoSnapshot) : Messages.CompositionConfirmed) : Messages.ResultUnconfirmed);

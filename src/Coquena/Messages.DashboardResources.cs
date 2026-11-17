@@ -12,6 +12,8 @@ public static partial class Messages
     public static readonly Text ResourceFilterTitle = new("Filter inventory");
     public static readonly Text ResourceSelectAgain = new("Select the resource again.");
     public static readonly Text ResourceBackendCannotRemove = new("The backend cannot be removed: protected, external, referenced or usage uncertain.");
+    public static readonly Text ResourceBackendInUseCannotRemove = new("{0} cannot be removed: it is used by {1}.");
+    public static readonly Text ResourceBackendProtectedCannotRemove = new("{0} is protected. Remove its protection before removing it.");
     public static readonly Text ResourceChangedRetryRemoval = new("The resource changed; review its installations and retry removal.");
     public static readonly Text TransferMissingScopeIdentity = new("There are transfers without scope identity.");
     public static readonly Text TransferRestartFileTitle = new("Restart file");

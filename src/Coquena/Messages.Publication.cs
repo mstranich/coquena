@@ -33,6 +33,7 @@ public static partial class Messages
     public static readonly Text StepStartService = new("Start the service «{0}»");
     public static readonly Text PublicationEndedAfterStart = new("The target ended after starting; publication is not confirmed.");
     public static readonly Text PublicationNoReloadableIni = new("The instance does not offer a reloadable operational INI; it needs a compatible explicit start.");
+    public static readonly Text PublicationRecoveryReleased = new("Recovery of {0} ({1}) released: its resources can now be cleaned with prune.");
     public static readonly Text PresetsNotLoaded = new("Error: these presets did not load: {0} (preset-load-failed).");
     public static readonly Text PresetsRestored = new("Those presets went back to their previous configuration without restarting the service.");
     public static readonly Text PresetsNotLoadedCheck = new("Those presets did not load; check their state with «service show».");

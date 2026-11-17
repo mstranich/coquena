@@ -178,10 +178,12 @@ features:
       - src/Coquena/MaintenanceOptions.cs
       - src/Coquena/Projects/DiskUsage.cs
       - src/Coquena/Projects/CombinationCleanup.cs
+      - src/Coquena/Projects/RecoveryRelease.cs
       - src/Coquena/Projects/ScopeStore.cs
       - src/Coquena/Projects/PhysicalDirectory.cs
     tests:
       - tests/Coquena.Tests/CleanupTests.cs
+      - tests/Coquena.Tests/RecoveryReleaseTests.cs
       - tests/Coquena.Tests/MaintenanceTests.cs
     references:
       - docs/design/actualizacion-y-limpieza.md

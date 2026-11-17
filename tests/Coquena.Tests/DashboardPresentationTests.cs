@@ -9,6 +9,8 @@ internal static class DashboardPresentationTests
     public static void Run(Action<bool, string> check)
     {
         var now = DateTimeOffset.UtcNow;
+        check(DashboardPresentation.Wrap("used by local/runtime/services/0123456789", 12) is { } wrapped && wrapped.All(row => row.Length <= 12) &&
+            string.Concat(wrapped.Skip(1)) == "local/runtime/services/0123456789", "a word wider than the row is cut across rows");
         var store = new ScopeStore(ScopeContext.Global(new Home(Path.Combine(Path.GetTempPath(), "coquena-readonly-tree"))));
         var targets = new[] { new DashboardCli.Target(store, null, false, ProjectName: "shared") };
         var entries = new[]

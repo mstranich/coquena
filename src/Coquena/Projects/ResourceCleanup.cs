@@ -276,6 +276,48 @@ public sealed class ResourceCleanup(ScopeContext context, Home home)
         return Owned(stores[selected].Context, states[selected], evidence.References, evidence.External, evidence.ExternalPaths, diagnostics);
     }
 
+    // The part of a scope document that keeps resources in use, or null when it keeps none.
+    // A run counts while its process lives; one that ended without being recorded keeps nothing.
+    // The recipe registry needs the other scopes and is resolved by the caller.
+    internal static JsonNode? UsageEvidence(JsonNode document) => document["kind"]?.GetValue<string>() switch
+    {
+        "combination-index" => document,
+        "update-plan" => LiveUpgrades(document["data"]),
+        "active" when document["data"]?["terminated"]?.GetValue<bool>() != true && !Ended(document["data"]) => document,
+        "last-good" when document["data"]?["forgotten"]?.GetValue<bool>() != true => document,
+        _ => null
+    };
+
+    // An upgrade keeps only what it downloads, never the version it replaces: removing that
+    // version just makes the upgrade stale. It counts while its plan is still the one recorded
+    // for the combination; a later update replaces that plan and the upgrade can never complete.
+    private static JsonNode? LiveUpgrades(JsonNode? data)
+    {
+        if (data?["upgrades"] is not JsonObject upgrades) return null;
+        var live = new JsonObject();
+        foreach (var (id, batch) in upgrades)
+        {
+            var plan = batch?["plan"];
+            var combination = plan?["combination-id"]?.GetValue<string>();
+            if (combination is null || !JsonNode.DeepEquals(plan, data["plans"]?[combination])) continue;
+            live[id] = new JsonArray(batch!["units"]?.AsArray().Select(u => (JsonNode)new JsonObject {
+                ["candidate"] = u?["candidate"]?.DeepClone(), ["transfer"] = u?["transfer"]?.DeepClone() }).ToArray() ?? []);
+        }
+        return live.Count == 0 ? null : live;
+    }
+
+    // Only a verified end frees the run: an identity that cannot be checked keeps it.
+    private static bool Ended(JsonNode? active)
+    {
+        if (!OperatingSystem.IsWindows() || active is not JsonObject data || data["service-id"]?.GetValue<string>() is not string service) return false;
+        try
+        {
+            using var handle = Coquena.Servers.WindowsServerProcess.Verified(Coquena.Observation.ServiceObservation.Identity(service, data), out var ended);
+            return ended;
+        }
+        catch (Exception e) when (e is Coquena.Configuration.ConfigurationException or FormatException or InvalidOperationException or NullReferenceException or ArgumentException) { return false; }
+    }
+
     private static Evidence Collect(ScopeStore[] stores, ScopeSnapshot[] states)
     {
         var evidence = new JsonArray();
@@ -292,11 +334,8 @@ public sealed class ResourceCleanup(ScopeContext context, Home home)
             foreach (var document in states[i].Documents.Values)
             {
                 var kind = document["kind"]!.GetValue<string>();
-                if (kind == "combination-index") Add(document.DeepClone(), kind);
-                if (kind == "update-plan" && document["data"]?["upgrades"] is JsonNode upgrades) Add(upgrades.DeepClone(), kind);
-                if (kind == "active" && document["data"]?["terminated"]?.GetValue<bool>() != true || kind == "last-good" && document["data"]?["forgotten"]?.GetValue<bool>() != true)
-                    Add(document.DeepClone(), kind);
                 if (kind == "recipe-registry") Add(RegistryEvidence(document["data"]!, stores, states), kind);
+                else if (UsageEvidence(document) is { } node) Add(node.DeepClone(), kind);
             }
             foreach (var resource in states[i].Documents.GetValueOrDefault(Inventory)?["data"]?["resources"]?.AsArray() ?? [])
                 if (resource!["ownership"]!.GetValue<string>() == "external")
