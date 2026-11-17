@@ -921,6 +921,7 @@
   "LiveHealthError": "error · {0}",
   "LiveInstance": "Instancia {0}",
   "LiveInstanceChild": "Instancia {0} · hijo {1}/{2}",
+  "LiveLogColumn": "· ◂ columna {0}",
   "LiveLogDiscarded": "· {0} descartadas",
   "LiveLogFollowButton": " ⤓ Seguir ",
   "LiveLogFollowing": "● siguiendo",

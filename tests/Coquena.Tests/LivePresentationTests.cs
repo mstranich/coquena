@@ -64,6 +64,11 @@ internal static class LivePresentationTests
         var rate = LivePresentation.Rate("gen", "gen", [10, 20, null], 20, 24, 22);
         check(Markup.Plain(rate).StartsWith(" gen    ") && Markup.Plain(rate).EndsWith(" 20 tk/s " + Messages.LivePeakLabel + "24") && Markup.Width(rate) <= 56, "rate row: curve, current and peak");
 
+        var shifted = Markup.Plain(LivePresentation.LogHeader("principal", LivePresentation.LogMode.Following, 0, false, 40));
+        check(shifted.Contains(Messages.LiveLogColumn.Format(41)), "the log header shows the first visible column when moved: " + shifted);
+        var styled = "ab" + Markup.Style("err", "cdef") + "gh";
+        check(Markup.Plain(Markup.Skip(styled, 3)) == "defgh" && Markup.Parse(Markup.Skip(styled, 3)).Any(span => span.Class == "err" && span.Text == "def") &&
+            Markup.Skip(styled, 0) == styled && Markup.Skip(styled, 20) == "", "moving columns drops visible text and keeps the classes of the rest");
         var log = LivePresentation.LogHeader("principal", LivePresentation.LogMode.Following, 0, false);
         var header = Markup.Plain(Markup.Fit(log, 80));
         check(header.StartsWith(" Log principal  " + Messages.LiveLogFollowing) && header.EndsWith(Messages.LiveLogPauseButton + " " + Messages.LiveLogFollowButton + " " + Messages.LiveLogHistoryButton), "log header: " + header);

@@ -95,6 +95,7 @@ public static partial class Messages
     public static readonly Text LiveRateEnd = new("end {0}");
     public static readonly Text LiveRatePeak = new(" peak {0}");
     public static readonly Text LiveLogDiscarded = new("\u00B7 {0} discarded");
+    public static readonly Text LiveLogColumn = new("\u00B7 \u25C2 column {0}");
     public static readonly Text LiveEntryModelSuffix = new(" \u00B7 model {0}");
     public static readonly Text LiveInstance = new("Instance {0}");
     public static readonly Text LiveInstanceChild = new("Instance {0} \u00B7 child {1}/{2}");

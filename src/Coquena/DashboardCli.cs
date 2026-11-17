@@ -109,7 +109,7 @@ internal static partial class DashboardCli
         var detail = new Canvas(useColor) { X = Right, Y = 2, Interactive = true };
         var tasks = new Lines(useColor) { X = Right, ShowSelectionWithoutFocus = false };
         var logTitle = new Canvas(useColor) { Height = 1, ZoneName = "hd", Interactive = true };
-        var logLines = new Lines(useColor) { Selectable = false };
+        var logLines = new Lines(useColor) { Selectable = false, HorizontalScroll = true };
         var bar = new Canvas(useColor) { Y = Pos.AnchorEnd(2), Height = 2, ZoneName = "bar", Interactive = true, DefaultAction = "hardware" };
         var hardwareDetail = new Canvas(useColor) { X = Right, Y = 2 };
         var historyTitle = new Canvas(useColor) { Y = 1, Height = 1, ZoneName = "hd", Interactive = true };
@@ -172,6 +172,8 @@ internal static partial class DashboardCli
         var layoutSize = (-1, -1);
         var upperRows = 11;
         var logHeld = false;
+        // Set when scrolling up held the log, so reaching the end again resumes following; Pause stays held.
+        var logHeldByScroll = false;
         long logDiscarded = 0;
         string[] logRows = [];
         string? serviceNote = null;
@@ -385,7 +387,7 @@ internal static partial class DashboardCli
         {
             switch (action)
             {
-                case "pause": logHeld = !logHeld; break;
+                case "pause": logHeld = !logHeld; logHeldByScroll = false; break;
                 case "follow":
                     if (logSessions.TryGetValue(index, out var session)) session.Current();
                     logHeld = false; logLines.ScrollToEnd(); break;
@@ -393,7 +395,17 @@ internal static partial class DashboardCli
             }
             ReadLog(force: true);
         };
-        logLines.Scrolled += _ => { if (!logLines.AtEnd && !logHeld) { logHeld = true; Render(); } };
+        logLines.ScrolledHorizontally += _ => Render();
+        logLines.Scrolled += _ =>
+        {
+            if (!logLines.AtEnd && !logHeld) { logHeld = logHeldByScroll = true; Render(); }
+            else if (logLines.AtEnd && logHeld && logHeldByScroll)
+            {
+                if (logSessions.TryGetValue(index, out var session)) session.Current();
+                logHeld = logHeldByScroll = false;
+                ReadLog(force: true);
+            }
+        };
         historyTitle.Pressed += action => { if (action == "back") CloseHistory(); };
         historyControls.Pressed += action =>
         {
@@ -1027,7 +1039,7 @@ internal static partial class DashboardCli
             var session = logSessions.GetValueOrDefault(index);
             var mode = session is null ? LivePresentation.LogMode.None : logHeld ? LivePresentation.LogMode.Paused
                 : session.Historical ? LivePresentation.LogMode.Historical : LivePresentation.LogMode.Following;
-            logTitle.Rows = [LivePresentation.LogHeader(targets.ElementAtOrDefault(index)?.Service?.Name ?? "", mode, logDiscarded, logHeld)];
+            logTitle.Rows = [LivePresentation.LogHeader(targets.ElementAtOrDefault(index)?.Service?.Name ?? "", mode, logDiscarded, logHeld, logLines.Left)];
             var rows = logRows;
             logLines.Show(rows.Length, (row, _) => LivePresentation.LogRow(rows[row]));
             if (!logHeld) logLines.ScrollToEnd();

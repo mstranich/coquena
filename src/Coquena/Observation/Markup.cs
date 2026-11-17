@@ -65,6 +65,26 @@ internal static class Markup
         return cut + new string(' ', Math.Max(0, width - Width(cut)));
     }
 
+    // Drops the first visible columns and keeps the classes of what remains.
+    public static string Skip(string line, int columns)
+    {
+        if (columns <= 0) return line;
+        var result = new StringBuilder();
+        var skipped = 0;
+        foreach (var span in Parse(line))
+        {
+            var text = span.Text;
+            if (skipped < columns)
+            {
+                var drop = Math.Min(text.Length, columns - skipped);
+                skipped += drop; text = text[drop..];
+                if (text.Length == 0) continue;
+            }
+            result.Append(span.Class is null ? Escape(text) : "{" + span.Class + (span.Action is null ? "" : "@" + span.Action) + "|" + Escape(text) + "}");
+        }
+        return result.ToString();
+    }
+
     private static string Cut(string line, int width)
     {
         var result = new StringBuilder();

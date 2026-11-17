@@ -134,7 +134,11 @@ corresponder a inferencias, porque el mensaje no identifica la ruta HTTP.
 Los archivos de log conservan todas las líneas.
 
 El scroll y la pausa afectan la visualización. Se puede volver al seguimiento
-y consultar el historial de archivos. Abrir, cerrar o navegar la pantalla
+y consultar el historial de archivos. Las líneas largas se leen desplazando las
+columnas con ←/→ o la rueda horizontal (Shift+rueda); el encabezado indica la
+primera columna visible y el seguimiento vertical no cambia. Si el scroll hacia arriba
+detuvo el seguimiento, volver al final con el teclado o la rueda lo retoma; una
+pausa elegida con «Pausar log» se mantiene. Abrir, cerrar o navegar la pantalla
 conserva el ciclo de vida del servidor y su configuración.
 
 El seguimiento mantiene un buffer acotado por servicio visitado. La lectura se

@@ -168,8 +168,12 @@ internal static partial class DashboardCli
     // so the selected row can use another style.
     private sealed class Lines : Canvas
     {
-        private int count, top;
+        private int count, top, left;
         private Func<int, bool, string> item = (_, _) => "";
+        // Long rows can be read by moving the columns: ←/→ and the horizontal wheel (or Shift+wheel).
+        public bool HorizontalScroll { get; set; }
+        public int Left => left;
+        public event Action<int>? ScrolledHorizontally;
         public int Selected { get; private set; } = -1;
         public bool Selectable { get; set; } = true;
         public bool ShowSelectionWithoutFocus { get; set; } = true;
@@ -218,7 +222,20 @@ internal static partial class DashboardCli
         protected override string RowAt(int y)
         {
             var row = top + y;
-            return row < count ? item(row, row == Selected && (HasFocus || ShowSelectionWithoutFocus)) : "";
+            var text = row < count ? item(row, row == Selected && (HasFocus || ShowSelectionWithoutFocus)) : "";
+            return left == 0 ? text : Markup.Skip(text, left);
+        }
+
+        // The limit comes from the rows on screen, so a long line elsewhere does not leave blank columns.
+        public void ScrollHorizontally(int delta)
+        {
+            if (!HorizontalScroll) return;
+            var widest = 0;
+            for (var y = 0; y < Viewport.Height && top + y < count; y++)
+                widest = Math.Max(widest, Markup.Width(item(top + y, false)));
+            var before = left;
+            left = Math.Clamp(left + delta, 0, Math.Max(0, widest - Viewport.Width + 1));
+            if (left != before) { SetNeedsDraw(); ScrolledHorizontally?.Invoke(left); }
         }
 
         private void Scroll(int delta)
@@ -240,6 +257,12 @@ internal static partial class DashboardCli
 
         protected override bool OnMouseEvent(Mouse mouse)
         {
+            if (HorizontalScroll && (mouse.Flags.HasFlag(MouseFlags.WheeledRight) ||
+                mouse.Flags.HasFlag(MouseFlags.WheeledDown) && mouse.Flags.HasFlag(MouseFlags.Shift)))
+            { ScrollHorizontally(8); return mouse.Handled = true; }
+            if (HorizontalScroll && (mouse.Flags.HasFlag(MouseFlags.WheeledLeft) ||
+                mouse.Flags.HasFlag(MouseFlags.WheeledUp) && mouse.Flags.HasFlag(MouseFlags.Shift)))
+            { ScrollHorizontally(-8); return mouse.Handled = true; }
             if (mouse.Flags.HasFlag(MouseFlags.WheeledDown)) { Scroll(3); return mouse.Handled = true; }
             if (mouse.Flags.HasFlag(MouseFlags.WheeledUp)) { Scroll(-3); return mouse.Handled = true; }
             return base.OnMouseEvent(mouse);
@@ -248,6 +271,8 @@ internal static partial class DashboardCli
         protected override bool OnKeyDown(Key key)
         {
             var page = Math.Max(1, Viewport.Height - 1);
+            if (HorizontalScroll && key == Key.CursorRight) { ScrollHorizontally(8); return true; }
+            if (HorizontalScroll && key == Key.CursorLeft) { ScrollHorizontally(-8); return true; }
             if (!Selectable)
             {
                 if (key == Key.CursorDown) { Scroll(1); return true; }

@@ -242,7 +242,7 @@ internal static class LivePresentation
 
     public enum LogMode { Following, Paused, Historical, None }
 
-    public static string LogHeader(string name, LogMode mode, long discarded, bool paused)
+    public static string LogHeader(string name, LogMode mode, long discarded, bool paused, int column = 0)
     {
         var state = mode switch
         {
@@ -251,7 +251,8 @@ internal static class LivePresentation
             LogMode.Historical => Style("mut", Messages.LiveLogHistory.ToString()),
             _ => ""
         };
-        var text = " " + Escape("Log " + name) + "  " + state + (discarded > 0 ? " " + Style("mut", Messages.LiveLogDiscarded.Format(discarded)) : "");
+        var text = " " + Escape("Log " + name) + "  " + state + (discarded > 0 ? " " + Style("mut", Messages.LiveLogDiscarded.Format(discarded)) : "") +
+            (column > 0 ? " " + Style("mut", Messages.LiveLogColumn.Format(column + 1)) : "");
         if (mode == LogMode.None) return text;
         return text + "{pad}" + Style("btn", paused ? Messages.LiveLogResumeButton.ToString() : Messages.LiveLogPauseButton.ToString(), "pause") + " " +
             Style("btn", Messages.LiveLogFollowButton.ToString(), "follow") + " " + Style("btn", Messages.LiveLogHistoryButton.ToString(), "history");
