@@ -15,7 +15,6 @@ public static partial class Messages
     public static readonly Text TuiWaitingDirectoryMove = new("Waiting for the directory move to finish\u2026");
     public static readonly Text DashboardQueryCancelled = new("Query cancelled.");
     public static readonly Text DashboardOperationCancelled = new("Operation cancelled.");
-    public static readonly Text DashboardOperationResultTitle = new("Operation result");
     public static readonly Text DashboardServiceNotStarted = new("\u25CB not started");
     public static readonly Text DashboardNoOwnService = new("no own service");
     public static readonly Text DashboardNotificationScopeUnavailable = new("The scope of this notification is no longer available.");

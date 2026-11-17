@@ -190,6 +190,7 @@ internal static partial class DashboardCli
         string? operationVerb = null;
         // Steps of the running publication, drawn with the same rows as the CLI.
         StepProgress? operationSteps = null;
+        var outcomes = new Dictionary<string, OperationOutcome>();
         ServiceSnapshot? selectedSnapshot = null;
         var inference = new InferenceTasks(preferences.InferenceHistory());
         string? preferredEntry = null, inferenceEntry = null;
@@ -574,7 +575,9 @@ internal static partial class DashboardCli
                 {
                     var tone = completed.IsCompletedSuccessfully && publicationExit == 0 ? "ok" : publicationExit == 130 ? "warn" : "err";
                     Notify(tone == "ok" ? "✓" : tone == "warn" ? "▲" : "✗", tone, operationLabel + ": " + problem, -1);
-                    Query(app, Messages.DashboardOperationResultTitle.ToString(), problem, Messages.LabelsAccept.ToString());
+                    // The result stays in the Recipes section with its time, instead of a modal.
+                    if (operationLabel is not null) outcomes[operationLabel] = new(tone, DateTimeOffset.Now, problem);
+                    definitionPage = null;
                 }
             }
             if (operation is null && projectClock.Elapsed >= CaptureInterval)
@@ -1281,7 +1284,8 @@ internal static partial class DashboardCli
                         try { destination = place.Recipe is null ? null : RecipeReader.Read(place.Recipe).Target; }
                         catch (RecipeException) { }
                         definitionPage = RecipesPage(place.Scope.Name, destination, combinations, selected, Math.Max(20, window.Viewport.Width - Right),
-                            operation is not null && operationLabel == place.Scope.Name ? operationVerb : null);
+                            operation is not null && operationLabel == place.Scope.Name ? operationVerb : null,
+                            operation is not null && operationLabel == place.Scope.Name ? operationSteps?.Rows() : null, outcomes.GetValueOrDefault(place.Scope.Name));
                     }
                     else if (definitionView == "presets" && place.Context is not null)
                     {

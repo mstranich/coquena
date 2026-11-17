@@ -33,6 +33,9 @@
       { backend | usa el de principal | [+ Backend] }
       [ ] preparación privada
       { [▲ Up] | [▼ Down] | [Importar] | [Ver en vivo] }
+      <color:green>✓ Última ejecución: 17/11/2026 14:32
+      up · código · código 0
+      Publicado: código/asistente | modelo gemma-4-12B-it-qat-Q4_0.gguf
     }
   }
   { CPU ▂▃▅▆▅ 42% | RAM ▅▅▆▆ 18,2/32G }

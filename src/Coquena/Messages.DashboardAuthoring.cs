@@ -67,7 +67,6 @@ public static partial class Messages
     public static readonly Text PresetPublicationSnapshotNote = new("instance snapshot; does not prove loading");
     public static readonly Text PresetNewNameField = new("new name");
     public static readonly Text AuthoringOpenDraftButton = new("Open draft");
-    public static readonly Text EditorRunningUp = new("Running Up");
     public static readonly Text PresetCloneNameMissing = new("The new preset name is missing.");
     public static readonly Text PresetCloneInvalidNameTitle = new("Clone preset \u00B7 invalid name");
     public static readonly Text PresetRemoveConfirm = new("Prepares removal in YAML. Saving does not delete weights or withdraw publications; Up applies the change explicitly.");
@@ -126,7 +125,7 @@ public static partial class Messages
     public static readonly Text UpdatesApplyCount = new("Update {0}");
     public static readonly Text AuthoringImportIntoGlobalTitle = new("Import {0} into Global");
     public static readonly Text AuthoringFileNewSuffix = new("{0} \u00B7 new");
-    public static readonly Text EditorBackgroundProgress = new("{0}\u2026 You can change views; the operation continues.");
+    public static readonly Text EditorLastOperation = new("Last run: {0}");
     public static readonly Text EditorValidationProblems = new("{0} problems");
     public static readonly Text EditorValidationProblemsShowing = new("{0} problems, showing {1}");
     public static readonly Text UpdatesCheckCompletedIn = new("Check completed in {0}\n{1}");

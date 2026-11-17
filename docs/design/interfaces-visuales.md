@@ -87,7 +87,9 @@ sobre el ámbito seleccionado. Configuración separa los valores de Coquena
 recursos visibles en la barra inferior e idioma) y el inventario y sondeo de Sistema.
 El selector de idioma comparte la preferencia de [config language](comandos.md#config);
 el cambio de textos se aplica al reiniciar la TUI. La [consulta de definiciones](tui/B-definiciones-recetas.salt.puml)
-conserva el catálogo observado. La [vista por servidor](ui-servicio.md) muestra inferencia en
+conserva el catálogo observado. Durante Up o Down, la sección Recetas muestra los mismos pasos que
+imprime la CLI; al terminar, deja ahí el resultado con la hora de la última ejecución,
+exitosa o fallida, sin abrir un modal. La [vista por servidor](ui-servicio.md) muestra inferencia en
 curso, rendimiento, recursos compartidos y logs. El log queda accesible dentro
 del servidor aunque el espacio vertical obligue a separarlo del monitor.
 

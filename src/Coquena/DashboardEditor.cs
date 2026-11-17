@@ -87,7 +87,11 @@ internal static partial class DashboardCli
         return items.ToArray();
     }
 
-    internal static DefinitionsPresentation.Page RecipesPage(string scope, string? destination, IReadOnlyList<RecipeCombination> items, string? selected, int width, string? busy = null)
+    // The end of the last Up or Down of a recipe: tone, when it ended and what it printed.
+    internal sealed record OperationOutcome(string Tone, DateTimeOffset At, string Text);
+
+    internal static DefinitionsPresentation.Page RecipesPage(string scope, string? destination, IReadOnlyList<RecipeCombination> items, string? selected, int width, string? busy = null,
+        IReadOnlyList<StepRow>? steps = null, OperationOutcome? last = null)
     {
         var rows = new List<string> { " " + Markup.Style("mut", "  " + Pad(Messages.DefinitionsCombinationColumn.ToString(), 28) + " " + Pad("ID", 8) + Messages.DefinitionsStateColumn.ToString()) };
         foreach (var item in items)
@@ -114,8 +118,17 @@ internal static partial class DashboardCli
         rows.Add(" " + (busy is null ? ManagementPresentation.Button("▲ Up", "up") : DefinitionsPresentation.Off((busy == "up" ? spinner : "▲") + " Up")) + " " +
             (busy is null && chosen is not null ? ManagementPresentation.Button("▼ Down", "down") : DefinitionsPresentation.Off((busy == "down" ? spinner : "▼") + " Down")) + " " +
             (chosen is null || busy is not null ? DefinitionsPresentation.Off(Messages.LabelsImport.ToString()) : ManagementPresentation.Button(Messages.LabelsImport.ToString(), "recipe-import")) + " " + DefinitionsPresentation.Off(Messages.AuthoringViewLiveButton.ToString()));
+        // While it runs, the section shows the same steps as the CLI; afterwards, the result and when it ended.
         if (busy is not null)
-            rows.Add(" " + Markup.Style("warn", spinner + " ") + Markup.Style("mut", Messages.EditorBackgroundProgress.Format(busy == "down" ? Messages.LabelsStopping.ToString() : Messages.EditorRunningUp.ToString())));
+            foreach (var step in steps ?? [])
+                rows.Add(" " + Markup.Style(step.State switch { StepState.Done => "ok", StepState.Failed => "err", _ => "warn" }, Markup.Escape(StepProgress.Format(step, Glyphs.Unicode))));
+        else if (last is not null)
+        {
+            rows.Add(" " + Markup.Style(last.Tone, (last.Tone == "ok" ? "✓ " : last.Tone == "warn" ? "▲ " : "✗ ") +
+                Messages.EditorLastOperation.Format(last.At.ToLocalTime().ToString("g", System.Globalization.CultureInfo.CurrentCulture))));
+            foreach (var line in last.Text.Split('\n').SelectMany(line => DashboardPresentation.Wrap(line.TrimEnd('\r'), Math.Max(10, width - 3))))
+                rows.Add(" " + Markup.Escape(line));
+        }
         return new(Messages.RecipesInScope.Format(Markup.Escape(scope)) + (destination is null ? "" : " " + Markup.Style("mut", "→") + " " + Markup.Escape(destination)), rows);
 
         static string Pad(string text, int size) => DashboardPresentation.Fit(text, size - 1).PadRight(size);

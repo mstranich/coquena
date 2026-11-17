@@ -38,6 +38,9 @@ internal static class RecipeEditorTests
                   spans.Any(span => span.Action == "recipe-new") && spans.Any(span => span.Action == "recipe-import"),
                 "B enables Editar, Nueva combinación and Importar while Olvidar requires registration");
             check(page.Rows.Count <= 20 && page.Rows.All(row => Markup.Width(Markup.Fit(row, 56)) == 56), "B fits 80×24");
+            var ended = DashboardCli.RecipesPage("nuevo", null, combinations, combinations[0].Key, 56, last: new("err", DateTimeOffset.Now, "up · nuevo · code 1\nPublished: nuevo/x"));
+            var endedText = string.Join(" ", ended.Rows.Select(row => string.Concat(Markup.Parse(row).Select(span => span.Text))));
+            check(endedText.Contains("✗") && endedText.Contains("code 1") && endedText.Contains("Published: nuevo/x"), "the last Up stays in the section with its result");
 
             // H: drafts are validated in memory with the core reader and located by line.
             var recipe = Path.Combine(folder, "coquena.yaml");
