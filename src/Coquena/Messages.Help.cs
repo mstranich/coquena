@@ -14,17 +14,12 @@ public static partial class Messages
           ps [--service <name|default|self>] [-w|--watch]
                                            Query or follow hardware and services
           tui                              Open the terminal service monitor
-          chat <preset> [--service <name|default|self> | --global] [--load]
-                                           Try a preset with a chat and its telemetry
-            preset: project/key, the local key or service/project/key
-            --load asks to load the preset; Enter sends when it finishes
-          load|unload <preset> [--service <name|default|self> | --global]
-                                           Load or unload a published preset
           backend (runtime)                Query and prepare backends by scope
           model                            Download and manage models
           model companion                  Manage mmproj and MTP companions
           download                         Query and control downloads
           preset                           Create and configure model presets
+            Also apply, withdraw, chat, load and unload; see Presets
           service (server)                 Manage services and their execution
           import <recipe.yaml>             Import global intent without starting
           logs                             Query and follow service logs
@@ -53,8 +48,6 @@ public static partial class Messages
             Companions: companion://author/repository#type:quantization.
           up [--start-service]             Publish presets of the chosen combination
           down                             Withdraw own presets without stopping
-          apply|withdraw <key>             Publish or withdraw a single preset
-            withdraw also accepts the published name recipe/key.
           config                           Configure language, directories, retention
           param                            Manage parameter definitions
 
@@ -169,6 +162,14 @@ public static partial class Messages
           preset unset <preset> <argument>
           preset clone <origin> <name>
           preset remove <name>
+          apply|withdraw <key>             Publish or withdraw a single preset
+            withdraw also accepts the published name recipe/key.
+          chat <preset> [--service <name|default|self> | --global] [--load]
+                                           Try a preset with a chat and its telemetry
+            --load asks to load the preset; Enter sends when it finishes
+          load|unload <preset> [--service <name|default|self> | --global]
+                                           Load or unload a published preset
+            preset: project/key, the local key or service/project/key
 
         Logs:
           service [<name|default|self>] logs [list|follow|show <log-id>] [-f]
