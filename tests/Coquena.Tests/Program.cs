@@ -77,6 +77,7 @@ if (args is ["--dashboard-tests"])
         Suite("DashboardPresentationTests.Run", () => Coquena.Tests.DashboardPresentationTests.Run(Check));
         Suite("RecoveryReleaseTests.Run", () => Coquena.Tests.RecoveryReleaseTests.Run(Check));
         Suite("PresetLoadTests.Run", () => Coquena.Tests.PresetLoadTests.Run(Check));
+        Suite("LogStatusTests.Run", () => Coquena.Tests.LogStatusTests.Run(Check));
         Suite("LivePresentationTests.Run", () => Coquena.Tests.LivePresentationTests.Run(Check));
         await SuiteAsync("ChatTests.Run", () => Coquena.Tests.ChatTests.Run(Check));
         Suite("DefinitionsPresentationTests.Run", () => Coquena.Tests.DefinitionsPresentationTests.Run(Check));

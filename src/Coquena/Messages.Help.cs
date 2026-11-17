@@ -175,7 +175,8 @@ public static partial class Messages
           service [<name|default|self>] logs [list|follow|show <log-id>] [-f]
           logs [list|follow|show <log-id>] [-f] [--service <service>]
             Without a subcommand: recent output (up to 64 KiB). List: kept IDs.
-            Show: fixed history. Follow/-f: continues across restarts.
+            Show: fixed history. Follow/-f: continues across restarts; in a
+            terminal the last row shows the live service state.
             Ctrl+C closes only the observer. server is an alias of service.
 
         Servers:

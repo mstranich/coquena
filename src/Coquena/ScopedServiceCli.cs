@@ -1,4 +1,6 @@
 using Coquena.Backends;
+using Coquena.Configuration;
+using Coquena.Observation;
 using Coquena.Contracts;
 using Coquena.Downloads;
 using Coquena.Models;
@@ -111,9 +113,49 @@ public static class ScopedServiceCli
         using var cancellation = new CancellationTokenSource();
         ConsoleCancelEventHandler handler = (_, e) => { e.Cancel = true; cancellation.Cancel(); };
         Console.CancelKeyPress += handler;
-        try { logs.FollowAsync(output, cancellation.Token).GetAwaiter().GetResult(); }
+        // In an interactive terminal the last row shows the live service state; redirected output stays unchanged.
+        var footer = ReferenceEquals(output, Console.Out) && !Console.IsOutputRedirected
+            ? new StatusFooterWriter(output, () => Console.WindowWidth,
+                string.IsNullOrEmpty(Environment.GetEnvironmentVariable("NO_COLOR"))) : null;
+        Task? watch = null;
+        if (footer is not null)
+        {
+            var tasks = new InferenceTasks();
+            var name = target.Service.Name;
+            footer.SetStatus(LogStatus.Compose(name, null, []));
+            HardwareSnapshot? hardware = null; ServiceSnapshot? last = null;
+            var sync = new object();
+            void Redraw() { lock (sync) footer.SetStatus(LogStatus.Compose(name, last, tasks.Active, hardware)); }
+            var preferences = new ConfigurationManager(Home.Resolve()).Observer();
+            watch = new ServiceWatch(store, target.Service, null, preferences, observeInference: true,
+                interval: TimeSpan.FromMilliseconds(500)).RunAsync(sample =>
+            {
+                lock (sync) { if (sample.Snapshot is { } snapshot) tasks.Observe(snapshot); else tasks.Suspend(); last = sample.Snapshot; }
+                Redraw();
+            }, cancellation.Token);
+            // System GPU readings, once a second; an unavailable reading leaves the GPUs out.
+            var gpus = Task.Run(async () =>
+            {
+                var source = SystemMetrics.Create();
+                while (!cancellation.IsCancellationRequested)
+                {
+                    try { var sample = await source.CaptureAsync(cancellation.Token); lock (sync) hardware = sample; Redraw(); }
+                    catch (OperationCanceledException) { return; }
+                    catch (Exception e) when (ServiceObservation.ObservationError(e)) { lock (sync) hardware = null; }
+                    try { await Task.Delay(TimeSpan.FromSeconds(1), cancellation.Token); } catch (OperationCanceledException) { return; }
+                }
+            });
+            watch = Task.WhenAll(watch, gpus);
+        }
+        try { logs.FollowAsync(footer ?? output, cancellation.Token).GetAwaiter().GetResult(); }
         catch (OperationCanceledException) when (cancellation.IsCancellationRequested) { return 0; }
-        finally { Console.CancelKeyPress -= handler; }
+        finally
+        {
+            Console.CancelKeyPress -= handler;
+            cancellation.Cancel();
+            try { watch?.GetAwaiter().GetResult(); } catch (OperationCanceledException) { }
+            footer?.End();
+        }
         return 0;
     }
 

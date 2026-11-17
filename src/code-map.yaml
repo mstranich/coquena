@@ -78,6 +78,20 @@ features:
       - docs/design/tui/README.md
       - docs/design/tui/A-en-vivo.salt.puml
       - docs/design/tui/N-definiciones-descargas.salt.puml
+  - id: log-status-line
+    intent: Línea de estado al pie de logs -f con salud, CPU, RAM, presets cargados y tareas en curso del servicio.
+    keywords: [logs, follow, -f, línea de estado, status line, footer, telemetría]
+    entrypoints:
+      - src/Coquena/ScopedServiceCli.cs
+    implementation:
+      - src/Coquena/Observation/LogStatus.cs
+      - src/Coquena/Observation/ServiceWatch.cs
+      - src/Coquena/Observation/InferenceTasks.cs
+    tests:
+      - tests/Coquena.Tests/LogStatusTests.cs
+    references:
+      - docs/design/comandos.md
+      - specs/099-linea-de-estado-al-seguir-logs/README.md
   - id: preset-load-unload
     intent: Cargar o descargar un preset publicado en el router y retirarlo desde En vivo, con load y unload <preset> en la CLI.
     keywords: [load, unload, cargar, descargar, retirar, withdraw, models/load, models/unload, En vivo]

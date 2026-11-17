@@ -570,6 +570,15 @@ del ámbito elegido. Usa las mismas protecciones que prune. Un ID ajeno al
 `backend unprotect` antes de retirarla.
 Logs sin subcomando lee salida reciente; -f equivale a follow y no es --file en
 esa familia. `logs show <id>` selecciona un histórico y no se combina con follow.
+Con la salida en una terminal, follow reserva la última fila para una línea de
+estado que se redibuja en el lugar: servicio, salud o estado del proceso, uso y VRAM
+de cada GPU del sistema, CPU y RAM del proceso,
+presets cargados y tareas en curso con su fase y tk/s. Usa la observación de
+`ps -w`, con `/slots` y cada 0,5 s en lugar de 2 s; sigue durante reinicios y se
+borra al salir. Una tarea sin tokens generados se muestra en fase PROMPT. Las
+advertencias y errores del log toman el glifo y el color de En vivo (▲ ámbar, ✗ rojo),
+salvo con `NO_COLOR` definida. Con
+la salida redirigida no hay línea y el texto es idéntico.
 IDs de log son locales al servicio, nunca rutas arbitrarias inferidas.
 Ps sin servicio muestra los servicios conocidos; con selección limita la consulta.
 `--service self` selecciona el servicio propio usando las opciones de receta;

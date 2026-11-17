@@ -13,7 +13,8 @@ public sealed record ObservedModelEvent(string ServiceId, string InstanceId, Mod
 // Neither this class nor its transport owns any backend lifecycle operation.
 public sealed class ServiceWatch(ScopeStore store, ServiceIdentity service, RecipeSelection? selection,
     ObserverPreferences preferences, IInstanceProbe? probe = null, HttpClient? client = null,
-    Action<ObservedModelEvent>? eventReceived = null)
+    Action<ObservedModelEvent>? eventReceived = null, bool observeInference = false,
+    TimeSpan? interval = null)
 {
     public static TimeSpan RetryDelay(ObserverPreferences preferences, int failures) =>
         TimeSpan.FromSeconds(Math.Min(preferences.RetryMaxSeconds,
@@ -28,7 +29,9 @@ public sealed class ServiceWatch(ScopeStore store, ServiceIdentity service, Reci
             { Timeout = Timeout.InfiniteTimeSpan } : null;
         var http = client ?? ownedClient!;
         var observation = new ServiceObservation(store, http, probe);
-        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(2));
+        // Two seconds by default; a caller that shows a single service may ask for a faster pace.
+        var period = interval ?? TimeSpan.FromSeconds(2);
+        using var timer = new PeriodicTimer(period);
         using var stop = CancellationTokenSource.CreateLinkedTokenSource(cancellation);
         var clock = Tick();
         var lastCapture = System.Diagnostics.Stopwatch.StartNew();
@@ -39,12 +42,12 @@ public sealed class ServiceWatch(ScopeStore store, ServiceIdentity service, Reci
         {
             await foreach (var _ in signals.Reader.ReadAllAsync(cancellation))
             {
-                if (!first && lastCapture.Elapsed < TimeSpan.FromSeconds(2))
-                    await Task.Delay(TimeSpan.FromSeconds(2) - lastCapture.Elapsed, cancellation);
+                if (!first && lastCapture.Elapsed < period)
+                    await Task.Delay(period - lastCapture.Elapsed, cancellation);
                 first = false;
                 if (captureBudget is not null) await captureBudget.WaitAsync(cancellation);
                 ServiceSnapshot snapshot;
-                try { snapshot = await observation.CaptureAsync(service, selection, cancellation, Interlocked.Exchange(ref reconcile, 0) != 0); }
+                try { snapshot = await observation.CaptureAsync(service, selection, cancellation, Interlocked.Exchange(ref reconcile, 0) != 0, observeInference); }
                 finally { captureBudget?.Release(); }
                 lastCapture.Restart();
                 if (stream?.IsCompleted == true)
