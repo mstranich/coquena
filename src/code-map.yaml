@@ -109,10 +109,11 @@ features:
       - docs/design/ui-servicio.md
       - specs/098-cargar-y-retirar-presets-en-vivo/README.md
   - id: preset-chat-test
-    intent: Probar un preset publicado con una conversación en streaming y la telemetría de la respuesta, desde Herramientas › Chat en la TUI o con chat <preset>.
-    keywords: [chat, herramientas, tools, preset, streaming, SSE, timings, prompt_progress, speculative, draft, cache_n, Detener]
+    intent: Probar un preset publicado con una conversación en streaming y la telemetría de la respuesta, desde Herramientas › Chat en la TUI, con chat <preset> o con un único prompt (chat -p, --json).
+    keywords: [chat, herramientas, tools, preset, streaming, SSE, timings, prompt_progress, speculative, draft, cache_n, Detener, prompt, json, reasoning]
     entrypoints:
       - src/Coquena/ChatCli.cs
+      - src/Coquena/ChatOnceCli.cs
       - src/Coquena/DashboardChat.cs
     implementation:
       - src/Coquena/Chat/ChatSession.cs
@@ -121,9 +122,11 @@ features:
       - src/Coquena/DashboardCli.cs
     tests:
       - tests/Coquena.Tests/ChatTests.cs
+      - tests/Coquena.Tests/ChatOnceTests.cs
     references:
       - docs/design/benchmarking.md
       - docs/design/tui/CH-herramientas-chat.salt.puml
+      - specs/100-chat-no-interactivo-con-prompt/README.md
 
   - id: continuous-service-observation
     intent: Seguir servicios por identidad con snapshots reconciliados y eventos acotados sin controlar el backend.

@@ -167,6 +167,7 @@ public static partial class Messages
           chat <preset> [--service <name|default|self> | --global] [--load]
                                            Try a preset with a chat and its telemetry
             --load asks to load the preset; Enter sends when it finishes
+            -p|--prompt <text|-> sends one prompt; --json, --reasoning
           load|unload <preset> [--service <name|default|self> | --global]
                                            Load or unload a published preset
             preset: project/key, the local key or service/project/key

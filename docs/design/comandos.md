@@ -96,6 +96,19 @@ una línea de telemetría debajo del área de escritura, actualizada sin perder 
 mensaje en edición. Su interacción y cancelación siguen el
 [laboratorio interactivo](benchmarking.md#laboratorio-interactivo).
 La TUI ofrece la misma operación desde Chat y el acceso Chat de En vivo.
+`--reasoning` muestra el razonamiento del modelo, atenuado y marcado, antes de la
+respuesta; `/reasoning` lo muestra u oculta durante la sesión. Sin la opción se
+omite.
+
+`chat <preset> -p|--prompt <texto|-> [--json] [--reasoning]` envía un único prompt y
+termina, sin terminal interactiva; `-` lee el prompt completo de la entrada estándar.
+La salida estándar recibe sólo la respuesta a medida que llega (y el razonamiento con
+`--reasoning`), de modo que puede canalizarse; el motivo de fin y las métricas del
+turno van a la salida de error con los nombres de la telemetría. `--json` escribe al
+terminar un único objeto con servicio, preset, respuesta, razonamiento, motivo de fin,
+problema y métricas. No ofrece iniciar un servicio detenido; `--load` espera la carga
+antes de enviar. Termina con 0, 1 si la solicitud falla, 2 ante un preset o servicio
+no disponible y 130 si se cancela con Ctrl+C.
 
 ### load y unload
 

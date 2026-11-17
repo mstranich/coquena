@@ -10,7 +10,8 @@ using Coquena.Storage;
 
 namespace Coquena;
 
-// chat <preset> [--service <name> | --global] [--load]: the quick test of Herramientas › Chat in a terminal.
+// chat <preset> [--service <name> | --global] [--load] [--reasoning]: the quick test of Herramientas › Chat
+// in a terminal. With -p/--prompt it sends one request and ends (ChatOnceCli).
 // The telemetry row stays below the input and is redrawn in place, without adding lines.
 internal static class ChatCli
 {
@@ -24,34 +25,45 @@ internal static class ChatCli
             output.WriteLine(Messages.ChatHelp);
             return 0;
         }
-        string? reference = null, serviceName = null;
+        string? reference = null, serviceName = null, prompt = null;
         var valid = true;
-        var load = false;
+        bool load = false, json = false, reasoning = false;
         for (var i = 0; i < args.Length && valid; i++)
         {
             if (args[i] == "--service" && i + 1 < args.Length && serviceName is null) serviceName = args[++i];
             else if (args[i] is "--global" or "-g" && serviceName is null) serviceName = "global";
             else if (args[i] == "--load" && !load) load = true;
+            else if (args[i] == "--json" && !json) json = true;
+            else if (args[i] == "--reasoning" && !reasoning) reasoning = true;
+            else if (args[i] is "-p" or "--prompt" && i + 1 < args.Length && prompt is null) prompt = args[++i];
             else if (!args[i].StartsWith('-') && reference is null) reference = args[i];
             else valid = false;
         }
         if (!valid || reference is null || reference.Length == 0 || reference.StartsWith('/') || reference.EndsWith('/') ||
-            reference.Contains("//", StringComparison.Ordinal))
+            reference.Contains("//", StringComparison.Ordinal) || json && prompt is null)
         {
             error.WriteLine(Usage);
             return 2;
         }
-        if (Console.IsInputRedirected || Console.IsOutputRedirected)
+        // "-" reads the whole prompt from standard input.
+        if (prompt == "-") prompt = Console.In.ReadToEnd();
+        if (prompt is not null && prompt.Trim().Length == 0)
+        {
+            error.WriteLine(Messages.ChatEmptyPrompt);
+            return 2;
+        }
+        if (prompt is null && (Console.IsInputRedirected || Console.IsOutputRedirected))
         {
             error.WriteLine(Messages.ChatNeedsTerminal);
             return 2;
         }
         try
         {
-            if (Resolve(reference, serviceName, output, error) is not var (target, address, entry)) return 2;
-            return Converse(address, target.Service!.Name, entry, load, output);
+            if (Resolve(reference, serviceName, output, error, offerStart: prompt is null) is not var (target, address, entry)) return 2;
+            if (prompt is not null) return ChatOnceCli.Run(address, target.Service!.Name, entry, prompt, json, reasoning, load, output, error);
+            return Converse(address, target.Service!.Name, entry, load, reasoning, output);
         }
-        catch (Exception e) when (ServiceObservation.ObservationError(e) || e is BackendException or Coquena.Downloads.DownloadException or ModelSourceException or RecipeException)
+        catch (Exception e) when (ServiceObservation.ObservationError(e) || e is BackendException or Coquena.Downloads.DownloadException or ModelSourceException or RecipeException or StorageException)
         {
             error.WriteLine("chat: " + e.Message);
             return 2;
@@ -233,13 +245,13 @@ internal static class ChatCli
         output.WriteLine(Messages.ServiceInstance.Format(service.Name, instance));
     }
 
-    private static int Converse(Uri address, string service, string entry, bool load, TextWriter output)
+    private static int Converse(Uri address, string service, string entry, bool load, bool reasoning, TextWriter output)
     {
         using var client = new HttpClient(new HttpClientHandler { AllowAutoRedirect = false, UseProxy = false })
         { Timeout = Timeout.InfiniteTimeSpan };
         var session = new ChatSession(client, address, entry);
         var loader = load ? new Loader(client, address, entry) : null;
-        var screen = new Screen(output, service + "/" + entry, loader);
+        var screen = new Screen(output, service + "/" + entry, loader) { ShowReasoning = reasoning };
         output.WriteLine(Messages.ChatWith.Format(service, entry));
         Console.TreatControlCAsInput = true;
         try
@@ -249,6 +261,12 @@ internal static class ChatCli
                 var text = screen.ReadLine(session);
                 if (text is null || text.Trim() == "/exit") break;
                 if (text.Trim().Length == 0) continue;
+                if (text.Trim() == "/reasoning")
+                {
+                    screen.ShowReasoning = !screen.ShowReasoning;
+                    output.WriteLine(screen.ShowReasoning ? Messages.ChatReasoningShown : Messages.ChatReasoningHidden);
+                    continue;
+                }
                 if (!Answer(session, text, screen)) break;
             }
         }
@@ -291,6 +309,8 @@ internal static class ChatCli
         private int answerColumn;   // Column where the streamed answer continues.
         private int written;        // Characters of the current answer already printed.
         private string? notice;     // Why Enter did not send, until the next key.
+        private int thought;        // Characters of the current reasoning already printed.
+        public bool ShowReasoning { get; set; }
 
         private static int Width => Math.Max(20, Console.WindowWidth);
 
@@ -370,6 +390,7 @@ internal static class ChatCli
             output.Write("\u001b[1m" + Messages.ChatAssistant + "\u001b[0m\r\n");
             answerColumn = 0;
             written = 0;
+            thought = 0;
             output.Write("\u001b[?25l" + Fit("…", Width));
             output.Flush();
         }
@@ -378,18 +399,28 @@ internal static class ChatCli
         public void Update(ChatSession session)
         {
             var turn = session.Turns[^1];
+            // With /reasoning, the reasoning goes first, dimmed and tagged; the answer follows it.
+            var reasoning = ShowReasoning && turn.Reasoning.Length > thought ? turn.Reasoning.ToString(thought, turn.Reasoning.Length - thought) : "";
+            var opening = ShowReasoning && thought == 0 && reasoning.Length > 0 ? Messages.DisplayReasoningTag + "\n" : "";
+            if (reasoning.Length > 0) thought = turn.Reasoning.Length;
             var text = turn.Text.ToString();
             var chunk = text.Length > written ? text[written..] : "";
+            var closing = thought > 0 && written == 0 && chunk.Length > 0 ? "\n\n" : "";
             written = text.Length;
             var builder = new StringBuilder("\r\u001b[K\u001b[1A\r");
             if (answerColumn > 0) builder.Append("\u001b[").Append(answerColumn).Append('C');
             var width = Width;
-            foreach (var character in chunk.Replace("\r", ""))
+            void Put(string part)
             {
-                if (character == '\n') { builder.Append("\r\n"); answerColumn = 0; continue; }
-                builder.Append(character);
-                answerColumn = (answerColumn + 1) % width;
+                foreach (var character in part.Replace("\r", ""))
+                {
+                    if (character == '\n') { builder.Append("\r\n"); answerColumn = 0; continue; }
+                    builder.Append(character);
+                    answerColumn = (answerColumn + 1) % width;
+                }
             }
+            if (opening.Length + reasoning.Length > 0) { builder.Append("\u001b[2m"); Put(opening + reasoning); builder.Append("\u001b[0m"); }
+            Put(closing + chunk);
             builder.Append("\r\n").Append(Fit(Telemetry(session), width));
             output.Write(builder.ToString());
             output.Flush();
