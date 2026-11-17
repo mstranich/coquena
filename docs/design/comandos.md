@@ -291,11 +291,13 @@ una falla de integridad conocida es fatal en ambos modos.
 
 ### Selectores de control
 
-Apply/withdraw opera sobre presets de la receta.
-Withdraw acepta la clave o el nombre publicado completo `receta/clave`, y busca
-únicamente en las publicaciones propias registradas, con sus nombres y destinos
-guardados. Un selector sin coincidencia se informa como error; no acredita una
-retirada. Con el servicio detenido, down/withdraw actualizan la composición del
+Apply/withdraw opera sobre presets de la receta. Ambos aceptan la clave o el
+nombre publicado completo `receta/clave`; apply rechaza un prefijo de otra receta.
+Withdraw busca en las publicaciones propias registradas, con sus nombres y destinos
+guardados, y retira aunque el preset ya no esté declarado o la receta sea inválida.
+Sin coincidencia, consulta la receta sólo para el diagnóstico: un preset declarado
+pero no publicado se informa como aviso, sin error, porque no hay nada que retirar;
+un nombre que no está declarado ni publicado es un error (`unknown-preset`). Con el servicio detenido, down/withdraw actualizan la composición del
 próximo inicio sin iniciar el proceso.
 Apply publica/recarga/retira presets sobre el router compatible sin reiniciarlo
 si sus capacidades lo permiten. Cambiar backend requiere reinicio.
@@ -387,8 +389,8 @@ service [<nombre|default|self>] remove
 service default set <nombre>
 service list
 service [<nombre|default|self>] logs [list|follow|show <log-id>] [-f]
-preset apply|withdraw <clave>
-apply|withdraw <clave>
+preset apply|withdraw <preset>
+apply|withdraw <preset>
 ps [--service <nombre|default|self>] [-w|--watch]
 logs [list|follow|show <log-id>] [-f]
 update [--select <recurso>]... [--json]

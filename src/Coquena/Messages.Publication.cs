@@ -16,8 +16,6 @@ public static partial class Messages
     public static readonly Text PublicationInvalidSyntax = new("Invalid publication syntax.");
     public static readonly Text PublicationNeedsInteraction = new("Up/down and apply/withdraw require interaction.");
     public static readonly Text StepValidateRecipe = new("Validate the recipe");
-    public static readonly Text PublicationNothingToWithdraw = new("There are no own publications registered to withdraw the preset.");
-    public static readonly Text PublicationPresetNotOwn = new("The preset is not among the registered own publications.");
     public static readonly Text PublicationNoOwnInTarget = new("There is no own publication in the selected target.");
     public static readonly Text PublicationTargetGone = new("The registered target no longer exists.");
     public static readonly Text PublicationSelectionMismatch = new("The selection does not match the published target.");
@@ -43,8 +41,10 @@ public static partial class Messages
     public static readonly Text LoadFailedRestored = new("Load failure detected; affected entries restored without restarting. Repeat to apply another candidate.");
     public static readonly Text RestorationUnconfirmed = new("Restoration not confirmed; operation and resources kept.");
     public static readonly Text PublishedNameKept = new("The intent uses {0}; the published name {1} is kept until a confirmed withdrawal.");
-    public static readonly Text PublicationPresetNotInTarget = new("The preset is not among the own publications registered in the target.");
-    public static readonly Text PublicationPresetMissing = new("The selected preset does not exist.");
+    public static readonly Text PublicationPresetMissing = new("{0} is not declared in the recipe {1}.");
+    public static readonly Text PublicationPresetOtherRecipe = new("{0} does not belong to this recipe ({1}).");
+    public static readonly Text PublicationPresetNotPublished = new("{0} is not published; there is nothing to withdraw.");
+    public static readonly Text PublicationPresetUnknown = new("{0} is neither declared in the recipe nor published.");
     public static readonly Text StepPrepareResources = new("Prepare backend and models");
     public static readonly Text PublicationIntentChanged = new("The intent changed during the publication.");
     public static readonly Text StepWithdrawPresets = new("Withdraw the presets");

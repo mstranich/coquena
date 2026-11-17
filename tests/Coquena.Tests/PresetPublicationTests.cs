@@ -145,6 +145,16 @@ internal static class PresetPublicationTests
                     !catalog.Any(p => p!["id"]!.GetValue<string>() == "news/success")) throw new Exception("Withdraw por nombre publicado alteró entradas ajenas o no retiró la propia.");
                 Cli(2, "withdraw", "news/success");
                 Cli(2, "withdraw", "absent");
+                // A declared preset that is not published is a notice, not an error.
+                Cli(0, "withdraw", "first");
+                Cli(0, "withdraw", "changed/first");
+                // apply accepts recipe/key like withdraw, and rejects another recipe's prefix.
+                Cli(2, "apply", "other/first");
+                Cli(2, "apply", "changed/absent");
+                Cli(0, "apply", "changed/first");
+                if (!(await router.ObserveAsync(default)).Any(p => p!["id"]!.GetValue<string>().EndsWith("/first", StringComparison.Ordinal)))
+                    throw new Exception("Apply por receta/clave no publicó el preset.");
+                Cli(0, "withdraw", "first");
                 var alternate = registry.Register(["alternate.yaml"], "alternate"); var alternateService = registry.RegisterService(alternate.RecipeId);
                 registry.SetDefaultService(alternateService.ServiceId);
                 // A global chosen by name receives the presets although it is not the default,

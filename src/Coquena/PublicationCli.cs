@@ -141,9 +141,32 @@ public static class PublicationCli
                 recipe = RecipeReader.Read(selection);
                 _ = ArgumentValidation.Validate(recipe);
                 _ = ModelIntent.FromRecipe(recipe);
+                // apply accepts the key or recipe/key, like withdraw.
+                if (key is not null)
+                {
+                    var bare = Bare(key, recipe.Name) ?? throw new StorageException("unknown-preset", Messages.PublicationPresetOtherRecipe.Format(key, recipe.Name));
+                    if (recipe.Root.Get("presets")?.Get(bare) is null)
+                        throw new StorageException("unknown-preset", Messages.PublicationPresetMissing.Format(bare, recipe.Name));
+                    key = bare;
+                }
                 validating.Done();
             }
             catch { validating.Fail(); throw; }
+        }
+        // A withdrawal without a matching publication reads the recipe only to tell a declared
+        // preset that is not published from a name that is neither; it never blocks a withdrawal.
+        int NotPublished()
+        {
+            string? declared = null;
+            try
+            {
+                var current = RecipeReader.Read(selection);
+                if (Bare(key!, current.Name) is { } bare && current.Root.Get("presets")?.Get(bare) is not null) declared = current.Name + "/" + bare;
+            }
+            catch (Exception e) when (e is RecipeException or IOException or UnauthorizedAccessException) { }
+            if (declared is null) throw new StorageException("unknown-preset", Messages.PublicationPresetUnknown.Format(key!));
+            output.WriteLine(Messages.PublicationPresetNotPublished.Format(declared));
+            return 0;
         }
         RecipeIdentity identity;
         if (withdrawing)
@@ -152,7 +175,7 @@ public static class PublicationCli
                 .SingleOrDefault(r => r!["project-consumer"]?.GetValue<bool>() == true);
             if (found is null)
             {
-                if (action == "withdraw") throw new StorageException("unknown-preset", Messages.PublicationNothingToWithdraw);
+                if (action == "withdraw") return NotPublished();
                 output.WriteLine(Messages.DisplayNoOwnPublicationsRecorded.ToString()); return 0;
             }
             identity = registry.Get(found["recipe-id"]!.GetValue<string>());
@@ -163,7 +186,7 @@ public static class PublicationCli
         var publication = entry["publication-operation"] ?? recordedTarget ?? entry["publication"];
         if (withdrawing && publication is null)
         {
-            if (action == "withdraw") throw new StorageException("unknown-preset", Messages.PublicationNothingToWithdraw);
+            if (action == "withdraw") return NotPublished();
             output.WriteLine(Messages.DisplayNoOwnPublicationsRecorded.ToString()); return 0;
         }
         if (withdrawing && entry["publication-operation"] is null && recordedTarget is null && selector is null && entry["publications"] is JsonArray all)
@@ -172,8 +195,7 @@ public static class PublicationCli
             if (action == "withdraw")
             {
                 remaining = remaining.Where(p => HasPublishedPreset(p!, key!)).ToArray();
-                if (remaining.Length == 0)
-                    throw new StorageException("unknown-preset", Messages.PublicationPresetNotOwn);
+                if (remaining.Length == 0) return NotPublished();
             }
             if (remaining.Length > 1)
             {
@@ -326,8 +348,7 @@ public static class PublicationCli
         if (recipe is not null && recipe.Name != name)
             output.WriteLine(Messages.PublishedNameKept.Format(recipe.Name, name));
         var combination = publication?["combination"]?.GetValue<string>() ?? "";
-        if (action == "withdraw" && !HasPublishedPreset(publication!, key!))
-            throw new StorageException("unknown-preset", Messages.PublicationPresetNotInTarget);
+        if (action == "withdraw" && !HasPublishedPreset(publication!, key!)) return NotPublished();
         if (key is not null || withdrawing)
             foreach (var p in publication?["presets"]?.AsArray() ?? [])
                 if (action != "down" && p!["name"]!.GetValue<string>() != name + "/" + key &&
@@ -335,7 +356,6 @@ public static class PublicationCli
                     presets.Add(FromNode(p!));
         if (!withdrawing)
         {
-            if (key is not null && recipe!.Root.Get("presets")?.Get(key) is null) throw new StorageException("unknown-preset", Messages.PublicationPresetMissing);
             var inputPaths = selection.Files.Concat(selection.EnvFiles);
             var inputs = inputPaths.Distinct(StringComparer.OrdinalIgnoreCase).ToDictionary(p => p, SharedFile.ReadAllBytes);
             var adapter = new LlamaB11482ArgumentAdapter();
@@ -416,6 +436,10 @@ public static class PublicationCli
         output.WriteLine(result.Confirmed ? (result.WarmupFailed ? (result.Restored ? Messages.LoadFailedEntriesRestored : Messages.LoadFailedNoSnapshot) : Messages.CompositionConfirmed) : Messages.ResultUnconfirmed);
         return !result.Confirmed ? 9 : result.WarmupFailed ? 8 : 0;
     }
+
+    // The key itself, or the key behind recipe/key when the prefix is this recipe; null for another recipe.
+    private static string? Bare(string key, string recipeName) =>
+        key.StartsWith(recipeName + "/", StringComparison.Ordinal) ? key[(recipeName.Length + 1)..] : key.Contains('/') ? null : key;
 
     private static bool HasPublishedPreset(JsonNode publication, string key) =>
         publication["presets"]?.AsArray().Any(p => p!["name"]!.GetValue<string>() == key ||

@@ -67,7 +67,7 @@ public static partial class Messages
             Remote resources keep it.
 
         Publication:
-          preset apply|withdraw <key>       Same as the apply/withdraw shortcuts
+          preset apply|withdraw <preset>    Same as the apply/withdraw shortcuts
           -f/--file <yaml>                  Ordered layers; --env-file is explicit
           --project-directory <folder>      Project base (alias --base)
           --private                        Allow private outer references
@@ -162,8 +162,8 @@ public static partial class Messages
           preset unset <preset> <argument>
           preset clone <origin> <name>
           preset remove <name>
-          apply|withdraw <key>             Publish or withdraw a single preset
-            withdraw also accepts the published name recipe/key.
+          apply|withdraw <preset>          Publish or withdraw a single preset
+            preset: the key or the published name recipe/key
           chat <preset> [--service <name|default|self> | --global] [--load]
                                            Try a preset with a chat and its telemetry
             --load asks to load the preset; Enter sends when it finishes
