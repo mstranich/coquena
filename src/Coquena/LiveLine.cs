@@ -11,6 +11,21 @@ public static class LiveLine
     private static bool live;
     private static string? text;
     private static Timer? timer;
+    private static bool silenced;
+
+    // While a full-screen interface owns the terminal, nothing is written: the interface
+    // reads the current line and shows it next to its own progress.
+    public static void Silence(bool value)
+    {
+        lock (Gate)
+        {
+            silenced = value;
+            text = null;
+            timer?.Dispose(); timer = null;
+        }
+    }
+
+    public static string? Current { get { lock (Gate) return silenced ? text : null; } }
 
     // Called once at startup with the raw error stream; Console.Out and Console.Error
     // are then wrapped so that writing anything closes the live line first.
@@ -31,6 +46,7 @@ public static class LiveLine
     {
         lock (Gate)
         {
+            if (silenced) { text = line; return; }
             var writer = target ?? Console.Error;
             if (!live) { writer.WriteLine(line); return; }
             text = line;
@@ -47,6 +63,7 @@ public static class LiveLine
         {
             if (text is null) return;
             text = null;
+            if (silenced) return;
             timer?.Dispose(); timer = null;
             target!.WriteLine();
             target.Flush();

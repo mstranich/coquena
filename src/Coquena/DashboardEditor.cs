@@ -92,8 +92,12 @@ internal static partial class DashboardCli
     {
         var rows = new List<string>();
         if (busy is not null)
+        {
             foreach (var step in steps ?? [])
                 rows.Add(" " + Markup.Style(step.State switch { StepState.Done => "ok", StepState.Failed => "err", _ => "warn" }, Markup.Escape(StepProgress.Format(step, Glyphs.Unicode))));
+            // The download in progress, which the CLI shows as its live line.
+            if (LiveLine.Current is { } detail) rows.Add("   " + Markup.Style("mut", Markup.Escape(detail)));
+        }
         else if (last is not null)
         {
             rows.Add(" " + Markup.Style(last.Tone, (last.Tone == "ok" ? "✓ " : last.Tone == "warn" ? "▲ " : "✗ ") +

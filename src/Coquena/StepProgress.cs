@@ -124,6 +124,8 @@ public sealed class StepProgress : IDisposable
         {
             if (step.State != StepState.Running) return;
             step.State = state; step.Note = note;
+            // In a view, the live download line belongs to the step that just ended.
+            if (output is null) LiveLine.Finish();
             if (output is null) return;
             if (interactive) Clear();
             output.WriteLine(Format(new(step.Label, state, note), glyphs));

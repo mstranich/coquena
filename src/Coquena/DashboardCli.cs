@@ -514,9 +514,11 @@ internal static partial class DashboardCli
         Schedule(TickPeriod);
         var consoleError = Console.Error;
         Console.SetError(TextWriter.Null);
+        LiveLine.Silence(true);
         try { app.Run(window); }
         finally
         {
+            LiveLine.Silence(false);
             Console.SetError(consoleError);
             stop.Cancel();
             chat.Dispose();
@@ -608,6 +610,7 @@ internal static partial class DashboardCli
             if (operation is { IsCompleted: true } completed)
             {
                 operation = null;
+                LiveLine.Finish();
                 selectedSnapshot = null;
                 serviceNote = null;
                 RefreshTargets();
@@ -977,9 +980,12 @@ internal static partial class DashboardCli
             }
             if (controls.Length > 0) rows.Add(controls);
             if (operation is not null && operationLabel == target?.Label && operationSteps?.Rows() is { Count: > 0 } stepRows)
+            {
                 foreach (var step in stepRows)
                     rows.Add(" " + Markup.Style(step.State switch { StepState.Done => "ok", StepState.Failed => "err", _ => "warn" },
                         Markup.Escape(StepProgress.Format(step, Glyphs.Unicode))));
+                if (LiveLine.Current is { } detail) rows.Add("   " + Markup.Style("mut", Markup.Escape(detail)));
+            }
             else if (operation is null && target is not null && outcomes.GetValueOrDefault(target.Label) is { } outcome)
                 rows.AddRange(OperationRows(null, null, outcome, width));
 
