@@ -12,7 +12,11 @@ public static class ObservationCli
     {
         try
         {
+            var list = args.ToList();
+            var interval = Coquena.Observation.ObserverInterval.Take(list);
+            args = list.ToArray();
             var ps = Array.IndexOf(args, "ps");
+            if (interval is not null && !args.Any(a => a is "-w" or "--watch")) throw new ArgumentException(Messages.PsUsage);
             if (ps < 0 || args.Count(a => a == "ps") != 1 || args.Count(a => a is "-w" or "--watch") > 1)
                 throw new ArgumentException(Messages.PsUsage);
             var watch = args.Any(a => a is "-w" or "--watch");
@@ -43,7 +47,7 @@ public static class ObservationCli
                 catch (Exception e) when (ServiceObservation.ObservationError(e)) { error.WriteLine(Messages.HardwareUnavailable.Format(e.Message)); }
                 if (!OperatingSystem.IsWindows())
                 {
-                    if (watch) return WatchAsync([], output, cancellation.Token).GetAwaiter().GetResult();
+                    if (watch) return WatchAsync([], output, cancellation.Token, interval: interval).GetAwaiter().GetResult();
                     output.WriteLine(Messages.PsLinuxServices);
                     return 0;
                 }
@@ -58,7 +62,7 @@ public static class ObservationCli
                 if (watch) return WatchAsync(targets.ToArray(), output, cancellation.Token, selected ? null : () =>
                 {
                     RefreshTargets(); return targets.ToArray();
-                }).GetAwaiter().GetResult();
+                }, interval).GetAwaiter().GetResult();
                 var shown = false;
                 foreach (var target in targets)
                 {
@@ -117,9 +121,11 @@ public static class ObservationCli
     public static async Task<int> WatchAsync(
         IReadOnlyList<(ScopeStore Store, ServiceIdentity Service, RecipeSelection? Selection)> targets,
         TextWriter output, CancellationToken cancellation,
-        Func<IReadOnlyList<(ScopeStore Store, ServiceIdentity Service, RecipeSelection? Selection)>>? discover = null)
+        Func<IReadOnlyList<(ScopeStore Store, ServiceIdentity Service, RecipeSelection? Selection)>>? discover = null,
+        TimeSpan? interval = null)
     {
         var preferences = new Coquena.Configuration.ConfigurationManager(Home.Resolve()).Observer();
+        var period = interval ?? preferences.Interval(Coquena.Observation.ObserverInterval.Default);
         var latest = new Dictionary<string, WatchSnapshot?>();
         HardwareSnapshot? hardware = null; string? hardwareError = null;
         var sync = new object();
@@ -133,7 +139,8 @@ public static class ObservationCli
         if (interactive) output.Write("\u001b[?1049h\u001b[?25l");
         try
         {
-            using var timer = new PeriodicTimer(TimeSpan.FromSeconds(1));
+            // The screen refreshes every second, or at the reading pace when it is faster.
+            using var timer = new PeriodicTimer(period < TimeSpan.FromSeconds(1) ? period : TimeSpan.FromSeconds(1));
             do
             {
                 cancellation.ThrowIfCancellationRequested();
@@ -202,7 +209,7 @@ public static class ObservationCli
                     if (latest.ContainsKey(key)) continue;
                     latest[key] = null;
                 }
-                jobs.Add(new ServiceWatch(target.Store, target.Service, target.Selection, preferences)
+                jobs.Add(new ServiceWatch(target.Store, target.Service, target.Selection, preferences, interval: period)
                     .RunAsync(sample =>
                     {
                         lock (sync) latest[key] = sample with { Transition = sample.Transition ?? latest[key]?.Transition };
@@ -223,7 +230,7 @@ public static class ObservationCli
                 catch (OperationCanceledException) when (stop.IsCancellationRequested) { return; }
                 catch (Exception e) when (ServiceObservation.ObservationError(e))
                 { lock (sync) { hardware = null; hardwareError = Messages.UnavailableReason.Format(e.GetType().Name); } }
-                await Task.Delay(TimeSpan.FromSeconds(2), stop.Token);
+                await Task.Delay(period, stop.Token);
             }
         }
     }

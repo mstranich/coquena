@@ -17,6 +17,7 @@
         <b>Observación | . | .
         Reconexión inicial | "1  " s | predet.
         Reconexión máxima | "30 " s | predet.
+        Intervalo de lectura | "2  " s | predet.
         <b>Logs | . | .
         Retención | "100 MiB" | predet.
         <b>Parámetros | . | .

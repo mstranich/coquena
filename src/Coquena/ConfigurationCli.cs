@@ -27,9 +27,21 @@ public static class ConfigurationCli
                         preferences = new(int.Parse(args[2]), int.Parse(args[3]));
                     }
                     manager ??= new(Home.Resolve());
-                    if (args[1] != "show") manager.SetObserver(preferences);
+                    var current = manager.Observer();
+                    if (args[1] != "show") manager.SetObserver((preferences ?? new()) with { IntervalSeconds = current.IntervalSeconds } is var next ? next.OrNull() : null);
                     var retry = manager.Observer();
                     output.WriteLine(Messages.ConfigReconnection.Format(retry.RetryInitialSeconds, retry.RetryMaxSeconds));
+                    return 0;
+                }
+                if (args.Length >= 1 && args[0] == "observer-interval")
+                {
+                    if (!(args.Length == 2 && args[1] is "show" or "unset" || args.Length == 3 && args[1] == "set")) Invalid();
+                    double? seconds = args[1] == "set" ? Coquena.Observation.ObserverInterval.Parse(args[2]) : null;
+                    manager ??= new(Home.Resolve());
+                    if (args[1] != "show") manager.SetObserver((manager.Observer() with { IntervalSeconds = seconds }).OrNull());
+                    output.WriteLine(manager.Observer().IntervalSeconds is double own
+                        ? Messages.ConfigObserverInterval.Format(Coquena.Observation.ObserverInterval.Format(own))
+                        : Messages.ConfigObserverIntervalDefault.ToString());
                     return 0;
                 }
                 if (args.Length >= 1 && args[0] == "param-reset")

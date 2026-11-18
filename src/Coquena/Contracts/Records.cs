@@ -68,7 +68,14 @@ public sealed record BackendRetention(int MaxBuilds,
 public sealed record BackendRetentionJournal(int SchemaVersion, BackendRecord[] Pending);
 public sealed record LogRetention(long MaxBytes);
 public sealed record LastLogDocument(int SchemaVersion, Guid ServerId, Guid InstanceId, string LogPath);
-public sealed record ObserverPreferences(int RetryInitialSeconds = 1, int RetryMaxSeconds = 30);
+public sealed record ObserverPreferences(int RetryInitialSeconds = 1, int RetryMaxSeconds = 30,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] double? IntervalSeconds = null)
+{
+    // Without its own interval each observer keeps its default pace.
+    public TimeSpan Interval(TimeSpan fallback) => IntervalSeconds is double seconds ? TimeSpan.FromSeconds(seconds) : fallback;
+    public bool OwnRetry => RetryInitialSeconds != 1 || RetryMaxSeconds != 30;
+    public ObserverPreferences? OrNull() => OwnRetry || IntervalSeconds is not null ? this : null;
+}
 public sealed record ConfigDocument(int SchemaVersion, Guid? DefaultServerId,
     BackendSelection? DefaultBackend, BackendRetention BackendRetention,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] LogRetention? LogRetention = null,

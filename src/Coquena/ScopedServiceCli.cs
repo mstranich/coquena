@@ -71,6 +71,8 @@ public static class ScopedServiceCli
         var selection = args[..index].ToList();
         var tail = args[(index + 1)..].ToList();
         var follow = tail.Remove("-f");
+        var interval = Coquena.Observation.ObserverInterval.Take(tail);
+        if (interval is not null && !(follow || tail is ["follow", ..])) throw new ArgumentException(Messages.LogsInvalidArguments);
         for (var i = 0; i < tail.Count;)
         {
             if (tail[i] is "--global" or "-g") { selection.Add(tail[i]); tail.RemoveAt(i); }
@@ -128,7 +130,7 @@ public static class ScopedServiceCli
             void Redraw() { lock (sync) footer.SetStatus(LogStatus.Compose(name, last, tasks.Active, hardware)); }
             var preferences = new ConfigurationManager(Home.Resolve()).Observer();
             watch = new ServiceWatch(store, target.Service, null, preferences, observeInference: true,
-                interval: TimeSpan.FromMilliseconds(500)).RunAsync(sample =>
+                interval: interval ?? preferences.Interval(Coquena.Observation.ObserverInterval.Follow)).RunAsync(sample =>
             {
                 lock (sync) { if (sample.Snapshot is { } snapshot) tasks.Observe(snapshot); else tasks.Suspend(); last = sample.Snapshot; }
                 Redraw();

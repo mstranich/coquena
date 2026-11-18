@@ -9,6 +9,7 @@ public static partial class Messages
     public static readonly Text SettingsObservation = new("OBSERVATION");
     public static readonly Text SettingsRetryInitial = new("Initial reconnection");
     public static readonly Text SettingsRetryMaximum = new("Maximum reconnection");
+    public static readonly Text SettingsInterval = new("Reading interval");
     public static readonly Text SettingsLogs = new("LOGS");
     public static readonly Text SettingsRetention = new("Retention");
     public static readonly Text SettingsParameters = new("PARAMETERS");
@@ -28,6 +29,7 @@ public static partial class Messages
     public static readonly Text SettingsDefaultsLoaded = new("Default values loaded; Save applies them.");
     public static readonly Text SettingsMoveRunning = new("A directory move is in progress.");
     public static readonly Text SettingsReconnection = new("reconnection");
+    public static readonly Text SettingsIntervalDone = new("reading interval");
     public static readonly Text SettingsRetentionDone = new("retention");
     public static readonly Text SettingsNotSaved = new("Not saved: {0}");
     public static readonly Text SettingsNoChanges = new("No changes.");

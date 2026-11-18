@@ -35,7 +35,7 @@ public static partial class Messages
     public static readonly Text PsInstance = new("  Instance {0}");
     public static readonly Text PsService = new("Service {0} | {1} | {2} | instance {3}");
     public static readonly Text NoneFeminine = new("none");
-    public static readonly Text PsUsage = new("Use ps [-w|--watch] with a valid service selection.");
+    public static readonly Text PsUsage = new("Use ps [-w|--watch [--interval <s>]] with a valid service selection.");
     public static readonly Text HardwareUnavailable = new("Hardware not available: {0}");
     public static readonly Text PsLinuxServices = new("Services: persisted identity only supported on Windows; PID/API are not queried from Linux.");
     public static string PresetState(string state) => state switch { "loaded" => PresetLoaded, "unloaded" => PresetUnloaded, _ => state };

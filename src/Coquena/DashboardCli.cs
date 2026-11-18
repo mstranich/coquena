@@ -20,8 +20,20 @@ namespace Coquena;
 
 internal static partial class DashboardCli
 {
-    private static readonly TimeSpan CaptureInterval = ObservationTimeline.Interval;
-    private static readonly TimeSpan MetricLifetime = TimeSpan.FromSeconds(4);
+    private static TimeSpan CaptureInterval => ObservationTimeline.Interval;
+    // The loop runs at least twice per interval, so every chart column gets a reading.
+    private static TimeSpan TickPeriod => TimeSpan.FromTicks(Math.Min(TimeSpan.TicksPerSecond, CaptureInterval.Ticks / 2));
+    // One reading per chart column: measuring from the previous reading would let the
+    // timer's delay accumulate until a column is skipped.
+    private static bool Due(ref long column)
+    {
+        var now = ObservationTimeline.ColumnOf(DateTimeOffset.UtcNow);
+        if (now == column) return false;
+        column = now;
+        return true;
+    }
+    // A reading older than two intervals is shown as stale.
+    private static TimeSpan MetricLifetime => ObservationTimeline.Interval * 2;
 
     internal sealed record Target(ScopeStore Store, ServiceIdentity? Service, bool IsDefault,
         RecipeSelection? Recipe = null, string? ProjectName = null, bool DeclaresService = false, string? Destination = null, string? RecipeProblem = null)
@@ -184,6 +196,8 @@ internal static partial class DashboardCli
         HardwareSnapshot? lastHardware = null;
         Task<HardwareSnapshot>? machineSample = null;
         var machineClock = new Stopwatch();
+        var machineColumn = long.MinValue;
+        var serviceColumns = new Dictionary<int, long>();
         var serviceSamples = new Dictionary<int, (int Epoch, Task<ServicePanel> Task)>();
         var serviceCaptures = new Dictionary<int, Stopwatch>();
         Task<string?>? operation = null;
@@ -489,11 +503,15 @@ internal static partial class DashboardCli
             { definitionPage = null; Render(); }
             return true;
         });
-        app.AddTimeout(TimeSpan.FromSeconds(1), () =>
+        void Schedule(TimeSpan period) => app.AddTimeout(period, () =>
         {
             Tick();
-            return true;
+            // The interval can change in Configuration; the loop follows it.
+            if (TickPeriod == period) return true;
+            Schedule(TickPeriod);
+            return false;
         });
+        Schedule(TickPeriod);
         var consoleError = Console.Error;
         Console.SetError(TextWriter.Null);
         try { app.Run(window); }
@@ -618,7 +636,7 @@ internal static partial class DashboardCli
                 if (!selected)
                 {
                     // Other targets only feed the "any service active" glyph of the Live tab.
-                    if (targetIndex == index) { serviceCaptures.Remove(targetIndex); continue; }
+                    if (targetIndex == index) { serviceCaptures.Remove(targetIndex); serviceColumns.Remove(targetIndex); continue; }
                     if (targetIndex >= targets.Count) continue;
                     if (pending.Task.IsCompletedSuccessfully) snapshots[targetIndex] = pending.Task.Result.Snapshot;
                     else if (pending.Task.IsFaulted) snapshots.Remove(targetIndex);
@@ -635,7 +653,7 @@ internal static partial class DashboardCli
             }
             if (operation is null && index < targets.Count && targets[index].Service is not null && serviceSamples.Count < 4 &&
                 !serviceSamples.ContainsKey(index) &&
-                (!serviceCaptures.TryGetValue(index, out var lastCapture) || lastCapture.Elapsed >= CaptureInterval))
+                DueService(index))
             {
                 var target = targets[index];
                 var clock = new Stopwatch();
@@ -1364,7 +1382,7 @@ internal static partial class DashboardCli
             var previous = targets.ElementAtOrDefault(index);
             selectionEpoch++;
             foreach (var session in logSessions.Values) retiredLogs.Add(session.CloseAsync());
-            logSessions.Clear(); snapshots.Clear(); catalogues.Clear(); serviceCaptures.Clear();
+            logSessions.Clear(); snapshots.Clear(); catalogues.Clear(); serviceCaptures.Clear(); serviceColumns.Clear();
             // Old captures must finish before their numeric slots can be reused.
             foreach (var sample in serviceSamples.Values) _ = sample.Task.ContinueWith(task => { _ = task.Exception; }, TaskContinuationOptions.OnlyOnFaulted);
             serviceSamples.Clear();
@@ -2051,6 +2069,14 @@ internal static partial class DashboardCli
             }
         }
 
+        bool DueService(int target)
+        {
+            var column = serviceColumns.GetValueOrDefault(target, long.MinValue);
+            if (!Due(ref column)) return false;
+            serviceColumns[target] = column;
+            return true;
+        }
+
         void SampleHardware()
         {
             if (machineSample is not null && !machineSample.IsCompleted) return;
@@ -2060,7 +2086,7 @@ internal static partial class DashboardCli
                 Record(lastHardware);
             }
             machineSample = null;
-            if (!machineClock.IsRunning || machineClock.Elapsed >= CaptureInterval)
+            if (Due(ref machineColumn))
                 machineSample = Task.Run(() => { machineClock.Restart(); return hardware.CaptureAsync(stop.Token); });
         }
 

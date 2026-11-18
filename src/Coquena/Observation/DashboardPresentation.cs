@@ -6,7 +6,8 @@ namespace Coquena.Observation;
 // navigation is built from observed catalogue names, never from an edited recipe.
 internal static class DashboardPresentation
 {
-    private static readonly TimeSpan Lifetime = TimeSpan.FromSeconds(4);
+    // A reading older than two observation intervals is shown as stale.
+    private static TimeSpan Lifetime => ObservationTimeline.Interval * 2;
     public static string Spinner(long? milliseconds = null) => Coquena.Spinner.Frame(milliseconds);
 
     public static IReadOnlyList<string> Wrap(string message, int width)

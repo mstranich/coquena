@@ -9,6 +9,9 @@ public static partial class Messages
 
     // config
     public static readonly Text ConfigReconnection = new("Reconnection: initial {0} s; maximum {1} s; exponential backoff x2.");
+    public static readonly Text ConfigObserverInterval = new("Observation interval: {0} s.");
+    public static readonly Text ConfigObserverIntervalDefault = new("Observation interval: default (2 s; 0.5 s in service logs -f).");
+    public static readonly Text ObserverIntervalInvalid = new("The observation interval must be between {0} and {1} seconds.");
     public static readonly Text ConfigDirectory = new("{0} | {1} | location: {2}");
     public static string OwnOrDefault(bool own) => own ? OwnValue : DefaultValue;
     internal static readonly Text OwnValue = new("own");

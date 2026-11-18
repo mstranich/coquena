@@ -9,7 +9,8 @@ namespace Coquena.Observation;
 internal static class LivePresentation
 {
     public const int TreeWidth = 23;
-    private static readonly TimeSpan Lifetime = TimeSpan.FromSeconds(4);
+    // A reading older than two observation intervals is shown as stale.
+    private static TimeSpan Lifetime => ObservationTimeline.Interval * 2;
     private const string Levels = "▁▂▃▄▅▆▇█";
 
     public static string Number(double value, string format = "0.#") => value.ToString(format, CultureInfo.CurrentCulture);

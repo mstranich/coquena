@@ -271,6 +271,14 @@ logs pertenecen al YAML y se editan como configuración del proyecto.
 `config observer-retry set <inicial-s> <máximo-s>` establece los valores en segundos
 enteros. La [política de reconexión](observabilidad.md#reconexión) define límites,
 espera exponencial y cancelación.
+
+`config observer-interval show|set <s>|unset` consulta, establece o restablece cada
+cuánto los observadores leen un servicio (`/slots`, métricas y proceso) y el hardware.
+Acepta segundos con decimales, con punto o coma, entre 0,25 y 60. Sin valor propio,
+`ps -w` y En vivo leen cada 2 s y la línea de estado de `logs -f` cada 0,5 s; con
+valor propio todos usan ese. `--interval <s>` en `ps -w` y en `logs -f` lo reemplaza
+sólo en esa ejecución, con los mismos límites. En vivo aplica el cambio al guardarlo en
+Configuración › Coquena; cada columna de sus gráficas corresponde a un intervalo.
 No hay selección global implícita de modelo/backend que reescriba una receta.
 
 Ubicación de pesos/binarios, definición de servidor y schema de parámetros no son
@@ -404,7 +412,7 @@ service list
 service [<nombre|default|self>] logs [list|follow|show <log-id>] [-f]
 preset apply|withdraw <preset>
 apply|withdraw <preset>
-ps [--service <nombre|default|self>] [-w|--watch]
+ps [--service <nombre|default|self>] [-w|--watch] [--interval <s>]
 logs [list|follow|show <log-id>] [-f]
 update [--select <recurso>]... [--json]
 upgrade [--select <recurso>]... [--json]
@@ -587,7 +595,8 @@ Con la salida en una terminal, follow reserva la última fila para una línea de
 estado que se redibuja en el lugar: servicio, salud o estado del proceso, uso y VRAM
 de cada GPU del sistema, CPU y RAM del proceso,
 presets cargados y tareas en curso con su fase y tk/s. Usa la observación de
-`ps -w`, con `/slots` y cada 0,5 s en lugar de 2 s; sigue durante reinicios y se
+`ps -w`, con `/slots` y cada 0,5 s en lugar de 2 s salvo que `observer-interval` o
+`--interval` fijen otro valor; sigue durante reinicios y se
 borra al salir. Una tarea sin tokens generados se muestra en fase PROMPT. Las
 advertencias y errores del log toman el glifo y el color de En vivo (▲ ámbar, ✗ rojo),
 salvo con `NO_COLOR` definida. Con

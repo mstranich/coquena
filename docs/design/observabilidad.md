@@ -103,6 +103,8 @@ aceptar una conexión que se cierra inmediatamente no la restablece.
 `config observer-retry show|unset` consulta/restablece estos valores;
 `config observer-retry set <inicial-s> <máximo-s>` los configura en segundos enteros,
 con `1 <= inicial <= máximo <= 3600`. El observador toma las preferencias al abrirse.
+`config observer-interval` fija el intervalo de lectura de los observadores, entre
+0,25 y 60 s (ver [comandos](comandos.md)); la espera de reconexión no depende de él.
 Ctrl+C cancela consultas, esperas y streams y cierra sólo el observador.
 
 El seguimiento conserva la identidad del servicio entre reinicios: cada instancia
@@ -157,9 +159,10 @@ fallo de notificación no acredita reparación ni éxito del servidor.
 
 ## Contratos técnicos
 
-El refresco visual de watch es de un segundo. Las fuentes de hardware y métricas
-se consultan con una separación mínima de dos segundos entre capturas, sin
-solapar capturas de la misma fuente. Los plazos de las consultas y la capacidad
+El refresco visual de watch es de un segundo, o el intervalo de observación si es
+menor. Las fuentes de hardware y métricas se consultan con una separación mínima de
+un intervalo de observación entre capturas (2 s por defecto), sin solapar capturas
+de la misma fuente. Los plazos de las consultas y la capacidad
 disponible pueden reducir la frecuencia efectiva; cada muestra conserva su fecha.
 La vista general renueva el descubrimiento cada cinco segundos. Se limita a cuatro
 capturas de servicios concurrentes, con presupuesto HTTP por instancia.

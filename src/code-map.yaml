@@ -86,6 +86,7 @@ features:
     implementation:
       - src/Coquena/Observation/LogStatus.cs
       - src/Coquena/Observation/ServiceWatch.cs
+      - src/Coquena/Observation/ObserverInterval.cs
       - src/Coquena/Observation/InferenceTasks.cs
     tests:
       - tests/Coquena.Tests/LogStatusTests.cs
@@ -130,17 +131,19 @@ features:
 
   - id: continuous-service-observation
     intent: Seguir servicios por identidad con snapshots reconciliados y eventos acotados sin controlar el backend.
-    keywords: [ps, watch, SSE, reconnect, cancellation, observer-retry]
+    keywords: [ps, watch, SSE, reconnect, cancellation, observer-retry, observer-interval, interval]
     entrypoints:
       - src/Coquena/ObservationCli.cs
       - src/Coquena/ConfigurationCli.cs
     implementation:
       - src/Coquena/Observation/ServiceWatch.cs
+      - src/Coquena/Observation/ObserverInterval.cs
       - src/Coquena/Observation/ModelEvents.cs
       - src/Coquena/Observation/ServiceObservation.cs
       - src/Coquena/Configuration/ConfigurationManager.cs
     tests:
       - tests/Coquena.Tests/WatchTests.cs
+      - tests/Coquena.Tests/ObserverIntervalTests.cs
     references:
       - docs/design/observabilidad.md
       - docs/design/comandos.md

@@ -11,7 +11,7 @@ public static partial class Messages
         Commands:
           init [<directory>]               Initialize a minimal recipe
           system probe                     Show available hardware and accelerators
-          ps [--service <name|default|self>] [-w|--watch]
+          ps [--service <name|default|self>] [-w|--watch] [--interval <s>]
                                            Query or follow hardware and services
           tui                              Open the terminal service monitor
           backend (runtime)                Query and prepare backends by scope
@@ -178,6 +178,7 @@ public static partial class Messages
             Without a subcommand: recent output (up to 64 KiB). List: kept IDs.
             Show: fixed history. Follow/-f: continues across restarts; in a
             terminal the last row shows the live service state.
+            --interval <s> with -f: state reading pace (default 0.5 s).
             Ctrl+C closes only the observer. server is an alias of service.
 
         Servers:
@@ -208,6 +209,8 @@ public static partial class Messages
           config observer-retry show|unset  Query/reset reconnection (1..30 s)
           config observer-retry set <initial-s> <maximum-s>
                                            Exponential backoff, at most 3600 s
+          config observer-interval show|set <s>|unset
+                                           Service reading pace (0.25..60 s)
           config log-retention show        Query the global log retention
           config log-retention set <size>  Set the global log limit
             Integer in bytes or B; KiB/MiB/GiB/TiB/PiB/EiB and their aliases

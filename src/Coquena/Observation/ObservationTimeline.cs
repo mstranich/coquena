@@ -5,8 +5,9 @@ namespace Coquena.Observation;
 internal sealed class ObservationTimeline
 {
     public const int Capacity = 24;
-    public static readonly TimeSpan Interval = TimeSpan.FromSeconds(2);
-    private readonly List<(DateTimeOffset At, long Column, double? Value)> samples = [];
+    // Reading pace of En vivo; columns are computed on read, so a change re-buckets the history.
+    public static TimeSpan Interval { get; set; } = ObserverInterval.Default;
+    private readonly List<(DateTimeOffset At, double? Value)> samples = [];
 
     public int Count => samples.Count;
 
@@ -15,8 +16,8 @@ internal sealed class ObservationTimeline
     public void Add(DateTimeOffset observedAt, double? value)
     {
         if (samples.Count > 0 && observedAt <= samples[^1].At) return;
-        var sample = (observedAt, Column(observedAt), value);
-        if (samples.Count > 0 && samples[^1].Column == sample.Item2)
+        var sample = (observedAt, value);
+        if (samples.Count > 0 && Column(samples[^1].At) == Column(observedAt))
         {
             samples[^1] = sample;
             return;
@@ -32,10 +33,12 @@ internal sealed class ObservationTimeline
         var end = Column(now);
         var start = end - count + 1;
         foreach (var sample in samples)
-            if (sample.Column >= start && sample.Column <= end)
-                result[(int)(sample.Column - start)] = sample.Value;
+            if (Column(sample.At) is var column && column >= start && column <= end)
+                result[(int)(column - start)] = sample.Value;
         return result;
     }
+
+    public static long ColumnOf(DateTimeOffset time) => Column(time);
 
     private static long Column(DateTimeOffset time) =>
         (long)Math.Floor(time.ToUnixTimeMilliseconds() / Interval.TotalMilliseconds);
