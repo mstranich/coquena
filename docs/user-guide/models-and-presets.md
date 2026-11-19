@@ -31,7 +31,7 @@ Each preset accepts these keys:
 | `args` | `llama-server` arguments, written without the leading dashes. See [argument values](recipes.md#write-argument-values). |
 | `enable` | `false` keeps the definition without preparing or publishing it. The default is `true`. |
 | `warmup` | `true` asks the service to load the model after publishing, without waiting for a request. The default is `false`. |
-| `args-mode` | `permissive` or `strict` argument checking for this preset. |
+| `strict-args` | `true` requires a definition for every argument of this preset. |
 
 `warmup` does not guarantee the model stays in memory, and it is not llama.cpp's
 `--warmup` argument.

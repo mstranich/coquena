@@ -1,5 +1,7 @@
 # Una descarga en curso no se puede cancelar desde la TUI
 
+**Archivado:** resuelto en [087](../../specs/087-m4-tui-descargas/README.md); toda operación activa o detenida ofrece Cancelar, incluida la preparación de un backend.
+
 Fecha de registro: 10 de noviembre de 2026. Señalado por el usuario durante la
 revisión de la gestión de descargas en la TUI ([083](../../specs/083-m4-tui-gestion-servicios/README.md)).
 

@@ -1,6 +1,6 @@
 # M5 — Chat de prueba e internacionalización
 
-**Estado:** definición en borrador. **Depende de:** [M4](M4-experiencia-completa.md).
+**Estado:** entregado en 0.5.0, junto con M4. **Depende de:** [M4](M4-experiencia-completa.md).
 
 ## Objetivo y cierre
 

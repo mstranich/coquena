@@ -1,12 +1,12 @@
 ---
-status: complete
+status: archived
 created: 2026-11-14
 priority: medium
 tags:
 - cli
 - tui
 created_at: 2026-11-14T15:23:14.059868400Z
-updated_at: 2026-11-15T00:30:03.289036Z
+updated_at: 2026-11-18T03:11:37.770183500Z
 completed_at: 2026-11-14T16:37:41.830795300Z
 transitions:
 - status: draft
@@ -33,6 +33,8 @@ transitions:
   at: 2026-11-15T00:28:46.949250900Z
 - status: complete
   at: 2026-11-15T00:30:03.289036Z
+- status: archived
+  at: 2026-11-18T03:11:37.770183500Z
 ---
 # Unificar la limpieza y permitir olvidar proyectos conocidos
 

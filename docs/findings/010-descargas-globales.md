@@ -1,5 +1,7 @@
 # Descargas repartidas por ámbito en la TUI
 
+**Archivado:** resuelto en [087](../../specs/087-m4-tui-descargas/README.md); Descargas es una pestaña única con Global y el proyecto actual, sin «Volver».
+
 Fecha de registro: 10 de noviembre de 2026. Señalado por el usuario durante la
 revisión de la gestión de descargas en la TUI ([083](../../specs/083-m4-tui-gestion-servicios/README.md)).
 

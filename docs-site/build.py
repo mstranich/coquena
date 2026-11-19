@@ -161,7 +161,7 @@ def prepare(use_worktree: bool) -> None:
         rewrite_links(page)
 
     index = OUTPUT / "README.md"
-    banner = '![Coquena](assets/coquena-banner.jpg){ .cq-banner }\n\n'
+    banner = '![Coquena: manage, watch & tune your local LLMs](assets/coquena-banner.jpg){ .cq-banner }\n\n'
     index.write_text(banner + index.read_text(encoding="utf-8"), encoding="utf-8")
 
     if diagrams:

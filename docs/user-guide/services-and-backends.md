@@ -7,7 +7,7 @@ Services are global or local. See [Global and local](global-and-local.md).
 
 ## The default service
 
-One global service is the `default`, and `target: global` publishes to it. The first
+One global service is the `default`, and `publish-to: global` publishes to it. The first
 service you create becomes the default. To change it, run:
 
 ```powershell
@@ -70,7 +70,7 @@ does not update it.
 
 ```yaml
 name: fork-lab
-target: self
+publish-to: self
 service:
   backend:
     name: my-fork
@@ -95,9 +95,8 @@ provides. If it needs a different health check, configure `service.server.health
 To update presets without restarting the service, the build must support reloading
 them. Otherwise, restart the service to apply changes.
 
-In the default `permissive` mode, arguments Coquena does not know, such as
-`my-fork-option`, are passed through. To describe and validate them, add them under
-`arg-defs`. See [Define your own arguments](recipes.md#define-your-own-arguments).
+By default, arguments Coquena does not know, such as `my-fork-option`, are
+passed through. To describe and validate them, add them under `parameters`. See [Define your own arguments](recipes.md#define-your-own-arguments).
 
 ## Server arguments
 
@@ -147,5 +146,23 @@ coquena logs follow --service default
 
 `ps` shows hardware use, service state, and published presets. Observing a service
 does not load models. Ctrl+C closes only the observer.
+
+In a terminal, `logs follow` (or `logs -f`) keeps its last row for a live status line:
+the service and its health, use and VRAM of each GPU, the process CPU and RAM, loaded
+presets, and the tasks in progress with their phase and speed. Warnings and errors in
+the log are marked with ▲ and ✗ in color; set `NO_COLOR` to turn colors off. When the
+output is redirected, the log text is written unchanged and there is no status line.
+
+`--interval <seconds>` sets how often `ps --watch` and `logs -f` read the service for
+that run, between 0.25 and 60 seconds. To change it for every observer, including the
+terminal interface, see [Observation interval](configuration.md#observation-interval).
+
+```powershell
+coquena logs -f --service default --interval 1
+coquena ps --watch --interval 0.5
+```
+
+To watch services in a full-screen view instead, open the
+[terminal interface](terminal-interface.md).
 
 To update backends and free disk space, see [Maintenance](maintenance.md).

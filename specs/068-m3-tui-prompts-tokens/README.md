@@ -1,5 +1,5 @@
 ---
-status: complete
+status: archived
 created: 2026-10-21
 priority: high
 tags:
@@ -10,13 +10,15 @@ depends_on:
 - 065-m3-actividad-tareas
 - 066-m3-tui-base
 created_at: 2026-10-21T23:26:06.862426300Z
-updated_at: 2026-11-07T14:04:15.371659700Z
+updated_at: 2026-11-18T03:11:37.710911Z
 completed_at: 2026-11-07T13:42:05.248511800Z
 transitions:
 - status: in-progress
   at: 2026-11-07T13:05:10.733521Z
 - status: complete
   at: 2026-11-07T13:42:05.248511800Z
+- status: archived
+  at: 2026-11-18T03:11:37.710911Z
 ---
 # Visualizar prompts, generación de tokens y tareas de cada preset
 

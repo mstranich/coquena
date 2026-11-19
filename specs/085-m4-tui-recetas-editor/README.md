@@ -1,5 +1,5 @@
 ---
-status: complete
+status: archived
 created: 2026-11-10
 priority: medium
 tags:
@@ -7,13 +7,15 @@ tags:
 - dashboard
 - m4
 created_at: 2026-11-10T18:26:24.033470700Z
-updated_at: 2026-11-10T21:51:36.696463800Z
+updated_at: 2026-11-18T03:11:37.739900600Z
 completed_at: 2026-11-10T21:51:36.696463800Z
 transitions:
 - status: in-progress
   at: 2026-11-10T18:28:10.013013100Z
 - status: complete
   at: 2026-11-10T21:51:36.696463800Z
+- status: archived
+  at: 2026-11-18T03:11:37.739900600Z
 ---
 # Completar Recetas, Inicializar y el Editor YAML en la TUI
 

@@ -1,6 +1,6 @@
 # M4 — Experiencia completa en Terminal UI
 
-**Estado:** en cierre. Termina con las tarjetas 087–094; la última revisa el formato YAML de las recetas antes del uso diario. La primera entrega de TUI se cerró en [066](../../specs/066-m3-tui-base/README.md), donde consta la evidencia disponible y sus límites. **Depende de:** [M3](M3-definiciones-declarativas.md).
+**Estado:** entregado en 0.5.0, junto con M5; no hubo una versión 0.4.x. Terminó con las tarjetas 087–094; la última revisó el formato YAML de las recetas antes del uso diario. La primera entrega de TUI se cerró en [066](../../specs/066-m3-tui-base/README.md), donde consta la evidencia disponible y sus límites. **Depende de:** [M3](M3-definiciones-declarativas.md).
 
 ## Objetivo
 

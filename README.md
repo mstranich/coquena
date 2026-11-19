@@ -1,20 +1,35 @@
 # Coquena
 
 <p align="center">
-  <img src="docs/assets/coquena-banner.jpg" alt="Coquena, invisible guardian of the Andean AI and LLMs" width="100%">
+  <img src="docs/assets/coquena-banner.jpg" alt="Coquena: manage, watch &amp; tune your local LLMs" width="100%">
 </p>
 
-**A little invisble guardian that keeps your llamas organized and ready to work.**
+**The invisible guardian of your local llamas: organized, tuned, and ready to work.**
 
-Coquena manages your local [llama.cpp](https://github.com/ggml-org/llama.cpp)
-environment from the command line: it installs backends, downloads and verifies
-GGUF models, organizes settings and presets, and manages servers with metrics
-and logs.
+Coquena manages your local AI resources for [llama.cpp](https://github.com/ggml-org/llama.cpp):
+it installs backends, downloads and verifies GGUF models, organizes presets and
+parameters, and runs services, in a global scope shared by your projects and in each
+project. You use it from the command line or from a terminal interface that keeps
+services, tasks, logs, and hardware in view.
 
-It replaces the scripts and long command lines you end up maintaining to run
-your models. You choose the backend, models, and parameters; Coquena saves those
-settings and prepares each launch. `llama-server` handles inference and model
-loading through its Router Mode, which lets a single server expose multiple presets.
+<p align="center">
+  <img src="docs/user-guide/images/tui-live.gif" alt="The terminal interface following a preset while it serves requests" width="100%">
+</p>
+
+It also gives you the control and monitoring to tune a model to your hardware.
+Finding the right model, quantization, and settings often takes many tries; Coquena
+keeps each try short:
+
+1. Edit the YAML recipe: another model, quantization, context size, or argument.
+2. Run `coquena up`: it downloads what is missing and publishes the change while the
+   service keeps running.
+3. Run `coquena load` to see whether the model fits in memory.
+4. Run `coquena chat` to look at the answer and its speed, then change something and
+   repeat.
+
+It replaces the scripts and long command lines you end up maintaining to run your
+models. `llama-server` handles inference and model loading through its Router Mode,
+which lets a single server expose multiple presets.
 
 ## Why the name?
 
@@ -24,12 +39,13 @@ The name brings that image to llama.cpp: a guardian that looks after your
 their environment ready for work. Read more about the legend in
 [this Perfil article (in Spanish)](https://www.perfil.com/noticias/cultura/el-coquena-la-leyenda-del-guardian-invisible-de-la-fauna-andina-y-las-leyes-del-cerro-a35.phtml).
 
-## Current version: 0.3.0
+## Current version: 0.5.0
 
-Coquena 0.3.0 brings shareable YAML recipes to your local AI lab. Define a shared
+Coquena 0.5.0 adds a terminal interface to watch and manage your local AI lab, a
+quick chat to try presets with their telemetry, and messages in English and
+Spanish. It builds on the shareable YAML recipes of 0.3.0: define a shared
 llama.cpp service, give each project its own model presets, and apply changes
-while the router keeps running. A project can also run its own official or
-experimental backend alongside the shared service.
+while the router keeps running.
 
 The current target is **Windows x64**, with a Native AOT executable that
 **does not require .NET to be installed**.
@@ -40,6 +56,9 @@ The current target is **Windows x64**, with a Native AOT executable that
 - Keep backend versions, model resources, and resolved selections scoped to each project.
 - Import recipes into the global catalog and reuse one service across projects.
 - Inspect services and logs, verify resources, and apply protected updates and cleanup.
+- Watch services, tasks, and hardware in the terminal interface (`coquena tui`).
+- Chat with a published preset, or send it a single prompt from a script.
+- See used disk space and free what no project needs.
 
 The 0.x series may introduce changes to commands or data formats. Read the release
 notes before upgrading.
@@ -69,7 +88,15 @@ suitable backend and the model, and starts a shared service.
 coquena up --start-service
 ```
 
-Point your client at `http://127.0.0.1:9931` and choose `ai-lab/chat`.
+Try the preset in the terminal, or point any OpenAI-compatible client at
+`http://127.0.0.1:9931` and choose `ai-lab/chat`:
+
+```powershell
+coquena chat ai-lab/chat
+```
+
+To watch the service, the model, and the hardware while you change the recipe, run
+`coquena tui` in another terminal.
 
 The [Getting started](https://mstranich.github.io/coquena/getting-started/) guide
 continues from here.
@@ -77,9 +104,7 @@ continues from here.
 ## Documentation
 
 - [User Guide](https://mstranich.github.io/coquena/): install Coquena, write
-  recipes, and use the command line.
-- [Roadmap](https://mstranich.github.io/coquena/milestones/): what has shipped and
-  what comes next.
+  recipes, and use the command line and the terminal interface.
 - [Design documentation](https://mstranich.github.io/coquena/design/) (in Spanish):
   what the application does and how it should behave, including planned features.
 - [Build from source](https://mstranich.github.io/coquena/getting-started/#build-from-source).

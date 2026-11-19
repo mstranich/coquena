@@ -1,5 +1,5 @@
 ---
-status: complete
+status: archived
 created: 2026-11-09
 priority: medium
 tags:
@@ -7,13 +7,15 @@ tags:
 - dashboard
 - m4
 created_at: 2026-11-09T23:20:21.093942400Z
-updated_at: 2026-11-10T00:11:38.909720800Z
+updated_at: 2026-11-18T03:11:37.728528100Z
 completed_at: 2026-11-10T00:11:38.909720800Z
 transitions:
 - status: in-progress
   at: 2026-11-09T23:38:51.475294400Z
 - status: complete
   at: 2026-11-10T00:11:38.909720800Z
+- status: archived
+  at: 2026-11-18T03:11:37.728528100Z
 ---
 # Llevar Definiciones a la vista previa como capa de sólo lectura
 

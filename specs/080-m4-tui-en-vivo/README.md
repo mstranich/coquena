@@ -1,5 +1,5 @@
 ---
-status: complete
+status: archived
 created: 2026-11-09
 priority: high
 tags:
@@ -7,13 +7,15 @@ tags:
 - dashboard
 - m4
 created_at: 2026-11-09T21:07:28.144149Z
-updated_at: 2026-11-09T23:06:30.979998800Z
+updated_at: 2026-11-18T03:11:37.726420400Z
 completed_at: 2026-11-09T23:06:30.979998800Z
 transitions:
 - status: in-progress
   at: 2026-11-09T21:09:03.183384700Z
 - status: complete
   at: 2026-11-09T23:06:30.979998800Z
+- status: archived
+  at: 2026-11-18T03:11:37.726420400Z
 ---
 # Llevar la pestaña En vivo a la propuesta tal cual se ve
 

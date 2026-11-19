@@ -1,5 +1,5 @@
 ---
-status: complete
+status: archived
 created: 2026-11-11
 priority: medium
 tags:
@@ -7,7 +7,7 @@ tags:
 - tui
 - dashboard
 created_at: 2026-11-11T13:06:38.360310900Z
-updated_at: 2026-11-11T18:05:14.019591900Z
+updated_at: 2026-11-18T03:11:37.745164Z
 completed_at: 2026-11-11T18:05:14.019591900Z
 transitions:
 - status: draft
@@ -18,6 +18,8 @@ transitions:
   at: 2026-11-11T16:43:42.646429800Z
 - status: complete
   at: 2026-11-11T18:05:14.019591900Z
+- status: archived
+  at: 2026-11-18T03:11:37.745164Z
 ---
 # Descargas como pestaña única y categorizada
 

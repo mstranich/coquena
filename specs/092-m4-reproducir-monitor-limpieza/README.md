@@ -1,11 +1,11 @@
 ---
-status: complete
+status: archived
 created: 2026-11-11
 priority: medium
 tags:
 - m4
 created_at: 2026-11-11T13:06:39.637477700Z
-updated_at: 2026-11-14T03:18:43.385227Z
+updated_at: 2026-11-18T03:11:37.757605700Z
 completed_at: 2026-11-14T03:18:43.385227Z
 transitions:
 - status: draft
@@ -16,6 +16,8 @@ transitions:
   at: 2026-11-13T20:31:13.869783300Z
 - status: complete
   at: 2026-11-14T03:18:43.385227Z
+- status: archived
+  at: 2026-11-18T03:11:37.757605700Z
 ---
 # Resolver problemas de concurrencia y coordinación
 

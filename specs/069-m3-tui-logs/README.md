@@ -1,5 +1,5 @@
 ---
-status: complete
+status: archived
 created: 2026-10-21
 priority: high
 tags:
@@ -10,13 +10,15 @@ depends_on:
 - 062-m3-seguimiento-logs
 - 066-m3-tui-base
 created_at: 2026-10-21T23:26:06.949521100Z
-updated_at: 2026-11-07T16:30:16.349567200Z
+updated_at: 2026-11-18T03:11:37.713141200Z
 completed_at: 2026-11-07T16:30:16.349567200Z
 transitions:
 - status: in-progress
   at: 2026-11-07T14:07:28.969582300Z
 - status: complete
   at: 2026-11-07T16:30:16.349567200Z
+- status: archived
+  at: 2026-11-18T03:11:37.713141200Z
 ---
 # Integrar logs continuos con selección de servicio y navegación
 

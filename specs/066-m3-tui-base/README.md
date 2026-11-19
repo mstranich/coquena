@@ -1,5 +1,5 @@
 ---
-status: complete
+status: archived
 created: 2026-10-21
 priority: high
 tags:
@@ -10,13 +10,15 @@ depends_on:
 - 044-m3-contextos-persistencia
 - 052-m3-evidencia-router
 created_at: 2026-10-21T23:26:06.576440300Z
-updated_at: 2026-11-06T19:50:43.723596900Z
+updated_at: 2026-11-18T03:11:37.706898100Z
 completed_at: 2026-11-06T19:50:43.723596900Z
 transitions:
 - status: in-progress
   at: 2026-11-05T23:39:23.944094800Z
 - status: complete
   at: 2026-11-06T19:50:43.723596900Z
+- status: archived
+  at: 2026-11-18T03:11:37.706898100Z
 ---
 # Entregar el primer monitor TUI de inferencia con gráficas, consumo y logs
 

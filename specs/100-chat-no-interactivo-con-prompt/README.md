@@ -1,17 +1,19 @@
 ---
-status: complete
+status: archived
 created: 2026-11-17
 tags:
 - m5
 - cli
 created_at: 2026-11-17T19:50:23.340544600Z
-updated_at: 2026-11-17T22:13:31.745387800Z
+updated_at: 2026-11-18T03:11:37.777533800Z
 completed_at: 2026-11-17T22:13:31.745387800Z
 transitions:
 - status: in-progress
   at: 2026-11-17T20:18:21.361129900Z
 - status: complete
   at: 2026-11-17T22:13:31.745387800Z
+- status: archived
+  at: 2026-11-18T03:11:37.777533800Z
 ---
 # Chat no interactivo con un único prompt
 

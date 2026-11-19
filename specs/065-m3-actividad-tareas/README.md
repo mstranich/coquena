@@ -1,5 +1,5 @@
 ---
-status: complete
+status: archived
 created: 2026-10-21
 priority: high
 tags:
@@ -10,13 +10,15 @@ depends_on:
 - 052-m3-evidencia-router
 - 064-m3-observacion-continua
 created_at: 2026-10-21T23:26:06.451582300Z
-updated_at: 2026-11-07T00:25:16.535999300Z
+updated_at: 2026-11-18T03:11:37.704406900Z
 completed_at: 2026-11-07T00:25:16.535999300Z
 transitions:
 - status: in-progress
   at: 2026-11-07T00:10:52.434913700Z
 - status: complete
   at: 2026-11-07T00:25:16.535999300Z
+- status: archived
+  at: 2026-11-18T03:11:37.704406900Z
 ---
 # Correlacionar actividad de prompts y generación por entrada, slot y tarea
 

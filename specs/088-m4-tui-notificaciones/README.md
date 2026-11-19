@@ -1,5 +1,5 @@
 ---
-status: complete
+status: archived
 created: 2026-11-11
 priority: medium
 tags:
@@ -7,7 +7,7 @@ tags:
 - tui
 - dashboard
 created_at: 2026-11-11T13:06:38.643450100Z
-updated_at: 2026-11-11T19:04:51.084540700Z
+updated_at: 2026-11-18T03:11:37.747445200Z
 completed_at: 2026-11-11T19:04:51.084540700Z
 transitions:
 - status: draft
@@ -18,6 +18,8 @@ transitions:
   at: 2026-11-11T18:18:35.898747Z
 - status: complete
   at: 2026-11-11T19:04:51.084540700Z
+- status: archived
+  at: 2026-11-18T03:11:37.747445200Z
 ---
 # Notificaciones como pestaña desde la barra superior
 

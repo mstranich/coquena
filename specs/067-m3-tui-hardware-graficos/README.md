@@ -1,5 +1,5 @@
 ---
-status: complete
+status: archived
 created: 2026-10-21
 priority: high
 tags:
@@ -11,13 +11,15 @@ depends_on:
 - 063-m3-estado-metricas
 - 066-m3-tui-base
 created_at: 2026-10-21T23:26:06.764688800Z
-updated_at: 2026-11-07T12:33:08.472224700Z
+updated_at: 2026-11-18T03:11:37.708802800Z
 completed_at: 2026-11-07T12:33:08.472224700Z
 transitions:
 - status: in-progress
   at: 2026-11-07T01:02:31.776347900Z
 - status: complete
   at: 2026-11-07T12:33:08.472224700Z
+- status: archived
+  at: 2026-11-18T03:11:37.708802800Z
 ---
 # Mostrar hardware y gráficas temporales legibles en la terminal
 

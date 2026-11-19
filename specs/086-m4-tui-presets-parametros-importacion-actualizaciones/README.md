@@ -1,5 +1,5 @@
 ---
-status: complete
+status: archived
 created: 2026-11-10
 priority: medium
 tags:
@@ -7,13 +7,15 @@ tags:
 - dashboard
 - m4
 created_at: 2026-11-10T21:56:14.203893300Z
-updated_at: 2026-11-11T01:58:06.567765500Z
+updated_at: 2026-11-18T03:11:37.742759100Z
 completed_at: 2026-11-11T01:58:06.567765500Z
 transitions:
 - status: in-progress
   at: 2026-11-10T21:59:36.386454400Z
 - status: complete
   at: 2026-11-11T01:58:06.567765500Z
+- status: archived
+  at: 2026-11-18T03:11:37.742759100Z
 ---
 # Completar Presets, Parámetros y Actualizaciones e incorporar Importar y Nueva combinación
 

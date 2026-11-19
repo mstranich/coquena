@@ -1,12 +1,12 @@
 ---
-status: complete
+status: archived
 created: 2026-11-11
 priority: medium
 tags:
 - m4
 - cli
 created_at: 2026-11-11T13:06:39.371700700Z
-updated_at: 2026-11-13T19:00:11.764413Z
+updated_at: 2026-11-18T03:11:37.754928300Z
 completed_at: 2026-11-13T19:00:11.764413Z
 transitions:
 - status: draft
@@ -17,6 +17,8 @@ transitions:
   at: 2026-11-13T13:58:46.551867700Z
 - status: complete
   at: 2026-11-13T19:00:11.764413Z
+- status: archived
+  at: 2026-11-18T03:11:37.754928300Z
 ---
 # Hacer legible la salida de la CLI y la TUI y consultar el espacio usado
 

@@ -1,18 +1,20 @@
 ---
-status: complete
+status: archived
 created: 2026-11-05
 priority: medium
 tags:
 - docs
 - sitio
 created_at: 2026-11-05T13:15:15.387499700Z
-updated_at: 2026-11-05T16:12:57.590326400Z
+updated_at: 2026-11-18T03:11:37.719627900Z
 completed_at: 2026-11-05T16:12:57.590326400Z
 transitions:
 - status: in-progress
   at: 2026-11-05T13:37:44.115558700Z
 - status: complete
   at: 2026-11-05T16:12:57.590326400Z
+- status: archived
+  at: 2026-11-18T03:11:37.719627900Z
 ---
 # Separar el manual de usuario de la documentación funcional
 

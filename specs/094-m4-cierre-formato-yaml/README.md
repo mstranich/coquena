@@ -1,12 +1,12 @@
 ---
-status: complete
+status: archived
 created: 2026-11-12
 tags:
 - m4
 - yaml
 - schema
 created_at: 2026-11-12T03:19:47.499002100Z
-updated_at: 2026-11-14T03:57:50.558309200Z
+updated_at: 2026-11-18T03:11:37.762900Z
 completed_at: 2026-11-14T03:57:50.558309200Z
 transitions:
 - status: planned
@@ -15,6 +15,8 @@ transitions:
   at: 2026-11-14T03:41:16.197771600Z
 - status: complete
   at: 2026-11-14T03:57:50.558309200Z
+- status: archived
+  at: 2026-11-18T03:11:37.762900Z
 ---
 # Cerrar M4 revisando el formato YAML de las recetas
 

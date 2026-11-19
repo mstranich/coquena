@@ -28,7 +28,7 @@ Point your client at the new port.
 ## A download fails
 
 ```text
-Error: retries-exhausted. Preparación no completada; conserve el GUID para reanudar.
+Error: retries-exhausted. Retries exhausted.
 ```
 
 The download failed repeatedly, for example because of a temporary server error.
@@ -38,7 +38,7 @@ later with `coquena download resume <download-id>`.
 ## `up` or `down` fails in a script
 
 ```text
-Error: interaction-required. Up/down y apply/withdraw requieren interacción.
+Error: interaction-required. Up/down and apply/withdraw require interaction.
 ```
 
 `up`, `down`, `apply`, and `withdraw` may need your confirmation, so they must run
@@ -59,7 +59,7 @@ sure the client points at the right port.
 ## `verify` reports an unavailable resource
 
 ```text
-model chat-model — Recurso no disponible. Revisá la referencia en la receta y prepará la instalación.
+model chat-model — Resource not available. Check the reference in the recipe and prepare the installation.
 ```
 
 The recipe references a resource that is not prepared in this scope. Run

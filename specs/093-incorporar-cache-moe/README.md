@@ -1,15 +1,17 @@
 ---
-status: complete
+status: archived
 created: 2026-11-12
 priority: medium
 created_at: 2026-11-12T00:22:10.856242700Z
-updated_at: 2026-11-12T00:27:42.612703400Z
+updated_at: 2026-11-18T03:11:37.760092200Z
 completed_at: 2026-11-12T00:27:42.612703400Z
 transitions:
 - status: in-progress
   at: 2026-11-12T00:22:49.905746100Z
 - status: complete
   at: 2026-11-12T00:27:42.612703400Z
+- status: archived
+  at: 2026-11-18T03:11:37.760092200Z
 ---
 # Incorporar parámetros de caché MoE
 

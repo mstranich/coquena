@@ -1,7 +1,8 @@
 # Getting started
 
-This walkthrough goes from an empty machine to your first response. You write one
-small file, and Coquena prepares everything else.
+This walkthrough goes from an empty machine to your first response, and then through
+one round of the loop Coquena is built for: change the recipe, apply it, and try the
+result. You write one small file, and Coquena prepares everything else.
 
 ## Install Coquena
 
@@ -44,7 +45,55 @@ To confirm the preset is published, run:
 coquena ps
 ```
 
-## Send a request
+## Try it
+
+Chat with the preset from the terminal:
+
+```powershell
+coquena chat ai-lab/chat
+```
+
+The router loads the model with the first message. Below the input, a telemetry row
+shows prompt and generation speed, cache use, and the time to the first token.
+Type `/exit` to close the chat. [Try presets](try-presets.md) covers the chat, single
+prompts for scripts, and loading in advance.
+
+## Try another configuration
+
+This is the loop you repeat to find the right setup. Change the recipe, for example
+to a larger context or another quantization of the model:
+
+```yaml
+name: ai-lab
+presets:
+  chat:
+    args:
+      model: Qwen/Qwen2.5-0.5B-Instruct-GGUF:Q8_0
+      ctx-size: 8192
+```
+
+Apply it and load it:
+
+```powershell
+coquena up
+coquena load ai-lab/chat
+```
+
+`up` downloads the new quantization if you do not have it yet and publishes the
+change while the service keeps running. `load` waits until the model is loaded. If
+the model does not fit in memory or fails to load for another reason, `load` reports
+the failure and points to the service log. Then chat again and compare the answers
+and the speed.
+
+To keep the model, memory, and speed in view while you iterate, open the
+[terminal interface](terminal-interface.md) in another terminal with `coquena tui`.
+
+A preset change can unload a model and interrupt requests. Coquena asks for
+confirmation when it observes activity or cannot establish that the affected
+entries are idle. You can also change a setting from the CLI instead of editing the
+YAML, for example `coquena preset set chat ctx-size 8192`, and then run `coquena up`.
+
+## Use it from any client
 
 Any OpenAI-compatible client can use the service at `http://127.0.0.1:9931`. Select
 the published preset as the model. llama.cpp loads it when the first request arrives.
@@ -65,20 +114,6 @@ Invoke-RestMethod `
 
 If the port is taken, see
 [Troubleshooting](troubleshooting.md#port-already-in-use).
-
-## Change a setting
-
-Edit the YAML or use the CLI, then apply the new definition. The service keeps
-running.
-
-```powershell
-coquena preset set chat ctx-size 8192
-coquena up
-```
-
-A preset change can unload a model and interrupt requests. Coquena asks for
-confirmation when it observes activity or cannot establish that the affected
-entries are idle.
 
 ## Clean up
 
@@ -141,7 +176,7 @@ dotnet pack .\src\Coquena\Coquena.csproj -c Release -p:PackAsTool=true -p:ToolCo
 dotnet pack .\src\Coquena\Coquena.csproj -c Release -r win-x64 -p:PackAsTool=true -p:ToolCommandName=coquena -p:ToolPackageRuntimeIdentifiers=win-x64 -o .\artifacts\tool
 
 # Install from the local packages.
-dotnet tool install --global coquena --version 0.3.0 --add-source .\artifacts\tool
+dotnet tool install --global coquena --version 0.5.0 --add-source .\artifacts\tool
 
 coquena --help
 ```

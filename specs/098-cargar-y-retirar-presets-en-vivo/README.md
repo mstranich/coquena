@@ -1,5 +1,5 @@
 ---
-status: complete
+status: archived
 created: 2026-11-17
 priority: medium
 tags:
@@ -7,13 +7,15 @@ tags:
 - tui
 - cli
 created_at: 2026-11-17T04:30:00.757997200Z
-updated_at: 2026-11-17T12:39:31.191557500Z
+updated_at: 2026-11-18T03:11:37.772490Z
 completed_at: 2026-11-17T12:39:31.191557500Z
 transitions:
 - status: in-progress
   at: 2026-11-17T04:33:53.549215900Z
 - status: complete
   at: 2026-11-17T12:39:31.191557500Z
+- status: archived
+  at: 2026-11-18T03:11:37.772490Z
 ---
 # Cargar, descargar y retirar presets desde En vivo
 

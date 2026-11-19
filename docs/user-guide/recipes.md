@@ -4,15 +4,19 @@ A recipe is a YAML file that defines a service, consumer presets, or both. You
 can write one by hand or receive one from someone else and run it directly.
 `coquena init` is an optional shortcut that creates a minimal recipe.
 
+`init` also writes a JSON schema to `.coquena/recipe.schema.json` and points the
+recipe to it, so editors with YAML support can complete keys and flag mistakes as
+you type. Running `init` again refreshes the schema.
+
 ## Top-level keys
 
 | Key | Purpose |
 | --- | --- |
 | `name` | Recipe name. Published presets become `name/preset`. If omitted, the folder name is used the first time the recipe is registered. |
-| `target` | Where presets are published: `global` (default) or `self`. |
-| `args-mode` | `permissive` (default) or `strict` argument checking. |
+| `publish-to` | Where presets are published: `global` (default), `self`, or the name of a global service. |
+| `strict-args` | `true` requires a definition for every argument; `false` (default) passes unknown ones through. |
 | `service` | The service this recipe defines. A recipe has at most one. |
-| `arg-defs` | Custom argument definitions. |
+| `parameters` | Your own argument definitions, by name. |
 | `models` | Named model selections. |
 | `companions` | Named auxiliary files, such as `mmproj` projectors. |
 | `presets` | Named configurations that reference models. |
@@ -20,11 +24,15 @@ can write one by hand or receive one from someone else and run it directly.
 Unknown structural keys are rejected. YAML anchors, aliases, and merge keys are
 not supported.
 
-## Choosing a target
+## Choosing where to publish
 
-- `target: global` publishes to the default global service. This is the default.
-- `target: self` publishes to the local service defined in the same recipe, which
+- `publish-to: global` publishes to the default global service. This is the default,
+  and `default` means the same.
+- `publish-to: self` publishes to the local service defined in the same recipe, which
   must include a `service` block.
+- `publish-to: <name>` publishes to the global service with that name, even if it is
+  not the default. If no global service has that name, Coquena reports it and does not
+  pick another one.
 
 See [Global and local](global-and-local.md).
 
@@ -58,21 +66,20 @@ release or a fork's option works right away.
 
 | Level | What happens |
 | --- | --- |
-| No definition | In the default `permissive` mode, the argument is passed as written. |
-| With a definition | Coquena checks its type and limits, in either mode. |
-| `args-mode: strict` | Every argument needs a definition. Set it at the top of a recipe, or in a single preset. |
+| No definition | By default, the argument is passed as written. |
+| With a definition | Coquena checks its type and limits, whether `strict-args` is on or off. |
+| `strict-args: true` | Every argument needs a definition. Set it at the top of a recipe, in `service.server`, or in a single preset. |
 
-Definitions go under `arg-defs`. Keeping them in their own layer lets you add or remove
+Definitions go under `parameters`. Keeping them in their own layer lets you add or remove
 the checks with `-f`:
 
 ```yaml
-arg-defs:
-  definitions:
-    my-fork-option:
-      type: integer
-      minimum: 1
-      maximum: 8
-      description: Number of experimental workers
+parameters:
+  my-fork-option:
+    type: integer
+    minimum: 1
+    maximum: 8
+    description: Number of experimental workers
 ```
 
 `type` is `string`, `integer`, `number`, `boolean`, or `array`. Definitions can also
@@ -85,12 +92,11 @@ to `null` removes an inherited one.
 Use it when a release adds or deprecates an option:
 
 ```yaml
-arg-defs:
-  definitions:
-    old-option:
-      type: integer
-      applies-to:
-        max-build: b11000
+parameters:
+  old-option:
+    type: integer
+    applies-to:
+      max-build: b11000
 ```
 
 `coquena up` stops with `argument-not-applicable` if the service's build is outside the
@@ -109,7 +115,7 @@ model and memory. GPU offload needs a suitable CUDA or Vulkan backend.
 
 ```yaml
 name: my-lab
-target: global
+publish-to: global
 models:
   hf-model: Qwen/Qwen2.5-1.5B-Instruct-GGUF:Q4_K_M
   local-model:
@@ -252,21 +258,24 @@ Saving a recipe does not change a running service. Run `coquena up` to apply it.
 coquena verify
 ```
 
-If the recipe is invalid, the error names the file, line, and column, then the key and
-the problem. Fix it and run the command again, because errors are reported one at a
-time.
+If the recipe is invalid, Coquena lists every problem it finds, each with its file,
+line, column, and key:
 
 ```text
-Error en la receta: coquena.yaml:3:10 $["unknown"] [structure/unknown-key] Clave estructural desconocida.
+Recipe problems:
+coquena.yaml:2:10 · unknown: Unknown structural key.
+coquena.yaml:5:13 · presets.chat.colour: Unknown structural key.
+coquena.yaml:7:14 · presets.chat.args.model: The typed reference does not exist in the recipe.
 ```
+
+`coquena verify --json` returns the same problems with a stable `code` for scripts:
 
 | Code | Meaning |
 | --- | --- |
-| `yaml/yaml-syntax` | The file is not valid YAML. |
-| `structure/unknown-key` | A key is misspelled or not supported in that place. |
-| `validation/unknown-resource-reference` | A `model://` or `companion://` reference has no matching entry. |
-| `validation/unknown-argument` | An argument has no definition in `strict` mode. |
-| `interpolation/variable-required` | A required variable is not set. |
+| `yaml-syntax` | The file is not valid YAML. |
+| `unknown-key` | A key is misspelled or not supported in that place. |
+| `unknown-resource-reference` | A `model://` or `companion://` reference has no matching entry. |
+| `variable-required` | A required variable is not set. |
 
 A valid recipe can still report resources to review, such as a model that has not been
 downloaded yet. `coquena up` prepares those.

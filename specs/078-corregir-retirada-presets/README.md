@@ -1,15 +1,17 @@
 ---
-status: complete
+status: archived
 created: 2026-11-05
 priority: medium
 created_at: 2026-11-05T18:29:38.138621400Z
-updated_at: 2026-11-07T12:48:39.804052700Z
+updated_at: 2026-11-18T03:11:37.721986200Z
 completed_at: 2026-11-07T12:48:39.804052700Z
 transitions:
 - status: in-progress
   at: 2026-11-05T18:30:07.246048200Z
 - status: complete
   at: 2026-11-07T12:48:39.804052700Z
+- status: archived
+  at: 2026-11-18T03:11:37.721986200Z
 ---
 # Corregir retirada de presets
 

@@ -1,5 +1,5 @@
 ---
-status: complete
+status: archived
 created: 2026-11-11
 priority: medium
 tags:
@@ -7,7 +7,7 @@ tags:
 - tui
 - dashboard
 created_at: 2026-11-11T13:45:36.614033500Z
-updated_at: 2026-11-12T02:47:18.533959300Z
+updated_at: 2026-11-18T03:11:37.749679900Z
 completed_at: 2026-11-12T02:47:18.533959300Z
 transitions:
 - status: draft
@@ -18,6 +18,8 @@ transitions:
   at: 2026-11-11T21:45:33.818330200Z
 - status: complete
   at: 2026-11-12T02:47:18.533959300Z
+- status: archived
+  at: 2026-11-18T03:11:37.749679900Z
 ---
 # Unificar la coherencia visual y de navegación entre vistas de la TUI
 

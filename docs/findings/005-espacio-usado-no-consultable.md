@@ -1,5 +1,7 @@
 # La CLI no informa el espacio total usado
 
+**Archivado:** resuelto en [091](../../specs/091-m4-cli-salida-legible-espacio/README.md); `usage`/`df` informan el espacio usado por ámbito.
+
 Fecha de registro: 5 de noviembre de 2026. Solicitado por el usuario durante la
 revisión del manual de usuario ([077](../../specs/077-manual-usuario-y-reorganizacion-docs/README.md)),
 que lo considera un defecto de la CLI.

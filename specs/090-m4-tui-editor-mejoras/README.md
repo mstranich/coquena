@@ -1,5 +1,5 @@
 ---
-status: complete
+status: archived
 created: 2026-11-11
 priority: medium
 tags:
@@ -7,7 +7,7 @@ tags:
 - tui
 - dashboard
 created_at: 2026-11-11T13:45:36.844634100Z
-updated_at: 2026-11-13T01:57:48.280435900Z
+updated_at: 2026-11-18T03:11:37.752563900Z
 completed_at: 2026-11-13T01:57:48.280435900Z
 transitions:
 - status: draft
@@ -18,6 +18,8 @@ transitions:
   at: 2026-11-12T12:43:21.901022400Z
 - status: complete
   at: 2026-11-13T01:57:48.280435900Z
+- status: archived
+  at: 2026-11-18T03:11:37.752563900Z
 ---
 # Escritura y validación del YAML de recetas, y Editor básico
 

@@ -1,5 +1,5 @@
 ---
-status: complete
+status: archived
 created: 2026-10-21
 priority: high
 tags:
@@ -12,13 +12,15 @@ depends_on:
 - 068-m3-tui-prompts-tokens
 - 069-m3-tui-logs
 created_at: 2026-10-21T23:26:07.035047300Z
-updated_at: 2026-11-09T11:44:13.389781500Z
+updated_at: 2026-11-18T03:11:37.716864500Z
 completed_at: 2026-11-09T11:44:13.389781500Z
 transitions:
 - status: in-progress
   at: 2026-11-09T10:58:31.286889100Z
 - status: complete
   at: 2026-11-09T11:44:13.389781500Z
+- status: archived
+  at: 2026-11-18T03:11:37.716864500Z
 ---
 # Integrar y acreditar el dashboard Servicios completo
 

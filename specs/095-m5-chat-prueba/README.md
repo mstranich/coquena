@@ -1,12 +1,12 @@
 ---
-status: complete
+status: archived
 created: 2026-11-12
 tags:
 - m5
 - tui
 - cli
 created_at: 2026-11-12T03:19:48.954534500Z
-updated_at: 2026-11-16T13:09:23.384456100Z
+updated_at: 2026-11-18T03:11:37.765346900Z
 completed_at: 2026-11-16T13:09:23.384456100Z
 transitions:
 - status: planned
@@ -15,6 +15,8 @@ transitions:
   at: 2026-11-14T19:01:06.892874200Z
 - status: complete
   at: 2026-11-16T13:09:23.384456100Z
+- status: archived
+  at: 2026-11-18T03:11:37.765346900Z
 ---
 # Probar un preset con un chat
 

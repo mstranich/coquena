@@ -1,6 +1,6 @@
 # CLI reference
 
-This is a summary of Coquena 0.3.0. Run `coquena --help` for every option.
+This is a summary of Coquena 0.5.0. Run `coquena --help` for every option.
 
 Notation: `<value>` is required, `[value]` is optional, and `|` separates
 alternatives.
@@ -11,7 +11,8 @@ alternatives.
 | --- | --- |
 | `coquena init [<directory>]` | Create a minimal recipe |
 | `coquena system probe` | Show hardware and accelerators |
-| `coquena ps [--service <name>] [-w]` | Show or follow hardware and services |
+| `coquena ps [--service <name>] [-w] [--interval <s>]` | Show or follow hardware and services |
+| `coquena tui` | Open the [terminal interface](terminal-interface.md) |
 | `coquena import <recipe.yaml>` | Import global intent without starting anything |
 
 `import` also accepts `--as-default`, `--select`, `--replace <entity>`, and `--force`.
@@ -22,8 +23,10 @@ alternatives.
 | --- | --- |
 | `coquena up [--start-service]` | Publish the selected combination of presets |
 | `coquena down` | Withdraw the project's presets without stopping the service |
-| `coquena apply <key>` | Publish one preset |
-| `coquena withdraw <key>` | Withdraw one preset |
+| `coquena apply <preset>` | Publish one preset |
+| `coquena withdraw <preset>` | Withdraw one preset |
+
+`<preset>` is the key in the recipe or the published name `recipe/key`.
 
 These commands require an interactive terminal.
 
@@ -50,6 +53,7 @@ used. `server` is an alias of `service`.
 | `service [<selector>] stop` | Stop the verified instance |
 | `service [<selector>] remove` | Remove a stopped service, keeping files and logs |
 | `logs [list\|follow\|show <log-id>] [-f] [--service <selector>]` | Read logs |
+| `logs -f [--interval <s>]` | Follow logs with a live status line |
 
 ## Backends
 
@@ -101,6 +105,9 @@ used. `server` is an alias of `service`.
 | `preset clone <source> <name>` | Copy a preset |
 | `preset remove <name>` | Remove a preset |
 | `preset apply\|withdraw <key>` | Same as `apply` and `withdraw` |
+| `chat <preset> [--service <selector> \| --global] [--load] [--reasoning]` | [Chat with a published preset](try-presets.md) |
+| `chat <preset> -p <text\|-> [--json]` | Send one prompt and print the answer |
+| `load\|unload <preset> [--service <selector> \| --global]` | Load or unload a published preset |
 
 ## Maintenance
 
@@ -109,8 +116,14 @@ used. `server` is an alias of `service`.
 | `update [--global]` | Check for updates and save a plan |
 | `upgrade [--global]` | Apply valid proposals from the plan |
 | `verify [--global] [--checksum] [--json]` | Audit resources |
-| `clean [--global] [--dry-run\|--yes]` | Preview or free eligible resources |
+| `usage` (alias `df`) | Show used and reclaimable space |
+| `prune [--global] [--dry-run\|--yes]` (alias `clean`) | Preview or free eligible resources |
+| `project list [--json]` | List known projects and their state |
+| `project forget <id>... \| --inaccessible [--dry-run\|--yes]` | Forget projects; deletes no files |
 | `combination list\|forget <id>` | Show or forget combinations |
+
+`usage` and `prune` accept `-f <file>`, `--project <id>`, `--model`, `--companion`,
+`--backend`, `--select <reference>`, and `--downloads`. See [Disk space](maintenance.md#disk-space).
 
 `update`, `upgrade`, and `verify` accept a repeatable `--select <reference>`, such
 as `backend://cuda@12`, `model://key`, or `companion://key`.
@@ -122,6 +135,8 @@ as `backend://cuda@12`, `model://key`, or `companion://key`.
 | `config backends-dir show\|set <path>\|unset` | Configure the backends folder |
 | `config models-dir show\|set <path>\|unset` | Configure the models folder |
 | `config log-retention show\|set <size>\|unset` | Configure global log retention |
+| `config language show\|set <auto\|code>\|unset\|list\|export <code>` | Choose the language |
+| `config observer-interval show\|set <s>\|unset` | Configure how often observers read |
 | `config observer-retry show\|set <initial-s> <max-s>\|unset` | Configure reconnection |
 | `param list\|show <name>` | Inspect parameter definitions |
 | `param define <name> --file <definition.yaml>` | Define a parameter |

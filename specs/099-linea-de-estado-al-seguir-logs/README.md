@@ -1,17 +1,19 @@
 ---
-status: complete
+status: archived
 created: 2026-11-17
 tags:
 - m5
 - cli
 created_at: 2026-11-17T15:14:50.553223800Z
-updated_at: 2026-11-17T18:44:38.380479100Z
+updated_at: 2026-11-18T03:11:37.775167Z
 completed_at: 2026-11-17T18:44:38.380479100Z
 transitions:
 - status: in-progress
   at: 2026-11-17T15:14:55.285812Z
 - status: complete
   at: 2026-11-17T18:44:38.380479100Z
+- status: archived
+  at: 2026-11-18T03:11:37.775167Z
 ---
 # Línea de estado al seguir logs
 

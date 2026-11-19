@@ -1,5 +1,5 @@
 ---
-status: complete
+status: archived
 created: 2026-11-10
 priority: medium
 tags:
@@ -7,13 +7,15 @@ tags:
 - dashboard
 - m4
 created_at: 2026-11-10T13:49:50.625498500Z
-updated_at: 2026-11-10T15:43:58.108836Z
+updated_at: 2026-11-18T03:11:37.732978600Z
 completed_at: 2026-11-10T15:43:58.108836Z
 transitions:
 - status: in-progress
   at: 2026-11-10T14:04:45.280779600Z
 - status: complete
   at: 2026-11-10T15:43:58.108836Z
+- status: archived
+  at: 2026-11-18T03:11:37.732978600Z
 ---
 # Completar gestión de servicios, backends y descargas en la TUI
 

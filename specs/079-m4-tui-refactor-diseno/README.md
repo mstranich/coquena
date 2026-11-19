@@ -1,5 +1,5 @@
 ---
-status: complete
+status: archived
 created: 2026-11-09
 priority: high
 tags:
@@ -7,7 +7,7 @@ tags:
 - dashboard
 - m4
 created_at: 2026-11-09T16:32:45.882585700Z
-updated_at: 2026-11-09T20:16:55.210673900Z
+updated_at: 2026-11-18T03:11:37.724443500Z
 completed_at: 2026-11-09T20:16:55.210673900Z
 transitions:
 - status: in-progress
@@ -16,6 +16,8 @@ transitions:
   at: 2026-11-09T18:21:48.055670500Z
 - status: complete
   at: 2026-11-09T20:16:55.210673900Z
+- status: archived
+  at: 2026-11-18T03:11:37.724443500Z
 ---
 # Refactorizar las pantallas existentes de la TUI al nuevo diseño
 

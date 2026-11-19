@@ -1,5 +1,7 @@
 # Procedencia de presets y filtros de actualización en la TUI
 
+**Archivado:** resuelto en [089](../../specs/089-m4-tui-coherencia-consistencia/README.md); capas numeradas por valor y filtros elegibles de una lista; el `null` de eliminar se corrigió en [090](../../specs/090-m4-tui-editor-mejoras/README.md).
+
 Fecha de registro: 10 de noviembre de 2026. Observado en el mismo recorrido que
 [012](012-coherencia-visual-tui.md)
 ([086](../../specs/086-m4-tui-presets-parametros-importacion-actualizaciones/README.md)).

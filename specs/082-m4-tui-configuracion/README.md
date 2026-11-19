@@ -1,20 +1,21 @@
 ---
-status: complete
+status: archived
 created: 2026-11-09
 priority: medium
 tags:
 - tui
 - dashboard
 - m4
-updated_at: 2026-11-10T13:36:34.344572900Z
+updated_at: 2026-11-18T03:11:37.730761400Z
 completed_at: 2026-11-10T13:36:34.344572900Z
 transitions:
 - status: in-progress
   at: 2026-11-10T00:47:10.273998700Z
 - status: complete
   at: 2026-11-10T13:36:34.344572900Z
+- status: archived
+  at: 2026-11-18T03:11:37.730761400Z
 ---
-
 # Llevar Configuración a la vista previa
 
 ## Objetivo

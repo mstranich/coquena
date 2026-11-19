@@ -6,10 +6,34 @@ has `show`, `set`, and `unset`; `unset` restores the default.
 
 | Setting | Default | Controls |
 | --- | --- | --- |
+| `language` | `auto` | The language of Coquena's messages |
 | `log-retention` | 100 MiB | How much log history each service keeps |
+| `observer-interval` | 2 s; 0.5 s in `logs -f` | How often observers read a service |
 | `observer-retry` | 1 s, up to 30 s | How `ps --watch` and `logs follow` reconnect |
 | `models-dir` | `models` in the Coquena home | Where global models are stored |
 | `backends-dir` | `backends` in the Coquena home | Where global backends are stored |
+
+The **Coquena** category of the Configuration tab (≡) in the
+[terminal interface](terminal-interface.md) edits the same settings.
+
+## Language
+
+Coquena ships in English (`en-US`) and Spanish (`es-AR`). With `auto`, it follows the
+language of your system and falls back to English.
+
+```powershell
+coquena config language list
+coquena config language set en-US
+coquena config language unset
+```
+
+Numbers and dates keep your system's regional format; the language only changes the
+texts. To translate Coquena, export a language as a template, translate its values,
+and save it as `languages/<code>.json` in the Coquena home:
+
+```powershell
+coquena config language export es-AR
+```
 
 ## Coquena home
 
@@ -66,6 +90,23 @@ coquena config observer-retry show
 coquena config observer-retry set 2 60
 coquena config observer-retry unset
 ```
+
+## Observation interval
+
+`ps --watch`, the status line of `logs -f`, and the Live tab of the terminal interface
+read each service periodically. By default they read every 2 seconds, and the status
+line every 0.5 seconds. Set your own interval, in seconds between 0.25 and 60, to get
+more detail or to put less load on the service; it then applies to all of them:
+
+```powershell
+coquena config observer-interval show
+coquena config observer-interval set 1
+coquena config observer-interval unset
+```
+
+`--interval` in `ps --watch` and `logs -f` overrides it for a single run. In the Live
+tab, each column of the charts covers one interval, so a longer interval shows a longer
+stretch of history.
 
 ## Storage folders
 

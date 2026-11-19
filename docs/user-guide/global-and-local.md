@@ -8,7 +8,7 @@ belongs to one project. You can use both at the same time.
 | Belongs to | Your user | One project folder |
 | Stored in | `%USERPROFILE%\.coquena`, or `COQUENA_HOME` | `.coquena\` in the project |
 | Service created by | `up`, `coquena service create <name> --global`, or `coquena import` | A `service` block in the project's recipe |
-| Selected with | `target: global`, or a service name or `default` | `target: self`, or `self` |
+| Selected with | `publish-to: global`, `default`, or a global service name | `publish-to: self` |
 | Best for | Everyday models shared by several projects | Experiments, forks, and pinned backends |
 
 `COQUENA_HOME` must be an absolute path. Coquena adds its own `.gitignore` to a
@@ -16,15 +16,15 @@ project's `.coquena\` folder.
 
 ## Global services
 
-Global services are shared infrastructure. A project with `target: global`, or with
-no `target`, publishes its presets to the default global service. Several projects
+Global services are shared infrastructure. A project with `publish-to: global`, or with
+no `publish-to`, publishes its presets to the default global service. Several projects
 can do this at once: their presets are combined on one router, and each project
 manages only its own. This saves resources, because the projects share one process
 instead of competing for the GPU.
 
 ```yaml
 name: news
-target: global
+publish-to: global
 presets:
   summary:
     args:
@@ -39,7 +39,7 @@ collide with other services.
 
 ```yaml
 name: experiment
-target: self
+publish-to: self
 service:
   backend:
     version: latest

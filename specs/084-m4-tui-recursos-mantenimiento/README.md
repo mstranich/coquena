@@ -1,5 +1,5 @@
 ---
-status: complete
+status: archived
 created: 2026-11-10
 priority: medium
 tags:
@@ -7,13 +7,15 @@ tags:
 - dashboard
 - m4
 created_at: 2026-11-10T15:55:46.830108900Z
-updated_at: 2026-11-10T17:19:27.642555700Z
+updated_at: 2026-11-18T03:11:37.737024900Z
 completed_at: 2026-11-10T17:19:27.642555700Z
 transitions:
 - status: in-progress
   at: 2026-11-10T16:02:27.858561200Z
 - status: complete
   at: 2026-11-10T17:19:27.642555700Z
+- status: archived
+  at: 2026-11-18T03:11:37.737024900Z
 ---
 # Completar inventario, adquisición y mantenimiento de recursos en la TUI
 

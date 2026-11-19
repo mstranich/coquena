@@ -1,15 +1,17 @@
 ---
-status: complete
+status: archived
 created: 2026-11-17
 priority: medium
 created_at: 2026-11-17T23:59:54.456602700Z
-updated_at: 2026-11-18T02:50:45.336885800Z
+updated_at: 2026-11-18T03:11:37.780029200Z
 completed_at: 2026-11-18T02:50:45.336885800Z
 transitions:
 - status: in-progress
   at: 2026-11-18T00:40:18.098942800Z
 - status: complete
   at: 2026-11-18T02:50:45.336885800Z
+- status: archived
+  at: 2026-11-18T03:11:37.780029200Z
 ---
 # Intervalo de observación configurable
 

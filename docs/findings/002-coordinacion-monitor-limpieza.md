@@ -1,5 +1,7 @@
 # El monitor de descargas puede convertir una finalización exitosa en error
 
+**Archivado:** resuelto en [092](../../specs/092-m4-reproducir-monitor-limpieza/README.md); la publicación conserva su resultado y el monitor ya no compite con la limpieza.
+
 Fecha de registro: 29 de octubre de 2026. Solicitado por el usuario tras evaluar
 la coordinación entre monitor y limpieza durante la revisión de
 [recuperación de servicios](../../specs/054-m3-recuperacion/README.md).

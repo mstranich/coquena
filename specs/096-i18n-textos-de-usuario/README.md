@@ -1,12 +1,12 @@
 ---
-status: complete
+status: archived
 created: 2026-11-13
 priority: medium
 tags:
 - i18n cli tui
 - m5
 created_at: 2026-11-13T16:33:37.861730400Z
-updated_at: 2026-11-16T18:42:06.735375Z
+updated_at: 2026-11-18T03:11:37.767780100Z
 completed_at: 2026-11-16T18:42:06.735375Z
 transitions:
 - status: draft
@@ -17,6 +17,8 @@ transitions:
   at: 2026-11-16T14:12:00.111637300Z
 - status: complete
   at: 2026-11-16T18:42:06.735375Z
+- status: archived
+  at: 2026-11-18T03:11:37.767780100Z
 ---
 # Internacionalizar los textos de usuario
 
