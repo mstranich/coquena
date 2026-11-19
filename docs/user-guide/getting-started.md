@@ -45,6 +45,17 @@ To confirm the preset is published, run:
 coquena ps
 ```
 
+The service is an OpenAI-compatible server at `http://127.0.0.1:9931`. Ask it which
+models it offers:
+
+```powershell
+(Invoke-RestMethod http://127.0.0.1:9931/v1/models).data.id
+```
+
+```text
+ai-lab/chat
+```
+
 ## Try it
 
 Chat with the preset from the terminal:

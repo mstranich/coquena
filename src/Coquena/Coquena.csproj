@@ -17,4 +17,11 @@
     <PackageReference Include="YamlDotNet" Version="18.1.0" />
     <EmbeddedResource Include="Localization/*.json" LogicalName="languages/%(Filename)%(Extension)" />
   </ItemGroup>
+  <!-- Terminal.Gui pulls libonigwrap (TextMate regexes) transitively; Coquena does not use it. -->
+  <Target Name="ExcludeOnigwrap" AfterTargets="ResolvePackageAssets">
+    <ItemGroup>
+      <NativeCopyLocalItems Remove="@(NativeCopyLocalItems)" Condition="'%(Filename)' == 'libonigwrap'" />
+      <RuntimeTargetsCopyLocalItems Remove="@(RuntimeTargetsCopyLocalItems)" Condition="'%(Filename)' == 'libonigwrap'" />
+    </ItemGroup>
+  </Target>
 </Project>
