@@ -18,6 +18,7 @@ Uso:
 from __future__ import annotations
 
 import argparse
+import html
 import hashlib
 import io
 import os
@@ -119,6 +120,26 @@ def rewrite_links(page: Path) -> None:
     page.write_text(LINK.sub(replace, text), encoding="utf-8")
 
 
+GIF_IMAGE = re.compile(r"!\[([^\]]*)\]\(([^)\s]+)\.gif\)")
+
+
+def gifs_to_videos(page: Path) -> None:
+    """En el sitio, un GIF con un MP4 al lado se publica como video; GitHub conserva el GIF."""
+    text = page.read_text(encoding="utf-8")
+
+    def replace(match: re.Match[str]) -> str:
+        alt, stem = match.groups()
+        if not (page.parent / f"{stem}.mp4").exists():
+            return match.group(0)
+        label = html.escape(alt, quote=True)
+        return (
+            f'<video src="{stem}.mp4" autoplay loop muted playsinline '
+            f'aria-label="{label}" style="width:100%"><img src="{stem}.gif" alt="{label}"></video>'
+        )
+
+    page.write_text(GIF_IMAGE.sub(replace, text), encoding="utf-8")
+
+
 def git(*args: str) -> subprocess.CompletedProcess[bytes]:
     return subprocess.run(["git", *args], cwd=ROOT, capture_output=True)
 
@@ -159,6 +180,7 @@ def prepare(use_worktree: bool) -> None:
     for page in sorted(OUTPUT.rglob("*.md")):
         extract_fences(page, diagrams)
         rewrite_links(page)
+        gifs_to_videos(page)
 
     index = OUTPUT / "README.md"
     banner = '![Coquena: manage, watch & tune your local LLMs](assets/coquena-banner.jpg){ .cq-banner }\n\n'
