@@ -27,6 +27,16 @@ internal sealed class HardwareHistory
             var column = Math.Clamp((int)((at - start).Ticks * width / Span.Ticks), 0, width - 1);
             result[column] = Math.Max(result[column] ?? double.MinValue, value.Value);
         }
+        // Like ObservationTimeline: hold the last value while it is still valid.
+        var hold = ObservationTimeline.Interval * ObservationTimeline.HoldColumns;
+        var columnSpan = Span / width;
+        int? filled = null;
+        for (var index = 0; index < width; index++)
+        {
+            if (result[index] is not null) { filled = index; continue; }
+            if (filled is { } from && columnSpan * (index - from) <= hold && start + columnSpan * index <= now)
+                result[index] = result[from];
+        }
         return result;
     }
 

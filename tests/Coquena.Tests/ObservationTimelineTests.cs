@@ -16,20 +16,22 @@ internal static class ObservationTimelineTests
         gpuB.Add(start.AddSeconds(4), .35);
         check(gpuA.Read(start.AddSeconds(4), 3).SequenceEqual(new double?[] { .40, .45, .42 }),
             "responding GPU retains the shared time axis");
-        check(gpuB.Read(start.AddSeconds(4), 3).SequenceEqual(new double?[] { .30, null, .35 }),
-            "missing GPU reading leaves a gap without shifting or interpolating");
+        check(gpuB.Read(start.AddSeconds(4), 3).SequenceEqual(new double?[] { .30, .30, .35 }),
+            "a missing GPU reading repeats the previous valid value without shifting");
         check(gpuB.Read(start.AddSeconds(4), 2).SequenceEqual(new double?[] { null, .35 }) &&
-            gpuB.Read(start.AddSeconds(4), 5).SequenceEqual(new double?[] { null, null, .30, null, .35 }),
-            "resize preserves observation times and gaps");
-        check(gpuB.Read(start.AddSeconds(6), 3).SequenceEqual(new double?[] { null, .35, null }),
-            "a redraw advances time without duplicating the last measurement");
-        check(gpuB.Read(start.AddSeconds(54), 24).All(value => value is null),
+            gpuB.Read(start.AddSeconds(4), 5).SequenceEqual(new double?[] { null, null, .30, .30, .35 }),
+            "resize preserves observation times and absence before the first reading");
+        check(gpuB.Read(start.AddSeconds(6), 3).SequenceEqual(new double?[] { .30, .35, .35 }),
+            "a redraw holds the last measurement while it is valid");
+        check(gpuA.Read(start.AddSeconds(10), 4).SequenceEqual(new double?[] { .42, .42, .42, null }),
+            "a reading is held for two intervals and then shown as absent");
+        check(gpuB.Read(start.AddSeconds(60), 24).All(value => value is null),
             "a stalled source ages out of the visible time window");
 
         var phase = new ObservationTimeline();
         phase.Add(start.AddMilliseconds(500), 1);
         phase.Add(start.AddSeconds(4).AddMilliseconds(500), 2);
-        check(phase.Read(start.AddSeconds(5), 3).SequenceEqual(new double?[] { 1, null, 2 }),
+        check(phase.Read(start.AddSeconds(5), 3).SequenceEqual(new double?[] { 1, 1, 2 }),
             "phase and resource readings use the same two-second UTC columns");
         gpuB.Add(start.AddSeconds(6), 0);
         check(gpuB.Read(start.AddSeconds(6), 1)[0] == 0,

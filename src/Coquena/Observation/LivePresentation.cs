@@ -25,7 +25,7 @@ internal static class LivePresentation
     public static string Tokens(long value) => value < 1000 ? value.ToString(CultureInfo.InvariantCulture) : Number(value / 1000d) + "k";
 
     public static string Spark(IEnumerable<double?> ratios) =>
-        new(ratios.Select(ratio => ratio is double value ? Levels[Math.Clamp((int)(Math.Clamp(value, 0, 1) * Levels.Length), 0, Levels.Length - 1)] : ' ').ToArray());
+        new(ratios.Select(ratio => ratio is double value ? Levels[Math.Clamp((int)(Math.Clamp(value, 0, 1) * Levels.Length), 0, Levels.Length - 1)] : '·').ToArray());
 
     // Top bar: three tabs, downloads, notices and the Configuración icon. The indicators always keep their space.
     // active: 0 En vivo, 1 Definiciones, 2 Configuración, 3 Descargas, 4 Notificaciones, 5 Herramientas.

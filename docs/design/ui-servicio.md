@@ -56,7 +56,7 @@ permite consultar también el inventario y los motivos de falta de confirmación
 Las series de recursos y la fase de la tarea enfocada comparten columnas de un
 intervalo de observación (2 s por defecto, ver `config observer-interval` en
 [comandos](comandos.md)), ubicadas por la fecha de cada lectura. Cada dispositivo conserva
-sus huecos aunque otros sigan respondiendo. La leyenda identifica la resolución,
+sus ausencias aunque otros sigan respondiendo. La leyenda identifica la resolución,
 la hora y las fases observadas. La coincidencia temporal permite comparar
 actividad y recursos compartidos sin atribuir causalidad ni consumo exclusivo.
 El histórico conserva hasta 24 columnas durante la sesión; al reducir el ancho
@@ -65,8 +65,10 @@ se muestra su tramo más reciente.
 Una lectura con más de dos intervalos de antigüedad (4 s por defecto) se marca
 como antigua.
 El detalle conserva la cifra y su fecha. Esta marca afecta la presentación del
-valor actual; el gráfico conserva cada lectura en su instante original y los
-intervalos sin lectura permanecen visibles como huecos.
+valor actual; el gráfico conserva cada lectura en su instante original. Un
+intervalo sin lectura repite la anterior mientras sigue vigente, es decir, hasta
+dos intervalos después de tomada. Pasado ese límite, el intervalo muestra un
+glifo de ausencia (`·`), distinto de un valor cero.
 
 El panel Recursos muestra fuente, unidad, alcance, fecha, ventana de medición
 y motivo de indisponibilidad de cada contador. Distingue el consumo de máquina,
